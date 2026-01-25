@@ -129,7 +129,7 @@ else
         var validItems = valuationResults.Where(x => x.LOFHistory != null && x.LOFHistory.NetValue != null).ToList();
         if (validItems.Any())
         {
-            var lastItem = validItems.Last();
+            var lastItem = valuationResults.Last();
             var lastCloseItem = valuationResults.Where(x => x.LOFHistory != null && x.LOFHistory.ClosePrice != null).Last();
             
             Console.ForegroundColor = ConsoleColor.Blue;
@@ -138,7 +138,8 @@ else
             
             // 显示最新报价
             decimal lastClosePrice = lastCloseItem.LOFHistory?.ClosePrice ?? 0;
-            decimal latestNetValue = lastItem.LOFHistory?.NetValue ?? 0;
+            decimal latestNetValue = valuationResults.Where(x=>x.LOFHistory!=null
+            && (x.LOFHistory.ValValue>0)).Last().LOFHistory.NetValue.Value;
             decimal estimatedChange = lastItem.EstimatedChangeRate ?? 0;
             decimal estimatedNetValue = (1 + estimatedChange) * latestNetValue;
             

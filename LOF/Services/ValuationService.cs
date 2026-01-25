@@ -136,12 +136,12 @@ namespace LOF.Services
                                 result += (decimal)stock.ChangePercent * weight/100;
                             }
                         }
-                        // 处理美元/人民币汇率
-                        if (USdToCny.ChangePercent != 0)
-                        {
-                            // 美元/人民币汇率影响净值涨跌幅，需要调整
-                            result = result+(decimal)USdToCny.ChangePercent ;
-                        }
+                        //// 处理美元/人民币汇率
+                        //if (USdToCny.ChangePercent != 0)
+                        //{
+                        //    // 美元/人民币汇率影响净值涨跌幅，需要调整
+                        //    result = result+(decimal)USdToCny.ChangePercent ;
+                        //}
                         //管理费
                         result=result-0.000041096m;
                         return result;
