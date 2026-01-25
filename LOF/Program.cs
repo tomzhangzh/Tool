@@ -139,7 +139,7 @@ else
             // 显示最新报价
             decimal lastClosePrice = lastCloseItem.LOFHistory?.ClosePrice ?? 0;
             decimal latestNetValue = valuationResults.Where(x=>x.LOFHistory!=null
-            && (x.LOFHistory.ValValue>0)).Last().LOFHistory.NetValue.Value;
+            && (x.LOFHistory.ValValue>0)).Last().LOFHistory.NetValue.v;
             decimal estimatedChange = lastItem.EstimatedChangeRate ?? 0;
             decimal estimatedNetValue = (1 + estimatedChange) * latestNetValue;
             
