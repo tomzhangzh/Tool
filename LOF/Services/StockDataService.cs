@@ -55,10 +55,10 @@ namespace LOF.Services
             //     ProductName = "美元/人民币",
             //     Url = "https://cn.investing.com/currencies/usd-cny-historical-data"
             // });
-            // foreach (var position in positions)
-            // {
-            //     await FetchStockPriceHistory(position);
-            // }
+            foreach (var position in positions)
+            {
+                await FetchStockPriceHistory(position);
+            }
             foreach (var position in positions)
             {
                 await FetchStockPriceReal(position);
@@ -894,7 +894,7 @@ namespace LOF.Services
                 
                 // 等待页面加载完成
                 Console.WriteLine("等待页面加载完成...");
-                Thread.Sleep(5000); // 等待5秒确保页面完全加载
+                Thread.Sleep(10000); // 等待5秒确保页面完全加载
                 Console.WriteLine("页面加载等待完成");
                 
                 // 查找盘后数据
@@ -926,7 +926,7 @@ function getAfterHoursData() {
 // 使用
 return getAfterHoursData();
 ";
-                    
+                    Thread.Sleep(2000); // 等待5秒确保页面完全加载
                     var afterHoursData = driver.ExecuteScript(script);
                     
                     if (afterHoursData != null)
@@ -958,13 +958,26 @@ return getAfterHoursData();
                             // 解析当前变化
                             if (dataDict.TryGetValue("currentChange", out var currentChangeObj))
                             {
-                                stockData.CurrentChange = currentChangeObj as string;
+                                var currentChangeText = currentChangeObj as string;
+                                if (decimal.TryParse(currentChangeText, out var currentChange))
+                                {
+                                    stockData.CurrentChange = currentChange;
+                                }
                             }
                             
                             // 解析当前百分比
                             if (dataDict.TryGetValue("currentPercent", out var currentPercentObj))
                             {
-                                stockData.CurrentPercent = currentPercentObj as string;
+                                var currentPercentText = currentPercentObj as string;
+                                if (!string.IsNullOrEmpty(currentPercentText))
+                                {
+                                    // 移除括号和百分号
+                                    var cleanedText = currentPercentText.Replace("(", "").Replace(")", "").Replace("%", "");
+                                    if (decimal.TryParse(cleanedText, out var currentPercent))
+                                    {
+                                        stockData.CurrentPercent = currentPercent / 100; // 转换为小数
+                                    }
+                                }
                             }
                             
                             // 解析实时价格
@@ -980,13 +993,26 @@ return getAfterHoursData();
                             // 解析实时变化
                             if (dataDict.TryGetValue("RealChange", out var realChangeObj))
                             {
-                                stockData.RealChange = realChangeObj as string;
+                                var realChangeText = realChangeObj as string;
+                                if (decimal.TryParse(realChangeText, out var realChange))
+                                {
+                                    stockData.RealChange = realChange;
+                                }
                             }
                             
                             // 解析实时百分比
                             if (dataDict.TryGetValue("RealPercent", out var realPercentObj))
                             {
-                                stockData.RealPercent = realPercentObj as string;
+                                var realPercentText = realPercentObj as string;
+                                if (!string.IsNullOrEmpty(realPercentText))
+                                {
+                                    // 移除括号和百分号
+                                    var cleanedText = realPercentText.Replace("(", "").Replace(")", "").Replace("%", "");
+                                    if (decimal.TryParse(cleanedText, out var realPercent))
+                                    {
+                                        stockData.RealPercent = realPercent / 100; // 转换为小数
+                                    }
+                                }
                             }
                             
                             // 解析实时时间

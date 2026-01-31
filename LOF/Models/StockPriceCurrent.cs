@@ -57,7 +57,7 @@ namespace LOF.Models
         /// <summary>
         /// 实时时间
         /// </summary>
-        public decimal? RealTime { get; set; }
+        public string? RealTime { get; set; }
 
         /// <summary>
         /// 类型
