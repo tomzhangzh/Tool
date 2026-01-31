@@ -39,6 +39,23 @@ if (args.Length > 0 && args[0] == "1")
         Console.WriteLine("数据抓取任务失败：" + ex.Message);
     }
 }
+else if (args.Length > 0 && args[0] == "0")
+{
+    // 只更新实时价格
+    try
+    {
+        Console.WriteLine("开始执行实时价格更新任务...");
+
+        // 执行实时价格更新
+        await stockDataService.FetchStockPriceRealAll();
+
+        Console.WriteLine("实时价格更新任务完成");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("实时价格更新任务失败：" + ex.Message);
+    }
+}
 else 
 {
     // 执行估值计算

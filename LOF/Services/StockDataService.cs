@@ -98,47 +98,6 @@ namespace LOF.Services
                 // 等待页面加载完成
                 Thread.Sleep(5000); // 等待5秒确保页面完全加载
                 
-                // 尝试点击历史数据按钮或直接访问历史数据页面
-                try
-                {
-                    // 打印当前URL，确认我们在正确的页面
-                    Console.WriteLine($"当前页面URL: {driver.Url}");
-                    
-                    // 尝试查找并点击历史数据按钮
-                    try
-                    {
-                        var historyButton = driver.FindElement(By.XPath("//a[contains(text(), '历史数据')]"));
-                        Console.WriteLine("找到历史数据按钮，尝试点击...");
-                        historyButton.Click();
-                        Thread.Sleep(5000); // 等待历史数据加载完成
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"未找到历史数据按钮或点击失败：{ex.Message}");
-                        Console.WriteLine("尝试查找其他可能的历史数据入口...");
-                        
-                        // 尝试查找包含'历史'的链接
-                        try
-                        {
-                            var historyLinks = driver.FindElements(By.XPath("//a[contains(text(), '历史')]"));
-                            Console.WriteLine($"找到 {historyLinks.Count} 个包含'历史'的链接");
-                            if (historyLinks.Count > 0)
-                            {
-                                historyLinks[0].Click();
-                                Thread.Sleep(5000);
-                            }
-                        }
-                        catch (Exception ex2)
-                        {
-                            Console.WriteLine($"尝试查找其他历史链接失败：{ex2.Message}");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"处理历史数据按钮时发生错误：{ex.Message}");
-                }
-                
                 // 尝试定位历史数据表格
                 try
                 {
@@ -151,153 +110,7 @@ namespace LOF.Services
                     // 尝试不同的表格定位方式
                     Console.WriteLine("尝试定位历史数据表格...");
                     
-                    // 方法1: 原始XPath
-                    try
-                    {
-                        var table = driver.FindElement(By.XPath("//div[@id='history_data']//table"));
-                        Console.WriteLine("找到历史数据表格（方法1）");
-                        
-                        var rows = table.FindElements(By.TagName("tr"));
-                        Console.WriteLine($"找到 {rows.Count} 行数据");
 
-                        // 存储抓取的数据
-                        var webDriverLofHistories = new List<LOFHistory>();
-
-                        // 遍历表格行（跳过表头，从第2行开始）
-                        for (int i = 1; i < rows.Count; i++)
-                        {
-                            var cells = rows[i].FindElements(By.TagName("td"));
-                            if (cells.Count < 11) continue; // 过滤无效行
-
-                            // 提取每个单元格的数据
-                            var data = new LOFHistory
-                            {
-                                Code = lofCode,
-                                UpdateTime = DateTime.Now // 设置更新时间为当前时间
-                            };
-
-                            // 1. 价格日期
-                            if (cells.Count > 0 && DateTime.TryParse(cells[0].Text.Trim(), out var priceDate))
-                            {
-                                data.PriceDate = priceDate;
-                            }
-
-                            // 2. 收盘价
-                            if (cells.Count > 1 && decimal.TryParse(cells[1].Text.Trim(), out var closePrice))
-                            {
-                                data.ClosePrice = closePrice;
-                            }
-
-                            // 3. 净值日期
-                            if (cells.Count > 2 && DateTime.TryParse(cells[2].Text.Trim(), out var netDate))
-                            {
-                                data.NetDate = netDate;
-                            }
-
-                            // 4. 净值
-                            if (cells.Count > 3 && decimal.TryParse(cells[3].Text.Trim(), out var netValue))
-                            {
-                                data.NetValue = netValue;
-                            }
-
-                            // 5. 估值日期
-                            if (cells.Count > 4 && DateTime.TryParse(cells[4].Text.Trim(), out var valDate))
-                            {
-                                data.ValDate = valDate;
-                            }
-
-                            // 6. 估值
-                            if (cells.Count > 5 && decimal.TryParse(cells[5].Text.Trim(), out var valValue))
-                            {
-                                data.ValValue = valValue;
-                            }
-
-                            // 7. 估值误差
-                            if (cells.Count > 6 && decimal.TryParse(cells[6].Text.Trim(), out var valError))
-                            {
-                                data.ValError = valError;
-                            }
-
-                            // 8. 溢价率
-                            if (cells.Count > 7 && decimal.TryParse(cells[7].Text.Trim(), out var premiumRate))
-                            {
-                                data.PremiumRate = premiumRate / 100; // 转换为小数
-                            }
-
-                            // 9. 交易量
-                            if (cells.Count > 8 && decimal.TryParse(cells[8].Text.Trim(), out var tradeAmount))
-                            {
-                                data.TradeAmount = tradeAmount;
-                            }
-
-                            // 10. 份额数量
-                            if (cells.Count > 9 && decimal.TryParse(cells[9].Text.Trim(), out var shareCount))
-                            {
-                                data.ShareCount = shareCount;
-                            }
-
-                            // 11. 份额增加
-                            if (cells.Count > 10 && decimal.TryParse(cells[10].Text.Trim(), out var shareAdd))
-                            {
-                                data.ShareAdd = shareAdd;
-                            }
-
-                            // 12. 份额变化率
-                            if (cells.Count > 11 && decimal.TryParse(cells[11].Text.Trim(), out var shareChangeRate))
-                            {
-                                data.ShareChangeRate = shareChangeRate / 100; // 转换为小数
-                            }
-
-                            // 13. 指数变化率
-                            if (cells.Count > 12 && decimal.TryParse(cells[12].Text.Trim(), out var indexChangeRate))
-                            {
-                                data.IndexChangeRate = indexChangeRate / 100; // 转换为小数
-                            }
-
-                            webDriverLofHistories.Add(data);
-                        }
-
-                        // 批量插入或更新数据
-                        foreach (var history in webDriverLofHistories)
-                        {
-                            var existing = _db.Queryable<LOFHistory>()
-                                .Where(h => h.Code == history.Code && h.PriceDate == history.PriceDate)
-                                .First();
-
-                            if (existing != null)
-                            {
-                                // 更新现有数据
-                                existing.NetDate = history.NetDate;
-                                existing.NetValue = history.NetValue;
-                                existing.ValDate = history.ValDate;
-                                existing.ValValue = history.ValValue;
-                                existing.ValError = history.ValError;
-                                existing.ClosePrice = history.ClosePrice;
-                                existing.PremiumRate = history.PremiumRate;
-                                existing.TradeAmount = history.TradeAmount;
-                                existing.ShareCount = history.ShareCount;
-                                existing.ShareAdd = history.ShareAdd;
-                                existing.ShareChangeRate = history.ShareChangeRate;
-                                existing.IndexChangeRate = history.IndexChangeRate;
-                                existing.UpdateTime = history.UpdateTime;
-                                _db.Updateable(existing).ExecuteCommand();
-                                Console.WriteLine($"更新LOF {history.Code} {history.PriceDate:yyyy-MM-dd}");
-                            }
-                            else
-                            {
-                                // 插入新数据
-                                _db.Insertable(history).ExecuteCommand();
-                                Console.WriteLine($"插入LOF {history.Code} {history.PriceDate:yyyy-MM-dd}");
-                            }
-                        }
-
-                        Console.WriteLine($"集思录 {lofCode} 数据抓取完成，共处理 {webDriverLofHistories.Count} 条记录");
-                        return;
-                    }
-                    catch (Exception ex1)
-                    {
-                        Console.WriteLine($"方法1定位表格失败：{ex1.Message}");
-                    }
                     
                     // 方法1.5: 尝试查找id为etf_hists的表格
                     try
@@ -445,64 +258,8 @@ namespace LOF.Services
                     catch (Exception ex15)
                     {
                         Console.WriteLine($"方法1.5定位表格失败：{ex15.Message}");
+                        throw new Exception("无法定位到历史数据表格，请检查页面结构是否发生变化");
                     }
-                    
-                    // 方法2: 尝试查找所有表格
-                    try
-                    {
-                        var tables = driver.FindElements(By.TagName("table"));
-                        Console.WriteLine($"找到 {tables.Count} 个表格元素");
-                        
-                        if (tables.Count > 0)
-                        {
-                            // 尝试使用第一个表格
-                            var table = tables[0];
-                            var rows = table.FindElements(By.TagName("tr"));
-                            Console.WriteLine($"第一个表格有 {rows.Count} 行");
-                            
-                            // 检查表头
-                            if (rows.Count > 0)
-                            {
-                                var headerCells = rows[0].FindElements(By.TagName("th"));
-                                Console.WriteLine($"表头有 {headerCells.Count} 列");
-                                for (int j = 0; j < headerCells.Count; j++)
-                                {
-                                    Console.WriteLine($"表头[{j}]: {headerCells[j].Text}");
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex2)
-                    {
-                        Console.WriteLine($"方法2定位表格失败：{ex2.Message}");
-                    }
-                    
-                    // 方法3: 尝试查找包含'历史数据'的div
-                    try
-                    {
-                        var historyDivs = driver.FindElements(By.XPath("//div[contains(text(), '历史数据')]"));
-                        Console.WriteLine($"找到 {historyDivs.Count} 个包含'历史数据'的div");
-                    }
-                    catch (Exception ex3)
-                    {
-                        Console.WriteLine($"方法3定位失败：{ex3.Message}");
-                    }
-                    
-                    // 如果所有方法都失败，获取页面源代码的一部分用于调试
-                    try
-                    {
-                        var debugPageSource = driver.PageSource;
-                        // 保存前2000个字符用于调试
-                        var debugHtml = debugPageSource.Substring(0, Math.Min(2000, debugPageSource.Length));
-                        Console.WriteLine("页面源代码（前2000字符）：");
-                        Console.WriteLine(debugHtml);
-                    }
-                    catch (Exception ex4)
-                    {
-                        Console.WriteLine($"获取页面源代码失败：{ex4.Message}");
-                    }
-                    
-                    throw new Exception("所有表格定位方法都失败");
                 }
                 catch (Exception ex)
                 {
@@ -838,6 +595,22 @@ namespace LOF.Services
             }
         }
         /// <summary>
+        /// 抓取所有股票实时价格
+        /// </summary>
+        /// <returns>任务</returns>
+        public async Task FetchStockPriceRealAll()
+        {
+            // 获取所有持仓信息
+            var positions = _db.Queryable<PortfolioPosition>().ToList();
+            
+            // 遍历每个持仓，抓取实时价格
+            foreach (var position in positions)
+            {
+                await FetchStockPriceReal(position);
+            }
+        }
+
+        /// <summary>
         /// 抓取股票实时价格
         /// </summary>
         /// <param name="position">股票持仓信息</param>
@@ -896,7 +669,7 @@ namespace LOF.Services
                 
                 // 等待页面加载完成
                 Console.WriteLine("等待页面加载完成...");
-                Thread.Sleep(10000); // 等待5秒确保页面完全加载
+                Thread.Sleep(1000); // 等待1秒确保页面完全加载
                 Console.WriteLine("页面加载等待完成");
                 
                 // 查找盘后数据
@@ -928,8 +701,27 @@ function getAfterHoursData() {
 // 使用
 return getAfterHoursData();
 ";
-                    Thread.Sleep(2000); // 等待5秒确保页面完全加载
-                    var afterHoursData = driver.ExecuteScript(script);
+                    
+                    // 尝试获取盘后数据，最多等待10秒
+                    object afterHoursData = null;
+                    var maxAttempts = 10;
+                    var attempt = 0;
+                    
+                    while (afterHoursData == null && attempt < maxAttempts)
+                    {
+                        afterHoursData = driver.ExecuteScript(script);
+                        if (afterHoursData == null)
+                        {
+                            Thread.Sleep(1000); // 等待1秒确保数据加载完成
+                            Console.WriteLine($"第 {attempt + 1} 次尝试获取盘后数据...");
+                            attempt++;
+                        }
+                    }
+                    
+                    if (afterHoursData == null)
+                    {
+                        Console.WriteLine("尝试10次后仍未获取到盘后数据，继续执行其他操作");
+                    }
                     
                     if (afterHoursData != null)
                     {
