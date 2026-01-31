@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Dm;
 using LOF.Models;
+using Microsoft.Playwright;
 using SqlSugar;
 
 namespace LOF.Services
@@ -50,7 +52,7 @@ namespace LOF.Services
                 Console.WriteLine($"获取到 {stockPriceHistories.Count} 条股票价格历史数据");
 
                 // 获取LOFHistory数据（不限制时间范围，以便计算净值涨跌幅）
-                var lofHistories =  _db.Queryable<LOFHistory>()
+                var lofHistories = _db.Queryable<LOFHistory>()
                     .Where(s => s.PriceDate >= startDate && s.PriceDate <= endDate)
                     .OrderBy(l => l.PriceDate)
                     .ToList();
@@ -69,19 +71,19 @@ namespace LOF.Services
                     {
                         Date = currentDate,
                         PortfolioPositions = portfolioPositions,
-                      
+
 
                     };
                     dailyItem.LOFHistory = lofHistories.Where(l => l.PriceDate == currentDate).FirstOrDefault();
                     dailyItem.PreviousLOFHistory = lofHistories.Where(x => x.PriceDate < currentDate)
                         .OrderByDescending(x => x.PriceDate).FirstOrDefault();
                     dailyItem.StockPriceHistories = stockPriceHistories.Where(x => x.TradeDate == dailyItem.LOFHistory?.NetDate).ToList();
-                   //group by trade date
+                    //group by trade date
                     var maxDate = stockPriceHistories.Max(x => x.TradeDate);
-                    if (dailyItem.LOFHistory == null && currentDate>=maxDate)
+                    if (dailyItem.LOFHistory == null && currentDate >= maxDate)
                     {
-                         var stockPrices = stockPriceHistories
-                        .Where(x => x.TradeDate == maxDate).ToList();
+                        var stockPrices = stockPriceHistories
+                       .Where(x => x.TradeDate == maxDate).ToList();
                         dailyItem.StockPriceHistories = stockPrices;
                     }
                     //取得上一个LOF净值日期的历史数据
@@ -104,7 +106,145 @@ namespace LOF.Services
             }
         }
 
+        /// <summary>
+        /// 估算净值涨跌幅
+        /// </summary>
+        /// <param name="date">日期</param>
+        /// <returns>涨跌幅百分比</returns>
+        public decimal CalculateNetValueChange(DateTime? date,bool useValue=false)
+        {
+            if (date == null)
+            {
+                return 0.0m;
+            }
+            // 取得所有权重>0的PortfolioPosition记录
+            var portfolioPositions = _db.Queryable<PortfolioPosition>()
+                .Where(p => p.Weight > 0)
+                .ToList();
+            
+            if (portfolioPositions.Count == 0)
+            {
+                return 0.0m;
+            }
+            
+            // 遍历每个持仓，计算贡献的涨跌幅
+            var totalChange = 0.0m;
+            
+            foreach (var position in portfolioPositions)
+            {
+                // 找出TradeDate < date的最大日期
+                var latestDate = _db.Queryable<StockPriceHistory>()
+                    .Where(s => s.Code == position.Code && s.TradeDate < date)
+                    .Max(s => s.TradeDate);
+                
+                if (latestDate == default(DateTime))
+                {
+                    continue;
+                }
+                
+                // 找到上一个交易日
+                var previousDate = _db.Queryable<StockPriceHistory>()
+                    .Where(s => s.Code == position.Code && s.TradeDate < latestDate)
+                    .Max(s => s.TradeDate);
+                
+                if (previousDate == default(DateTime))
+                {
+                    continue;
+                }
+                
+                // 获取最新日期的涨跌幅
+                var latestChangeObj = _db.Queryable<StockPriceHistory>()
+                    .Where(s => s.Code == position.Code && s.TradeDate == latestDate)
+                    
+                    .First();
+                if (useValue)
+                {
+                    var previousDateObj = _db.Queryable<StockPriceHistory>()
+                  .Where(s => s.Code == position.Code && s.TradeDate == previousDate).First();
+                   // 根据权重计算贡献
+                totalChange += (latestChangeObj.ClosePrice- previousDateObj.ClosePrice) / previousDateObj.ClosePrice * (position.Weight / 100);
+                }
+                else{
+// 根据权重计算贡献
+                totalChange += latestChangeObj.ChangePercent* (position.Weight / 100);
+                }
+                
+            }
+//             var usdToCny = _db.Queryable<StockPriceHistory>()
+//                 .Where(l => l.TradeDate == date && l.Code == "USD/CNY")
+//                 .First();
+//                 if(usdToCny!=null)
+//                 {
+// totalChange += usdToCny.ChangePercent;
+//                 }
+            
+            return totalChange;
+        }
+        /// <summary>
+        /// 估算净值涨跌幅
+        /// </summary>
+        /// <param name="date">日期</param>
+        /// <returns>涨跌幅百分比</returns>
+        public decimal CalculateCurrent()
+        {
+            var findLastNetValue = _db.Queryable<LOFHistory>()
+                 .Where(x => x.NetValue != null).OrderByDescending(x => x.NetDate).First();
+            if (findLastNetValue == null)
+            {
+                return 0.0m;
+            }
+            // 取得所有权重>0的PortfolioPosition记录
+            var portfolioPositions = _db.Queryable<PortfolioPosition>()
+                .Where(p => p.Weight > 0)
+                .ToList();
 
+            if (portfolioPositions.Count == 0)
+            {
+                return 0.0m;
+            }
+            var TradeDate=  _db.Queryable<StockPriceHistory>()
+            .Where(b=> b.TradeDate < findLastNetValue.NetDate)
+                    .Max(s => s.TradeDate);
+            var historyList = _db.Queryable<StockPriceHistory>()
+            .Where(b => b.TradeDate == TradeDate)
+            .ToList();
+            var currentList = _db.Queryable<StockPriceCurrent>()
+                .OrderByDescending(x => x.UpdateTime)
+                .ToList()
+                .GroupBy(x => x.Code)
+                .Select(g => g.First())
+                .ToList();
+                
+            // 遍历每个持仓，计算贡献的涨跌幅
+            var totalChange = 0.0m;
+
+            foreach (var position in portfolioPositions)
+            {
+
+
+                // 获取最新日期的涨跌幅
+                var latestChangeObj = currentList
+                    .Where(s => s.Code == position.Code)
+
+                    .FirstOrDefault();
+
+                var previousDateObj = historyList
+              .Where(s => s.Code == position.Code).First();
+                decimal? currentPrice = 0;
+                if (latestChangeObj == null || previousDateObj == null)
+                {
+                    continue;
+                }
+                currentPrice = latestChangeObj.RealPrice ?? latestChangeObj.CurrentPrice;
+                if ((currentPrice ?? 0) == 0) continue;
+                if (previousDateObj.ClosePrice == 0) { continue; }
+
+                // 根据权重计算贡献
+                totalChange += (currentPrice.Value - previousDateObj.ClosePrice) / previousDateObj.ClosePrice * (position.Weight / 100);
+
+            }
+            return totalChange;
+        }
         /// <summary>
         /// 每日估值结果
         /// </summary>

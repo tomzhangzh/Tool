@@ -2,6 +2,8 @@
 using LOF.Models;
 using LOF.Services;
 using ConsoleTableExt;
+using System.Globalization;
+using System;
 
 // 配置数据库连接字符串
 var connectionString = "Data Source=LOF.sqlite3;";
@@ -17,7 +19,8 @@ var db = new SqlSugarClient(new ConnectionConfig
 
 // 创建数据抓取服务
 var stockDataService = new StockDataService(db);
-// args = new string[] { "1" };
+var valuationService = new ValuationService(db);
+args = new string[] { "2" };
 // 主程序入口
 if (args.Length > 0 && args[0] == "1")
 {
@@ -63,9 +66,7 @@ else
     {
         Console.WriteLine("开始执行估值计算任务...");
 
-        // 创建估值服务
-        var valuationService = new ValuationService(db);
-
+          
         // 设置默认时间范围（从明天往前推30天）
         var endDate = DateTime.Today.AddDays(1);
         var startDate = endDate.AddDays(-30);
@@ -78,7 +79,7 @@ else
 
         // 直接输出结果，使用控制台颜色
         Console.WriteLine("+------------+------------+----------+----------+------------+------------+---------+------------+");
-        Console.WriteLine("| 当前日期   | 净值日期   | 收盘价   | 净值     | 净值涨跌   | 估值涨跌   | 估算净值| 只算金银   |");
+        Console.WriteLine("| 当前日期   | 净值日期   | 收盘价   | 净值     | 净值涨跌   | 估值涨跌   | 估算净值| 估算百分比   |");
         Console.WriteLine("+------------+------------+----------+----------+------------+------------+---------+------------+");
         
         foreach (var item in valuationResults)
@@ -113,7 +114,7 @@ else
             ConsoleHelper.WriteColoredValue(estimatedChange, "P4");
             
             // 输出剩余部分
-            Console.WriteLine($" | {formattedCode} | {EstimatedChangeRate1} |");
+            Console.WriteLine($" | {formattedCode} | {valuationService.CalculateNetValueChange(item.Date).ToString("P4").PadLeft(10)}| {valuationService.CalculateNetValueChange(item.Date,true).ToString("P4").PadLeft(10)}");
         }
         
         Console.WriteLine("+------------+------------+----------+----------+------------+------------+---------+------------+");
@@ -159,11 +160,12 @@ else
             && (x.LOFHistory.ValValue>0)).Last().LOFHistory.NetValue.Value;
             decimal estimatedChange = lastItem.EstimatedChangeRate ?? 0;
             decimal estimatedNetValue = (1 + estimatedChange) * latestNetValue;
-            
+            var 实时百分比 = valuationService.CalculateCurrent();
             Console.WriteLine($"最后收盘价:     {lastClosePrice.ToString("F4")}");
             Console.WriteLine($"最新估值:       {estimatedNetValue.ToString("F4")}");
+            Console.WriteLine($"最新估值%:       {valuationService.CalculateNetValueChange(DateTime.Today).ToString("P4")}");
             Console.WriteLine($"最后净值:       {latestNetValue.ToString("F4")}");
-            
+            Console.WriteLine($"实时估值:       {((1+实时百分比)*latestNetValue).ToString("F4")} ({实时百分比.ToString("P4")})");
             // 计算相对最后净值的百分比
             decimal relativeToLastNetValue = (latestNetValue > 0) ? (estimatedNetValue / latestNetValue - 1) : 0;
             Console.Write("相对最后净值:   ");
