@@ -3,7 +3,7 @@ chcp 65001 >nul 2>&1
 setlocal
 
 :: 配置项（直接修改这里）
-set "TASK_NAME=同步LOFTask"
+set "TASK_NAME=LOF Load Task"
 set "EXE_PATH=E:\Tom\Tool\LOF\bin\Debug\net6.0\LOF.exe"
 set "ARGUMENT=1"
 

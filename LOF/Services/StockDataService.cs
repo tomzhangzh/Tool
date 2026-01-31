@@ -49,20 +49,23 @@ namespace LOF.Services
                 })
                 .ToList();
             
-            positions.Add(new PortfolioPosition()
-            {
-                Code = "USD/CNY",
-                ProductName = "美元/人民币",
-                Url = "https://cn.investing.com/currencies/usd-cny-historical-data"
-            });
+            // positions.Add(new PortfolioPosition()
+            // {
+            //     Code = "USD/CNY",
+            //     ProductName = "美元/人民币",
+            //     Url = "https://cn.investing.com/currencies/usd-cny-historical-data"
+            // });
+            // foreach (var position in positions)
+            // {
+            //     await FetchStockPriceHistory(position);
+            // }
             foreach (var position in positions)
             {
-                await FetchStockPriceHistory(position);
-            }
-            
+                await FetchStockPriceReal(position);
+            } 
 
             // 抓取集思录LOF数据
-            await FetchJisiluLOFData("160216", "https://www.jisilu.cn/data/qdii/detail_hists/");
+            // await FetchJisiluLOFData("160216", "https://www.jisilu.cn/data/qdii/detail_hists/");
 
             Console.WriteLine("所有数据抓取任务完成");
         }
@@ -825,6 +828,220 @@ namespace LOF.Services
                 {
                     Console.WriteLine($"查找历史数据表格失败：{ex.Message}");
                     throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"抓取 {position.Code} 数据失败：{ex.Message}");
+            }
+        }
+        /// <summary>
+        /// 抓取股票实时价格
+        /// </summary>
+        /// <param name="position">股票持仓信息</param>
+        /// <returns>任务</returns>
+        public async Task FetchStockPriceReal(PortfolioPosition position)
+        {
+            var url = position.Url.EndsWith("-historical-data") ? position.Url.Substring(0, position.Url.Length - "-historical-data".Length) : position.Url;
+            if (string.IsNullOrEmpty(url))
+            {
+                Console.WriteLine($"{position.Code} 没有配置URL，跳过抓取");
+                return;
+            }
+
+            try
+            {
+                Console.WriteLine($"正在抓取 {position.Code} 的实时数据...");
+                Console.WriteLine($"目标URL: {url}");
+                
+                // 配置ChromeDriver选项
+                var options = new ChromeOptions();
+                // 移除无头模式，让浏览器窗口显示出来
+                options.AddArgument("--headless"); // 无头模式
+                options.AddArgument("--no-sandbox");
+                options.AddArgument("--disable-dev-shm-usage");
+                options.AddArgument("--disable-gpu");
+                options.AddArgument("--window-size=1920,1080");
+                options.AddArgument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                
+                // 设置页面加载策略为None，这样ChromeDriver就不会等待页面完全加载完成
+                options.PageLoadStrategy = PageLoadStrategy.None;
+                
+                // 指定ChromeDriver路径
+                var driverService = ChromeDriverService.CreateDefaultService(AppDomain.CurrentDomain.BaseDirectory);
+                driverService.HideCommandPromptWindow = true; // 隐藏命令提示符窗口
+                driverService.SuppressInitialDiagnosticInformation = true; // 抑制初始诊断信息
+                
+                Console.WriteLine("创建ChromeDriver实例...");
+                using var driver = new ChromeDriver(driverService, options);
+                Console.WriteLine("ChromeDriver实例创建成功");
+                
+                // 设置隐式等待时间
+                driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
+                
+                // 访问目标URL
+                Console.WriteLine("开始加载URL...");
+                try
+                {
+                    driver.Navigate().GoToUrl(url);
+                    Console.WriteLine("URL加载完成");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"URL加载失败：{ex.Message}");
+                    throw;
+                }
+                
+                // 等待页面加载完成
+                Console.WriteLine("等待页面加载完成...");
+                Thread.Sleep(5000); // 等待5秒确保页面完全加载
+                Console.WriteLine("页面加载等待完成");
+                
+                // 查找盘后数据
+                try
+                {
+                    Console.WriteLine("查找盘后数据...");
+                    
+                    // 执行JavaScript获取盘后数据
+                    var script = @"
+function getAfterHoursData() {
+  const header = document.querySelector('[data-test=""instrument-header-details""]');
+  if (!header) return null;
+
+  // 找盘后数据容器（order-1类且包含flex）
+  const afterHoursContainer = header.querySelector('.order-1.flex');
+  if (!afterHoursContainer) return null;
+
+  return {
+    currentPrice: header.querySelector('[data-test=""instrument-price-last""]')?.textContent?.trim(),
+    currentChange: header.querySelector('[data-test=""instrument-price-change""]')?.textContent?.trim(),
+    currentPercent: header.querySelector('[data-test=""instrument-price-change-percent""]')?.textContent?.trim(),
+    RealPrice: afterHoursContainer.querySelector('span.order-2')?.textContent?.trim(),
+    RealChange: afterHoursContainer.querySelector('span.order-3')?.textContent?.trim(),
+    RealPercent: afterHoursContainer.querySelector('span.order-4')?.textContent?.trim(),
+    RealTime: afterHoursContainer.querySelector('time')?.textContent?.trim()
+  };
+}
+
+// 使用
+return getAfterHoursData();
+";
+                    
+                    var afterHoursData = driver.ExecuteScript(script);
+                    
+                    if (afterHoursData != null)
+                    {
+                        Console.WriteLine("找到盘后数据");
+                        
+                        // 提取盘后数据
+                        var stockData = new StockPriceCurrent
+                        {
+                            Code = position.Code,
+                            UpdateTime = DateTime.Now,
+                            TradeDate = DateTime.Now.Date
+                        };
+                        
+                        // 将afterHoursData转换为Dictionary
+                        var dataDict = afterHoursData as Dictionary<string, object>;
+                        if (dataDict != null)
+                        {
+                            // 解析当前价格
+                            if (dataDict.TryGetValue("currentPrice", out var currentPriceObj))
+                            {
+                                var currentPriceText = currentPriceObj as string;
+                                if (decimal.TryParse(currentPriceText, out var currentPrice))
+                                {
+                                    stockData.CurrentPrice = currentPrice;
+                                }
+                            }
+                            
+                            // 解析当前变化
+                            if (dataDict.TryGetValue("currentChange", out var currentChangeObj))
+                            {
+                                stockData.CurrentChange = currentChangeObj as string;
+                            }
+                            
+                            // 解析当前百分比
+                            if (dataDict.TryGetValue("currentPercent", out var currentPercentObj))
+                            {
+                                stockData.CurrentPercent = currentPercentObj as string;
+                            }
+                            
+                            // 解析实时价格
+                            if (dataDict.TryGetValue("RealPrice", out var realPriceObj))
+                            {
+                                var realPriceText = realPriceObj as string;
+                                if (decimal.TryParse(realPriceText, out var realPrice))
+                                {
+                                    stockData.RealPrice = realPrice;
+                                }
+                            }
+                            
+                            // 解析实时变化
+                            if (dataDict.TryGetValue("RealChange", out var realChangeObj))
+                            {
+                                stockData.RealChange = realChangeObj as string;
+                            }
+                            
+                            // 解析实时百分比
+                            if (dataDict.TryGetValue("RealPercent", out var realPercentObj))
+                            {
+                                stockData.RealPercent = realPercentObj as string;
+                            }
+                            
+                            // 解析实时时间
+                            if (dataDict.TryGetValue("RealTime", out var realTimeObj))
+                            {
+                                stockData.RealTime = realTimeObj as string;
+                            }
+                        }
+                        
+                        // 批量插入或更新
+                        Console.WriteLine("开始批量插入或更新盘后数据");
+                        var existing = _db.Queryable<StockPriceCurrent>()
+                            .Where(s => s.Code == stockData.Code && s.TradeDate == stockData.TradeDate)
+                            .First();
+
+                        if (existing != null)
+                        {
+                            // 检查价格是否发生变化
+                            if (existing.RealPrice != stockData.RealPrice || existing.CurrentChange != stockData.CurrentChange) 
+                            {
+                                // 更新现有数据
+                                existing.CurrentPrice = stockData.CurrentPrice;
+                                existing.CurrentChange = stockData.CurrentChange;
+                                existing.CurrentPercent = stockData.CurrentPercent;
+                                existing.RealPrice = stockData.RealPrice;
+                                existing.RealChange = stockData.RealChange;
+                                existing.RealPercent = stockData.RealPercent;
+                                existing.RealTime = stockData.RealTime;
+                                existing.UpdateTime = DateTime.Now;
+                                _db.Updateable(existing).ExecuteCommand();
+                                Console.WriteLine($"更新 {stockData.Code} {stockData.TradeDate:yyyy-MM-dd} 盘后数据，价格发生变化");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"{stockData.Code} {stockData.TradeDate:yyyy-MM-dd} 价格未发生变化，不处理");
+                            }
+                        }
+                        else
+                        {
+                            // 插入新数据
+                            stockData.UpdateTime = DateTime.Now;
+                            _db.Insertable(stockData).ExecuteCommand();
+                            Console.WriteLine($"插入 {stockData.Code} {stockData.TradeDate:yyyy-MM-dd} 盘后数据");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("未找到盘后数据");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"查找盘后数据失败：{ex.Message}");
+                    // 可以选择继续执行其他逻辑或抛出异常
+                    // throw;
                 }
             }
             catch (Exception ex)

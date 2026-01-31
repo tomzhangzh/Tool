@@ -4,20 +4,20 @@ using LOF.Services;
 using ConsoleTableExt;
 
 // 配置数据库连接字符串
-var connectionString = "Server=.;Database=LOFDB;Trusted_Connection=True;TrustServerCertificate=True;";
+var connectionString = "Data Source=LOF.sqlite3;";
 
 // 创建SqlSugar客户端实例
 var db = new SqlSugarClient(new ConnectionConfig
 {
     ConnectionString = connectionString,
-    DbType = DbType.SqlServer,
+    DbType = DbType.Sqlite,
     IsAutoCloseConnection = true,
     InitKeyType = InitKeyType.Attribute
 });
 
 // 创建数据抓取服务
 var stockDataService = new StockDataService(db);
-//args = new string[] { "2" };
+args = new string[] { "1" };
 // 主程序入口
 if (args.Length > 0 && args[0] == "1")
 {
@@ -139,7 +139,7 @@ else
             // 显示最新报价
             decimal lastClosePrice = lastCloseItem.LOFHistory?.ClosePrice ?? 0;
             decimal latestNetValue = valuationResults.Where(x=>x.LOFHistory!=null
-            && (x.LOFHistory.ValValue>0)).Last().LOFHistory.NetValue.v;
+            && (x.LOFHistory.ValValue>0)).Last().LOFHistory.NetValue.Value;
             decimal estimatedChange = lastItem.EstimatedChangeRate ?? 0;
             decimal estimatedNetValue = (1 + estimatedChange) * latestNetValue;
             
