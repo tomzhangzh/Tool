@@ -47,6 +47,7 @@ namespace LOF.Services
                     Code = p.Code,
                     Url = p.Url
                 })
+                //.Where(p => p.Code=="160216")
                 .ToList();
             
             // positions.Add(new PortfolioPosition()
@@ -725,7 +726,8 @@ namespace LOF.Services
                 {
                     Console.WriteLine("查找历史数据表格...");
                     // 尝试使用CSS选择器查找表格
-                    var table = driver.FindElement(By.CssSelector(".freeze-column-w-1.w-full.overflow-x-auto.text-xs.leading-4"));
+                    var table = driver.FindElement(By.CssSelector(
+                       position.Code!="160216" ? ".freeze-column-w-1.w-full.overflow-x-auto.text-xs.leading-4" : ".historicalTbl"));    
                     Console.WriteLine("找到历史数据表格");
                     
                     // 提取表格数据
@@ -737,7 +739,7 @@ namespace LOF.Services
                     for (int i = 1; i < rows.Count; i++)
                     {
                         var cells = rows[i].FindElements(By.TagName("td"));
-                        if (cells.Count < 7) continue; // 过滤无效行
+                        if (cells.Count < 6) continue; // 过滤无效行
                         
                         // 提取每个单元格的数据
                         var stockData = new StockPriceHistory
@@ -782,7 +784,7 @@ namespace LOF.Services
                             stockData.Volume = volume;
                         }
                         // 7. 涨跌幅
-                        var originalChangePercentText = cells[6].Text.Trim();
+                        var originalChangePercentText = cells[cells.Count==6?5:6].Text.Trim();
                         var changePercentText = originalChangePercentText.Replace("+", "").Replace("%", "");
                         if (decimal.TryParse(changePercentText, out var changePercent))
                         {

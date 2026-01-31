@@ -17,7 +17,7 @@ var db = new SqlSugarClient(new ConnectionConfig
 
 // 创建数据抓取服务
 var stockDataService = new StockDataService(db);
-args = new string[] { "1" };
+// args = new string[] { "1" };
 // 主程序入口
 if (args.Length > 0 && args[0] == "1")
 {
