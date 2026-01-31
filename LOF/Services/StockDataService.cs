@@ -609,7 +609,71 @@ namespace LOF.Services
                 await FetchStockPriceReal(position);
             }
         }
+        private ChromeDriver _driver=null;
+        /// <summary>
+        /// 计算当前变化
+        /// </summary>
+        /// <param name="position">股票持仓信息</param>
+        /// <returns>当前变化</returns>
+        public ChromeDriver GetChromeDriver(string url=null)
+        {
+            if (_driver==null)
+            {   
+                // 配置ChromeDriver选项
+                var options = new ChromeOptions();
+                // 移除无头模式，让浏览器窗口显示出来
+                options.AddArgument("--headless"); // 无头模式
+                options.AddArgument("--no-sandbox");
+                options.AddArgument("--disable-dev-shm-usage");
+                options.AddArgument("--disable-gpu");
+                options.AddArgument("--window-size=1920,1080");
+                options.AddArgument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                
+                // 设置页面加载策略为None，这样ChromeDriver就不会等待页面完全加载完成
+                options.PageLoadStrategy = PageLoadStrategy.None;
+                
+                // 指定ChromeDriver路径
+                var driverService = ChromeDriverService.CreateDefaultService(AppDomain.CurrentDomain.BaseDirectory);
+                driverService.HideCommandPromptWindow = true; // 隐藏命令提示符窗口
+                driverService.SuppressInitialDiagnosticInformation = true; // 抑制初始诊断信息
+                _driver = new ChromeDriver(driverService, options);
+            }
+                if (!string.IsNullOrEmpty(url)){
+_driver.Navigate().GoToUrl(url);
+ Thread.Sleep(1000); // 等待1秒确保页面完全加载
+                }
+                
+                return _driver;
+        }
+        public object ExecuteJs(ChromeDriver driver, string js, int maxAttempts = 10, bool consolelog = false)
+        {
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                try
+                {
+                    var result= driver.ExecuteScript(js);
+                    if (result!=null)
+                    {
+                        // Console.WriteLine(result);
+                        return result;
+                    }
+                }
+                catch (WebDriverException ex) when (ex.Message.Contains("net::ERR_NAME_NOT_RESOLVED"))
+                {
+                    if (attempt == maxAttempts - 1)
+                    {
+                        throw;
+                    }
+                    if (consolelog)
+                    {
+                        Console.WriteLine($"执行JS失败，尝试重新执行（第 {attempt + 1} 次）: {ex.Message}");
+                    }
 
+                    Thread.Sleep(1000); // 等待1秒后重试
+                }
+            }
+            return null;
+        }
         /// <summary>
         /// 抓取股票实时价格
         /// </summary>

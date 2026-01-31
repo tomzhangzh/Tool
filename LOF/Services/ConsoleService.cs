@@ -28,6 +28,7 @@ namespace LOF.Services
         public ValuationService valuationService = null;
         public async Task ExecuteArg(string arg)
         {
+            arg="3.a";
             if (string.IsNullOrEmpty(arg))
             {
                 // 显示帮助信息
@@ -58,6 +59,11 @@ namespace LOF.Services
                 // 循环更新实时价格，每5分钟一次
                 await Arg2();
             }
+            else if (arg == "3" || arg == "3.a")
+            {
+                // 每隔1分钟计算实时报价并输出表格
+                Arg3a();
+            }
             else
             {
                 Console.WriteLine($"未知命令: {arg}");
@@ -72,8 +78,197 @@ namespace LOF.Services
             Console.WriteLine("  0 - 只更新实时价格");
             Console.WriteLine("  a - 自动循环更新实时价格（每2分钟一次）");
             Console.WriteLine("  2 - 执行估值计算");
+            Console.WriteLine("  3.a - 每隔1分钟计算实时报价并输出表格");
             Console.WriteLine("  exit - 退出程序\n");
         }
+        
+        private async Task<decimal> GetClosePrice()
+        {
+            // 实现获取收盘价格的逻辑
+            return 0.0m;
+        }
+        
+        private void PrintTableHeader(string[] headers, int columnWidth = 13)
+        {
+            // 打印顶部边框
+            Console.WriteLine("+" + string.Join("+", headers.Select(h => new string('-', columnWidth + 2))) + "+");
+            
+            // 打印表头
+            Console.WriteLine("| " + string.Join(" | ", headers.Select(h => PadString(h, columnWidth))) + " |");
+            
+            // 打印分隔线
+            Console.WriteLine("+" + string.Join("+", headers.Select(h => new string('-', columnWidth + 2))) + "+");
+        }
+        
+        private string PadString(string str, int columnWidth)
+        {
+            // 处理空输入
+            if (str == null)
+            {
+                return new string(' ', columnWidth);
+            }
+
+            // 计算字符串显示宽度（全角字符占2位，半角字符占1位）
+            int displayWidth = 0;
+            foreach (char c in str)
+            {
+                if (char.GetUnicodeCategory(c) == UnicodeCategory.OtherLetter || char.GetUnicodeCategory(c) == UnicodeCategory.Surrogate)
+                {
+                    displayWidth += 2;
+                }
+                else
+                {
+                    displayWidth += 1;
+                }
+            }
+
+            // 如果显示宽度超过列宽，截断字符串以适配并添加省略号
+            if (displayWidth > columnWidth)
+            {
+                int currentWidth = 0;
+                System.Text.StringBuilder truncated = new System.Text.StringBuilder();
+                foreach (char c in str)
+                {
+                    int charWidth = (char.GetUnicodeCategory(c) == UnicodeCategory.OtherLetter || char.GetUnicodeCategory(c) == UnicodeCategory.Surrogate) ? 2 : 1;
+                    if (currentWidth + charWidth > columnWidth)
+                    {
+                        break;
+                    }
+                    truncated.Append(c);
+                    currentWidth += charWidth;
+                }
+
+                // 添加省略号表示截断，确保总宽度不超过列宽
+                if (truncated.Length < str.Length)
+                {
+                    // 调整截断内容以容纳省略号（占3个半角字符宽度）
+                    while (currentWidth +3 > columnWidth && truncated.Length > 0)
+                    {
+                        char lastChar = truncated[truncated.Length -1];
+                        int charWidth = (char.GetUnicodeCategory(lastChar) == UnicodeCategory.OtherLetter || char.GetUnicodeCategory(lastChar) == UnicodeCategory.Surrogate) ?2 :1;
+                        truncated.Remove(truncated.Length-1,1);
+                        currentWidth -= charWidth;
+                    }
+                    str = truncated.ToString() + "...";
+                    displayWidth = currentWidth +3;
+                }
+                else
+                {
+                    str = truncated.ToString();
+                    displayWidth = currentWidth;
+                }
+            }
+
+            int padCount = columnWidth - displayWidth;
+
+            // 数字和百分比右对齐，其他内容左对齐
+            if (decimal.TryParse(str, out _) || double.TryParse(str, out _) || str.Contains('%'))
+            {
+                return new string(' ', padCount) + str;
+            }
+            else
+            {
+                return str + new string(' ', padCount);
+            }
+        }
+        
+        private void PrintTableRow(object[] values, int columnWidth = 17)
+        {
+            // 打印数据行，数字右对齐，文本左对齐
+            var formattedValues = values.Select(v => 
+            {
+                string str;
+                
+                if (v is decimal d)
+                {
+                    str = d.ToString("F4");
+                }
+                else if (v is double db)
+                {
+                    str = db.ToString("F4");
+                }
+                else if (v is float f)
+                {
+                    str = f.ToString("F4");
+                }
+                // else if (v is int i)
+                // {
+                //     str = i.ToString();
+                // }
+                // else if (v is decimal? dNullable && dNullable.HasValue)
+                // {
+                //     str = dNullable.Value.ToString("F4");
+                // }
+                // else if (v is double? dbNullable && dbNullable.HasValue)
+                // {
+                //     str = dbNullable.Value.ToString("F4");
+                // }
+                // else if (v is float? fNullable && fNullable.HasValue)
+                // {
+                //     str = fNullable.Value.ToString("F4");
+                // }
+                // else if (v is int? iNullable && iNullable.HasValue)
+                // {
+                //     str = iNullable.Value.ToString();
+                // }
+                else
+                {
+                    str = $"{v}";
+                }
+                
+                return PadString(str, columnWidth);
+            });
+            Console.WriteLine("| " + string.Join(" | ", formattedValues) + " |");
+        }
+        
+        public void Arg3a()
+        {
+            Console.WriteLine($"每月28-30是交割日：\u001b[31m{(DateTime.Today.Day>=26?"注意":"正常")}\u001b[0m");
+            Console.WriteLine($"\u001b[31m{(DateTime.Today.Day>=26?"注意注意注意注意注意注意注意注意注意注意注意注意":"正常")}\u001b[0m");
+            Console.WriteLine("开始执行实时报价计算任务，每隔1分钟更新一次...");
+            
+            string[] headers = { "当前时间", "当前估价", "当前报价", "收盘价格", "实时报价对收盘价%", "当前报价对收盘%" };
+            PrintTableHeader(headers, 17);
+            while (true)
+            {
+                try
+                {
+                    
+                    // 获取最新的实时价格和收盘价
+                    var realTimePrice = valuationService.GetRealTimePrice();
+                    var closePrice = valuationService.GetClosePrice();
+                    var currentPrice = valuationService.GetCurrentPrice();
+                    
+                    // 计算百分比
+                    decimal realTimeToClosePercent = closePrice > 0 ? (realTimePrice / closePrice - 1) * 100 : 0;
+                    decimal currentToClosePercent = closePrice > 0 ? (currentPrice / closePrice - 1) * 100 : 0;
+                    
+                  
+                    
+             
+                    
+                    object[] values = { 
+                        DateTime.Now.ToString("HH:mm:ss"),
+                        realTimePrice.ToString("F4"),
+                        currentPrice.ToString("F4"),
+                        closePrice.ToString("F4"),
+                        $"{realTimeToClosePercent:F2}%",
+                        $"{currentToClosePercent:F2}%"
+                    };
+                    PrintTableRow(values, 17);
+                    
+                    
+                    
+                    Thread.Sleep(1000*30);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"实时报价计算任务失败：{ex.Message}");
+                }
+            }
+        }
+        
+       
         /// <summary>
         /// 执行数据抓取任务
         /// </summary>

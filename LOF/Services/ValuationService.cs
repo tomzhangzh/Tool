@@ -245,6 +245,48 @@ namespace LOF.Services
             }
             return totalChange;
         }
+        #region 估值计算
+         public decimal GetRealTimePrice()
+        {
+             decimal latestNetValue = this._db.Queryable<LOFHistory>()
+                    .Where(x => x.ValValue > 0).OrderByDescending(x=>x.NetDate).First().NetValue.Value;
+             var 实时百分比 = this.CalculateCurrent();
+            var realTimeValue = ((1 + 实时百分比) * latestNetValue);
+            return realTimeValue;
+        }
+        
+        public decimal GetCurrentPrice()
+        {
+            var stockDataService=new StockDataService(this._db);
+            var driver=stockDataService.GetChromeDriver("https://cn.investing.com/funds/guotai-commodity-alloc-qdii-lof-fof-holdings");
+             var script = @"
+function xxx() {
+  //const header = document.querySelector('.instrumentDataFlex');
+  //if (!header) return null;
+
+  var el = document.getElementById('last_last');
+
+  return el?.textContent?.trim();
+}
+
+// 使用
+return xxx();
+";
+            var currentPrice = stockDataService.ExecuteJs(driver, script);
+            if (decimal.TryParse(currentPrice?.ToString(), out decimal result))
+            {
+                return result;
+            }
+            return 0.0m;
+        }
+        
+        public decimal GetClosePrice()
+        {
+            var last = this._db.Queryable<LOFHistory>()
+                    .Where(x => x.PriceDate<DateTime.Today && x.ClosePrice!=null).OrderByDescending(x=>x.PriceDate).First();
+            return last.ClosePrice.Value;
+        }
+        #endregion
         /// <summary>
         /// 每日估值结果
         /// </summary>
