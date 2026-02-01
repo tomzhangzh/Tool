@@ -227,7 +227,7 @@ namespace LOF.Services
             Console.WriteLine($"\u001b[31m{(DateTime.Today.Day>=26?"注意注意注意注意注意注意注意注意注意注意注意注意":"正常")}\u001b[0m");
             Console.WriteLine("开始执行实时报价计算任务，每隔1分钟更新一次...");
             
-            string[] headers = { "当前时间", "当前估价", "当前报价", "收盘价格", "实时报价对收盘价%", "当前报价对收盘%" };
+            string[] headers = { "当前时间", "当前估价", "当前报价", "收盘价格", "实时报价对收盘价%", "当前报价对收盘%","买卖信号" };
             PrintTableHeader(headers, 17);
             while (true)
             {
@@ -247,13 +247,29 @@ namespace LOF.Services
                     
              
                     
+                    // 计算买卖信号
+                    decimal priceDiffPercent = (realTimePrice - currentPrice) / currentPrice * 100;
+                    string signal = "";
+                    
+                    if (priceDiffPercent >= 1m)
+                    {
+                        int sellCount = (int)(priceDiffPercent / 0.5m);
+                        signal = $"卖[{sellCount}]{priceDiffPercent:F2}%";
+                    }
+                    else if (priceDiffPercent <= -1m)
+                    {
+                        int buyCount = (int)(-priceDiffPercent / 0.5m);
+                        signal = $"买[{buyCount}]{priceDiffPercent:F2}%";
+                    }
+                    
                     object[] values = { 
                         DateTime.Now.ToString("HH:mm:ss"),
                         realTimePrice.ToString("F4"),
                         currentPrice.ToString("F4"),
                         closePrice.ToString("F4"),
                         $"{realTimeToClosePercent:F2}%",
-                        $"{currentToClosePercent:F2}%"
+                        $"{currentToClosePercent:F2}%",
+                        signal
                     };
                     PrintTableRow(values, 17);
                     

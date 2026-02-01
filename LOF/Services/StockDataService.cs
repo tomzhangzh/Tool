@@ -652,9 +652,10 @@ _driver.Navigate().GoToUrl(url);
                 try
                 {
                     var result= driver.ExecuteScript(js);
+                     Console.WriteLine($"执行JS成功，结果: {result}");
                     if (result!=null)
                     {
-                        // Console.WriteLine(result);
+                        
                         return result;
                     }
                 }
