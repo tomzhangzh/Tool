@@ -111,7 +111,7 @@ namespace LOF.Services
         /// </summary>
         /// <param name="date">日期</param>
         /// <returns>涨跌幅百分比</returns>
-        public decimal CalculateNetValueChange(DateTime? date,bool useValue=false)
+        public decimal CalculateNetValueChange(DateTime? date, bool useValue = false)
         {
             if (date == null)
             {
@@ -121,63 +121,64 @@ namespace LOF.Services
             var portfolioPositions = _db.Queryable<PortfolioPosition>()
                 .Where(p => p.Weight > 0)
                 .ToList();
-            
+
             if (portfolioPositions.Count == 0)
             {
                 return 0.0m;
             }
-            
+
             // 遍历每个持仓，计算贡献的涨跌幅
             var totalChange = 0.0m;
-            
+
             foreach (var position in portfolioPositions)
             {
                 // 找出TradeDate < date的最大日期
                 var latestDate = _db.Queryable<StockPriceHistory>()
                     .Where(s => s.Code == position.Code && s.TradeDate < date)
                     .Max(s => s.TradeDate);
-                
+
                 if (latestDate == default(DateTime))
                 {
                     continue;
                 }
-                
+
                 // 找到上一个交易日
                 var previousDate = _db.Queryable<StockPriceHistory>()
                     .Where(s => s.Code == position.Code && s.TradeDate < latestDate)
                     .Max(s => s.TradeDate);
-                
+
                 if (previousDate == default(DateTime))
                 {
                     continue;
                 }
-                
+
                 // 获取最新日期的涨跌幅
                 var latestChangeObj = _db.Queryable<StockPriceHistory>()
                     .Where(s => s.Code == position.Code && s.TradeDate == latestDate)
-                    
+
                     .First();
                 if (useValue)
                 {
                     var previousDateObj = _db.Queryable<StockPriceHistory>()
                   .Where(s => s.Code == position.Code && s.TradeDate == previousDate).First();
-                   // 根据权重计算贡献
-                totalChange += (latestChangeObj.ClosePrice- previousDateObj.ClosePrice) / previousDateObj.ClosePrice * (position.Weight / 100);
+                    // 根据权重计算贡献
+                    totalChange += (latestChangeObj.ClosePrice - previousDateObj.ClosePrice) / previousDateObj.ClosePrice * (position.Weight / 100);
                 }
-                else{
-// 根据权重计算贡献
-                totalChange += latestChangeObj.ChangePercent* (position.Weight / 100);
+                else
+                {
+                    // 根据权重计算贡献
+                    totalChange += latestChangeObj.ChangePercent * (position.Weight / 100);
                 }
-                
+
             }
-//             var usdToCny = _db.Queryable<StockPriceHistory>()
-//                 .Where(l => l.TradeDate == date && l.Code == "USD/CNY")
-//                 .First();
-//                 if(usdToCny!=null)
-//                 {
-// totalChange += usdToCny.ChangePercent;
-//                 }
-            
+            //             var usdToCny = _db.Queryable<StockPriceHistory>()
+            //                 .Where(l => l.TradeDate == date && l.Code == "USD/CNY")
+            //                 .First();
+            //                 if(usdToCny!=null)
+            //                 {
+            // totalChange += usdToCny.ChangePercent;
+            //                 }
+
             return totalChange;
         }
         /// <summary>
@@ -202,8 +203,8 @@ namespace LOF.Services
             {
                 return 0.0m;
             }
-            var TradeDate=  _db.Queryable<StockPriceHistory>()
-            .Where(b=> b.TradeDate < findLastNetValue.NetDate)
+            var TradeDate = _db.Queryable<StockPriceHistory>()
+            .Where(b => b.TradeDate < findLastNetValue.NetDate)
                     .Max(s => s.TradeDate);
             var historyList = _db.Queryable<StockPriceHistory>()
             .Where(b => b.TradeDate == TradeDate)
@@ -214,7 +215,7 @@ namespace LOF.Services
                 .GroupBy(x => x.Code)
                 .Select(g => g.First())
                 .ToList();
-                
+
             // 遍历每个持仓，计算贡献的涨跌幅
             var totalChange = 0.0m;
 
@@ -246,20 +247,20 @@ namespace LOF.Services
             return totalChange;
         }
         #region 估值计算
-         public decimal GetRealTimePrice()
+        public decimal GetRealTimePrice()
         {
-             decimal latestNetValue = this._db.Queryable<LOFHistory>()
-                    .Where(x => x.ValValue > 0).OrderByDescending(x=>x.NetDate).First().NetValue.Value;
-             var 实时百分比 = this.CalculateCurrent();
+            decimal latestNetValue = this._db.Queryable<LOFHistory>()
+                   .Where(x => x.ValValue > 0).OrderByDescending(x => x.NetDate).First().NetValue.Value;
+            var 实时百分比 = this.CalculateCurrent();
             var realTimeValue = ((1 + 实时百分比) * latestNetValue);
             return realTimeValue;
         }
-        
+
         public decimal GetCurrentPrice()
         {
-            var stockDataService=new StockDataService(this._db);
-            var driver=stockDataService.GetChromeDriver("https://cn.investing.com/funds/guotai-commodity-alloc-qdii-lof-fof-holdings");
-             var script = @"
+            var stockDataService = new StockDataService(this._db);
+            var driver = stockDataService.GetChromeDriver("https://cn.investing.com/funds/guotai-commodity-alloc-qdii-lof-fof-holdings");
+            var script = @"
 function xxx() {
   //const header = document.querySelector('.instrumentDataFlex');
   //if (!header) return null;
@@ -272,18 +273,23 @@ function xxx() {
 // 使用
 return xxx();
 ";
-            var currentPrice = stockDataService.ExecuteJs(driver, script);
-            if (decimal.TryParse(currentPrice?.ToString(), out decimal result))
+            Thread.Sleep(2000); // 等待1秒确保数据加载
+            using (driver)
             {
-                return result;
+                var currentPrice = stockDataService.ExecuteJs(driver, script);
+                if (decimal.TryParse(currentPrice?.ToString(), out decimal result))
+                {
+                    return result;
+                }
+                return 0.0m;
             }
-            return 0.0m;
+
         }
-        
+
         public decimal GetClosePrice()
         {
             var last = this._db.Queryable<LOFHistory>()
-                    .Where(x => x.PriceDate<DateTime.Today && x.ClosePrice!=null).OrderByDescending(x=>x.PriceDate).First();
+                    .Where(x => x.PriceDate < DateTime.Today && x.ClosePrice != null).OrderByDescending(x => x.PriceDate).First();
             return last.ClosePrice.Value;
         }
         #endregion
@@ -294,15 +300,20 @@ return xxx();
         {
             public List<PortfolioPosition> PortfolioPositions { get; set; } = new List<PortfolioPosition>();
             public DateTime? Date { get; set; }
-            public LOFHistory LOFHistory { get; set; }= new LOFHistory();
+            public LOFHistory LOFHistory { get; set; } = new LOFHistory();
             public List<StockPriceHistory> StockPriceHistories { get; set; } = new List<StockPriceHistory>();
             public LOFHistory? PreviousLOFHistory { get; set; }
-            public StockPriceHistory USdToCny { get{
-                return StockPriceHistories.Where(x => x.Code == "USD/CNY").FirstOrDefault()?? new StockPriceHistory(){
-                    Code = "USD/CNY",
-                    ChangePercent = 0,
-                };
-            } }
+            public StockPriceHistory USdToCny
+            {
+                get
+                {
+                    return StockPriceHistories.Where(x => x.Code == "USD/CNY").FirstOrDefault() ?? new StockPriceHistory()
+                    {
+                        Code = "USD/CNY",
+                        ChangePercent = 0,
+                    };
+                }
+            }
             public decimal? EstimatedChangeRate
             {
                 get
@@ -315,17 +326,17 @@ return xxx();
                             var weight = this.PortfolioPositions.Where(x => x.Code == stock.Code).FirstOrDefault()?.Weight ?? 0;
                             if (stock.ChangePercent != 0)
                             {
-                                result += (decimal)stock.ChangePercent * weight/100;
+                                result += (decimal)stock.ChangePercent * weight / 100;
                             }
                         }
                         // 处理美元/人民币汇率
                         if (USdToCny.ChangePercent != 0)
                         {
                             // 美元/人民币汇率影响净值涨跌幅，需要调整
-                            result = result+(decimal)USdToCny.ChangePercent ;
+                            result = result + (decimal)USdToCny.ChangePercent;
                         }
                         //管理费
-                        result=result-0.000041096m;
+                        result = result - 0.000041096m;
                         return result;
                     }
                     return null;
@@ -341,19 +352,19 @@ return xxx();
                         foreach (var stock in StockPriceHistories)
                         {
                             // if(stock.Code!="XAG/USD" && stock.Code!="XAU/USD")
-                            if(stock.Code!="IAU" && stock.Code!="SLV")
+                            if (stock.Code != "IAU" && stock.Code != "SLV")
                             {
                                 continue;
                             }
                             else
                             {
-                                var weight =stock.Code!="SLV"?20m:40m;
+                                var weight = stock.Code != "SLV" ? 20m : 40m;
                                 if (stock.ChangePercent != 0)
                                 {
                                     result += (decimal)stock.ChangePercent * weight / 100;
                                 }
                             }
-                            
+
                         }
                         // // 处理美元/人民币汇率
                         // if (USdToCny.ChangePercent != 0)

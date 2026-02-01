@@ -279,7 +279,7 @@ namespace LOF.Services
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"实时报价计算任务失败：{ex.Message}");
+                    Console.WriteLine($"实时报价计算任务失败：{ex.Message}『{ex.StackTrace}』");
                 }
             }
         }

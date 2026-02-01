@@ -1,4 +1,4 @@
-﻿using SqlSugar;
+using SqlSugar;
 using LOF.Models;
 using LOF.Services;
 using ConsoleTableExt;
@@ -18,7 +18,17 @@ var db = new SqlSugarClient(new ConnectionConfig
 });
 
 var consoleService = new ConsoleService(db);
-consoleService.ExecuteArg(args.Length > 0 ? args[0] : null);
+var stockDataService = new StockDataService(db);
+
+try
+{
+    consoleService.ExecuteArg(args.Length > 0 ? args[0] : null);
+}
+finally
+{
+    // 释放资源
+    stockDataService.Dispose();
+}
 
 
 public static class ConsoleHelper

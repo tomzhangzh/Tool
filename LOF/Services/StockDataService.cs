@@ -617,33 +617,49 @@ namespace LOF.Services
         /// <returns>当前变化</returns>
         public ChromeDriver GetChromeDriver(string url=null)
         {
-            if (_driver==null)
-            {   
-                // 配置ChromeDriver选项
-                var options = new ChromeOptions();
-                // 移除无头模式，让浏览器窗口显示出来
-                options.AddArgument("--headless"); // 无头模式
-                options.AddArgument("--no-sandbox");
-                options.AddArgument("--disable-dev-shm-usage");
-                options.AddArgument("--disable-gpu");
-                options.AddArgument("--window-size=1920,1080");
-                options.AddArgument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-                
-                // 设置页面加载策略为None，这样ChromeDriver就不会等待页面完全加载完成
-                options.PageLoadStrategy = PageLoadStrategy.None;
-                
-                // 指定ChromeDriver路径
-                var driverService = ChromeDriverService.CreateDefaultService(AppDomain.CurrentDomain.BaseDirectory);
-                driverService.HideCommandPromptWindow = true; // 隐藏命令提示符窗口
-                driverService.SuppressInitialDiagnosticInformation = true; // 抑制初始诊断信息
-                _driver = new ChromeDriver(driverService, options);
+
+            // 配置ChromeDriver选项
+            var options = new ChromeOptions();
+            // 移除无头模式，让浏览器窗口显示出来
+            options.AddArgument("--headless"); // 无头模式
+            options.AddArgument("--no-sandbox");
+            options.AddArgument("--disable-dev-shm-usage");
+            options.AddArgument("--disable-gpu");
+            options.AddArgument("--window-size=1920,1080");
+            options.AddArgument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+            // 设置页面加载策略为None，这样ChromeDriver就不会等待页面完全加载完成
+            options.PageLoadStrategy = PageLoadStrategy.None;
+
+            // 指定ChromeDriver路径
+            var driverService = ChromeDriverService.CreateDefaultService(AppDomain.CurrentDomain.BaseDirectory);
+            driverService.HideCommandPromptWindow = true; // 隐藏命令提示符窗口
+            driverService.SuppressInitialDiagnosticInformation = true; // 抑制初始诊断信息
+            var driver = new ChromeDriver(driverService, options);
+ driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
+            if (!string.IsNullOrEmpty(url))
+            {
+                driver.Navigate().GoToUrl(url);
+                Thread.Sleep(1000); // 等待1秒确保页面完全加载
             }
-                if (!string.IsNullOrEmpty(url)){
-_driver.Navigate().GoToUrl(url);
- Thread.Sleep(1000); // 等待1秒确保页面完全加载
-                }
-                
-                return _driver;
+
+            return driver;
+        }
+        
+        public void DisposeDriver()
+        {
+            if (_driver != null)
+            {
+                _driver.Quit();
+                _driver.Dispose();
+                _driver = null;
+            }
+        }
+        
+        public void Dispose()
+        {
+            DisposeDriver();
+            _httpClient.Dispose();
         }
         public object ExecuteJs(ChromeDriver driver, string js, int maxAttempts = 10, bool consolelog = false)
         {
@@ -652,10 +668,13 @@ _driver.Navigate().GoToUrl(url);
                 try
                 {
                     var result= driver.ExecuteScript(js);
-                     Console.WriteLine($"执行JS成功，结果: {result}");
-                    if (result!=null)
+                    
+                    var xxx=result!=null && result!=DBNull.Value && result.ToString()!="" && 
+                    string.IsNullOrEmpty(result.ToString())==false;
+                    // Console.WriteLine($"执行JS成功，结果: 【{result}】{xxx}");
+                    if (result!=null && result!=DBNull.Value && result.ToString()!="" && 
+                    string.IsNullOrEmpty(result.ToString())==false)
                     {
-                        
                         return result;
                     }
                 }
@@ -670,8 +689,13 @@ _driver.Navigate().GoToUrl(url);
                         Console.WriteLine($"执行JS失败，尝试重新执行（第 {attempt + 1} 次）: {ex.Message}");
                     }
 
-                    Thread.Sleep(1000); // 等待1秒后重试
+                    
                 }
+                finally
+                {
+                    this.DisposeDriver();
+                }
+                
             }
             return null;
         }
