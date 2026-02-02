@@ -665,36 +665,18 @@ namespace LOF.Services
         {
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
-                try
-                {
+                
                     var result= driver.ExecuteScript(js);
                     
                     var xxx=result!=null && result!=DBNull.Value && result.ToString()!="" && 
                     string.IsNullOrEmpty(result.ToString())==false;
-                    // Console.WriteLine($"执行JS成功，结果: 【{result}】{xxx}");
+                    // Console.WriteLine($"执行JS成功，结果: 【{result}】{xxx}{DateTime.Now:HH:mm:ss}");
                     if (result!=null && result!=DBNull.Value && result.ToString()!="" && 
                     string.IsNullOrEmpty(result.ToString())==false)
                     {
                         return result;
                     }
-                }
-                catch (WebDriverException ex) when (ex.Message.Contains("net::ERR_NAME_NOT_RESOLVED"))
-                {
-                    if (attempt == maxAttempts - 1)
-                    {
-                        throw;
-                    }
-                    if (consolelog)
-                    {
-                        Console.WriteLine($"执行JS失败，尝试重新执行（第 {attempt + 1} 次）: {ex.Message}");
-                    }
-
-                    
-                }
-                finally
-                {
-                    this.DisposeDriver();
-                }
+                    Thread.Sleep(1000); // 等待2秒确保数据加载
                 
             }
             return null;

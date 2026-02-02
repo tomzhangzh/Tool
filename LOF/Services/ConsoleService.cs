@@ -4,6 +4,7 @@ using LOF.Services;
 using ConsoleTableExt;
 using System.Globalization;
 using System;
+using static OfficeOpenXml.ExcelErrorValue;
 
 namespace LOF.Services
 {
@@ -28,7 +29,7 @@ namespace LOF.Services
         public ValuationService valuationService = null;
         public async Task ExecuteArg(string arg)
         {
-            arg="3.a";
+            // arg="3.a";
             if (string.IsNullOrEmpty(arg))
             {
                 // 显示帮助信息
@@ -220,7 +221,55 @@ namespace LOF.Services
             });
             Console.WriteLine("| " + string.Join(" | ", formattedValues) + " |");
         }
-        
+        private void Render实时报价Table()
+        {
+            var realTimePrice = valuationService.GetRealTimePrice();
+            var closePrice = valuationService.GetClosePrice();
+            var currentPrice = valuationService.GetCurrentPrice();
+            string[] headers = {  "当前估价", "当前报价", "价格", "实时报价%", "报价对收盘%", "买卖信号" };
+            PrintTableHeader(headers, 17);
+            decimal minChange = -0.05m; // -5%
+            decimal maxChange = 0.05m;  // s5%
+            decimal step = 0.005m;       // 0.5%步距
+
+            // 准备表格数据
+            var rangeData = new List<object[]>();
+            for (decimal change = minChange; change <= maxChange; change += step)
+            {
+                var price= realTimePrice*(1+change);
+                // 计算百分比
+                decimal currentToClosePercent = closePrice > 0 ? (price / closePrice - 1) : 0;
+
+
+
+
+
+                string signal = "";
+
+                if (change >= 0.01m)
+                {
+                    int sellCount = (int)(change / step);
+                    signal = $"卖[X{sellCount}]{change:F2}%";
+                }
+                else if (change <= 0.01m)
+                {
+                    int buyCount = (int)(-change / step);
+                    signal = $"买[X{buyCount}]{change:P2}";
+                }
+                if (change == 0.015m || change == -0.01m)
+                {
+Console.WriteLine(new string('-', 130));
+                }
+                var row=new object[] { realTimePrice, currentPrice, 
+               $"{price:F4}" ,
+                // $"\x1b[1m{price:F4}:\x1b[0m" ,
+                $"{change.ToString("P2")}",
+                    $"{currentToClosePercent.ToString("P2")}" ,signal};
+                    PrintTableRow(row, 17);
+            }
+            
+            
+        }
         public void Arg3a()
         {
             Console.WriteLine($"每月28-30是交割日：\u001b[31m{(DateTime.Today.Day>=26?"注意":"正常")}\u001b[0m");
@@ -562,7 +611,7 @@ namespace LOF.Services
                     Console.WriteLine("+---------------+---------------+---------------+---------------+---------------+");
                     #endregion
                 }
-
+                Render实时报价Table();
                 // 输出默认时间范围信息
                 Console.WriteLine($"\n默认时间范围（从明天往前推30天）：{startDate:yyyy-MM-dd} 至 {endDate:yyyy-MM-dd}");
 
