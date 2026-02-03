@@ -47,6 +47,7 @@ namespace LOF.Services
                     Code = p.Code,
                     Url = p.Url
                 })
+                .Where(p => p.Type == "1")
                 //.Where(p => p.Code=="160216")
                 .ToList();
             
@@ -600,8 +601,10 @@ namespace LOF.Services
         /// <returns>任务</returns>
         public async Task FetchStockPriceRealAll()
         {
-            // 获取所有持仓信息
-            var positions = _db.Queryable<PortfolioPosition>().ToList();
+            // 获取所有持仓信息，筛选出Type为1的记录
+            var positions = _db.Queryable<PortfolioPosition>()
+                .Where(p => p.Type == "1")
+                .ToList();
             
             // 遍历每个持仓，抓取实时价格
             foreach (var position in positions)
@@ -756,7 +759,15 @@ function getAfterHoursData() {
 
   // 找盘后数据容器（order-1类且包含flex）
   const afterHoursContainer = header.querySelector('.order-1.flex');
-  if (!afterHoursContainer) return null;
+  if (!afterHoursContainer) return {
+  currentPrice: header.querySelector('[data-test=""instrument-price-last""]')?.textContent?.trim(),
+    currentChange: header.querySelector('[data-test=""instrument-price-change""]')?.textContent?.trim(),
+    currentPercent: header.querySelector('[data-test=""instrument-price-change-percent""]')?.textContent?.trim(),
+    RealPrice: header.querySelector('[data-test=""instrument-price-last""]')?.textContent?.trim(),
+    RealChange: header.querySelector('[data-test=""instrument-price-change""]')?.textContent?.trim(),
+    RealPercent: header.querySelector('[data-test=""instrument-price-change-percent""]')?.textContent?.trim(),
+    RealTime: afterHoursContainer.querySelector('time')?.textContent?.trim()
+  };
 
   return {
     currentPrice: header.querySelector('[data-test=""instrument-price-last""]')?.textContent?.trim(),

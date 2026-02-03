@@ -526,7 +526,7 @@ Console.WriteLine(new string('-', 130));
                     Console.ResetColor();
 
                     // 计算相对收盘价的百分比
-                    decimal premiumRate = (lastClosePrice > 0) ? (lastClosePrice / estimatedNetValue - 1) : 0;
+                    decimal premiumRate = (lastClosePrice > 0) ? (estimatedNetValue/lastClosePrice - 1) : 0;
                     Console.Write("相对收盘价:     ");
                     if (premiumRate > 0)
                     {
@@ -622,6 +622,71 @@ Console.WriteLine(new string('-', 130));
                 Console.WriteLine("估值计算任务失败：" + ex.Message);
             }
 
+        }
+        public void Arg4()
+        {
+            
+        }
+        public void 计算估值根据特定的时间(DateTime date,DateTime? BaseTradeDate=null)
+        {
+            if (BaseTradeDate == null)
+            {
+                BaseTradeDate = new DateTime(2026,1,1);
+            }
+            // 取得所有权重>0的PortfolioPosition记录
+            var portfolioPositions = _db.Queryable<PortfolioPosition>()
+                .Where(p => p.Weight > 0 && p.Type == "1")
+                .ToList();
+
+            if (portfolioPositions.Count == 0)
+            {
+                Console.WriteLine("没有找到权重>0的持仓记录");
+                return;
+            }
+
+            // 遍历每个持仓，计算贡献的涨跌幅
+            var totalChange = 0.0m;
+
+            foreach (var position in portfolioPositions)
+            {
+                // 找到date对应的StockPriceHistory记录
+                var dateRecord = _db.Queryable<StockPriceHistory>()
+                    .Where(s => s.Code == position.Code && s.TradeDate == date)
+                    .First();
+
+                if (dateRecord == null)
+                {
+                    Console.WriteLine($"股票{position.Code}在{date:yyyy-MM-dd}没有找到记录");
+                    continue;
+                }
+
+                // 找到BaseTradeDate对应的StockPriceHistory记录
+                var baseRecord = _db.Queryable<StockPriceHistory>()
+                    .Where(s => s.Code == position.Code && s.TradeDate == BaseTradeDate)
+                    .First();
+
+                if (baseRecord == null)
+                {
+                    Console.WriteLine($"股票{position.Code}在{BaseTradeDate:yyyy-MM-dd}没有找到记录");
+                    continue;
+                }
+
+                if (baseRecord.ClosePrice == 0)
+                {
+                    Console.WriteLine($"股票{position.Code}在{BaseTradeDate:yyyy-MM-dd}收盘价为0");
+                    continue;
+                }
+
+                // 计算单只股票的涨跌幅
+                var stockChange = (dateRecord.ClosePrice - baseRecord.ClosePrice) / baseRecord.ClosePrice;
+
+                // 根据权重计算贡献
+                totalChange += stockChange * (position.Weight / 100);
+
+                Console.WriteLine($"股票{position.Code}: {baseRecord.ClosePrice:F4} -> {dateRecord.ClosePrice:F4}, 涨跌幅: {stockChange:P4}, 权重: {position.Weight}%, 贡献: {stockChange * (position.Weight / 100):P4}");
+            }
+
+            Console.WriteLine($"\n总上涨百分比: {totalChange:P4}");
         }
     }
 }

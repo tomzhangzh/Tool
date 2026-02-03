@@ -58,5 +58,7 @@ namespace LOF.Models
         /// 数据抓取URL
         /// </summary>
         public string? Url { get; set; }
+
+        public string? Type { get; set; }
     }
 }

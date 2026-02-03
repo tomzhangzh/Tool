@@ -39,7 +39,9 @@ namespace LOF.Services
                 Console.WriteLine($"开始计算估值，时间范围：{startDate:yyyy-MM-dd} 至 {endDate:yyyy-MM-dd}");
 
                 // 获取投资组合持仓数据
-                var portfolioPositions = _db.Queryable<PortfolioPosition>().ToList();
+                var portfolioPositions = _db.Queryable<PortfolioPosition>()
+                    .Where(p => p.Type == "1")
+                    .ToList();
                 Console.WriteLine($"获取到 {portfolioPositions.Count} 条投资组合持仓数据");
 
                 // 获取指定时间范围内的股票价格历史数据
@@ -119,7 +121,7 @@ namespace LOF.Services
             }
             // 取得所有权重>0的PortfolioPosition记录
             var portfolioPositions = _db.Queryable<PortfolioPosition>()
-                .Where(p => p.Weight > 0)
+                .Where(p => p.Weight > 0 && p.Type == "1")
                 .ToList();
 
             if (portfolioPositions.Count == 0)
@@ -196,7 +198,7 @@ namespace LOF.Services
             }
             // 取得所有权重>0的PortfolioPosition记录
             var portfolioPositions = _db.Queryable<PortfolioPosition>()
-                .Where(p => p.Weight > 0)
+                .Where(p => p.Weight > 0 && p.Type == "1")
                 .ToList();
 
             if (portfolioPositions.Count == 0)
@@ -204,7 +206,7 @@ namespace LOF.Services
                 return 0.0m;
             }
             var TradeDate = _db.Queryable<StockPriceHistory>()
-            .Where(b => b.TradeDate < findLastNetValue.NetDate)
+            .Where(b => b.TradeDate <= findLastNetValue.NetDate)
                     .Max(s => s.TradeDate);
             var historyList = _db.Queryable<StockPriceHistory>()
             .Where(b => b.TradeDate == TradeDate)
@@ -266,7 +268,11 @@ function xxx() {
   //if (!header) return null;
 
   var el = document.getElementById('last_last');
-
+  if (el) {
+    return el?.textContent?.trim();
+  }
+  // 如果找不到id为last_last的元素，查找带有data-test=instrument-price-last的元素
+  el = document.querySelector('[data-test=""instrument-price-last""]');
   return el?.textContent?.trim();
 }
 
