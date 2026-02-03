@@ -4,10 +4,11 @@ using LOF.Services;
 using ConsoleTableExt;
 using System.Globalization;
 using System;
+using System.Text;
 
 // 配置数据库连接字符串
 var connectionString = "Data Source=LOF.sqlite3;";
-
+Console.OutputEncoding = Encoding.UTF8;
 // 创建SqlSugar客户端实例
 var db = new SqlSugarClient(new ConnectionConfig
 {

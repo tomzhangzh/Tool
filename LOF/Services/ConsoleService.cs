@@ -386,8 +386,8 @@ Console.WriteLine(new string('-', 130));
                 {
                     Console.WriteLine($"\x1b[1;32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 实时数据更新开始\x1b[0m");
                     await stockDataService.FetchStockPriceRealAll();
-                    Console.WriteLine($"\x1b[1;32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 实时数据更新完成，2分钟后再次更新...\x1b[0m");
-                    await Task.Delay(TimeSpan.FromMinutes(2));
+                    Console.WriteLine($"\x1b[1;32m[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 实时数据更新完成，1分钟后再次更新...\x1b[0m");
+                    Thread.Sleep(1000*60*1);
                 }
             }
             catch (Exception ex)
