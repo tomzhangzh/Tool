@@ -497,7 +497,7 @@ Console.WriteLine(new string('-', 130));
                     // 显示最新报价
                     decimal lastClosePrice = lastCloseItem.LOFHistory?.ClosePrice ?? 0;
                     decimal latestNetValue = valuationResults.Where(x => x.LOFHistory != null
-                    && (x.LOFHistory.ValValue > 0)).Last().LOFHistory.NetValue.Value;
+                    && (x.LOFHistory.ValValue > 0) && (x.LOFHistory.NetValue != null)).Last().LOFHistory.NetValue.Value;
                     decimal estimatedChange = lastItem.EstimatedChangeRate ?? 0;
                     decimal estimatedNetValue = (1 + estimatedChange) * latestNetValue;
                     var 实时百分比 = valuationService.CalculateCurrent();
@@ -619,7 +619,8 @@ Console.WriteLine(new string('-', 130));
             }
             catch (Exception ex)
             {
-                Console.WriteLine("估值计算任务失败：" + ex.Message);
+                Console.WriteLine(@$"估值计算任务失败：{ ex.Message}
+                StackTrace:{ex.StackTrace}" );
             }
 
         }

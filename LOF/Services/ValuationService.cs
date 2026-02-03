@@ -252,7 +252,7 @@ namespace LOF.Services
         public decimal GetRealTimePrice()
         {
             decimal latestNetValue = this._db.Queryable<LOFHistory>()
-                   .Where(x => x.ValValue > 0).OrderByDescending(x => x.NetDate).First().NetValue.Value;
+                   .Where(x => x.ValValue > 0 && x.NetValue != null).OrderByDescending(x => x.NetDate).First().NetValue.Value;
             var 实时百分比 = this.CalculateCurrent();
             var realTimeValue = ((1 + 实时百分比) * latestNetValue);
             return realTimeValue;
