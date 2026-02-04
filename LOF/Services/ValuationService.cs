@@ -40,7 +40,7 @@ namespace LOF.Services
 
                 // 获取投资组合持仓数据
                 var portfolioPositions = _db.Queryable<PortfolioPosition>()
-                    .Where(p => p.Type == "1")
+                    .Where(p => p.Type == ConsoleHelper.CalType)
                     .ToList();
                 Console.WriteLine($"获取到 {portfolioPositions.Count} 条投资组合持仓数据");
 
@@ -121,7 +121,7 @@ namespace LOF.Services
             }
             // 取得所有权重>0的PortfolioPosition记录
             var portfolioPositions = _db.Queryable<PortfolioPosition>()
-                .Where(p => p.Weight > 0 && p.Type == "1")
+                .Where(p => p.Weight > 0 && p.Type == ConsoleHelper.CalType)
                 .ToList();
 
             if (portfolioPositions.Count == 0)
@@ -198,7 +198,7 @@ namespace LOF.Services
             }
             // 取得所有权重>0的PortfolioPosition记录
             var portfolioPositions = _db.Queryable<PortfolioPosition>()
-                .Where(p => p.Weight > 0 && p.Type == "1")
+                .Where(p => p.Weight > 0 && p.Type == ConsoleHelper.CalType)
                 .ToList();
 
             if (portfolioPositions.Count == 0)

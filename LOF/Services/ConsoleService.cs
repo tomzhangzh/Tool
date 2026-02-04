@@ -29,7 +29,7 @@ namespace LOF.Services
         public ValuationService valuationService = null;
         public async Task ExecuteArg(string arg)
         {
-            // arg="3.a";
+            //  arg="1";
             if (string.IsNullOrEmpty(arg))
             {
                 // 显示帮助信息
@@ -636,7 +636,7 @@ Console.WriteLine(new string('-', 130));
             }
             // 取得所有权重>0的PortfolioPosition记录
             var portfolioPositions = _db.Queryable<PortfolioPosition>()
-                .Where(p => p.Weight > 0 && p.Type == "1")
+                .Where(p => p.Weight > 0 && p.Type == ConsoleHelper.CalType)
                 .ToList();
 
             if (portfolioPositions.Count == 0)

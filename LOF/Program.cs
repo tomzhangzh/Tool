@@ -34,6 +34,7 @@ finally
 
 public static class ConsoleHelper
 {
+    public static string CalType => "1";
     /// <summary>
     /// 输出带颜色的数值
     /// </summary>

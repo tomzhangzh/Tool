@@ -691,7 +691,8 @@ namespace LOF.Services
         /// <returns>任务</returns>
         public async Task FetchStockPriceReal(PortfolioPosition position)
         {
-            var url = position.Url.EndsWith("-historical-data") ? position.Url.Substring(0, position.Url.Length - "-historical-data".Length) : position.Url;
+            // var url = position.Url.EndsWith("-historical-data") ? position.Url.Substring(0, position.Url.Length - "-historical-data".Length) : position.Url;
+            var url = position.Url;
             if (string.IsNullOrEmpty(url))
             {
                 Console.WriteLine($"{position.Code} 没有配置URL，跳过抓取");
@@ -754,6 +755,7 @@ namespace LOF.Services
                     // 执行JavaScript获取盘后数据
                     var script = @"
 function getAfterHoursData() {
+try{
   const header = document.querySelector('[data-test=""instrument-header-details""]');
   if (!header) return null;
 
@@ -778,6 +780,9 @@ function getAfterHoursData() {
     RealPercent: afterHoursContainer.querySelector('span.order-4')?.textContent?.trim(),
     RealTime: afterHoursContainer.querySelector('time')?.textContent?.trim()
   };
+  } catch (error) {
+    return { error: 'JavaScript执行错误: ' + error.message, stack: error.stack };
+  }
 }
 
 // 使用
