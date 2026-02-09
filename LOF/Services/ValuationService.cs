@@ -231,8 +231,16 @@ namespace LOF.Services
 
                     .FirstOrDefault();
 
-                var previousDateObj = historyList
+                StockPriceHistory previousDateObj = null;
+                try{
+      previousDateObj= historyList
               .Where(s => s.Code == position.Code).First();
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine($"Error:{position.Code} {ex.Message}");
+                    continue;
+                }
                 decimal? currentPrice = 0;
                 if (latestChangeObj == null || previousDateObj == null)
                 {

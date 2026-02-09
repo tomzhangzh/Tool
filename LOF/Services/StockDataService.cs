@@ -755,7 +755,7 @@ namespace LOF.Services
                     // 执行JavaScript获取盘后数据
                     var script = @"
 function getAfterHoursData() {
-try{
+
   const header = document.querySelector('[data-test=""instrument-header-details""]');
   if (!header) return null;
 
@@ -768,7 +768,7 @@ try{
     RealPrice: header.querySelector('[data-test=""instrument-price-last""]')?.textContent?.trim(),
     RealChange: header.querySelector('[data-test=""instrument-price-change""]')?.textContent?.trim(),
     RealPercent: header.querySelector('[data-test=""instrument-price-change-percent""]')?.textContent?.trim(),
-    RealTime: afterHoursContainer.querySelector('time')?.textContent?.trim()
+    RealTime: afterHoursContainer?.querySelector('time')?.textContent?.trim()
   };
 
   return {
@@ -780,9 +780,7 @@ try{
     RealPercent: afterHoursContainer.querySelector('span.order-4')?.textContent?.trim(),
     RealTime: afterHoursContainer.querySelector('time')?.textContent?.trim()
   };
-  } catch (error) {
-    return { error: 'JavaScript执行错误: ' + error.message, stack: error.stack };
-  }
+
 }
 
 // 使用
