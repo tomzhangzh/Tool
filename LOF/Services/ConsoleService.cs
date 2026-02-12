@@ -343,12 +343,12 @@ Console.WriteLine(new string('-', 130));
             try
             {
                 Console.WriteLine("开始执行数据抓取任务...");
-
+ await stockDataService.FetchJisiluLOFData("160216", "https://www.jisilu.cn/data/qdii/detail_hists/");
                 // 执行数据抓取
                 await stockDataService.FetchAllStockData();
 
                 // 抓取集思录LOF数据
-                await stockDataService.FetchJisiluLOFData("160216", "https://www.jisilu.cn/data/qdii/detail_hists/");
+               
 
                 Console.WriteLine("所有数据抓取任务完成");
             }

@@ -20,7 +20,7 @@ namespace LOF.Services
     {
         private readonly SqlSugarClient _db;
         private readonly HttpClient _httpClient;
-
+        private readonly int _sleepInterval = 1000*30; // 1秒
         public StockDataService(SqlSugarClient db)
         {
             _db = db;
@@ -97,13 +97,13 @@ namespace LOF.Services
                 driver.Navigate().GoToUrl(detailUrl);
                 
                 // 等待页面加载完成
-                Thread.Sleep(5000); // 等待5秒确保页面完全加载
+                Thread.Sleep(1000*3); // 等待5秒确保页面完全加载
                 
                 // 尝试定位历史数据表格
                 try
                 {
                     // 等待表格加载（页面可能有异步加载，等待5秒确保数据加载完成）
-                    Thread.Sleep(5000);
+                    Thread.Sleep(_sleepInterval);
 
                     // 打印当前页面标题，确认页面状态
                     Console.WriteLine($"当前页面标题: {driver.Title}");
@@ -476,7 +476,7 @@ namespace LOF.Services
                 
                 // 等待页面加载完成
                 Console.WriteLine("等待页面加载完成...");
-                Thread.Sleep(5000); // 等待5秒确保页面完全加载
+                Thread.Sleep(_sleepInterval); // 等待5秒确保页面完全加载
                 Console.WriteLine("页面加载等待完成");
                 
                 // 查找指定class的表格
@@ -643,7 +643,7 @@ namespace LOF.Services
             if (!string.IsNullOrEmpty(url))
             {
                 driver.Navigate().GoToUrl(url);
-                Thread.Sleep(1000); // 等待1秒确保页面完全加载
+                Thread.Sleep(_sleepInterval); // 等待1秒确保页面完全加载
             }
 
             return driver;
@@ -679,7 +679,7 @@ namespace LOF.Services
                     {
                         return result;
                     }
-                    Thread.Sleep(1000); // 等待2秒确保数据加载
+                    Thread.Sleep(_sleepInterval); // 等待2秒确保数据加载
                 
             }
             return null;
@@ -707,7 +707,7 @@ namespace LOF.Services
                 // 配置ChromeDriver选项
                 var options = new ChromeOptions();
                 // 移除无头模式，让浏览器窗口显示出来
-                options.AddArgument("--headless"); // 无头模式
+                 options.AddArgument("--headless"); // 无头模式
                 options.AddArgument("--no-sandbox");
                 options.AddArgument("--disable-dev-shm-usage");
                 options.AddArgument("--disable-gpu");
@@ -744,9 +744,50 @@ namespace LOF.Services
                 
                 // 等待页面加载完成
                 Console.WriteLine("等待页面加载完成...");
-                Thread.Sleep(1000); // 等待1秒确保页面完全加载
+                Thread.Sleep(_sleepInterval); // 等待20秒确保页面完全加载
                 Console.WriteLine("页面加载等待完成");
                 
+                // 检查是否需要处理Cloudflare验证
+                if (driver.PageSource.Contains("请完成以下操作，验证您是真人") || driver.PageSource.Contains("Cloudflare"))
+                {
+                    Console.WriteLine("检测到Cloudflare人机验证，尝试自动处理...");
+                    
+                    // 尝试点击验证按钮
+                    try
+                    {
+                        // 等待验证框出现
+                        Thread.Sleep(_sleepInterval);
+                        
+                        // 查找并点击验证按钮
+                        var verifyButton = driver.FindElement(By.CssSelector("input[type='submit'], button[type='submit'], .ctp-button"));
+                        if (verifyButton != null)
+                        {
+                            verifyButton.Click();
+                            Console.WriteLine("点击了验证按钮");
+                            Thread.Sleep(_sleepInterval); // 等待验证完成
+                        }
+                        
+                        // 检查验证是否成功
+                        if (!driver.PageSource.Contains("请完成以下操作，验证您是真人"))
+                        {
+                            Console.WriteLine("Cloudflare验证成功");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Cloudflare验证失败，请手动完成验证");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("自动处理Cloudflare验证失败：" + ex.Message);
+                        Console.WriteLine("请手动完成验证，或考虑使用代理IP、更换User-Agent等方式绕过");
+                    }
+                }
+                // // 输出当前页面的内容
+                // Console.WriteLine("当前页面内容：");
+                // Console.WriteLine(driver.PageSource);
+                // Console.WriteLine("当前页面url：");
+                // Console.WriteLine(driver.Url);
                 // 查找盘后数据
                 try
                 {
@@ -797,7 +838,7 @@ return getAfterHoursData();
                         afterHoursData = driver.ExecuteScript(script);
                         if (afterHoursData == null)
                         {
-                            Thread.Sleep(1000); // 等待1秒确保数据加载完成
+                            Thread.Sleep(_sleepInterval); // 等待1秒确保数据加载完成
                             Console.WriteLine($"第 {attempt + 1} 次尝试获取盘后数据...");
                             attempt++;
                         }
