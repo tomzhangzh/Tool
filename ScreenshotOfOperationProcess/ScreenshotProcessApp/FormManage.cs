@@ -13,6 +13,7 @@ namespace ScreenshotProcessApp
         private int _selectedPageId = 0;
         private List<ProcessFlow> _flows;
         private List<ProcessPage> _pages;
+        private Label label6;
         private List<PageRegion> _regions;
 
         public FormManage(Database db)
@@ -111,6 +112,7 @@ namespace ScreenshotProcessApp
                 _selectedPageId = _pages[lbPages.SelectedIndex].Id;
                 var page = _pages[lbPages.SelectedIndex];
                 txtPageName.Text = page.Name;
+                txtPageRemark.Text = page.Remark ?? "";
 
                 if (page.ImageData != null && page.ImageData.Length > 0)
                 {
@@ -160,7 +162,12 @@ namespace ScreenshotProcessApp
                     flow.Name = txtFlowName.Text;
                     flow.Description = txtFlowDesc.Text;
                     _db.UpdateFlow(flow);
+                    int currentIndex = lbFlows.SelectedIndex;
                     LoadFlows();
+                    if (currentIndex >= 0 && currentIndex < lbFlows.Items.Count)
+                    {
+                        lbFlows.SelectedIndex = currentIndex;
+                    }
                 }
             }
         }
@@ -249,8 +256,14 @@ namespace ScreenshotProcessApp
                 if (page != null)
                 {
                     page.Name = txtPageName.Text;
+                    page.Remark = txtPageRemark.Text;
                     _db.UpdatePage(page);
+                    int currentIndex = lbPages.SelectedIndex;
                     LoadPages(_selectedFlowId);
+                    if (currentIndex >= 0 && currentIndex < lbPages.Items.Count)
+                    {
+                        lbPages.SelectedIndex = currentIndex;
+                    }
                     MessageBox.Show("页面信息已保存");
                 }
             }
@@ -321,6 +334,7 @@ namespace ScreenshotProcessApp
         private TextBox txtFlowName;
         private TextBox txtFlowDesc;
         private TextBox txtPageName;
+        private RichTextBox txtPageRemark;
         private Label label1;
         private Label label2;
         private Label label3;
@@ -354,12 +368,14 @@ namespace ScreenshotProcessApp
             txtFlowName = new TextBox();
             txtFlowDesc = new TextBox();
             txtPageName = new TextBox();
+            txtPageRemark = new RichTextBox();
             label1 = new Label();
             label2 = new Label();
             label3 = new Label();
             label4 = new Label();
             label5 = new Label();
             btnSetStartPage = new Button();
+            label6 = new Label();
             ((System.ComponentModel.ISupportInitialize)pbImage).BeginInit();
             SuspendLayout();
             // 
@@ -418,7 +434,7 @@ namespace ScreenshotProcessApp
             // 
             // btnAddPage
             // 
-            btnAddPage.Location = new Point(20, 713);
+            btnAddPage.Location = new Point(25, 754);
             btnAddPage.Name = "btnAddPage";
             btnAddPage.Size = new Size(75, 30);
             btnAddPage.TabIndex = 15;
@@ -427,7 +443,7 @@ namespace ScreenshotProcessApp
             // 
             // btnDelPage
             // 
-            btnDelPage.Location = new Point(100, 713);
+            btnDelPage.Location = new Point(105, 754);
             btnDelPage.Name = "btnDelPage";
             btnDelPage.Size = new Size(75, 30);
             btnDelPage.TabIndex = 14;
@@ -436,7 +452,7 @@ namespace ScreenshotProcessApp
             // 
             // btnPastePage
             // 
-            btnPastePage.Location = new Point(20, 748);
+            btnPastePage.Location = new Point(20, 709);
             btnPastePage.Name = "btnPastePage";
             btnPastePage.Size = new Size(80, 30);
             btnPastePage.TabIndex = 13;
@@ -445,7 +461,7 @@ namespace ScreenshotProcessApp
             // 
             // btnSavePage
             // 
-            btnSavePage.Location = new Point(105, 748);
+            btnSavePage.Location = new Point(105, 709);
             btnSavePage.Name = "btnSavePage";
             btnSavePage.Size = new Size(80, 30);
             btnSavePage.TabIndex = 12;
@@ -491,7 +507,7 @@ namespace ScreenshotProcessApp
             // 
             txtFlowDesc.Location = new Point(360, 1040);
             txtFlowDesc.Name = "txtFlowDesc";
-            txtFlowDesc.Size = new Size(500, 27);
+            txtFlowDesc.Size = new Size(300, 27);
             txtFlowDesc.TabIndex = 7;
             // 
             // txtPageName
@@ -500,6 +516,15 @@ namespace ScreenshotProcessApp
             txtPageName.Name = "txtPageName";
             txtPageName.Size = new Size(300, 27);
             txtPageName.TabIndex = 6;
+            // 
+            // txtPageRemark
+            // 
+            txtPageRemark.Font = new Font("微软雅黑", 10F, FontStyle.Regular, GraphicsUnit.Point);
+            txtPageRemark.Location = new Point(710, 1068);
+            txtPageRemark.Name = "txtPageRemark";
+            txtPageRemark.Size = new Size(500, 120);
+            txtPageRemark.TabIndex = 13;
+            txtPageRemark.Text = "";
             // 
             // label1
             // 
@@ -553,16 +578,28 @@ namespace ScreenshotProcessApp
             // 
             // btnSetStartPage
             // 
-            btnSetStartPage.Location = new Point(180, 713);
+            btnSetStartPage.Location = new Point(211, 709);
             btnSetStartPage.Name = "btnSetStartPage";
             btnSetStartPage.Size = new Size(80, 30);
             btnSetStartPage.TabIndex = 0;
             btnSetStartPage.Text = "设为开始";
             btnSetStartPage.Click += btnSetStartPage_Click;
             // 
+            // label6
+            // 
+            label6.AutoSize = true;
+            label6.Font = new Font("微软雅黑", 12F, FontStyle.Regular, GraphicsUnit.Point);
+            label6.Location = new Point(710, 1038);
+            label6.Name = "label6";
+            label6.Size = new Size(92, 27);
+            label6.TabIndex = 22;
+            label6.Text = "页面描述";
+            label6.Click += label6_Click;
+            // 
             // FormManage
             // 
             ClientSize = new Size(1600, 1200);
+            Controls.Add(label6);
             Controls.Add(btnSetStartPage);
             Controls.Add(label5);
             Controls.Add(label4);
@@ -570,6 +607,7 @@ namespace ScreenshotProcessApp
             Controls.Add(label2);
             Controls.Add(label1);
             Controls.Add(txtPageName);
+            Controls.Add(txtPageRemark);
             Controls.Add(txtFlowDesc);
             Controls.Add(txtFlowName);
             Controls.Add(pbImage);
@@ -593,5 +631,10 @@ namespace ScreenshotProcessApp
             PerformLayout();
         }
         #endregion
+
+        private void label6_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }

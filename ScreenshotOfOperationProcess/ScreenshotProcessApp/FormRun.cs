@@ -12,6 +12,8 @@ namespace ScreenshotProcessApp
         private int _currentPageId;
         private ProcessPage _currentPage;
         private List<PageRegion> _currentRegions;
+        private Label label2;
+        private RichTextBox richTextBoxRemark;
         private Stack<int> _pageHistory = new Stack<int>();
 
         public FormRun(Database db)
@@ -69,6 +71,7 @@ namespace ScreenshotProcessApp
                         pbImage.Image = Image.FromStream(ms);
                     }
                 }
+                richTextBoxRemark.Text = _currentPage.Remark;
                 lblPageName.Text = _currentPage.Name;
                 pbImage.Invalidate();
             }
@@ -89,11 +92,11 @@ namespace ScreenshotProcessApp
                     {
                         _pageHistory.Push(_currentPageId);
                         LoadPage(region.TargetPageId.Value);
-                        
-                        if (!string.IsNullOrEmpty(region.Remark))
-                        {
-                            MessageBox.Show(region.Remark, "备注信息", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        }
+
+                        //if (!string.IsNullOrEmpty(region.Remark))
+                        //{
+                        //    MessageBox.Show(region.Remark, "备注信息", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        //}
                     }
                     break;
                 }
@@ -106,11 +109,11 @@ namespace ScreenshotProcessApp
             {
                 foreach (var region in _currentRegions)
                 {
-                    using (Pen pen = new Pen(Color.Green, 2))
+                    using (Pen pen = new Pen(Color.Red, 2))
                     {
                         e.Graphics.DrawRectangle(pen, region.X, region.Y, region.Width, region.Height);
-                        
-                        using (Brush brush = new SolidBrush(Color.Green))
+
+                        using (Brush brush = new SolidBrush(Color.Red))
                         {
                             e.Graphics.FillPolygon(brush, new Point[] {
                                 new Point(region.X + region.Width - 10, region.Y),
@@ -127,7 +130,7 @@ namespace ScreenshotProcessApp
                                 SizeF textSize = e.Graphics.MeasureString(region.Remark, font);
                                 float textX = region.X + region.Width + 5;
                                 float textY = region.Y;
-                                
+
                                 e.Graphics.FillRectangle(brush, textX, textY, textSize.Width + 4, textSize.Height + 2);
                                 using (Pen textPen = new Pen(Color.Black, 1))
                                 {
@@ -170,54 +173,114 @@ namespace ScreenshotProcessApp
 
         private void InitializeComponent()
         {
-            this.cbFlows = new System.Windows.Forms.ComboBox();
-            this.btnStart = new System.Windows.Forms.Button();
-            this.pbImage = new System.Windows.Forms.PictureBox();
-            this.btnBack = new System.Windows.Forms.Button();
-            this.lblPageName = new System.Windows.Forms.Label();
-            this.label1 = new System.Windows.Forms.Label();
-            ((System.ComponentModel.ISupportInitialize)(this.pbImage)).BeginInit();
-            this.SuspendLayout();
-            this.cbFlows.Location = new System.Drawing.Point(150, 30);
-            this.cbFlows.Size = new System.Drawing.Size(400, 35);
-            this.cbFlows.Font = new System.Drawing.Font("微软雅黑", 14F);
-            this.btnStart.Location = new System.Drawing.Point(600, 28);
-            this.btnStart.Size = new System.Drawing.Size(120, 40);
-            this.btnStart.Text = "开始运行";
-            this.btnStart.Font = new System.Drawing.Font("微软雅黑", 14F);
-            this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
-            this.pbImage.Location = new System.Drawing.Point(20, 100);
-            this.pbImage.Size = new System.Drawing.Size(1550, 1000);
-            this.pbImage.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
-            this.pbImage.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pbImage.MouseClick += new System.Windows.Forms.MouseEventHandler(this.pbImage_MouseClick);
-            this.pbImage.Paint += new System.Windows.Forms.PaintEventHandler(this.pbImage_Paint);
-            this.btnBack.Location = new System.Drawing.Point(20, 1110);
-            this.btnBack.Size = new System.Drawing.Size(120, 40);
-            this.btnBack.Text = "返回上一页";
-            this.btnBack.Font = new System.Drawing.Font("微软雅黑", 14F);
-            this.btnBack.Enabled = false;
-            this.btnBack.Click += new System.EventHandler(this.btnBack_Click);
-            this.lblPageName.AutoSize = true;
-            this.lblPageName.Location = new System.Drawing.Point(20, 70);
-            this.lblPageName.Text = "页面名称";
-            this.lblPageName.Font = new System.Drawing.Font("微软雅黑", 16F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(20, 35);
-            this.label1.Text = "选择流程:";
-            this.label1.Font = new System.Drawing.Font("微软雅黑", 14F);
-            this.ClientSize = new System.Drawing.Size(1600, 1200);
-            this.Controls.Add(this.label1);
-            this.Controls.Add(this.lblPageName);
-            this.Controls.Add(this.btnBack);
-            this.Controls.Add(this.pbImage);
-            this.Controls.Add(this.btnStart);
-            this.Controls.Add(this.cbFlows);
-            this.Text = "流程运行";
-            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            ((System.ComponentModel.ISupportInitialize)(this.pbImage)).EndInit();
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            cbFlows = new ComboBox();
+            btnStart = new Button();
+            pbImage = new PictureBox();
+            btnBack = new Button();
+            lblPageName = new Label();
+            label1 = new Label();
+            label2 = new Label();
+            richTextBoxRemark = new RichTextBox();
+            ((System.ComponentModel.ISupportInitialize)pbImage).BeginInit();
+            SuspendLayout();
+            // 
+            // cbFlows
+            // 
+            cbFlows.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
+            cbFlows.Location = new Point(150, 30);
+            cbFlows.Name = "cbFlows";
+            cbFlows.Size = new Size(400, 38);
+            cbFlows.TabIndex = 5;
+            // 
+            // btnStart
+            // 
+            btnStart.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
+            btnStart.Location = new Point(600, 28);
+            btnStart.Name = "btnStart";
+            btnStart.Size = new Size(120, 40);
+            btnStart.TabIndex = 4;
+            btnStart.Text = "开始运行";
+            btnStart.Click += btnStart_Click;
+            // 
+            // pbImage
+            // 
+            pbImage.BorderStyle = BorderStyle.FixedSingle;
+            pbImage.Location = new Point(20, 100);
+            pbImage.Name = "pbImage";
+            pbImage.Size = new Size(1550, 1000);
+            pbImage.SizeMode = PictureBoxSizeMode.Zoom;
+            pbImage.TabIndex = 3;
+            pbImage.TabStop = false;
+            pbImage.Paint += pbImage_Paint;
+            pbImage.MouseClick += pbImage_MouseClick;
+            // 
+            // btnBack
+            // 
+            btnBack.Enabled = false;
+            btnBack.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
+            btnBack.Location = new Point(20, 1110);
+            btnBack.Name = "btnBack";
+            btnBack.Size = new Size(184, 40);
+            btnBack.TabIndex = 2;
+            btnBack.Text = "返回上一页";
+            btnBack.Click += btnBack_Click;
+            // 
+            // lblPageName
+            // 
+            lblPageName.AutoSize = true;
+            lblPageName.Font = new Font("微软雅黑", 16F, FontStyle.Regular, GraphicsUnit.Point);
+            lblPageName.Location = new Point(20, 70);
+            lblPageName.Name = "lblPageName";
+            lblPageName.Size = new Size(123, 35);
+            lblPageName.TabIndex = 1;
+            lblPageName.Text = "页面名称";
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
+            label1.Location = new Point(20, 35);
+            label1.Name = "label1";
+            label1.Size = new Size(116, 31);
+            label1.TabIndex = 0;
+            label1.Text = "选择流程:";
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Font = new Font("微软雅黑", 16F, FontStyle.Regular, GraphicsUnit.Point);
+            label2.Location = new Point(1564, 35);
+            label2.Name = "label2";
+            label2.Size = new Size(123, 35);
+            label2.TabIndex = 6;
+            label2.Text = "页面备注";
+            // 
+            // richTextBoxRemark
+            // 
+            richTextBoxRemark.Location = new Point(1576, 100);
+            richTextBoxRemark.Name = "richTextBoxRemark";
+            richTextBoxRemark.Size = new Size(309, 996);
+            richTextBoxRemark.TabIndex = 7;
+            richTextBoxRemark.Text = "";
+            // 
+            // FormRun
+            // 
+            ClientSize = new Size(1892, 1200);
+            Controls.Add(richTextBoxRemark);
+            Controls.Add(label2);
+            Controls.Add(label1);
+            Controls.Add(lblPageName);
+            Controls.Add(btnBack);
+            Controls.Add(pbImage);
+            Controls.Add(btnStart);
+            Controls.Add(cbFlows);
+            MaximizeBox = false;
+            Name = "FormRun";
+            StartPosition = FormStartPosition.CenterScreen;
+            Text = "流程运行";
+            ((System.ComponentModel.ISupportInitialize)pbImage).EndInit();
+            ResumeLayout(false);
+            PerformLayout();
         }
         #endregion
     }

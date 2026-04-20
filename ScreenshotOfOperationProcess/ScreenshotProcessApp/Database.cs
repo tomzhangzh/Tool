@@ -21,6 +21,7 @@ namespace ScreenshotProcessApp
         public string Name { get; set; }
         public byte[] ImageData { get; set; }
         public string ImageName { get; set; }
+        public string Remark { get; set; }
     }
 
     public class PageRegion
@@ -72,6 +73,7 @@ namespace ScreenshotProcessApp
                             Name TEXT NOT NULL,
                             ImageData BLOB NOT NULL,
                             ImageName TEXT,
+                            Remark TEXT,
                             FOREIGN KEY (FlowId) REFERENCES ProcessFlow(Id)
                         )";
                     ExecuteNonQuery(conn, createPageTable);
@@ -215,13 +217,14 @@ namespace ScreenshotProcessApp
             using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
             {
                 conn.Open();
-                string sql = "INSERT INTO ProcessPage (FlowId, Name, ImageData, ImageName) VALUES (@FlowId, @Name, @ImageData, @ImageName)";
+                string sql = "INSERT INTO ProcessPage (FlowId, Name, ImageData, ImageName, Remark) VALUES (@FlowId, @Name, @ImageData, @ImageName, @Remark)";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@FlowId", page.FlowId);
                     cmd.Parameters.AddWithValue("@Name", page.Name);
                     cmd.Parameters.AddWithValue("@ImageData", page.ImageData);
                     cmd.Parameters.AddWithValue("@ImageName", string.IsNullOrEmpty(page.ImageName) ? (object)DBNull.Value : page.ImageName);
+                    cmd.Parameters.AddWithValue("@Remark", string.IsNullOrEmpty(page.Remark) ? (object)DBNull.Value : page.Remark);
                     cmd.ExecuteNonQuery();
                     return (int)conn.LastInsertRowId;
                 }
@@ -233,13 +236,14 @@ namespace ScreenshotProcessApp
             using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
             {
                 conn.Open();
-                string sql = "UPDATE ProcessPage SET Name=@Name, ImageData=@ImageData, ImageName=@ImageName WHERE Id=@Id";
+                string sql = "UPDATE ProcessPage SET Name=@Name, ImageData=@ImageData, ImageName=@ImageName, Remark=@Remark WHERE Id=@Id";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@Id", page.Id);
                     cmd.Parameters.AddWithValue("@Name", page.Name);
                     cmd.Parameters.AddWithValue("@ImageData", page.ImageData);
                     cmd.Parameters.AddWithValue("@ImageName", string.IsNullOrEmpty(page.ImageName) ? (object)DBNull.Value : page.ImageName);
+                    cmd.Parameters.AddWithValue("@Remark", string.IsNullOrEmpty(page.Remark) ? (object)DBNull.Value : page.Remark);
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -267,7 +271,7 @@ namespace ScreenshotProcessApp
             using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
             {
                 conn.Open();
-                string sql = "SELECT Id, FlowId, Name, ImageData, ImageName FROM ProcessPage WHERE FlowId=@FlowId ORDER BY Id";
+                string sql = "SELECT Id, FlowId, Name, ImageData, ImageName, Remark FROM ProcessPage WHERE FlowId=@FlowId ORDER BY Id";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@FlowId", flowId);
@@ -281,7 +285,8 @@ namespace ScreenshotProcessApp
                                 FlowId = reader.GetInt32(1),
                                 Name = reader.GetString(2),
                                 ImageData = (byte[])reader.GetValue(3),
-                                ImageName = reader.IsDBNull(4) ? null : reader.GetString(4)
+                                ImageName = reader.IsDBNull(4) ? null : reader.GetString(4),
+                                Remark = reader.IsDBNull(5) ? null : reader.GetString(5)
                             });
                         }
                     }
@@ -295,7 +300,7 @@ namespace ScreenshotProcessApp
             using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
             {
                 conn.Open();
-                string sql = "SELECT Id, FlowId, Name, ImageData, ImageName FROM ProcessPage WHERE Id=@Id";
+                string sql = "SELECT Id, FlowId, Name, ImageData, ImageName, Remark FROM ProcessPage WHERE Id=@Id";
                 using (var cmd = new SQLiteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@Id", id);
@@ -309,7 +314,8 @@ namespace ScreenshotProcessApp
                                 FlowId = reader.GetInt32(1),
                                 Name = reader.GetString(2),
                                 ImageData = (byte[])reader.GetValue(3),
-                                ImageName = reader.IsDBNull(4) ? null : reader.GetString(4)
+                                ImageName = reader.IsDBNull(4) ? null : reader.GetString(4),
+                                Remark = reader.IsDBNull(5) ? null : reader.GetString(5)
                             };
                         }
                     }
