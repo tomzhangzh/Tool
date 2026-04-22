@@ -1,0 +1,12 @@
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\bin\Debug\net7.0\SalesDataAnalyzer.Models.deps.json
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\bin\Debug\net7.0\SalesDataAnalyzer.Models.dll
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\bin\Debug\net7.0\SalesDataAnalyzer.Models.pdb
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\SalesDataAnalyzer.Models.csproj.AssemblyReference.cache
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\SalesDataAnalyzer.Models.GeneratedMSBuildEditorConfig.editorconfig
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\SalesDataAnalyzer.Models.AssemblyInfoInputs.cache
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\SalesDataAnalyzer.Models.AssemblyInfo.cs
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\SalesDataAnalyzer.Models.csproj.CoreCompileInputs.cache
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\SalesDataAnalyzer.Models.dll
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\refint\SalesDataAnalyzer.Models.dll
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\SalesDataAnalyzer.Models.pdb
+E:\Tom\Tool\Vector\SalesDataAnalyzer.Models\obj\Debug\net7.0\ref\SalesDataAnalyzer.Models.dll

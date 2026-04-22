@@ -1,0 +1,665 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<pd:categoryPd xmlns:vs="urn:vfi-sapphire:vs.2001-10-01" xmlns:fuel="urn:vfi-sapphire:fuel.2001-10-01" xmlns:base="urn:vfi-sapphire:base.2001-10-01" xmlns:pd="urn:vfi-sapphire:pd.2002-05-21" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <vs:period sysid="2" periodType="day" name="Day" periodSeqNum="265" periodBeginDate="2026-04-19T23:30:09-04:00" periodEndDate="2026-04-20T23:38:36-04:00" />
+  <vs:site>87</vs:site>
+  <pd:constituentPeriods>
+    <vs:period sysid="1" periodType="daypart" name="Shift" periodSeqNum="917" periodBeginDate="2026-04-20T04:15:36-04:00" periodEndDate="2026-04-20T13:41:51-04:00" />
+    <vs:period sysid="1" periodType="daypart" name="Shift" periodSeqNum="916" isFirst="true" periodBeginDate="2026-04-19T23:30:09-04:00" periodEndDate="2026-04-20T04:15:36-04:00" />
+    <vs:period sysid="1" periodType="daypart" name="Shift" periodSeqNum="918" periodBeginDate="2026-04-20T13:41:51-04:00" periodEndDate="2026-04-20T23:37:03-04:00" />
+    <vs:period sysid="1" periodType="daypart" name="Shift" periodSeqNum="919" isLast="true" periodBeginDate="2026-04-20T23:37:03-04:00" periodEndDate="2026-04-20T23:38:36-04:00" />
+  </pd:constituentPeriods>
+  <totals>
+    <categoryInfo>
+      <vs:categoryBase sysid="1">
+        <name>GROCERY</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>97</count>
+        <amount>454.52</amount>
+        <itemCount>170.000</itemCount>
+      </netSales>
+      <percentOfSales>3.15</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="2">
+        <name>TOBACCO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>88</count>
+        <amount>912.88</amount>
+        <itemCount>116.000</itemCount>
+      </netSales>
+      <percentOfSales>6.33</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="3">
+        <name>BEVERAGES</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>106</count>
+        <amount>411.19</amount>
+        <itemCount>130.000</itemCount>
+      </netSales>
+      <percentOfSales>2.85</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="4">
+        <name>BEER  WINE</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>21</count>
+        <amount>167.17</amount>
+        <itemCount>24.000</itemCount>
+      </netSales>
+      <percentOfSales>1.16</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9998">
+        <name>FUEL</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>285</count>
+        <amount>10833.91</amount>
+        <itemCount>285.000</itemCount>
+      </netSales>
+      <percentOfSales>75.08</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="5">
+        <name>GEN MERC</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>25</count>
+        <amount>138.51</amount>
+        <itemCount>37.000</itemCount>
+      </netSales>
+      <percentOfSales>0.96</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="7">
+        <name>OIL/AUTO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>2</count>
+        <amount>6.76</amount>
+        <itemCount>4.000</itemCount>
+      </netSales>
+      <percentOfSales>0.05</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="8">
+        <name>DELI</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>8</count>
+        <amount>39.30</amount>
+        <itemCount>10.000</itemCount>
+      </netSales>
+      <percentOfSales>0.27</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9">
+        <name>LOTTO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>125</count>
+        <amount>1453.00</amount>
+        <itemCount>154.000</itemCount>
+      </netSales>
+      <percentOfSales>10.07</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9999">
+        <name>FUEL DEPOSIT</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>0</count>
+        <amount>0.00</amount>
+        <itemCount>0.000</itemCount>
+      </netSales>
+      <percentOfSales>0.00</percentOfSales>
+    </categoryInfo>
+    <total>
+      <itemCount>930.000</itemCount>
+      <netSales>14417.24</netSales>
+      <percentOfSales>99.92</percentOfSales>
+    </total>
+  </totals>
+  <byRegister>
+    <vs:register sysid="101" />
+    <ticketRange>
+      <begin>1018087</begin>
+      <end>1018600</end>
+    </ticketRange>
+    <categoryInfo>
+      <vs:categoryBase sysid="1">
+        <name>GROCERY</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>97</count>
+        <amount>454.52</amount>
+        <itemCount>170.000</itemCount>
+      </netSales>
+      <percentOfSales>3.15</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="2">
+        <name>TOBACCO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>88</count>
+        <amount>912.88</amount>
+        <itemCount>116.000</itemCount>
+      </netSales>
+      <percentOfSales>6.33</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="3">
+        <name>BEVERAGES</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>106</count>
+        <amount>411.19</amount>
+        <itemCount>130.000</itemCount>
+      </netSales>
+      <percentOfSales>2.85</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="4">
+        <name>BEER  WINE</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>21</count>
+        <amount>167.17</amount>
+        <itemCount>24.000</itemCount>
+      </netSales>
+      <percentOfSales>1.16</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="5">
+        <name>GEN MERC</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>25</count>
+        <amount>138.51</amount>
+        <itemCount>37.000</itemCount>
+      </netSales>
+      <percentOfSales>0.96</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9998">
+        <name>FUEL</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>79</count>
+        <amount>2370.87</amount>
+        <itemCount>79.000</itemCount>
+      </netSales>
+      <percentOfSales>16.43</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="7">
+        <name>OIL/AUTO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>2</count>
+        <amount>6.76</amount>
+        <itemCount>4.000</itemCount>
+      </netSales>
+      <percentOfSales>0.05</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="8">
+        <name>DELI</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>8</count>
+        <amount>39.30</amount>
+        <itemCount>10.000</itemCount>
+      </netSales>
+      <percentOfSales>0.27</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9">
+        <name>LOTTO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>125</count>
+        <amount>1453.00</amount>
+        <itemCount>154.000</itemCount>
+      </netSales>
+      <percentOfSales>10.07</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9999">
+        <name>FUEL DEPOSIT</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>0</count>
+        <amount>0.00</amount>
+        <itemCount>0.000</itemCount>
+      </netSales>
+      <percentOfSales>0.00</percentOfSales>
+    </categoryInfo>
+    <total>
+      <itemCount>724.000</itemCount>
+      <netSales>5954.20</netSales>
+      <percentOfSales>41.26</percentOfSales>
+    </total>
+  </byRegister>
+  <byRegister>
+    <vs:register sysid="9" />
+    <ticketRange>
+      <begin>9121464</begin>
+      <end>9121477</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9112552</begin>
+      <end>9112583</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9109327</begin>
+      <end>9109343</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9095829</begin>
+      <end>9095856</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9083890</begin>
+      <end>9083915</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9077539</begin>
+      <end>9077585</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9064534</begin>
+      <end>9064551</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9056875</begin>
+      <end>9056920</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9048468</begin>
+      <end>9048498</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9037654</begin>
+      <end>9037680</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9025924</begin>
+      <end>9025942</end>
+    </ticketRange>
+    <ticketRange>
+      <begin>9018264</begin>
+      <end>9018305</end>
+    </ticketRange>
+    <categoryInfo>
+      <vs:categoryBase sysid="9998">
+        <name>FUEL</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>206</count>
+        <amount>8463.04</amount>
+        <itemCount>206.000</itemCount>
+      </netSales>
+      <percentOfSales>58.65</percentOfSales>
+    </categoryInfo>
+    <total>
+      <itemCount>206.000</itemCount>
+      <netSales>8463.04</netSales>
+      <percentOfSales>58.65</percentOfSales>
+    </total>
+  </byRegister>
+  <byCashier>
+    <vs:cashier sysid="5">
+      <name>SHIFT2</name>
+    </vs:cashier>
+    <categoryInfo>
+      <vs:categoryBase sysid="1">
+        <name>GROCERY</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>37</count>
+        <amount>167.43</amount>
+        <itemCount>70.000</itemCount>
+      </netSales>
+      <percentOfSales>1.16</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="2">
+        <name>TOBACCO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>44</count>
+        <amount>451.38</amount>
+        <itemCount>56.000</itemCount>
+      </netSales>
+      <percentOfSales>3.13</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="3">
+        <name>BEVERAGES</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>49</count>
+        <amount>188.15</amount>
+        <itemCount>57.000</itemCount>
+      </netSales>
+      <percentOfSales>1.30</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="4">
+        <name>BEER  WINE</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>10</count>
+        <amount>31.93</amount>
+        <itemCount>8.000</itemCount>
+      </netSales>
+      <percentOfSales>0.22</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9998">
+        <name>FUEL</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>38</count>
+        <amount>1196.35</amount>
+        <itemCount>38.000</itemCount>
+      </netSales>
+      <percentOfSales>8.29</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="5">
+        <name>GEN MERC</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>8</count>
+        <amount>29.03</amount>
+        <itemCount>11.000</itemCount>
+      </netSales>
+      <percentOfSales>0.20</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="7">
+        <name>OIL/AUTO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>1</count>
+        <amount>1.69</amount>
+        <itemCount>1.000</itemCount>
+      </netSales>
+      <percentOfSales>0.01</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="8">
+        <name>DELI</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>3</count>
+        <amount>22.36</amount>
+        <itemCount>4.000</itemCount>
+      </netSales>
+      <percentOfSales>0.15</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9">
+        <name>LOTTO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>66</count>
+        <amount>884.50</amount>
+        <itemCount>83.000</itemCount>
+      </netSales>
+      <percentOfSales>6.13</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9999">
+        <name>FUEL DEPOSIT</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>0</count>
+        <amount>0.00</amount>
+        <itemCount>0.000</itemCount>
+      </netSales>
+      <percentOfSales>0.00</percentOfSales>
+    </categoryInfo>
+    <total>
+      <itemCount>328.000</itemCount>
+      <netSales>2972.82</netSales>
+      <percentOfSales>20.60</percentOfSales>
+    </total>
+  </byCashier>
+  <byCashier>
+    <vs:cashier sysid="0">
+      <name>SYSTEM</name>
+    </vs:cashier>
+    <categoryInfo>
+      <vs:categoryBase sysid="9998">
+        <name>FUEL</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>206</count>
+        <amount>8463.04</amount>
+        <itemCount>206.000</itemCount>
+      </netSales>
+      <percentOfSales>58.65</percentOfSales>
+    </categoryInfo>
+    <total>
+      <itemCount>206.000</itemCount>
+      <netSales>8463.04</netSales>
+      <percentOfSales>58.65</percentOfSales>
+    </total>
+  </byCashier>
+  <byCashier>
+    <vs:cashier sysid="6">
+      <name>SHIFT3</name>
+    </vs:cashier>
+    <categoryInfo>
+      <vs:categoryBase sysid="1">
+        <name>GROCERY</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>56</count>
+        <amount>266.46</amount>
+        <itemCount>95.000</itemCount>
+      </netSales>
+      <percentOfSales>1.85</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="2">
+        <name>TOBACCO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>38</count>
+        <amount>412.96</amount>
+        <itemCount>54.000</itemCount>
+      </netSales>
+      <percentOfSales>2.86</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="3">
+        <name>BEVERAGES</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>52</count>
+        <amount>208.24</amount>
+        <itemCount>68.000</itemCount>
+      </netSales>
+      <percentOfSales>1.44</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="4">
+        <name>BEER  WINE</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>8</count>
+        <amount>76.65</amount>
+        <itemCount>11.000</itemCount>
+      </netSales>
+      <percentOfSales>0.53</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="5">
+        <name>GEN MERC</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>17</count>
+        <amount>109.48</amount>
+        <itemCount>26.000</itemCount>
+      </netSales>
+      <percentOfSales>0.76</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9998">
+        <name>FUEL</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>39</count>
+        <amount>1094.52</amount>
+        <itemCount>39.000</itemCount>
+      </netSales>
+      <percentOfSales>7.59</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="7">
+        <name>OIL/AUTO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>1</count>
+        <amount>5.07</amount>
+        <itemCount>3.000</itemCount>
+      </netSales>
+      <percentOfSales>0.04</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="8">
+        <name>DELI</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>4</count>
+        <amount>10.95</amount>
+        <itemCount>5.000</itemCount>
+      </netSales>
+      <percentOfSales>0.08</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9">
+        <name>LOTTO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>59</count>
+        <amount>568.50</amount>
+        <itemCount>71.000</itemCount>
+      </netSales>
+      <percentOfSales>3.94</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9999">
+        <name>FUEL DEPOSIT</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>0</count>
+        <amount>0.00</amount>
+        <itemCount>0.000</itemCount>
+      </netSales>
+      <percentOfSales>0.00</percentOfSales>
+    </categoryInfo>
+    <total>
+      <itemCount>372.000</itemCount>
+      <netSales>2752.83</netSales>
+      <percentOfSales>19.08</percentOfSales>
+    </total>
+  </byCashier>
+  <byCashier>
+    <vs:cashier sysid="4">
+      <name>SHIFT1</name>
+    </vs:cashier>
+    <categoryInfo>
+      <vs:categoryBase sysid="1">
+        <name>GROCERY</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>4</count>
+        <amount>20.63</amount>
+        <itemCount>5.000</itemCount>
+      </netSales>
+      <percentOfSales>0.14</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="2">
+        <name>TOBACCO</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>6</count>
+        <amount>48.54</amount>
+        <itemCount>6.000</itemCount>
+      </netSales>
+      <percentOfSales>0.34</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="3">
+        <name>BEVERAGES</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>5</count>
+        <amount>14.80</amount>
+        <itemCount>5.000</itemCount>
+      </netSales>
+      <percentOfSales>0.10</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="4">
+        <name>BEER  WINE</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>3</count>
+        <amount>58.59</amount>
+        <itemCount>5.000</itemCount>
+      </netSales>
+      <percentOfSales>0.41</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9998">
+        <name>FUEL</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>2</count>
+        <amount>80.00</amount>
+        <itemCount>2.000</itemCount>
+      </netSales>
+      <percentOfSales>0.55</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="8">
+        <name>DELI</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>1</count>
+        <amount>5.99</amount>
+        <itemCount>1.000</itemCount>
+      </netSales>
+      <percentOfSales>0.04</percentOfSales>
+    </categoryInfo>
+    <categoryInfo>
+      <vs:categoryBase sysid="9999">
+        <name>FUEL DEPOSIT</name>
+      </vs:categoryBase>
+      <netSales>
+        <count>0</count>
+        <amount>0.00</amount>
+        <itemCount>0.000</itemCount>
+      </netSales>
+      <percentOfSales>0.00</percentOfSales>
+    </categoryInfo>
+    <total>
+      <itemCount>24.000</itemCount>
+      <netSales>228.55</netSales>
+      <percentOfSales>1.58</percentOfSales>
+    </total>
+  </byCashier>
+</pd:categoryPd>
