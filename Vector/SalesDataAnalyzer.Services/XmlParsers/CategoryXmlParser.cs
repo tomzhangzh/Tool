@@ -9,14 +9,15 @@ public static class CategoryXmlParser
     {
         var categories = new List<SalesCategory>();
         var doc = XDocument.Parse(xmlContent);
-        
+
         XNamespace pdNs = "urn:vfi-sapphire:pd.2002-05-21";
         XNamespace vsNs = "urn:vfi-sapphire:vs.2001-10-01";
-        
+
         var periodBeginDate = DateTime.MinValue;
         var periodEndDate = DateTime.MinValue;
         var siteId = 0;
-        
+        string? siteName = null;
+
         var periodElement = doc.Descendants(vsNs + "period").FirstOrDefault(p => p.Attribute("periodType")?.Value == "day");
         if (periodElement != null)
         {
@@ -25,19 +26,40 @@ public static class CategoryXmlParser
             if (DateTime.TryParse(periodElement.Attribute("periodEndDate")?.Value, out var endDate))
                 periodEndDate = endDate;
         }
-        
+
         var siteElement = doc.Descendants(vsNs + "site").FirstOrDefault();
-        if (siteElement != null && int.TryParse(siteElement.Value, out var site))
-            siteId = site;
-        
+        if (siteElement != null)
+        {
+            var siteValue = siteElement.Value?.Trim();
+            if (!string.IsNullOrEmpty(siteValue))
+            {
+                if (int.TryParse(siteValue, out var parsedSiteId))
+                {
+                    siteId = parsedSiteId;
+                    siteName = siteValue;
+                }
+                else
+                {
+                    siteName = siteValue;
+                }
+            }
+
+            var locationIdAttr = siteElement.Attribute("locationId");
+            if (locationIdAttr != null && int.TryParse(locationIdAttr.Value, out var locationId))
+            {
+                siteId = locationId;
+            }
+        }
+
         foreach (var categoryInfo in doc.Descendants("categoryInfo"))
         {
             var categoryBase = categoryInfo.Element(vsNs + "categoryBase");
             var netSales = categoryInfo.Element("netSales");
-            
+
             var category = new SalesCategory
             {
                 SiteId = siteId,
+                SiteName = siteName,
                 CategorySysId = categoryBase?.Attribute("sysid") != null ? int.Parse(categoryBase.Attribute("sysid")!.Value) : 0,
                 CategoryName = categoryBase?.Element("name")?.Value ?? string.Empty,
                 NetSalesCount = netSales?.Element("count") != null ? int.Parse(netSales.Element("count")!.Value) : 0,
@@ -47,10 +69,10 @@ public static class CategoryXmlParser
                 PeriodBeginDate = periodBeginDate,
                 PeriodEndDate = periodEndDate
             };
-            
+
             categories.Add(category);
         }
-        
+
         return categories;
     }
 }

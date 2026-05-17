@@ -9,13 +9,14 @@ public static class HourlyXmlParser
     {
         var hourlySalesList = new List<HourlySales>();
         var doc = XDocument.Parse(xmlContent);
-        
+
         XNamespace vsNs = "urn:vfi-sapphire:vs.2001-10-01";
-        
+
         var periodBeginDate = DateTime.MinValue;
         var periodEndDate = DateTime.MinValue;
         var siteId = 0;
-        
+        string? siteName = null;
+
         var periodElement = doc.Descendants(vsNs + "period").FirstOrDefault(p => p.Attribute("periodType")?.Value == "day");
         if (periodElement != null)
         {
@@ -24,20 +25,41 @@ public static class HourlyXmlParser
             if (DateTime.TryParse(periodElement.Attribute("periodEndDate")?.Value, out var endDate))
                 periodEndDate = endDate;
         }
-        
+
         var siteElement = doc.Descendants(vsNs + "site").FirstOrDefault();
-        if (siteElement != null && int.TryParse(siteElement.Value, out var site))
-            siteId = site;
-        
+        if (siteElement != null)
+        {
+            var siteValue = siteElement.Value?.Trim();
+            if (!string.IsNullOrEmpty(siteValue))
+            {
+                if (int.TryParse(siteValue, out var parsedSiteId))
+                {
+                    siteId = parsedSiteId;
+                    siteName = siteValue;
+                }
+                else
+                {
+                    siteName = siteValue;
+                }
+            }
+
+            var locationIdAttr = siteElement.Attribute("locationId");
+            if (locationIdAttr != null && int.TryParse(locationIdAttr.Value, out var locationId))
+            {
+                siteId = locationId;
+            }
+        }
+
         foreach (var hourlyInfo in doc.Descendants("hourlyInfo"))
         {
             var merchOnly = hourlyInfo.Element("merchOnly");
             var merchFuel = hourlyInfo.Element("merchFuel");
             var fuelOnly = hourlyInfo.Element("fuelOnly");
-            
+
             var hourly = new HourlySales
             {
                 SiteId = siteId,
+                SiteName = siteName,
                 Hour = hourlyInfo.Element("hour") != null ? int.Parse(hourlyInfo.Element("hour")!.Value) : 0,
                 ItemCount = hourlyInfo.Element("itemCount") != null ? decimal.Parse(hourlyInfo.Element("itemCount")!.Value) : 0,
                 MerchOnlyCount = merchOnly?.Element("count") != null ? int.Parse(merchOnly.Element("count")!.Value) : 0,
@@ -49,10 +71,10 @@ public static class HourlyXmlParser
                 PeriodBeginDate = periodBeginDate,
                 PeriodEndDate = periodEndDate
             };
-            
+
             hourlySalesList.Add(hourly);
         }
-        
+
         return hourlySalesList;
     }
 }

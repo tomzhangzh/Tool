@@ -9,13 +9,14 @@ public static class SummaryXmlParser
     {
         var summaries = new List<SalesSummary>();
         var doc = XDocument.Parse(xmlContent);
-        
+
         XNamespace vsNs = "urn:vfi-sapphire:vs.2001-10-01";
-        
+
         var periodBeginDate = DateTime.MinValue;
         var periodEndDate = DateTime.MinValue;
         var siteId = 0;
-        
+        string? siteName = null;
+
         var periodElement = doc.Descendants(vsNs + "period").FirstOrDefault(p => p.Attribute("periodType")?.Value == "day");
         if (periodElement != null)
         {
@@ -24,52 +25,73 @@ public static class SummaryXmlParser
             if (DateTime.TryParse(periodElement.Attribute("periodEndDate")?.Value, out var endDate))
                 periodEndDate = endDate;
         }
-        
+
         var siteElement = doc.Descendants(vsNs + "site").FirstOrDefault();
-        if (siteElement != null && int.TryParse(siteElement.Value, out var site))
-            siteId = site;
-        
+        if (siteElement != null)
+        {
+            var siteValue = siteElement.Value?.Trim();
+            if (!string.IsNullOrEmpty(siteValue))
+            {
+                if (int.TryParse(siteValue, out var parsedSiteId))
+                {
+                    siteId = parsedSiteId;
+                    siteName = siteValue;
+                }
+                else
+                {
+                    siteName = siteValue;
+                }
+            }
+
+            var locationIdAttr = siteElement.Attribute("locationId");
+            if (locationIdAttr != null && int.TryParse(locationIdAttr.Value, out var locationId))
+            {
+                siteId = locationId;
+            }
+        }
+
         var totalsElement = doc.Descendants("totals").FirstOrDefault();
         if (totalsElement != null)
         {
-            var summary = ParseSummaryElement(totalsElement, siteId, periodBeginDate, periodEndDate, null, null, null);
+            var summary = ParseSummaryElement(totalsElement, siteId, siteName, periodBeginDate, periodEndDate, null, null, null);
             if (summary != null)
                 summaries.Add(summary);
         }
-        
+
         foreach (var byRegister in doc.Descendants("byRegister"))
         {
-            var registerId = byRegister.Element(vsNs + "register")?.Attribute("sysid") != null 
-                ? int.Parse(byRegister.Element(vsNs + "register")!.Attribute("sysid")!.Value) 
+            var registerId = byRegister.Element(vsNs + "register")?.Attribute("sysid") != null
+                ? int.Parse(byRegister.Element(vsNs + "register")!.Attribute("sysid")!.Value)
                 : (int?)null;
-            
+
             var summaryInfo = byRegister.Descendants("summaryInfo").FirstOrDefault();
             if (summaryInfo != null)
             {
-                var summary = ParseSummaryElement(byRegister, siteId, periodBeginDate, periodEndDate, registerId, null, null);
+                var summary = ParseSummaryElement(byRegister, siteId, siteName, periodBeginDate, periodEndDate, registerId, null, null);
                 if (summary != null)
                     summaries.Add(summary);
             }
         }
-        
+
         return summaries;
     }
-    
-    private static SalesSummary? ParseSummaryElement(XElement element, int siteId, DateTime periodBeginDate, DateTime periodEndDate, int? registerId, int? cashierId, string? cashierName)
+
+    private static SalesSummary? ParseSummaryElement(XElement element, int siteId, string? siteName, DateTime periodBeginDate, DateTime periodEndDate, int? registerId, int? cashierId, string? cashierName)
     {
         var totalizers = element.Descendants("totalizers").FirstOrDefault();
         var summaryInfo = element.Descendants("summaryInfo").FirstOrDefault();
-        
+
         if (summaryInfo == null)
             return null;
-        
+
         var startElement = totalizers?.Element("start");
         var endElement = totalizers?.Element("end");
         var diffElement = totalizers?.Element("difference");
-        
+
         return new SalesSummary
         {
             SiteId = siteId,
+            SiteName = siteName,
             InsideGrandStart = startElement?.Element("insideGrand") != null ? decimal.Parse(startElement.Element("insideGrand")!.Value) : 0,
             InsideSalesStart = startElement?.Element("insideSales") != null ? decimal.Parse(startElement.Element("insideSales")!.Value) : 0,
             OutsideGrandStart = startElement?.Element("outsideGrand") != null ? decimal.Parse(startElement.Element("outsideGrand")!.Value) : 0,

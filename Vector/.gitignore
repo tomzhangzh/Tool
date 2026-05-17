@@ -1,0 +1,52 @@
+# .NET Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
+*.sln.docstates
+
+# Rider
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# .NET
+*.csproj.user
+*.userosscache
+*.suo
+*.cache
+*.log
+*.tlog
+
+# NuGet
+*.nupkg
+*.nuget.props
+*.nuget.targets
+packages/
+.nuget/
+
+# Build Output
+[Pp]ublish/
+
+# LocalDB
+*.mdf
+*.ldf
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~

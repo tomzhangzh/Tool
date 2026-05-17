@@ -17,7 +17,7 @@ namespace SalesDataAnalyzer.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "7.0.18")
+                .HasAnnotation("ProductVersion", "8.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -66,6 +66,10 @@ namespace SalesDataAnalyzer.Data.Migrations
 
                     b.Property<int>("SiteId")
                         .HasColumnType("int");
+
+                    b.Property<string>("SiteName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
@@ -180,6 +184,10 @@ namespace SalesDataAnalyzer.Data.Migrations
                     b.Property<int>("SiteId")
                         .HasColumnType("int");
 
+                    b.Property<string>("SiteName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SiteId", "CategorySysId", "PeriodBeginDate");
@@ -269,6 +277,10 @@ namespace SalesDataAnalyzer.Data.Migrations
                     b.Property<int>("SiteId")
                         .HasColumnType("int");
 
+                    b.Property<string>("SiteName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SiteId", "PeriodBeginDate");
@@ -303,6 +315,10 @@ namespace SalesDataAnalyzer.Data.Migrations
 
                     b.Property<int>("SiteId")
                         .HasColumnType("int");
+
+                    b.Property<string>("SiteName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 

@@ -24,7 +24,7 @@ public class DataImportService
         var categories = CategoryXmlParser.Parse(xmlContent);
         await _salesRepository.AddSalesCategoriesAsync(categories);
         await _salesRepository.SaveChangesAsync();
-        
+
         foreach (var category in categories)
         {
             await AddToVectorDb(category);
@@ -37,7 +37,7 @@ public class DataImportService
         var hourlySales = HourlyXmlParser.Parse(xmlContent);
         await _salesRepository.AddHourlySalesAsync(hourlySales);
         await _salesRepository.SaveChangesAsync();
-        
+
         foreach (var hourly in hourlySales)
         {
             await AddToVectorDb(hourly);
@@ -50,7 +50,7 @@ public class DataImportService
         var summaries = SummaryXmlParser.Parse(xmlContent);
         await _salesRepository.AddSalesSummariesAsync(summaries);
         await _salesRepository.SaveChangesAsync();
-        
+
         foreach (var summary in summaries)
         {
             await AddToVectorDb(summary);
@@ -68,24 +68,29 @@ public class DataImportService
     public async Task ImportAllDataAsync(string xmlDirectoryPath)
     {
         await _chromaService.InitializeCollectionAsync(CollectionName);
-        
+
         var categoryPath = Path.Combine(xmlDirectoryPath, "category.xml");
         var hourlyPath = Path.Combine(xmlDirectoryPath, "hourly.xml");
         var summaryPath = Path.Combine(xmlDirectoryPath, "summary.xml");
-        
+
         if (File.Exists(categoryPath))
             await ImportCategoryDataAsync(categoryPath);
-        
+
         if (File.Exists(hourlyPath))
             await ImportHourlyDataAsync(hourlyPath);
-        
+
         if (File.Exists(summaryPath))
             await ImportSummaryDataAsync(summaryPath);
     }
 
-    public async Task<List<(string Document, float Score, Dictionary<string, string> Metadata)>> AnalyzeSalesDataAsync(string query)
+    public async Task<List<(string Document, float Score, Dictionary<string, string> Metadata)>> AnalyzeSalesDataAsync(string query, string? siteName = null)
     {
-        return await _chromaService.QuerySimilarDocumentsAsync(CollectionName, query);
+        return await _chromaService.QuerySimilarDocumentsAsync(CollectionName, query, siteName);
+    }
+
+    public async Task<List<string>> GetAllSitesAsync()
+    {
+        return await _chromaService.GetAllSitesAsync(CollectionName);
     }
 
     public async Task<IEnumerable<SalesCategory>> GetTopSalesCategoriesAsync(int topN = 10)
@@ -103,24 +108,26 @@ public class DataImportService
         var document = BuildDocumentText(category);
         var metadata = new Dictionary<string, string>
         {
-            { "SiteId", category.SiteId.ToString() },
-            { "CategoryName", category.CategoryName },
-            { "DataType", "SalesCategory" },
-            { "PeriodBeginDate", category.PeriodBeginDate.ToString("o") },
-            { "NetSalesAmount", category.NetSalesAmount.ToString() }
+            { "site_id", category.SiteId.ToString() },
+            { "site_name", category.SiteName ?? "" },
+            { "category_name", category.CategoryName },
+            { "data_type", "SalesCategory" },
+            { "period_begin_date", category.PeriodBeginDate.ToString("o") },
+            { "net_sales_amount", category.NetSalesAmount.ToString() }
         };
 
         var documentId = await _chromaService.AddDocumentAsync(CollectionName, document, metadata);
-        
+
         var vectorData = new VectorData
         {
             SiteId = category.SiteId,
+            SiteName = category.SiteName,
             PeriodDate = category.PeriodBeginDate.Date,
             DataType = "SalesCategory",
             MetadataJson = JsonSerializer.Serialize(metadata),
             ChromaDocumentId = documentId
         };
-        
+
         await _salesRepository.AddVectorDataAsync(vectorData);
         await _salesRepository.SaveChangesAsync();
     }
@@ -130,24 +137,26 @@ public class DataImportService
         var document = BuildDocumentText(hourly);
         var metadata = new Dictionary<string, string>
         {
-            { "SiteId", hourly.SiteId.ToString() },
-            { "Hour", hourly.Hour.ToString() },
-            { "DataType", "HourlySales" },
-            { "PeriodBeginDate", hourly.PeriodBeginDate.ToString("o") },
-            { "TotalAmount", (hourly.MerchOnlyAmount + hourly.MerchFuelAmount + hourly.FuelOnlyAmount).ToString() }
+            { "site_id", hourly.SiteId.ToString() },
+            { "site_name", hourly.SiteName ?? "" },
+            { "hour", hourly.Hour.ToString() },
+            { "data_type", "HourlySales" },
+            { "period_begin_date", hourly.PeriodBeginDate.ToString("o") },
+            { "total_amount", (hourly.MerchOnlyAmount + hourly.MerchFuelAmount + hourly.FuelOnlyAmount).ToString() }
         };
 
         var documentId = await _chromaService.AddDocumentAsync(CollectionName, document, metadata);
-        
+
         var vectorData = new VectorData
         {
             SiteId = hourly.SiteId,
+            SiteName = hourly.SiteName,
             PeriodDate = hourly.PeriodBeginDate.Date,
             DataType = "HourlySales",
             MetadataJson = JsonSerializer.Serialize(metadata),
             ChromaDocumentId = documentId
         };
-        
+
         await _salesRepository.AddVectorDataAsync(vectorData);
         await _salesRepository.SaveChangesAsync();
     }
@@ -157,42 +166,47 @@ public class DataImportService
         var document = BuildDocumentText(summary);
         var metadata = new Dictionary<string, string>
         {
-            { "SiteId", summary.SiteId.ToString() },
-            { "DataType", "SalesSummary" },
-            { "PeriodBeginDate", summary.PeriodBeginDate.ToString("o") },
-            { "NetSales", summary.NetSales.ToString() },
-            { "FuelSales", summary.FuelSales.ToString() },
-            { "MerchSales", summary.MerchSales.ToString() }
+            { "site_id", summary.SiteId.ToString() },
+            { "site_name", summary.SiteName ?? "" },
+            { "data_type", "SalesSummary" },
+            { "period_begin_date", summary.PeriodBeginDate.ToString("o") },
+            { "net_sales", summary.NetSales.ToString() },
+            { "fuel_sales", summary.FuelSales.ToString() },
+            { "merch_sales", summary.MerchSales.ToString() }
         };
 
         var documentId = await _chromaService.AddDocumentAsync(CollectionName, document, metadata);
-        
+
         var vectorData = new VectorData
         {
             SiteId = summary.SiteId,
+            SiteName = summary.SiteName,
             PeriodDate = summary.PeriodBeginDate.Date,
             DataType = "SalesSummary",
             MetadataJson = JsonSerializer.Serialize(metadata),
             ChromaDocumentId = documentId
         };
-        
+
         await _salesRepository.AddVectorDataAsync(vectorData);
         await _salesRepository.SaveChangesAsync();
     }
 
     private string BuildDocumentText(SalesCategory category)
     {
-        return $"销售类别: {category.CategoryName}，销售额: {category.NetSalesAmount:C}，销售数量: {category.NetSalesCount}，占比: {category.PercentOfSales}%";
+        // 门店: ...，销售类别: ...，销售额: ...，销售数量: ...，占比: ...
+        return $"Site: {category.SiteName ?? category.SiteId.ToString()}, Sales Category: {category.CategoryName}, Sales Amount: {category.NetSalesAmount:C}, Sales Count: {category.NetSalesCount}, Percentage: {category.PercentOfSales}%";
     }
 
     private string BuildDocumentText(HourlySales hourly)
     {
         var totalAmount = hourly.MerchOnlyAmount + hourly.MerchFuelAmount + hourly.FuelOnlyAmount;
-        return $"时段: {hourly.Hour}点，商品销售: {hourly.MerchOnlyAmount:C}，商品加油: {hourly.MerchFuelAmount:C}，纯加油: {hourly.FuelOnlyAmount:C}，总计: {totalAmount:C}";
+        // 门店: ...，时段: ...点，商品销售: ...，商品加油: ...，纯加油: ...，总计: ...
+        return $"Site: {hourly.SiteName ?? hourly.SiteId.ToString()}, Period: {hourly.Hour} o'clock, Merch Sales: {hourly.MerchOnlyAmount:C}, Merch+Fuel: {hourly.MerchFuelAmount:C}, Fuel Only: {hourly.FuelOnlyAmount:C}, Total: {totalAmount:C}";
     }
 
     private string BuildDocumentText(SalesSummary summary)
     {
-        return $"销售汇总: 净销售额 {summary.NetSales:C}，商品销售 {summary.MerchSales:C}，加油销售 {summary.FuelSales:C}，顾客数 {summary.CustomerCount}，商品数 {summary.ItemCount}";
+        // 门店: ...，销售汇总: 净销售额 ...，商品销售 ...，加油销售 ...，顾客数 ...，商品数 ...
+        return $"Site: {summary.SiteName ?? summary.SiteId.ToString()}, Sales Summary: Net Sales {summary.NetSales:C}, Merch Sales {summary.MerchSales:C}, Fuel Sales {summary.FuelSales:C}, Customers {summary.CustomerCount}, Items {summary.ItemCount}";
     }
 }

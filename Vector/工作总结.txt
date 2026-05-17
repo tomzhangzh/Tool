@@ -5,9 +5,10 @@
 一、Chroma向量数据库安装与配置
 
 1. 安装Chroma
-   - 使用命令：python -m pip install chromadb
-   - 服务启动：chroma run --host localhost --port 8000
-
+winget install Python.Python.3.10
+  py -3.10-64 -m pip install chromadb==1.5.0 --force-reinstall -i https://mirrors.aliyun.com/pypi/simple/
+   - 服务启动："C:\Users\Tom\AppData\Local\Programs\Python\Python310\Scripts\chroma.exe" run --host 0.0.0.0 --port 8000 --path E:\Tom\Tool\Vector\chroma
+& 'C:\Users\Tom\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\Scripts\chroma.exe' run --host localhost --port 8000
 2. 创建Python代理服务 (chroma_proxy.py)
    - 使用FastAPI提供简化的API接口
    - 服务地址：http://localhost:8001
