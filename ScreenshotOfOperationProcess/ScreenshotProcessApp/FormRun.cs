@@ -12,6 +12,7 @@ namespace ScreenshotProcessApp
         private int _currentPageId;
         private ProcessPage _currentPage;
         private List<PageRegion> _currentRegions;
+        private List<PageAnnotation> _currentAnnotations;
         private Label label2;
         private RichTextBox richTextBoxRemark;
         private Stack<int> _pageHistory = new Stack<int>();
@@ -61,6 +62,7 @@ namespace ScreenshotProcessApp
             _currentPageId = pageId;
             _currentPage = _db.GetPageById(pageId);
             _currentRegions = _db.GetRegionsByPageId(pageId);
+            _currentAnnotations = _db.GetAnnotationsByPageId(pageId);
 
             if (_currentPage != null)
             {
@@ -142,6 +144,47 @@ namespace ScreenshotProcessApp
                     }
                 }
             }
+
+            if (_currentAnnotations != null)
+            {
+                foreach (var annotation in _currentAnnotations)
+                {
+                    Color bgColor = Color.FromArgb(200, Color.Yellow);
+                    using (Brush brush = new SolidBrush(bgColor))
+                    {
+                        e.Graphics.FillRectangle(brush, annotation.TextX, annotation.TextY, annotation.TextWidth, annotation.TextHeight);
+                    }
+                    using (Pen pen = new Pen(Color.Blue, 2))
+                    {
+                        e.Graphics.DrawRectangle(pen, annotation.TextX, annotation.TextY, annotation.TextWidth, annotation.TextHeight);
+                    }
+
+                    if (!string.IsNullOrEmpty(annotation.Text))
+                    {
+                        using (Font font = new Font("微软雅黑", 10F))
+                        using (Brush textBrush = new SolidBrush(Color.Black))
+                        {
+                            StringFormat sf = new StringFormat() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                            e.Graphics.DrawString(annotation.Text, font, textBrush,
+                                new RectangleF(annotation.TextX, annotation.TextY, annotation.TextWidth, annotation.TextHeight), sf);
+                        }
+                    }
+
+                    if (annotation.ArrowEndX.HasValue && annotation.ArrowEndY.HasValue)
+                    {
+                        int startX = annotation.TextX + annotation.TextWidth / 2;
+                        int startY = annotation.TextY + annotation.TextHeight / 2;
+                        int endX = annotation.ArrowEndX.Value;
+                        int endY = annotation.ArrowEndY.Value;
+
+                        using (Pen arrowPen = new Pen(Color.Blue, 2))
+                        {
+                            arrowPen.CustomEndCap = new System.Drawing.Drawing2D.AdjustableArrowCap(8, 8);
+                            e.Graphics.DrawLine(arrowPen, startX, startY, endX, endY);
+                        }
+                    }
+                }
+            }
         }
 
         private void btnBack_Click(object sender, EventArgs e)
@@ -205,7 +248,7 @@ namespace ScreenshotProcessApp
             // pbImage
             // 
             pbImage.BorderStyle = BorderStyle.FixedSingle;
-            pbImage.Location = new Point(20, 100);
+            pbImage.Location = new Point(20, 107);
             pbImage.Name = "pbImage";
             pbImage.Size = new Size(1550, 1000);
             pbImage.SizeMode = PictureBoxSizeMode.Zoom;
@@ -218,7 +261,7 @@ namespace ScreenshotProcessApp
             // 
             btnBack.Enabled = false;
             btnBack.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
-            btnBack.Location = new Point(20, 1110);
+            btnBack.Location = new Point(20, 1135);
             btnBack.Name = "btnBack";
             btnBack.Size = new Size(184, 40);
             btnBack.TabIndex = 2;
@@ -249,7 +292,7 @@ namespace ScreenshotProcessApp
             // 
             label2.AutoSize = true;
             label2.Font = new Font("微软雅黑", 16F, FontStyle.Regular, GraphicsUnit.Point);
-            label2.Location = new Point(1564, 35);
+            label2.Location = new Point(1576, 67);
             label2.Name = "label2";
             label2.Size = new Size(123, 35);
             label2.TabIndex = 6;
@@ -257,7 +300,7 @@ namespace ScreenshotProcessApp
             // 
             // richTextBoxRemark
             // 
-            richTextBoxRemark.Location = new Point(1576, 100);
+            richTextBoxRemark.Location = new Point(1576, 105);
             richTextBoxRemark.Name = "richTextBoxRemark";
             richTextBoxRemark.Size = new Size(309, 996);
             richTextBoxRemark.TabIndex = 7;

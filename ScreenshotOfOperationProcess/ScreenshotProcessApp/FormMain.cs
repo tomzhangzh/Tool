@@ -43,34 +43,59 @@ namespace ScreenshotProcessApp
 
         private void InitializeComponent()
         {
-            this.btnManage = new System.Windows.Forms.Button();
-            this.btnRun = new System.Windows.Forms.Button();
-            this.label1 = new System.Windows.Forms.Label();
-            this.SuspendLayout();
-            this.btnManage.Location = new System.Drawing.Point(120, 100);
-            this.btnManage.Size = new System.Drawing.Size(160, 45);
-            this.btnManage.Text = "流程维护";
-            this.btnManage.Font = new System.Drawing.Font("微软雅黑", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.btnManage.Click += new System.EventHandler(this.btnManage_Click);
-            this.btnRun.Location = new System.Drawing.Point(120, 170);
-            this.btnRun.Size = new System.Drawing.Size(160, 45);
-            this.btnRun.Text = "运行流程";
-            this.btnRun.Font = new System.Drawing.Font("微软雅黑", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.btnRun.Click += new System.EventHandler(this.btnRun_Click);
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(110, 50);
-            this.label1.Size = new System.Drawing.Size(180, 24);
-            this.label1.Text = "截图操作流程系统";
-            this.label1.Font = new System.Drawing.Font("微软雅黑", 15F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(134)));
-            this.ClientSize = new System.Drawing.Size(400, 280);
-            this.Controls.Add(this.label1);
-            this.Controls.Add(this.btnRun);
-            this.Controls.Add(this.btnManage);
-            this.Text = "截图操作流程系统";
-            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            btnManage = new Button();
+            btnRun = new Button();
+            label1 = new Label();
+            SuspendLayout();
+            // 
+            // btnManage
+            // 
+            btnManage.Font = new Font("微软雅黑", 12F, FontStyle.Regular, GraphicsUnit.Point);
+            btnManage.Location = new Point(165, 147);
+            btnManage.Name = "btnManage";
+            btnManage.Size = new Size(239, 45);
+            btnManage.TabIndex = 2;
+            btnManage.Text = "流程维护";
+            btnManage.Click += btnManage_Click;
+            // 
+            // btnRun
+            // 
+            btnRun.Font = new Font("微软雅黑", 12F, FontStyle.Regular, GraphicsUnit.Point);
+            btnRun.Location = new Point(165, 217);
+            btnRun.Name = "btnRun";
+            btnRun.Size = new Size(239, 45);
+            btnRun.TabIndex = 1;
+            btnRun.Text = "运行流程";
+            btnRun.Click += btnRun_Click;
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Font = new Font("微软雅黑", 15F, FontStyle.Bold, GraphicsUnit.Point);
+            label1.Location = new Point(185, 50);
+            label1.Name = "label1";
+            label1.Size = new Size(215, 33);
+            label1.TabIndex = 0;
+            label1.Text = "截图操作流程系统";
+            label1.Click += label1_Click;
+            // 
+            // FormMain
+            // 
+            ClientSize = new Size(555, 381);
+            Controls.Add(label1);
+            Controls.Add(btnRun);
+            Controls.Add(btnManage);
+            Name = "FormMain";
+            StartPosition = FormStartPosition.CenterScreen;
+            Text = "截图操作流程系统";
+            ResumeLayout(false);
+            PerformLayout();
         }
         #endregion
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+
+        }
     }
 }
