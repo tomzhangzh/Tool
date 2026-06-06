@@ -15,9 +15,13 @@ namespace ScreenshotProcessApp
         private ProcessPage _currentPage;
         private List<PageRegion> _regions;
         private bool _isDrawing = false;
+        private bool _isDragging = false;
+        private bool _isResizing = false;
         private Point _startPoint;
         private Point _endPoint;
+        private Point _dragStart;
         private Rectangle _currentRect;
+        private PageRegion _selectedRegion;
 
         public FormRegionEditor(Database db, int pageId, List<ProcessPage> pages)
         {
@@ -49,8 +53,47 @@ namespace ScreenshotProcessApp
         {
             if (e.Button == MouseButtons.Left)
             {
-                _isDrawing = true;
-                _startPoint = e.Location;
+                // 检查是否点击了已有区域的调整手柄（右下角）
+                if (_selectedRegion != null)
+                {
+                    Rectangle resizeHandle = new Rectangle(
+                        _selectedRegion.X + _selectedRegion.Width - 8,
+                        _selectedRegion.Y + _selectedRegion.Height - 8,
+                        8, 8);
+                    if (resizeHandle.Contains(e.Location))
+                    {
+                        _isResizing = true;
+                        _dragStart = e.Location;
+                        return;
+                    }
+                }
+
+                // 检查是否点击了已有区域
+                PageRegion clickedRegion = null;
+                foreach (var region in _regions)
+                {
+                    Rectangle regionRect = new Rectangle(region.X, region.Y, region.Width, region.Height);
+                    if (regionRect.Contains(e.Location))
+                    {
+                        clickedRegion = region;
+                        break;
+                    }
+                }
+
+                if (clickedRegion != null)
+                {
+                    _selectedRegion = clickedRegion;
+                    _isDragging = true;
+                    _dragStart = e.Location;
+                    pbImage.Invalidate();
+                }
+                else
+                {
+                    _selectedRegion = null;
+                    _isDrawing = true;
+                    _startPoint = e.Location;
+                    pbImage.Invalidate();
+                }
             }
         }
 
@@ -65,6 +108,24 @@ namespace ScreenshotProcessApp
                     Math.Abs(_endPoint.X - _startPoint.X),
                     Math.Abs(_endPoint.Y - _startPoint.Y)
                 );
+                pbImage.Invalidate();
+            }
+            else if (_isDragging && _selectedRegion != null)
+            {
+                int dx = e.X - _dragStart.X;
+                int dy = e.Y - _dragStart.Y;
+                _selectedRegion.X += dx;
+                _selectedRegion.Y += dy;
+                _dragStart = e.Location;
+                pbImage.Invalidate();
+            }
+            else if (_isResizing && _selectedRegion != null)
+            {
+                int dx = e.X - _dragStart.X;
+                int dy = e.Y - _dragStart.Y;
+                _selectedRegion.Width = Math.Max(10, _selectedRegion.Width + dx);
+                _selectedRegion.Height = Math.Max(10, _selectedRegion.Height + dy);
+                _dragStart = e.Location;
                 pbImage.Invalidate();
             }
         }
@@ -105,6 +166,22 @@ namespace ScreenshotProcessApp
                             pbImage.Invalidate();
                         }
                     }
+                }
+            }
+            else if (_isDragging)
+            {
+                _isDragging = false;
+                if (_selectedRegion != null)
+                {
+                    _db.UpdateRegion(_selectedRegion);
+                }
+            }
+            else if (_isResizing)
+            {
+                _isResizing = false;
+                if (_selectedRegion != null)
+                {
+                    _db.UpdateRegion(_selectedRegion);
                 }
             }
         }
@@ -161,7 +238,10 @@ namespace ScreenshotProcessApp
 
             foreach (var region in _regions)
             {
-                using (Pen pen = new Pen(Color.Blue, 3))
+                bool isSelected = region == _selectedRegion;
+                Color borderColor = isSelected ? Color.DarkOrange : Color.Blue;
+
+                using (Pen pen = new Pen(borderColor, isSelected ? 3 : 2))
                 {
                     e.Graphics.DrawRectangle(pen, region.X, region.Y, region.Width, region.Height);
 
@@ -181,6 +261,17 @@ namespace ScreenshotProcessApp
                             }
                             e.Graphics.DrawString(region.Remark, font, Brushes.Black, textX + 3, textY + 2);
                         }
+                    }
+                }
+
+                // 绘制选中区域的调整手柄
+                if (isSelected)
+                {
+                    int handleX = region.X + region.Width - 8;
+                    int handleY = region.Y + region.Height - 8;
+                    using (Brush handleBrush = new SolidBrush(Color.DarkOrange))
+                    {
+                        e.Graphics.FillRectangle(handleBrush, handleX, handleY, 8, 8);
                     }
                 }
             }
