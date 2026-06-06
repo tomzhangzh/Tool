@@ -90,7 +90,7 @@ namespace ScreenshotProcessApp
                                 Remark = infoForm.Remark,
                                 TargetPageId = infoForm.TargetPageId
                             };
-                            
+
                             if (infoForm.TargetFlowId.HasValue)
                             {
                                 var flow = _flows.Find(f => f.Id == infoForm.TargetFlowId.Value);
@@ -99,7 +99,7 @@ namespace ScreenshotProcessApp
                                     region.TargetPageId = flow.StartPageId;
                                 }
                             }
-                            
+
                             _db.AddRegion(region);
                             _regions = _db.GetRegionsByPageId(_pageId);
                             pbImage.Invalidate();
@@ -121,7 +121,7 @@ namespace ScreenshotProcessApp
                     break;
                 }
             }
-            
+
             if (clickedRegion != null)
             {
                 Rectangle rect = new Rectangle(clickedRegion.X, clickedRegion.Y, clickedRegion.Width, clickedRegion.Height);
@@ -131,7 +131,7 @@ namespace ScreenshotProcessApp
                     {
                         clickedRegion.Remark = infoForm.Remark;
                         clickedRegion.TargetPageId = infoForm.TargetPageId;
-                        
+
                         if (infoForm.TargetFlowId.HasValue)
                         {
                             var flow = _flows.Find(f => f.Id == infoForm.TargetFlowId.Value);
@@ -140,7 +140,7 @@ namespace ScreenshotProcessApp
                                 clickedRegion.TargetPageId = flow.StartPageId;
                             }
                         }
-                        
+
                         _db.UpdateRegion(clickedRegion);
                         _regions = _db.GetRegionsByPageId(_pageId);
                         pbImage.Invalidate();
@@ -164,7 +164,7 @@ namespace ScreenshotProcessApp
                 using (Pen pen = new Pen(Color.Blue, 3))
                 {
                     e.Graphics.DrawRectangle(pen, region.X, region.Y, region.Width, region.Height);
-                    
+
                     if (!string.IsNullOrEmpty(region.Remark))
                     {
                         using (Brush brush = new SolidBrush(Color.Yellow))
@@ -173,7 +173,7 @@ namespace ScreenshotProcessApp
                             SizeF textSize = e.Graphics.MeasureString(region.Remark, font);
                             float textX = region.X + region.Width + 8;
                             float textY = region.Y;
-                            
+
                             e.Graphics.FillRectangle(brush, textX, textY, textSize.Width + 6, textSize.Height + 4);
                             using (Pen textPen = new Pen(Color.Black, 1))
                             {
@@ -216,45 +216,71 @@ namespace ScreenshotProcessApp
 
         private void InitializeComponent()
         {
-            this.pbImage = new System.Windows.Forms.PictureBox();
-            this.btnSave = new System.Windows.Forms.Button();
-            this.btnCancel = new System.Windows.Forms.Button();
-            this.label1 = new System.Windows.Forms.Label();
-            ((System.ComponentModel.ISupportInitialize)(this.pbImage)).BeginInit();
-            this.SuspendLayout();
-            this.pbImage.Location = new System.Drawing.Point(20, 60);
-            this.pbImage.Size = new System.Drawing.Size(1550, 1000);
-            this.pbImage.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
-            this.pbImage.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pbImage.MouseDown += new System.Windows.Forms.MouseEventHandler(this.pbImage_MouseDown);
-            this.pbImage.MouseMove += new System.Windows.Forms.MouseEventHandler(this.pbImage_MouseMove);
-            this.pbImage.MouseUp += new System.Windows.Forms.MouseEventHandler(this.pbImage_MouseUp);
-            this.pbImage.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.pbImage_MouseDoubleClick);
-            this.pbImage.Paint += new System.Windows.Forms.PaintEventHandler(this.pbImage_Paint);
-            this.btnSave.Location = new System.Drawing.Point(700, 1080);
-            this.btnSave.Size = new System.Drawing.Size(120, 45);
-            this.btnSave.Text = "保存";
-            this.btnSave.Font = new System.Drawing.Font("微软雅黑", 14F);
-            this.btnSave.Click += new System.EventHandler(this.btnSave_Click);
-            this.btnCancel.Location = new System.Drawing.Point(880, 1080);
-            this.btnCancel.Size = new System.Drawing.Size(120, 45);
-            this.btnCancel.Text = "取消";
-            this.btnCancel.Font = new System.Drawing.Font("微软雅黑", 14F);
-            this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(20, 25);
-            this.label1.Text = "在图片上拖动鼠标框选区域，设置链接和备注";
-            this.label1.Font = new System.Drawing.Font("微软雅黑", 14F);
-            this.ClientSize = new System.Drawing.Size(1600, 1200);
-            this.Controls.Add(this.label1);
-            this.Controls.Add(this.btnCancel);
-            this.Controls.Add(this.btnSave);
-            this.Controls.Add(this.pbImage);
-            this.Text = "区域编辑器";
-            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            ((System.ComponentModel.ISupportInitialize)(this.pbImage)).EndInit();
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            pbImage = new PictureBox();
+            btnSave = new Button();
+            btnCancel = new Button();
+            label1 = new Label();
+            ((System.ComponentModel.ISupportInitialize)pbImage).BeginInit();
+            SuspendLayout();
+            // 
+            // pbImage
+            // 
+            pbImage.BorderStyle = BorderStyle.FixedSingle;
+            pbImage.Location = new Point(12, 60);
+            pbImage.Name = "pbImage";
+            pbImage.Size = new Size(1550, 1000);
+            pbImage.SizeMode = PictureBoxSizeMode.Zoom;
+            pbImage.TabIndex = 3;
+            pbImage.TabStop = false;
+            pbImage.Paint += pbImage_Paint;
+            pbImage.MouseDoubleClick += pbImage_MouseDoubleClick;
+            pbImage.MouseDown += pbImage_MouseDown;
+            pbImage.MouseMove += pbImage_MouseMove;
+            pbImage.MouseUp += pbImage_MouseUp;
+            // 
+            // btnSave
+            // 
+            btnSave.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
+            btnSave.Location = new Point(1021, 9);
+            btnSave.Name = "btnSave";
+            btnSave.Size = new Size(120, 45);
+            btnSave.TabIndex = 2;
+            btnSave.Text = "保存";
+            btnSave.Click += btnSave_Click;
+            // 
+            // btnCancel
+            // 
+            btnCancel.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
+            btnCancel.Location = new Point(1201, 9);
+            btnCancel.Name = "btnCancel";
+            btnCancel.Size = new Size(120, 45);
+            btnCancel.TabIndex = 1;
+            btnCancel.Text = "取消";
+            btnCancel.Click += btnCancel_Click;
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
+            label1.Location = new Point(20, 25);
+            label1.Name = "label1";
+            label1.Size = new Size(494, 31);
+            label1.TabIndex = 0;
+            label1.Text = "在图片上拖动鼠标框选区域，设置链接和备注";
+            // 
+            // FormRegionEditor
+            // 
+            ClientSize = new Size(1600, 1066);
+            Controls.Add(label1);
+            Controls.Add(btnCancel);
+            Controls.Add(btnSave);
+            Controls.Add(pbImage);
+            Name = "FormRegionEditor";
+            StartPosition = FormStartPosition.CenterScreen;
+            Text = "区域编辑器";
+            ((System.ComponentModel.ISupportInitialize)pbImage).EndInit();
+            ResumeLayout(false);
+            PerformLayout();
         }
         #endregion
     }
@@ -280,7 +306,7 @@ namespace ScreenshotProcessApp
             }
             cbTargetPage.DisplayMember = "Name";
             cbTargetPage.ValueMember = "Id";
-            
+
             foreach (var flow in flows)
             {
                 if (flow.StartPageId > 0)
@@ -290,20 +316,20 @@ namespace ScreenshotProcessApp
             }
             cbTargetFlow.DisplayMember = "Name";
             cbTargetFlow.ValueMember = "Id";
-            
+
             txtRectInfo.Text = $"区域: ({rect.X}, {rect.Y}) {rect.Width}x{rect.Height}";
-            
+
             if (existingRegion != null)
             {
                 RegionId = existingRegion.Id;
                 txtRemark.Text = existingRegion.Remark ?? "";
                 TargetPageId = existingRegion.TargetPageId;
-                
+
                 if (existingRegion.TargetPageId.HasValue)
                 {
                     rbPage.Checked = true;
                     cbTargetFlow.Enabled = false;
-                    
+
                     foreach (PageItem item in cbTargetPage.Items)
                     {
                         if (item.Id == existingRegion.TargetPageId.Value)
@@ -314,12 +340,14 @@ namespace ScreenshotProcessApp
                     }
                 }
             }
-            
-            rbPage.CheckedChanged += (s, e) => {
+
+            rbPage.CheckedChanged += (s, e) =>
+            {
                 cbTargetPage.Enabled = rbPage.Checked;
                 cbTargetFlow.Enabled = rbFlow.Checked;
             };
-            rbFlow.CheckedChanged += (s, e) => {
+            rbFlow.CheckedChanged += (s, e) =>
+            {
                 cbTargetPage.Enabled = rbPage.Checked;
                 cbTargetFlow.Enabled = rbFlow.Checked;
             };
@@ -370,88 +398,88 @@ namespace ScreenshotProcessApp
 
         private void InitializeComponent()
         {
-            this.txtRemark = new System.Windows.Forms.TextBox();
-            this.cbTargetPage = new System.Windows.Forms.ComboBox();
-            this.btnOK = new System.Windows.Forms.Button();
-            this.btnCancel = new System.Windows.Forms.Button();
-            this.label1 = new System.Windows.Forms.Label();
-            this.label2 = new System.Windows.Forms.Label();
-            this.label3 = new System.Windows.Forms.Label();
-            this.txtRectInfo = new System.Windows.Forms.TextBox();
-            this.rbPage = new System.Windows.Forms.RadioButton();
-            this.rbFlow = new System.Windows.Forms.RadioButton();
-            this.cbTargetFlow = new System.Windows.Forms.ComboBox();
-            this.label4 = new System.Windows.Forms.Label();
-            this.SuspendLayout();
-            this.txtRemark.Location = new System.Drawing.Point(120, 80);
-            this.txtRemark.Size = new System.Drawing.Size(300, 28);
-            this.txtRemark.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.cbTargetPage.Location = new System.Drawing.Point(120, 130);
-            this.cbTargetPage.Size = new System.Drawing.Size(300, 28);
-            this.cbTargetPage.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.btnOK.Location = new System.Drawing.Point(150, 220);
-            this.btnOK.Size = new System.Drawing.Size(100, 35);
-            this.btnOK.Text = "确定";
-            this.btnOK.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.btnOK.Click += new System.EventHandler(this.btnOK_Click);
-            this.btnCancel.Location = new System.Drawing.Point(280, 220);
-            this.btnCancel.Size = new System.Drawing.Size(100, 35);
-            this.btnCancel.Text = "取消";
-            this.btnCancel.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(30, 50);
-            this.label1.Text = "区域信息:";
-            this.label1.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(30, 85);
-            this.label2.Text = "备注:";
-            this.label2.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(30, 135);
-            this.label3.Text = "链接到:";
-            this.label3.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.txtRectInfo.Location = new System.Drawing.Point(120, 45);
-            this.txtRectInfo.Size = new System.Drawing.Size(300, 28);
-            this.txtRectInfo.ReadOnly = true;
-            this.txtRectInfo.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.rbPage.Location = new System.Drawing.Point(120, 130);
-            this.rbPage.Size = new System.Drawing.Size(60, 28);
-            this.rbPage.Text = "页面";
-            this.rbPage.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.rbPage.Checked = true;
-            this.rbFlow.Location = new System.Drawing.Point(120, 175);
-            this.rbFlow.Size = new System.Drawing.Size(60, 28);
-            this.rbFlow.Text = "流程";
-            this.rbFlow.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.cbTargetPage.Location = new System.Drawing.Point(190, 130);
-            this.cbTargetPage.Size = new System.Drawing.Size(230, 28);
-            this.cbTargetPage.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.cbTargetFlow.Location = new System.Drawing.Point(190, 175);
-            this.cbTargetFlow.Size = new System.Drawing.Size(230, 28);
-            this.cbTargetFlow.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.cbTargetFlow.Enabled = false;
-            this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(30, 180);
-            this.label4.Text = "或:";
-            this.label4.Font = new System.Drawing.Font("微软雅黑", 12F);
-            this.ClientSize = new System.Drawing.Size(450, 280);
-            this.Controls.Add(this.label4);
-            this.Controls.Add(this.cbTargetFlow);
-            this.Controls.Add(this.rbFlow);
-            this.Controls.Add(this.rbPage);
-            this.Controls.Add(this.txtRectInfo);
-            this.Controls.Add(this.label3);
-            this.Controls.Add(this.label2);
-            this.Controls.Add(this.label1);
-            this.Controls.Add(this.btnCancel);
-            this.Controls.Add(this.btnOK);
-            this.Controls.Add(this.cbTargetPage);
-            this.Controls.Add(this.txtRemark);
-            this.Text = "区域信息";
-            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            txtRemark = new TextBox();
+            cbTargetPage = new ComboBox();
+            btnOK = new Button();
+            btnCancel = new Button();
+            label1 = new Label();
+            label2 = new Label();
+            label3 = new Label();
+            txtRectInfo = new TextBox();
+            rbPage = new RadioButton();
+            rbFlow = new RadioButton();
+            cbTargetFlow = new ComboBox();
+            label4 = new Label();
+            SuspendLayout();
+            txtRemark.Location = new Point(120, 80);
+            txtRemark.Size = new Size(300, 28);
+            txtRemark.Font = new Font("微软雅黑", 12F);
+            cbTargetPage.Location = new Point(120, 130);
+            cbTargetPage.Size = new Size(300, 28);
+            cbTargetPage.Font = new Font("微软雅黑", 12F);
+            btnOK.Location = new Point(150, 220);
+            btnOK.Size = new Size(100, 35);
+            btnOK.Text = "确定";
+            btnOK.Font = new Font("微软雅黑", 12F);
+            btnOK.Click += btnOK_Click;
+            btnCancel.Location = new Point(280, 220);
+            btnCancel.Size = new Size(100, 35);
+            btnCancel.Text = "取消";
+            btnCancel.Font = new Font("微软雅黑", 12F);
+            btnCancel.Click += btnCancel_Click;
+            label1.AutoSize = true;
+            label1.Location = new Point(30, 50);
+            label1.Text = "区域信息:";
+            label1.Font = new Font("微软雅黑", 12F);
+            label2.AutoSize = true;
+            label2.Location = new Point(30, 85);
+            label2.Text = "备注:";
+            label2.Font = new Font("微软雅黑", 12F);
+            label3.AutoSize = true;
+            label3.Location = new Point(30, 135);
+            label3.Text = "链接到:";
+            label3.Font = new Font("微软雅黑", 12F);
+            txtRectInfo.Location = new Point(120, 45);
+            txtRectInfo.Size = new Size(300, 28);
+            txtRectInfo.ReadOnly = true;
+            txtRectInfo.Font = new Font("微软雅黑", 12F);
+            rbPage.Location = new Point(120, 130);
+            rbPage.Size = new Size(60, 28);
+            rbPage.Text = "页面";
+            rbPage.Font = new Font("微软雅黑", 12F);
+            rbPage.Checked = true;
+            rbFlow.Location = new Point(120, 175);
+            rbFlow.Size = new Size(60, 28);
+            rbFlow.Text = "流程";
+            rbFlow.Font = new Font("微软雅黑", 12F);
+            cbTargetPage.Location = new Point(190, 130);
+            cbTargetPage.Size = new Size(230, 28);
+            cbTargetPage.Font = new Font("微软雅黑", 12F);
+            cbTargetFlow.Location = new Point(190, 175);
+            cbTargetFlow.Size = new Size(230, 28);
+            cbTargetFlow.Font = new Font("微软雅黑", 12F);
+            cbTargetFlow.Enabled = false;
+            label4.AutoSize = true;
+            label4.Location = new Point(30, 180);
+            label4.Text = "或:";
+            label4.Font = new Font("微软雅黑", 12F);
+            ClientSize = new Size(450, 280);
+            Controls.Add(label4);
+            Controls.Add(cbTargetFlow);
+            Controls.Add(rbFlow);
+            Controls.Add(rbPage);
+            Controls.Add(txtRectInfo);
+            Controls.Add(label3);
+            Controls.Add(label2);
+            Controls.Add(label1);
+            Controls.Add(btnCancel);
+            Controls.Add(btnOK);
+            Controls.Add(cbTargetPage);
+            Controls.Add(txtRemark);
+            Text = "区域信息";
+            StartPosition = FormStartPosition.CenterScreen;
+            ResumeLayout(false);
+            PerformLayout();
         }
         #endregion
     }

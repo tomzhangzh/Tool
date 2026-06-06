@@ -36,6 +36,20 @@ namespace ScreenshotProcessApp
             cbFlows.ValueMember = "Id";
         }
 
+        public void SelectFlowAndStart(int flowId)
+        {
+            for (int i = 0; i < cbFlows.Items.Count; i++)
+            {
+                FlowItem item = (FlowItem)cbFlows.Items[i];
+                if (item.Id == flowId)
+                {
+                    cbFlows.SelectedIndex = i;
+                    btnStart_Click(null, null);
+                    return;
+                }
+            }
+        }
+
         private void btnStart_Click(object sender, EventArgs e)
         {
             if (cbFlows.SelectedItem != null)
@@ -149,12 +163,12 @@ namespace ScreenshotProcessApp
             {
                 foreach (var annotation in _currentAnnotations)
                 {
-                    Color bgColor = Color.FromArgb(200, Color.Yellow);
+                    Color bgColor = Color.FromArgb(100, Color.LightYellow);
                     using (Brush brush = new SolidBrush(bgColor))
                     {
                         e.Graphics.FillRectangle(brush, annotation.TextX, annotation.TextY, annotation.TextWidth, annotation.TextHeight);
                     }
-                    using (Pen pen = new Pen(Color.Blue, 2))
+                    using (Pen pen = new Pen(Color.LightSkyBlue, 1.5f))
                     {
                         e.Graphics.DrawRectangle(pen, annotation.TextX, annotation.TextY, annotation.TextWidth, annotation.TextHeight);
                     }
@@ -230,7 +244,7 @@ namespace ScreenshotProcessApp
             // cbFlows
             // 
             cbFlows.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
-            cbFlows.Location = new Point(150, 30);
+            cbFlows.Location = new Point(157, 2);
             cbFlows.Name = "cbFlows";
             cbFlows.Size = new Size(400, 38);
             cbFlows.TabIndex = 5;
@@ -238,7 +252,7 @@ namespace ScreenshotProcessApp
             // btnStart
             // 
             btnStart.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
-            btnStart.Location = new Point(600, 28);
+            btnStart.Location = new Point(609, 0);
             btnStart.Name = "btnStart";
             btnStart.Size = new Size(120, 40);
             btnStart.TabIndex = 4;
@@ -248,7 +262,7 @@ namespace ScreenshotProcessApp
             // pbImage
             // 
             pbImage.BorderStyle = BorderStyle.FixedSingle;
-            pbImage.Location = new Point(20, 107);
+            pbImage.Location = new Point(12, 74);
             pbImage.Name = "pbImage";
             pbImage.Size = new Size(1550, 1000);
             pbImage.SizeMode = PictureBoxSizeMode.Zoom;
@@ -261,7 +275,7 @@ namespace ScreenshotProcessApp
             // 
             btnBack.Enabled = false;
             btnBack.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
-            btnBack.Location = new Point(20, 1135);
+            btnBack.Location = new Point(1028, 0);
             btnBack.Name = "btnBack";
             btnBack.Size = new Size(184, 40);
             btnBack.TabIndex = 2;
@@ -271,10 +285,10 @@ namespace ScreenshotProcessApp
             // lblPageName
             // 
             lblPageName.AutoSize = true;
-            lblPageName.Font = new Font("微软雅黑", 16F, FontStyle.Regular, GraphicsUnit.Point);
-            lblPageName.Location = new Point(20, 70);
+            lblPageName.Font = new Font("微软雅黑", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            lblPageName.Location = new Point(27, 48);
             lblPageName.Name = "lblPageName";
-            lblPageName.Size = new Size(123, 35);
+            lblPageName.Size = new Size(69, 20);
             lblPageName.TabIndex = 1;
             lblPageName.Text = "页面名称";
             // 
@@ -282,7 +296,7 @@ namespace ScreenshotProcessApp
             // 
             label1.AutoSize = true;
             label1.Font = new Font("微软雅黑", 14F, FontStyle.Regular, GraphicsUnit.Point);
-            label1.Location = new Point(20, 35);
+            label1.Location = new Point(27, 4);
             label1.Name = "label1";
             label1.Size = new Size(116, 31);
             label1.TabIndex = 0;
@@ -308,7 +322,7 @@ namespace ScreenshotProcessApp
             // 
             // FormRun
             // 
-            ClientSize = new Size(1892, 1200);
+            ClientSize = new Size(1892, 1072);
             Controls.Add(richTextBoxRemark);
             Controls.Add(label2);
             Controls.Add(label1);

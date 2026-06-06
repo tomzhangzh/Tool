@@ -120,7 +120,7 @@ namespace ScreenshotProcessApp
             // 
             // FormAnnotationEditor
             // 
-            ClientSize = new Size(1550, 1100);
+            ClientSize = new Size(1550, 1103);
             Controls.Add(pbImage);
             Controls.Add(label1);
             Controls.Add(txtAnnotationText);
@@ -142,10 +142,10 @@ namespace ScreenshotProcessApp
             foreach (var annotation in _annotations)
             {
                 bool isSelected = annotation == _selectedAnnotation;
-                Color borderColor = isSelected ? Color.Red : Color.Blue;
-                Color bgColor = Color.FromArgb(180, Color.Yellow);
+                Color borderColor = isSelected ? Color.DarkOrange : Color.LightSkyBlue;
+                Color bgColor = Color.FromArgb(100, Color.LightYellow);
 
-                using (Pen pen = new Pen(borderColor, isSelected ? 3 : 2))
+                using (Pen pen = new Pen(borderColor, isSelected ? 2 : 1.5f))
                 {
                     e.Graphics.DrawRectangle(pen, annotation.TextX, annotation.TextY, annotation.TextWidth, annotation.TextHeight);
                 }
