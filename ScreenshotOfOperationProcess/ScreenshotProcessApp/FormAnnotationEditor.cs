@@ -11,6 +11,7 @@ namespace ScreenshotProcessApp
         private int _pageId;
         private Image _pageImage;
         private List<PageAnnotation> _annotations;
+        private List<PageRegion> _regions;
         private PageAnnotation _selectedAnnotation;
         private bool _isDraggingText = false;
         private bool _isDraggingArrow = false;
@@ -30,6 +31,7 @@ namespace ScreenshotProcessApp
             _pageId = pageId;
             _pageImage = pageImage;
             _annotations = db.GetAnnotationsByPageId(pageId);
+            _regions = db.GetRegionsByPageId(pageId);
             InitializeComponent();
             pbImage.Image = _pageImage;
         }
@@ -51,7 +53,7 @@ namespace ScreenshotProcessApp
             pbImage.BorderStyle = BorderStyle.FixedSingle;
             pbImage.Location = new Point(20, 60);
             pbImage.Name = "pbImage";
-            pbImage.Size = new Size(1500, 1000);
+            pbImage.Size = new Size(1550, 1000);
             pbImage.SizeMode = PictureBoxSizeMode.Zoom;
             pbImage.TabIndex = 0;
             pbImage.TabStop = false;
@@ -120,7 +122,7 @@ namespace ScreenshotProcessApp
             // 
             // FormAnnotationEditor
             // 
-            ClientSize = new Size(1550, 1103);
+            ClientSize = new Size(1584, 1103);
             Controls.Add(pbImage);
             Controls.Add(label1);
             Controls.Add(txtAnnotationText);
@@ -139,6 +141,46 @@ namespace ScreenshotProcessApp
 
         private void pbImage_Paint(object sender, PaintEventArgs e)
         {
+            // 先绘制区域
+            if (_regions != null)
+            {
+                foreach (var region in _regions)
+                {
+                    using (Pen pen = new Pen(Color.Red, 2))
+                    {
+                        e.Graphics.DrawRectangle(pen, region.X, region.Y, region.Width, region.Height);
+
+                        using (Brush brush = new SolidBrush(Color.Red))
+                        {
+                            e.Graphics.FillPolygon(brush, new Point[] {
+                                new Point(region.X + region.Width - 10, region.Y),
+                                new Point(region.X + region.Width, region.Y),
+                                new Point(region.X + region.Width, region.Y + 10)
+                            });
+                        }
+
+                        if (!string.IsNullOrEmpty(region.Remark))
+                        {
+                            using (Brush brush = new SolidBrush(Color.Yellow))
+                            using (Font font = new Font("Arial", 10))
+                            {
+                                SizeF textSize = e.Graphics.MeasureString(region.Remark, font);
+                                float textX = region.X + region.Width + 5;
+                                float textY = region.Y;
+
+                                e.Graphics.FillRectangle(brush, textX, textY, textSize.Width + 4, textSize.Height + 2);
+                                using (Pen textPen = new Pen(Color.Black, 1))
+                                {
+                                    e.Graphics.DrawRectangle(textPen, textX, textY, textSize.Width + 4, textSize.Height + 2);
+                                }
+                                e.Graphics.DrawString(region.Remark, font, Brushes.Black, textX + 2, textY + 1);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 再绘制注释
             foreach (var annotation in _annotations)
             {
                 bool isSelected = annotation == _selectedAnnotation;
