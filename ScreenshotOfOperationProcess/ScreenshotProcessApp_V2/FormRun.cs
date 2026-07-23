@@ -50,6 +50,23 @@ namespace ScreenshotProcessApp
             }
         }
 
+        // 选择流程并直接跳转到指定页面（用于流程结构树双击页面节点）
+        public void SelectFlowAndStartAtPage(int flowId, int pageId)
+        {
+            for (int i = 0; i < cbFlows.Items.Count; i++)
+            {
+                FlowItem item = (FlowItem)cbFlows.Items[i];
+                if (item.Id == flowId)
+                {
+                    cbFlows.SelectedIndex = i;
+                    _pageHistory.Clear();
+                    LoadPage(pageId);
+                    return;
+                }
+            }
+            MessageBox.Show("未找到指定的流程");
+        }
+
         private void btnStart_Click(object sender, EventArgs e)
         {
             if (cbFlows.SelectedItem != null)

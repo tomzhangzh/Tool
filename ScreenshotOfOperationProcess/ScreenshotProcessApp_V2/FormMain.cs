@@ -51,7 +51,7 @@ namespace ScreenshotProcessApp
             navPanel.Controls.Add(lblTitle);
 
             // 导航按钮
-            string[] navItems = { "流程管理", "页面管理", "区域管理", "注释管理", "运行流程" };
+            string[] navItems = { "流程结构", "流程目录", "流程管理", "页面管理", "区域管理", "注释管理", "运行流程" };
             navButtons = new Button[navItems.Length];
             int yPos = 70;
             for (int i = 0; i < navItems.Length; i++)
@@ -111,11 +111,13 @@ namespace ScreenshotProcessApp
             UserControl uc = null;
             switch (index)
             {
-                case 0: uc = new UcFlowManage(_db); break;
-                case 1: uc = new UcPageManage(_db); break;
-                case 2: uc = new UcRegionManage(_db); break;
-                case 3: uc = new UcAnnotationManage(_db); break;
-                case 4: uc = new UcFlowRun(_db); break;
+                case 0: uc = new UcProcessStructure(_db); break;
+                case 1: uc = new UcProcessCatalog(_db); break;
+                case 2: uc = new UcFlowManage(_db); break;
+                case 3: uc = new UcPageManage(_db); break;
+                case 4: uc = new UcRegionManage(_db); break;
+                case 5: uc = new UcAnnotationManage(_db); break;
+                case 6: uc = new UcFlowRun(_db); break;
             }
             if (uc != null)
             {

@@ -1,2 +1,2 @@
-cd E:\Tom\Tool\ScreenshotOfOperationProcess\ScreenshotProcessApp
+cd E:\Tom\Tool\ScreenshotOfOperationProcess\ScreenshotProcessApp_V2
 dotnet publish -c Release -r win-x64 --self-contained true -o publish /p:PublishSingleFile=true
