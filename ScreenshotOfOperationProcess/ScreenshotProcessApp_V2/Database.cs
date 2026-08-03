@@ -116,6 +116,132 @@ namespace ScreenshotProcessApp
                         FOREIGN KEY (PageId) REFERENCES ProcessPage(Id)
                     )";
                 ExecuteNonQuery(conn, createAnnotationTable);
+
+                // 应用配置表（存储加密的授权信息）
+                string createConfigTable = @"
+                    CREATE TABLE IF NOT EXISTS AppConfig (
+                        Key TEXT PRIMARY KEY,
+                        Value TEXT
+                    )";
+                ExecuteNonQuery(conn, createConfigTable);
+
+                // 初始化默认授权过期时间（加密存储），默认 2030-01-01
+                using (var checkCmd = new SQLiteCommand("SELECT COUNT(*) FROM AppConfig WHERE Key='LicenseExpire'", conn))
+                {
+                    long count = (long)checkCmd.ExecuteScalar();
+                    if (count == 0)
+                    {
+                        string encrypted = EncryptValue("2030-01-01");
+                        ExecuteNonQuery(conn,
+                            "INSERT INTO AppConfig (Key, Value) VALUES ('LicenseExpire', @Value)",
+                            new SQLiteParameter("@Value", encrypted));
+                    }
+                }
+            }
+        }
+
+        // 简单的对称加密（AES）
+        private static readonly byte[] EncKey = System.Text.Encoding.UTF8.GetBytes("Zzq@2026_Key1234"); // 16字节
+        private static readonly byte[] EncIV = System.Text.Encoding.UTF8.GetBytes("InitVect0r16Byte");  // 16字节
+
+        private static string EncryptValue(string plainText)
+        {
+            try
+            {
+                using (var aes = System.Security.Cryptography.Aes.Create())
+                {
+                    aes.Key = EncKey;
+                    aes.IV = EncIV;
+                    using (var enc = aes.CreateEncryptor())
+                    using (var ms = new System.IO.MemoryStream())
+                    using (var cs = new System.Security.Cryptography.CryptoStream(ms, enc, System.Security.Cryptography.CryptoStreamMode.Write))
+                    {
+                        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(plainText);
+                        cs.Write(bytes, 0, bytes.Length);
+                        cs.FlushFinalBlock();
+                        return Convert.ToBase64String(ms.ToArray());
+                    }
+                }
+            }
+            catch
+            {
+                return plainText;
+            }
+        }
+
+        private static string DecryptValue(string cipherText)
+        {
+            try
+            {
+                using (var aes = System.Security.Cryptography.Aes.Create())
+                {
+                    aes.Key = EncKey;
+                    aes.IV = EncIV;
+                    using (var dec = aes.CreateDecryptor())
+                    using (var ms = new System.IO.MemoryStream(Convert.FromBase64String(cipherText)))
+                    using (var cs = new System.Security.Cryptography.CryptoStream(ms, dec, System.Security.Cryptography.CryptoStreamMode.Read))
+                    using (var sr = new System.IO.StreamReader(cs, System.Text.Encoding.UTF8))
+                    {
+                        return sr.ReadToEnd();
+                    }
+                }
+            }
+            catch
+            {
+                return cipherText;
+            }
+        }
+
+        // 获取授权过期时间
+        public DateTime GetLicenseExpireDate()
+        {
+            try
+            {
+                using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("SELECT Value FROM AppConfig WHERE Key='LicenseExpire'", conn))
+                    {
+                        object result = cmd.ExecuteScalar();
+                        if (result != null && result != DBNull.Value)
+                        {
+                            string decrypted = DecryptValue(result.ToString());
+                            if (DateTime.TryParse(decrypted, out DateTime date))
+                                return date;
+                        }
+                    }
+                }
+            }
+            catch { }
+            return new DateTime(2030, 1, 1);
+        }
+
+        // 设置授权过期时间（加密存储）
+        public bool SetLicenseExpireDate(DateTime date)
+        {
+            try
+            {
+                string encrypted = EncryptValue(date.ToString("yyyy-MM-dd"));
+                using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand(
+                        "UPDATE AppConfig SET Value=@Value WHERE Key='LicenseExpire'", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@Value", encrypted);
+                        int rows = cmd.ExecuteNonQuery();
+                        if (rows == 0)
+                        {
+                            cmd.CommandText = "INSERT INTO AppConfig (Key, Value) VALUES ('LicenseExpire', @Value)";
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 

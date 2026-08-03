@@ -19,6 +19,16 @@ namespace ScreenshotProcessApp
         {
             string dbPath = System.IO.Path.Combine(Application.StartupPath, "process.db");
             _db = new Database(dbPath);
+
+            // 启动时检查授权是否过期
+            DateTime expireDate = _db.GetLicenseExpireDate();
+            if (expireDate.Date < DateTime.Today)
+            {
+                MessageBox.Show($"授权已过期！\n\n授权到期日：{expireDate:yyyy-MM-dd}\n当前日期：{DateTime.Today:yyyy-MM-dd}\n\n请联系管理员更新授权。",
+                    "授权过期", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                System.Environment.Exit(1);
+            }
+
             InitializeComponent();
             ShowContent(0);
         }
@@ -51,13 +61,14 @@ namespace ScreenshotProcessApp
             lblTitle.TextAlign = ContentAlignment.MiddleCenter;
             navPanel.Controls.Add(lblTitle);
 
-            // 导航按钮（根据授权情况决定是否包含"导入数据"）
+            // 导航按钮（根据授权情况决定是否包含"导入数据"和"授权设置"）
             var navItemList = new System.Collections.Generic.List<string>
             { "流程管理", "页面管理", "区域管理", "注释管理", "运行流程", "流程结构", "流程目录" };
             bool importAllowed = IsImportDataAllowed();
             if (importAllowed)
             {
                 navItemList.Add("导入数据");
+                navItemList.Add("授权设置");
             }
             string[] navItems = navItemList.ToArray();
             navButtons = new Button[navItems.Length];
@@ -65,8 +76,9 @@ namespace ScreenshotProcessApp
             for (int i = 0; i < navItems.Length; i++)
             {
                 int index = i;
+                string itemName = navItems[i];
                 navButtons[i] = new Button();
-                navButtons[i].Text = "  " + navItems[i];
+                navButtons[i].Text = "  " + itemName;
                 navButtons[i].Font = new Font("微软雅黑", 11F);
                 navButtons[i].Location = new Point(0, yPos);
                 navButtons[i].Size = new Size(200, 50);
@@ -77,7 +89,13 @@ namespace ScreenshotProcessApp
                 navButtons[i].ForeColor = Color.White;
                 navButtons[i].TextAlign = ContentAlignment.MiddleLeft;
                 navButtons[i].Cursor = Cursors.Hand;
-                navButtons[i].Click += (s, e) => ShowContent(index);
+                navButtons[i].Click += (s, e) =>
+                {
+                    if (itemName == "授权设置")
+                        OpenLicenseSetting();
+                    else
+                        ShowContent(index);
+                };
                 navPanel.Controls.Add(navButtons[i]);
                 yPos += 55;
             }
@@ -159,6 +177,24 @@ namespace ScreenshotProcessApp
             catch
             {
                 return false;
+            }
+        }
+
+        // 打开授权设置窗口
+        private void OpenLicenseSetting()
+        {
+            using (var form = new FormLicenseSetting(_db))
+            {
+                form.ShowDialog(this);
+            }
+
+            // 设置完成后重新检查是否过期
+            DateTime expireDate = _db.GetLicenseExpireDate();
+            if (expireDate.Date < DateTime.Today)
+            {
+                MessageBox.Show($"授权已过期！程序将退出。\n\n授权到期日：{expireDate:yyyy-MM-dd}",
+                    "授权过期", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                System.Environment.Exit(1);
             }
         }
     }

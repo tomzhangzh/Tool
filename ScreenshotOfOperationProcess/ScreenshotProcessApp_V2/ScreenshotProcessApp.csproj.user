@@ -7,6 +7,9 @@
     <Compile Update="FormAnnotationEditor.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="FormLicenseSetting.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="FormMain.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -28,7 +31,16 @@
     <Compile Update="UcFlowRun.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Update="UcImportData.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Update="UcPageManage.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="UcProcessCatalog.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Update="UcProcessStructure.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Update="UcRegionManage.cs">
