@@ -281,6 +281,59 @@ namespace ScreenshotProcessApp
             return node;
         }
 
+        // 格式化文件大小
+        private string FormatSize(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes}B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1}KB";
+            return $"{bytes / 1024.0 / 1024.0:F2}MB";
+        }
+
+        // 在页面节点下添加附件分组子节点
+        private void AddAttachmentNodes(TreeNode pageNode, int pageId, string keyword)
+        {
+            var attachments = _db.GetAttachmentsByPageId(pageId);
+            if (attachments == null || attachments.Count == 0) return;
+
+            // 搜索模式：仅显示匹配项
+            if (!string.IsNullOrEmpty(keyword))
+            {
+                var matched = attachments.FindAll(a => MatchKeyword(a.FileName, keyword) || MatchKeyword(a.Remark, keyword));
+                if (matched.Count == 0) return;
+
+                TreeNode attGroup = new TreeNode($"附件 ({matched.Count}/{attachments.Count})");
+                attGroup.ImageKey = "Annotation";
+                attGroup.SelectedImageKey = "Annotation";
+                foreach (var att in matched)
+                {
+                    TreeNode aNode = new TreeNode($"📎 {att.FileName} ({FormatSize(att.FileSize)})");
+                    aNode.ImageKey = "Annotation";
+                    aNode.SelectedImageKey = "Annotation";
+                    aNode.Tag = new NodeInfo { Type = NodeType.Annotation, Id = att.Id, FlowId = pageNode.Tag is NodeInfo ni ? ni.FlowId : 0 };
+                    aNode.ToolTipText = $"附件ID: {att.Id}\r\n文件名: {att.FileName}\r\n大小: {FormatSize(att.FileSize)}\r\n备注: {att.Remark ?? "无"}\r\n上传时间: {att.CreateTime:yyyy-MM-dd HH:mm}";
+                    HighlightNode(aNode);
+                    attGroup.Nodes.Add(aNode);
+                }
+                pageNode.Nodes.Add(attGroup);
+            }
+            else
+            {
+                TreeNode attGroup = new TreeNode($"附件 ({attachments.Count})");
+                attGroup.ImageKey = "Annotation";
+                attGroup.SelectedImageKey = "Annotation";
+                foreach (var att in attachments)
+                {
+                    TreeNode aNode = new TreeNode($"📎 {att.FileName} ({FormatSize(att.FileSize)})");
+                    aNode.ImageKey = "Annotation";
+                    aNode.SelectedImageKey = "Annotation";
+                    aNode.Tag = new NodeInfo { Type = NodeType.Annotation, Id = att.Id, FlowId = pageNode.Tag is NodeInfo ni ? ni.FlowId : 0 };
+                    aNode.ToolTipText = $"附件ID: {att.Id}\r\n文件名: {att.FileName}\r\n大小: {FormatSize(att.FileSize)}\r\n备注: {att.Remark ?? "无"}\r\n上传时间: {att.CreateTime:yyyy-MM-dd HH:mm}";
+                    attGroup.Nodes.Add(aNode);
+                }
+                pageNode.Nodes.Add(attGroup);
+            }
+        }
+
         // 构建过滤后的流程节点（命中返回节点，未命中返回null）
         private TreeNode? BuildFilteredFlowNode(ProcessFlow flow, string keyword)
         {
@@ -367,6 +420,16 @@ namespace ScreenshotProcessApp
 
             if (pageMatch || hasMatchingRegion || hasMatchingAnnotation)
             {
+                // 加载附件分组（搜索模式下仅显示匹配项）
+                AddAttachmentNodes(pageNode, page.Id, keyword);
+                return pageNode;
+            }
+            // 即使页面本身不匹配，也检查附件是否匹配
+            var attachments = _db.GetAttachmentsByPageId(page.Id);
+            bool hasMatchingAttachment = attachments.Exists(a => MatchKeyword(a.FileName, keyword) || MatchKeyword(a.Remark, keyword));
+            if (hasMatchingAttachment)
+            {
+                AddAttachmentNodes(pageNode, page.Id, keyword);
                 return pageNode;
             }
             return null;
@@ -505,6 +568,9 @@ namespace ScreenshotProcessApp
                 empty.Tag = new NodeInfo { Type = NodeType.Dummy };
                 pageNode.Nodes.Add(empty);
             }
+
+            // 加载附件分组
+            AddAttachmentNodes(pageNode, pageId, "");
         }
 
         // 双击节点：流程→运行流程；页面→运行流程并跳转到此页面

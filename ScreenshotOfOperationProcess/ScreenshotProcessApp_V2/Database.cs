@@ -49,6 +49,18 @@ namespace ScreenshotProcessApp
         public int? ArrowEndY { get; set; }
     }
 
+    // 页面附件
+    public class PageAttachment
+    {
+        public int Id { get; set; }
+        public int PageId { get; set; }
+        public string FileName { get; set; }      // 显示名称
+        public byte[] FileData { get; set; }      // 文件二进制内容
+        public long FileSize { get; set; }        // 文件大小（字节）
+        public string Remark { get; set; }        // 备注
+        public DateTime CreateTime { get; set; }  // 上传时间
+    }
+
     public class Database
     {
         private string _dbPath;
@@ -116,6 +128,20 @@ namespace ScreenshotProcessApp
                         FOREIGN KEY (PageId) REFERENCES ProcessPage(Id)
                     )";
                 ExecuteNonQuery(conn, createAnnotationTable);
+
+                // 页面附件表
+                string createAttachmentTable = @"
+                    CREATE TABLE IF NOT EXISTS PageAttachment (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        PageId INTEGER NOT NULL,
+                        FileName TEXT NOT NULL,
+                        FileData BLOB NOT NULL,
+                        FileSize INTEGER NOT NULL,
+                        Remark TEXT,
+                        CreateTime TEXT NOT NULL,
+                        FOREIGN KEY (PageId) REFERENCES ProcessPage(Id)
+                    )";
+                ExecuteNonQuery(conn, createAttachmentTable);
 
                 // 应用配置表（存储加密的授权信息）
                 string createConfigTable = @"
@@ -296,6 +322,8 @@ namespace ScreenshotProcessApp
                 conn.Open();
                 using (var transaction = conn.BeginTransaction())
                 {
+                    ExecuteNonQuery(conn, "DELETE FROM PageAttachment WHERE PageId IN (SELECT Id FROM ProcessPage WHERE FlowId=@FlowId)",
+                        new SQLiteParameter("@FlowId", flowId));
                     ExecuteNonQuery(conn, "DELETE FROM PageRegion WHERE PageId IN (SELECT Id FROM ProcessPage WHERE FlowId=@FlowId)", 
                         new SQLiteParameter("@FlowId", flowId));
                     ExecuteNonQuery(conn, "DELETE FROM ProcessPage WHERE FlowId=@FlowId", 
@@ -405,6 +433,8 @@ namespace ScreenshotProcessApp
                 conn.Open();
                 using (var transaction = conn.BeginTransaction())
                 {
+                    ExecuteNonQuery(conn, "DELETE FROM PageAttachment WHERE PageId=@PageId",
+                        new SQLiteParameter("@PageId", pageId));
                     ExecuteNonQuery(conn, "DELETE FROM PageRegion WHERE PageId=@PageId", 
                         new SQLiteParameter("@PageId", pageId));
                     ExecuteNonQuery(conn, "DELETE FROM ProcessPage WHERE Id=@PageId", 
@@ -716,6 +746,99 @@ namespace ScreenshotProcessApp
                                 Text = reader.IsDBNull(6) ? null : reader.GetString(6),
                                 ArrowEndX = reader.IsDBNull(7) ? null : (int?)reader.GetInt32(7),
                                 ArrowEndY = reader.IsDBNull(8) ? null : (int?)reader.GetInt32(8)
+                            };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        // ==================== 附件相关方法 ====================
+
+        public int AddAttachment(PageAttachment attachment)
+        {
+            using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
+            {
+                conn.Open();
+                string sql = "INSERT INTO PageAttachment (PageId, FileName, FileData, FileSize, Remark, CreateTime) VALUES (@PageId, @FileName, @FileData, @FileSize, @Remark, @CreateTime)";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@PageId", attachment.PageId);
+                    cmd.Parameters.AddWithValue("@FileName", attachment.FileName);
+                    cmd.Parameters.AddWithValue("@FileData", attachment.FileData);
+                    cmd.Parameters.AddWithValue("@FileSize", attachment.FileSize);
+                    cmd.Parameters.AddWithValue("@Remark", string.IsNullOrEmpty(attachment.Remark) ? (object)DBNull.Value : attachment.Remark);
+                    cmd.Parameters.AddWithValue("@CreateTime", attachment.CreateTime.ToString("yyyy-MM-dd HH:mm:ss"));
+                    cmd.ExecuteNonQuery();
+                    return (int)conn.LastInsertRowId;
+                }
+            }
+        }
+
+        public void DeleteAttachment(int attachmentId)
+        {
+            using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
+            {
+                conn.Open();
+                ExecuteNonQuery(conn, "DELETE FROM PageAttachment WHERE Id=@Id",
+                    new SQLiteParameter("@Id", attachmentId));
+            }
+        }
+
+        public List<PageAttachment> GetAttachmentsByPageId(int pageId)
+        {
+            List<PageAttachment> list = new List<PageAttachment>();
+            using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
+            {
+                conn.Open();
+                string sql = "SELECT Id, PageId, FileName, FileData, FileSize, Remark, CreateTime FROM PageAttachment WHERE PageId=@PageId ORDER BY Id";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@PageId", pageId);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            list.Add(new PageAttachment
+                            {
+                                Id = reader.GetInt32(0),
+                                PageId = reader.GetInt32(1),
+                                FileName = reader.GetString(2),
+                                FileData = reader.IsDBNull(3) ? null : (byte[])reader.GetValue(3),
+                                FileSize = reader.GetInt64(4),
+                                Remark = reader.IsDBNull(5) ? null : reader.GetString(5),
+                                CreateTime = DateTime.Parse(reader.GetString(6))
+                            });
+                        }
+                    }
+                }
+            }
+            return list;
+        }
+
+        public PageAttachment GetAttachmentById(int id)
+        {
+            using (var conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;"))
+            {
+                conn.Open();
+                string sql = "SELECT Id, PageId, FileName, FileData, FileSize, Remark, CreateTime FROM PageAttachment WHERE Id=@Id";
+                using (var cmd = new SQLiteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@Id", id);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return new PageAttachment
+                            {
+                                Id = reader.GetInt32(0),
+                                PageId = reader.GetInt32(1),
+                                FileName = reader.GetString(2),
+                                FileData = reader.IsDBNull(3) ? null : (byte[])reader.GetValue(3),
+                                FileSize = reader.GetInt64(4),
+                                Remark = reader.IsDBNull(5) ? null : reader.GetString(5),
+                                CreateTime = DateTime.Parse(reader.GetString(6))
                             };
                         }
                     }

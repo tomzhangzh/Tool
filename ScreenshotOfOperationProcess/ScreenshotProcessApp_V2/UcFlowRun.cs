@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -16,11 +17,13 @@ namespace ScreenshotProcessApp
         private RichTextBox txtRemark;
         private Label lblPageInfo;
         private Label lblPageTitle;
+        private Panel panelAttachments;
 
         private int _currentPageId;
         private ProcessPage _currentPage;
         private List<PageRegion> _currentRegions;
         private List<PageAnnotation> _currentAnnotations;
+        private List<PageAttachment> _currentAttachments;
         private Stack<int> _pageHistory = new Stack<int>();
         private Image _displayImage;
 
@@ -105,7 +108,21 @@ namespace ScreenshotProcessApp
             pbImage.MouseClick += PbImage_MouseClick;
             this.Controls.Add(pbImage);
 
+            // 附件超链接面板（覆盖在 PictureBox 左上角）
+            panelAttachments = new Panel();
+            panelAttachments.BackColor = Color.FromArgb(245, 250, 255);
+            panelAttachments.BorderStyle = BorderStyle.FixedSingle;
+            panelAttachments.Location = new Point(20, 138);
+            panelAttachments.Size = new Size(420, 80);
+            panelAttachments.Visible = false;
+            panelAttachments.AutoSize = true;
+            panelAttachments.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            this.Controls.Add(panelAttachments);
+            panelAttachments.BringToFront();
+
             this.ResumeLayout(false);
+            // 布局完成后再次确保在最上层
+            panelAttachments.BringToFront();
         }
 
         private Button CreateButton(string text, int x, int y, Color backColor)
@@ -158,6 +175,7 @@ namespace ScreenshotProcessApp
 
             _currentRegions = _db.GetRegionsByPageId(pageId);
             _currentAnnotations = _db.GetAnnotationsByPageId(pageId);
+            _currentAttachments = _db.GetAttachmentsByPageId(pageId);
 
             // 加载图片
             if (_currentPage.ImageData != null && _currentPage.ImageData.Length > 0)
@@ -174,6 +192,96 @@ namespace ScreenshotProcessApp
 
             lblPageInfo.Text = $"当前页面：{_currentPage.Name}（ID: {_currentPage.Id}）";
             pbImage.Invalidate();
+
+            // 更新附件超链接
+            UpdateAttachmentLinks();
+        }
+
+        // 更新附件超链接显示（位于 PictureBox 左上角）
+        private void UpdateAttachmentLinks()
+        {
+            panelAttachments.Controls.Clear();
+
+            if (_currentAttachments == null || _currentAttachments.Count == 0)
+            {
+                panelAttachments.Visible = false;
+                return;
+            }
+
+            panelAttachments.Visible = true;
+
+            var lblHeader = new Label();
+            lblHeader.Text = "📎 附件：";
+            lblHeader.Font = new Font("微软雅黑", 10F, FontStyle.Bold);
+            lblHeader.ForeColor = Color.FromArgb(48, 53, 65);
+            lblHeader.AutoSize = true;
+            lblHeader.Location = new Point(8, 6);
+            panelAttachments.Controls.Add(lblHeader);
+
+            int yPos = 28;
+            foreach (var att in _currentAttachments)
+            {
+                var link = new LinkLabel();
+                link.Text = $"📄 {att.FileName} ({FormatSize(att.FileSize)})";
+                link.Font = new Font("微软雅黑", 9F);
+                link.AutoSize = true;
+                link.Location = new Point(10, yPos);
+                link.LinkColor = Color.FromArgb(0, 90, 158);
+                link.ActiveLinkColor = Color.Red;
+                link.VisitedLinkColor = Color.FromArgb(128, 0, 128);
+                link.LinkBehavior = LinkBehavior.HoverUnderline;
+                int attachmentId = att.Id;
+                string fileName = att.FileName;
+                link.LinkClicked += (s, e) => OpenAttachment(attachmentId, fileName);
+                panelAttachments.Controls.Add(link);
+                yPos += 22;
+            }
+
+            // 自适应高度
+            panelAttachments.Height = yPos + 6;
+            panelAttachments.BringToFront();
+            panelAttachments.Invalidate();
+        }
+
+        private string FormatSize(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes}B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1}KB";
+            return $"{bytes / 1024.0 / 1024.0:F2}MB";
+        }
+
+        // 从数据库下载附件并用系统默认程序打开
+        private void OpenAttachment(int attachmentId, string fileName)
+        {
+            try
+            {
+                var att = _db.GetAttachmentById(attachmentId);
+                if (att == null || att.FileData == null)
+                {
+                    MessageBox.Show("附件不存在或已被删除", "提示");
+                    return;
+                }
+
+                string tempDir = Path.Combine(Path.GetTempPath(), "ScreenshotProcessApp_RunAttachments");
+                if (!Directory.Exists(tempDir))
+                    Directory.CreateDirectory(tempDir);
+
+                // 时间戳前缀避免覆盖
+                string safeName = $"{DateTime.Now:yyyyMMdd_HHmmss}_{fileName}";
+                string tempFile = Path.Combine(tempDir, safeName);
+                File.WriteAllBytes(tempFile, att.FileData);
+
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = tempFile,
+                    UseShellExecute = true
+                };
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开附件失败：{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void PbImage_Paint(object sender, PaintEventArgs e)

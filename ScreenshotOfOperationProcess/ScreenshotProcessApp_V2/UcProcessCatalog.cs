@@ -233,8 +233,30 @@ namespace ScreenshotProcessApp
             pageNode.ImageKey = "Page";
             pageNode.SelectedImageKey = "Page";
             pageNode.Tag = new NodeInfo { Type = NodeType.Page, Id = page.Id, FlowId = page.FlowId };
-            pageNode.ToolTipText = $"页面ID: {page.Id}\r\n所属流程ID: {page.FlowId}{flowHint}\r\n备注: {page.Remark ?? "无"}\r\n双击运行所属流程并跳转到此页面";
+
+            // 附件信息
+            var attachments = _db.GetAttachmentsByPageId(pageId);
+            string attTip = attachments.Count > 0
+                ? $"\r\n附件: {attachments.Count} 个"
+                : "\r\n附件: 无";
+            pageNode.ToolTipText = $"页面ID: {page.Id}\r\n所属流程ID: {page.FlowId}{flowHint}\r\n备注: {page.Remark ?? "无"}{attTip}\r\n双击运行所属流程并跳转到此页面";
             parentNode.Nodes.Add(pageNode);
+
+            // 在页面节点下显示附件子节点（如果有）
+            if (attachments.Count > 0)
+            {
+                foreach (var att in attachments)
+                {
+                    var attNode = new TreeNode();
+                    attNode.Text = $"📎 {att.FileName} ({FormatSize(att.FileSize)})";
+                    attNode.ImageKey = "Page";
+                    attNode.SelectedImageKey = "Page";
+                    attNode.ForeColor = Color.FromArgb(0, 90, 158);
+                    attNode.Tag = new NodeInfo { Type = NodeType.Page, Id = page.Id, FlowId = page.FlowId };
+                    attNode.ToolTipText = $"附件ID: {att.Id}\r\n文件名: {att.FileName}\r\n大小: {FormatSize(att.FileSize)}\r\n备注: {att.Remark ?? "无"}\r\n上传时间: {att.CreateTime:yyyy-MM-dd HH:mm}";
+                    pageNode.Nodes.Add(attNode);
+                }
+            }
 
             // 加入路径（用于递归检测）
             path.Add(pageId);
@@ -302,6 +324,13 @@ namespace ScreenshotProcessApp
             FormRun formRun = new FormRun(_db);
             formRun.SelectFlowAndStartAtPage(flow.Id, pageId);
             formRun.Show();
+        }
+
+        private string FormatSize(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes}B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1}KB";
+            return $"{bytes / 1024.0 / 1024.0:F2}MB";
         }
     }
 }

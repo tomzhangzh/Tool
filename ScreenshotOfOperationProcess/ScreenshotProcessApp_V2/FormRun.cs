@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -13,9 +14,12 @@ namespace ScreenshotProcessApp
         private ProcessPage _currentPage;
         private List<PageRegion> _currentRegions;
         private List<PageAnnotation> _currentAnnotations;
+        private List<PageAttachment> _currentAttachments;
         private Label label2;
         private RichTextBox richTextBoxRemark;
         private Stack<int> _pageHistory = new Stack<int>();
+        // 附件超链接容器（覆盖在 PictureBox 左上角）
+        private Panel panelAttachments;
 
         public FormRun(Database db)
         {
@@ -94,6 +98,7 @@ namespace ScreenshotProcessApp
             _currentPage = _db.GetPageById(pageId);
             _currentRegions = _db.GetRegionsByPageId(pageId);
             _currentAnnotations = _db.GetAnnotationsByPageId(pageId);
+            _currentAttachments = _db.GetAttachmentsByPageId(pageId);
 
             if (_currentPage != null)
             {
@@ -109,7 +114,96 @@ namespace ScreenshotProcessApp
                 pbImage.Invalidate();
             }
 
+            UpdateAttachmentLinks();
+
             btnBack.Enabled = _pageHistory.Count > 0;
+        }
+
+        // 更新附件超链接显示（位于 PictureBox 左上角）
+        private void UpdateAttachmentLinks()
+        {
+            panelAttachments.Controls.Clear();
+
+            if (_currentAttachments == null || _currentAttachments.Count == 0)
+            {
+                panelAttachments.Visible = false;
+                return;
+            }
+
+            panelAttachments.Visible = true;
+
+            var lblHeader = new Label();
+            lblHeader.Text = "📎 附件：";
+            lblHeader.Font = new Font("微软雅黑", 10F, FontStyle.Bold);
+            lblHeader.ForeColor = Color.FromArgb(48, 53, 65);
+            lblHeader.AutoSize = true;
+            lblHeader.Location = new Point(8, 6);
+            panelAttachments.Controls.Add(lblHeader);
+
+            int yPos = 28;
+            foreach (var att in _currentAttachments)
+            {
+                var link = new LinkLabel();
+                link.Text = $"📄 {att.FileName} ({FormatSize(att.FileSize)})";
+                link.Font = new Font("微软雅黑", 9F);
+                link.AutoSize = true;
+                link.Location = new Point(10, yPos);
+                link.LinkColor = Color.FromArgb(0, 90, 158);
+                link.ActiveLinkColor = Color.Red;
+                link.VisitedLinkColor = Color.FromArgb(128, 0, 128);
+                link.LinkBehavior = LinkBehavior.HoverUnderline;
+                int attachmentId = att.Id;
+                string fileName = att.FileName;
+                link.LinkClicked += (s, e) => OpenAttachment(attachmentId, fileName);
+                panelAttachments.Controls.Add(link);
+                yPos += 22;
+            }
+
+            // 自适应高度
+            panelAttachments.Height = yPos + 6;
+            panelAttachments.BringToFront();
+            panelAttachments.Invalidate();
+        }
+
+        private string FormatSize(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes}B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1}KB";
+            return $"{bytes / 1024.0 / 1024.0:F2}MB";
+        }
+
+        // 从数据库下载附件并用系统默认程序打开
+        private void OpenAttachment(int attachmentId, string fileName)
+        {
+            try
+            {
+                var att = _db.GetAttachmentById(attachmentId);
+                if (att == null || att.FileData == null)
+                {
+                    MessageBox.Show("附件不存在或已被删除", "提示");
+                    return;
+                }
+
+                string tempDir = Path.Combine(Path.GetTempPath(), "ScreenshotProcessApp_RunAttachments");
+                if (!Directory.Exists(tempDir))
+                    Directory.CreateDirectory(tempDir);
+
+                // 时间戳前缀避免覆盖
+                string safeName = $"{DateTime.Now:yyyyMMdd_HHmmss}_{fileName}";
+                string tempFile = Path.Combine(tempDir, safeName);
+                File.WriteAllBytes(tempFile, att.FileData);
+
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = tempFile,
+                    UseShellExecute = true
+                };
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开附件失败：{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void pbImage_MouseClick(object sender, MouseEventArgs e)
@@ -255,6 +349,7 @@ namespace ScreenshotProcessApp
             label1 = new Label();
             label2 = new Label();
             richTextBoxRemark = new RichTextBox();
+            panelAttachments = new Panel();
             ((System.ComponentModel.ISupportInitialize)pbImage).BeginInit();
             SuspendLayout();
             // 
@@ -279,9 +374,9 @@ namespace ScreenshotProcessApp
             btnStart.TabIndex = 4;
             btnStart.Text = "开始运行";
             btnStart.Click += btnStart_Click;
-            // 
+            //
             // pbImage
-            // 
+            //
             pbImage.BorderStyle = BorderStyle.FixedSingle;
             pbImage.Location = new Point(12, 74);
             pbImage.Name = "pbImage";
@@ -291,7 +386,18 @@ namespace ScreenshotProcessApp
             pbImage.TabStop = false;
             pbImage.Paint += pbImage_Paint;
             pbImage.MouseClick += pbImage_MouseClick;
-            // 
+            //
+            // panelAttachments（覆盖在 PictureBox 左上角，显示附件超链接）
+            //
+            panelAttachments.BackColor = Color.FromArgb(245, 250, 255);
+            panelAttachments.BorderStyle = BorderStyle.FixedSingle;
+            panelAttachments.Location = new Point(20, 82);
+            panelAttachments.Size = new Size(420, 80);
+            panelAttachments.Visible = false;
+            panelAttachments.AutoSize = true;
+            panelAttachments.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            // 注：panelAttachments 在 Form 末尾统一添加到 Controls 以确保 z-order
+            //
             // btnBack
             // 
             btnBack.Enabled = false;
@@ -356,6 +462,9 @@ namespace ScreenshotProcessApp
             Controls.Add(pbImage);
             Controls.Add(btnStart);
             Controls.Add(cbFlows);
+            // 确保 panelAttachments 在最上层（在所有控件添加后 BringToFront）
+            Controls.Add(panelAttachments);
+            panelAttachments.BringToFront();
             MaximizeBox = false;
             Name = "FormRun";
             StartPosition = FormStartPosition.CenterScreen;
@@ -363,6 +472,8 @@ namespace ScreenshotProcessApp
             ((System.ComponentModel.ISupportInitialize)pbImage).EndInit();
             ResumeLayout(false);
             PerformLayout();
+            // 布局完成后再次确保在最上层
+            panelAttachments.BringToFront();
         }
         #endregion
     }

@@ -7,6 +7,9 @@
     <Compile Update="FormAnnotationEditor.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="FormAttachmentManage.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Update="FormLicenseSetting.cs">
       <SubType>Form</SubType>
     </Compile>

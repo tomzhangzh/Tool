@@ -19,6 +19,7 @@ namespace ScreenshotProcessApp
         private Button btnSetStart;
         private Button btnEditRegion;
         private Button btnEditAnnotation;
+        private Button btnManageAttachment;
         private GroupBox grpDetail;
         private TextBox txtName;
         private RichTextBox txtRemark;
@@ -172,6 +173,10 @@ namespace ScreenshotProcessApp
             btnEditAnnotation = CreateButton("编辑注释", 370, 145, Color.FromArgb(108, 117, 125));
             btnEditAnnotation.Click += (s, e) => EditAnnotation();
             grpDetail.Controls.Add(btnEditAnnotation);
+
+            btnManageAttachment = CreateButton("管理附件", 455, 145, Color.FromArgb(255, 140, 0));
+            btnManageAttachment.Click += (s, e) => ManageAttachment();
+            grpDetail.Controls.Add(btnManageAttachment);
 
             this.ResumeLayout(false);
         }
@@ -411,6 +416,21 @@ namespace ScreenshotProcessApp
                         editor.ShowDialog(this);
                     }
                 }
+            }
+        }
+
+        private void ManageAttachment()
+        {
+            if (_selectedPageId == 0)
+            {
+                MessageBox.Show("请先选择一个页面", "提示");
+                return;
+            }
+            var page = _db.GetPageById(_selectedPageId);
+            string pageName = page?.Name ?? $"#{_selectedPageId}";
+            using (var form = new FormAttachmentManage(_db, _selectedPageId, pageName))
+            {
+                form.ShowDialog(this);
             }
         }
 

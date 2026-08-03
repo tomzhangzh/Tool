@@ -409,7 +409,7 @@ namespace ScreenshotProcessApp
                 return;
             }
 
-            if (MessageBox.Show($"确定要导入选中的 {selectedFlowIds.Count} 个流程吗？\n所有页面、区域、注释将使用新的ID导入。", "确认导入",
+            if (MessageBox.Show($"确定要导入选中的 {selectedFlowIds.Count} 个流程吗？\n所有页面、区域、注释、附件将使用新的ID导入。", "确认导入",
                 MessageBoxButtons.YesNo) == DialogResult.No)
             {
                 return;
@@ -471,6 +471,7 @@ namespace ScreenshotProcessApp
                 // === 阶段3：导入区域和注释 ===
                 int importedRegions = 0;
                 int importedAnnotations = 0;
+                int importedAttachments = 0;
                 int nullifiedTargets = 0;
 
                 foreach (int oldFlowId in selectedFlowIds)
@@ -530,6 +531,22 @@ namespace ScreenshotProcessApp
                             });
                             importedAnnotations++;
                         }
+
+                        // === 阶段4：导入附件 ===
+                        var attachments = _sourceDb.GetAttachmentsByPageId(page.Id);
+                        foreach (var att in attachments)
+                        {
+                            _targetDb.AddAttachment(new PageAttachment
+                            {
+                                PageId = newPageId,
+                                FileName = att.FileName,
+                                FileData = att.FileData,
+                                FileSize = att.FileSize,
+                                Remark = att.Remark,
+                                CreateTime = att.CreateTime
+                            });
+                            importedAttachments++;
+                        }
                     }
                 }
 
@@ -537,9 +554,9 @@ namespace ScreenshotProcessApp
                 string nullifiedMsg = nullifiedTargets > 0
                     ? $"\n其中 {nullifiedTargets} 个区域的目标页面因未导入已置空"
                     : "";
-                string msg = $"导入成功！\n流程: {selectedFlowIds.Count}\n页面: {importedPages}\n区域: {importedRegions}{nullifiedMsg}\n注释: {importedAnnotations}";
+                string msg = $"导入成功！\n流程: {selectedFlowIds.Count}\n页面: {importedPages}\n区域: {importedRegions}{nullifiedMsg}\n注释: {importedAnnotations}\n附件: {importedAttachments}";
                 MessageBox.Show(msg, "导入完成");
-                lblStatus.Text = $"上次导入: {selectedFlowIds.Count} 流程, {importedPages} 页面, {importedRegions} 区域, {importedAnnotations} 注释";
+                lblStatus.Text = $"上次导入: {selectedFlowIds.Count} 流程, {importedPages} 页面, {importedRegions} 区域, {importedAnnotations} 注释, {importedAttachments} 附件";
             }
             catch (Exception ex)
             {
