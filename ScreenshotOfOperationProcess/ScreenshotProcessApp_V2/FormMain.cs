@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Windows.Forms;
 
 namespace ScreenshotProcessApp
@@ -50,8 +51,15 @@ namespace ScreenshotProcessApp
             lblTitle.TextAlign = ContentAlignment.MiddleCenter;
             navPanel.Controls.Add(lblTitle);
 
-            // 导航按钮
-            string[] navItems = { "流程管理", "页面管理", "区域管理", "注释管理", "运行流程", "流程结构", "流程目录", "导入数据" };
+            // 导航按钮（根据授权情况决定是否包含"导入数据"）
+            var navItemList = new System.Collections.Generic.List<string>
+            { "流程管理", "页面管理", "区域管理", "注释管理", "运行流程", "流程结构", "流程目录" };
+            bool importAllowed = IsImportDataAllowed();
+            if (importAllowed)
+            {
+                navItemList.Add("导入数据");
+            }
+            string[] navItems = navItemList.ToArray();
             navButtons = new Button[navItems.Length];
             int yPos = 70;
             for (int i = 0; i < navItems.Length; i++)
@@ -99,6 +107,14 @@ namespace ScreenshotProcessApp
 
         private void ShowContent(int index)
         {
+            // // 防护：未授权时禁止访问"导入数据"
+            // if (index == 7 && !IsImportDataAllowed())
+            // {
+            //     MessageBox.Show("当前未授权使用「导入数据」功能。\n请在程序运行目录下放置包含授权信息的 zzq.log 文件。",
+            //         "未授权", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            //     return;
+            // }
+
             // 更新导航按钮样式
             if (_activeIndex >= 0 && _activeIndex < navButtons.Length)
             {
@@ -124,6 +140,25 @@ namespace ScreenshotProcessApp
             {
                 uc.Dock = DockStyle.Fill;
                 contentPanel.Controls.Add(uc);
+            }
+        }
+
+        // 检查是否允许使用"导入数据"功能
+        // 条件: 运行目录下存在 zzq.log 文件，且文件内容包含"导入数据"
+        private bool IsImportDataAllowed()
+        {
+            try
+            {
+                string logPath = Path.Combine(Application.StartupPath, "zzq.log");
+                if (!File.Exists(logPath))
+                    return false;
+
+                string content = File.ReadAllText(logPath);
+                return content.Contains("导入数据");
+            }
+            catch
+            {
+                return false;
             }
         }
     }

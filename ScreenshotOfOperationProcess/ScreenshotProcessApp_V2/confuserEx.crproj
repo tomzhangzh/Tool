@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ConfuserEx 混淆配置文件
+  用法:
+    1. 下载 ConfuserEx: https://github.com/mkaring/ConfuserEx/releases
+    2. 解压后运行 ConfuserEx.exe
+    3. 点击 "Project" -> "New Project" -> 选择 publish 目录下的 ScreenshotProcessApp.exe
+       或直接用命令行: Confuser.CLI.exe confuserEx.crproj
+    4. 混淆后的文件会输出到 publish_obfus 目录
+-->
+<project outputDir="publish_obfus" baseDir="publish" xmlns="http://confuserex.xyc.io">
+
+  <!-- 需要混淆的程序集 -->
+  <module path="ScreenshotProcessApp.exe">
+    <!-- 反调试/反篡改保护 -->
+    <rule pattern="true" preset="aggressive" inherit="false">
+      <!-- 控制流混淆: 打乱方法体内指令顺序 -->
+      <protection id="control flow">
+        <argument name="type" value="switch" />
+      </protection>
+      <!-- 符号重命名: 类名/方法名/字段名打乱 -->
+      <protection id="rename">
+        <argument name="mode" value="decodable" />
+        <argument name="renPublic" value="true" />
+        <argument name="renSerial" value="true" />
+        <argument name="renPrivate" value="true" />
+        <argument name="renProperties" value="true" />
+        <argument name="renEvents" value="true" />
+        <argument name="renFields" value="true" />
+        <argument name="renParams" value="true" />
+        <argument name="renGeneric" value="true" />
+      </protection>
+      <!-- 反调试检测 -->
+      <protection id="anti debug">
+        <argument name="mode" value="safe" />
+      </protection>
+      <!-- 反篡改: 修改后无法运行 -->
+      <protection id="anti tamper">
+        <argument name="mode" value="normal" />
+      </protection>
+      <!-- 字符串加密: 隐藏代码中的字符串 -->
+      <protection id="constants">
+        <argument name="mode" value="dynamic" />
+      </protection>
+      <!-- 资源加密 -->
+      <protection id="resources">
+        <argument name="mode" value="dynamic" />
+      </protection>
+    </rule>
+  </module>
+
+  <!-- 排除 SQLite 依赖库（不混淆，避免运行时问题） -->
+  <module path="System.Data.SQLite.dll" excluded="true" />
+  <module path="SQLite.Interop.dll" excluded="true" />
+
+</project>

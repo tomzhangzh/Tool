@@ -27,7 +27,7 @@ namespace ScreenshotProcessApp
         {
             _db = db;
             InitializeComponent();
-            LoadFlows();
+            this.Load += (s, e) => LoadFlows();
         }
 
         private void InitializeComponent()
