@@ -10,7 +10,7 @@ Page({
     roleLabel: '',
     name: '',
     avatar: '',
-    weight: 30,
+    weight: '',
     classCode: '', // 学生加入班级/家长绑定孩子用
     childName: '', // 家长填写孩子姓名
     loading: false
@@ -34,7 +34,11 @@ Page({
   },
 
   onNameInput(e) { this.setData({ name: e.detail.value }); },
-  onWeightInput(e) { this.setData({ weight: Number(e.detail.value) || 30 }); },
+  onWeightInput(e) {
+    // 允许空字符串和正常数字输入，避免被强制覆盖回默认值
+    const val = e.detail.value;
+    this.setData({ weight: val });
+  },
   onClassCodeInput(e) { this.setData({ classCode: e.detail.value.trim() }); },
   onChildNameInput(e) { this.setData({ childName: e.detail.value.trim() }); },
 
@@ -54,9 +58,15 @@ Page({
       wx.showToast({ title: '请填写姓名', icon: 'none' });
       return;
     }
-    if (role === 'student' && !classCode) {
-      wx.showToast({ title: '请填写班级邀请码', icon: 'none' });
-      return;
+    if (role === 'student') {
+      if (!weight || Number(weight) <= 0) {
+        wx.showToast({ title: '请填写体重', icon: 'none' });
+        return;
+      }
+      if (!classCode) {
+        wx.showToast({ title: '请填写班级邀请码', icon: 'none' });
+        return;
+      }
     }
     if (role === 'parent' && !childName) {
       wx.showToast({ title: '请填写孩子姓名', icon: 'none' });
@@ -74,7 +84,7 @@ Page({
         role,
         name: name.trim(),
         avatar: avatar || '',
-        weight: role === 'student' ? weight : undefined,
+        weight: role === 'student' ? Number(weight) : undefined,
         classCode: role === 'student' ? classCode : undefined,
         childName: role === 'parent' ? childName : undefined
       };

@@ -58,7 +58,7 @@
       <block wx:if="{{role === 'student'}}">
         <view class="form-row">
           <text class="form-label">体重(kg)</text>
-          <input class="form-input" type="digit" placeholder="用于计算卡路里" value="{{weight}}" bindinput="onWeightInput" />
+          <input class="form-input" type="digit" placeholder="用于计算卡路里（如30）" value="{{weight}}" bindinput="onWeightInput" />
         </view>
         <view class="form-row">
           <text class="form-label">班级邀请码</text>
