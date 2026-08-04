@@ -1,0 +1,112 @@
+/* app.wxss - 全局样式 */
+page {
+  background-color: #f5f6f8;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #333;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+/* 主题色 */
+.theme-bg { background-color: #4A90E2; }
+.theme-color { color: #4A90E2; }
+.theme-gradient { background: linear-gradient(135deg, #4A90E2 0%, #67B8F2 100%); }
+
+/* 通用容器 */
+.container {
+  padding: 24rpx;
+  box-sizing: border-box;
+  min-height: 100vh;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+  color: #222;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 按钮 */
+.btn {
+  background: #4A90E2;
+  color: #fff;
+  border: none;
+  border-radius: 48rpx;
+  padding: 20rpx 40rpx;
+  font-size: 30rpx;
+  text-align: center;
+  display: inline-block;
+}
+
+.btn-block { width: 100%; display: block; }
+.btn-ghost { background: transparent; color: #4A90E2; border: 1rpx solid #4A90E2; }
+.btn[disabled] { background: #ccc; color: #fff; }
+
+/* 文本 */
+.text-muted { color: #999; font-size: 24rpx; }
+.text-small { font-size: 22rpx; }
+.text-large { font-size: 36rpx; font-weight: 600; }
+.text-center { text-align: center; }
+.text-primary { color: #4A90E2; }
+.text-gold { color: #FFA940; }
+.text-silver { color: #BFBFBF; }
+.text-bronze { color: #D48806; }
+
+/* flex 布局 */
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.flex-around { display: flex; justify-content: space-around; }
+.flex-1 { flex: 1; }
+
+/* 头像 */
+.avatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: #eee;
+}
+
+/* 标签 */
+.tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+  font-size: 22rpx;
+  background: #f0f5ff;
+  color: #4A90E2;
+  margin-right: 8rpx;
+}
+
+/* 空状态 */
+.empty {
+  text-align: center;
+  padding: 80rpx 0;
+  color: #999;
+  font-size: 26rpx;
+}
+
+/* 加载 */
+.loading {
+  text-align: center;
+  padding: 40rpx;
+  color: #999;
+  font-size: 26rpx;
+}
+
+/* 奖牌配色 */
+.medal-gold { background: linear-gradient(135deg, #FFD700 0%, #FFA940 100%); }
+.medal-silver { background: linear-gradient(135deg, #E8E8E8 0%, #BFBFBF 100%); }
+.medal-bronze { background: linear-gradient(135deg, #D48806 0%, #AD6800 100%); }

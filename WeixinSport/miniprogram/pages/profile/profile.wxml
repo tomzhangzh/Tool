@@ -1,0 +1,56 @@
+<!-- pages/profile/profile.wxml -->
+<view class="container profile-page">
+  <view class="hero theme-gradient">
+    <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
+      <image wx:if="{{userInfo.avatar}}" src="{{userInfo.avatar}}" class="avatar hero-avatar" mode="aspectFill"></image>
+      <view wx:else class="avatar hero-avatar avatar-placeholder">{{userInfo.name ? userInfo.name[0] : '?'}}</view>
+    </button>
+    <view class="hero-name">{{userInfo.name || ''}}</view>
+    <view class="hero-role">{{roleLabel}}</view>
+  </view>
+
+  <!-- 概览 -->
+  <view class="card" wx:if="{{summary}}">
+    <view class="card-title">运动总览</view>
+    <view class="stat-grid">
+      <view class="stat-cell">
+        <view class="stat-num text-primary">{{summary.totalDuration || 0}}</view>
+        <view class="stat-label">总时长(分)</view>
+      </view>
+      <view class="stat-cell">
+        <view class="stat-num text-gold">{{summary.totalCalorie || 0}}</view>
+        <view class="stat-label">总千卡</view>
+      </view>
+      <view class="stat-cell">
+        <view class="stat-num">{{summary.totalCheckins || 0}}</view>
+        <view class="stat-label">总打卡数</view>
+      </view>
+      <view class="stat-cell">
+        <view class="stat-num">{{summary.totalDays || 0}}</view>
+        <view class="stat-label">坚持天数</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 菜单 -->
+  <view class="card menu">
+    <view class="menu-item" bindtap="goAwards" wx:if="{{userInfo.role !== 'teacher'}}">
+      <view class="menu-emoji">🎖️</view>
+      <view class="flex-1">我的奖项</view>
+      <view class="menu-badge" wx:if="{{awardCount}}">{{awardCount}}</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-item" bindtap="goCheckinList" wx:if="{{userInfo.role === 'student'}}">
+      <view class="menu-emoji">📝</view>
+      <view class="flex-1">打卡记录</view>
+      <view class="menu-arrow">›</view>
+    </view>
+    <view class="menu-item" bindtap="goClass">
+      <view class="menu-emoji">📚</view>
+      <view class="flex-1">{{userInfo.role === 'teacher' ? '班级管理' : '我的班级'}}</view>
+      <view class="menu-arrow">›</view>
+    </view>
+  </view>
+
+  <button class="btn btn-ghost btn-block logout-btn" bindtap="onLogout">退出登录</button>
+</view>

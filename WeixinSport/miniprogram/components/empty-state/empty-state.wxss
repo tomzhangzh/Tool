@@ -1,0 +1,5 @@
+/* components/empty-state/empty-state.wxss */
+.empty-state { text-align: center; padding: 100rpx 32rpx; }
+.empty-emoji { font-size: 96rpx; margin-bottom: 16rpx; }
+.empty-text { font-size: 28rpx; color: #999; }
+.empty-desc { font-size: 24rpx; color: #bbb; margin-top: 8rpx; }

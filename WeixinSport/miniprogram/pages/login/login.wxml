@@ -1,0 +1,84 @@
+<!-- pages/login/login.wxml -->
+<view class="container login-page">
+  <view class="brand">
+    <view class="brand-icon">🏃‍♂️</view>
+    <view class="brand-title">运动小达人</view>
+    <view class="brand-sub">运动打卡 · 周评选 · 月度明星</view>
+  </view>
+
+  <block wx:if="{{step === 'role'}}">
+    <view class="card">
+      <view class="card-title">选择你的身份</view>
+      <view class="role-list">
+        <view class="role-item" bindtap="onChooseRole" data-role="student">
+          <view class="role-emoji">🧒</view>
+          <view class="role-info">
+            <view class="role-name">我是学生</view>
+            <view class="role-desc">每天打卡运动，争取拿奖</view>
+          </view>
+          <view class="role-arrow">›</view>
+        </view>
+        <view class="role-item" bindtap="onChooseRole" data-role="teacher">
+          <view class="role-emoji">👩‍🏫</view>
+          <view class="role-info">
+            <view class="role-name">我是老师</view>
+            <view class="role-desc">管理班级、查看统计、评选明星</view>
+          </view>
+          <view class="role-arrow">›</view>
+        </view>
+        <view class="role-item" bindtap="onChooseRole" data-role="parent">
+          <view class="role-emoji">👨‍👩‍👧</view>
+          <view class="role-info">
+            <view class="role-name">我是家长</view>
+            <view class="role-desc">关注孩子运动表现，鼓励陪伴</view>
+          </view>
+          <view class="role-arrow">›</view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{step === 'info'}}">
+    <view class="card">
+      <view class="card-title">完善信息（{{roleLabel}}）</view>
+
+      <view class="form-row">
+        <text class="form-label">头像</text>
+        <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
+          <image wx:if="{{avatar}}" src="{{avatar}}" class="avatar" mode="aspectFill"></image>
+          <view wx:else class="avatar avatar-placeholder">点击选择</view>
+        </button>
+      </view>
+
+      <view class="form-row">
+        <text class="form-label">{{role === 'parent' ? '家长姓名' : '姓名'}}</text>
+        <input class="form-input" placeholder="请输入姓名" value="{{name}}" bindinput="onNameInput" />
+      </view>
+
+      <block wx:if="{{role === 'student'}}">
+        <view class="form-row">
+          <text class="form-label">体重(kg)</text>
+          <input class="form-input" type="digit" placeholder="用于计算卡路里" value="{{weight}}" bindinput="onWeightInput" />
+        </view>
+        <view class="form-row">
+          <text class="form-label">班级邀请码</text>
+          <input class="form-input" placeholder="请输入老师提供的邀请码" value="{{classCode}}" bindinput="onClassCodeInput" />
+        </view>
+        <view class="text-muted" style="margin-top: 8rpx;">还没拿到邀请码？请向老师要哦～</view>
+      </block>
+
+      <block wx:if="{{role === 'parent'}}">
+        <view class="form-row">
+          <text class="form-label">孩子姓名</text>
+          <input class="form-input" placeholder="绑定的孩子姓名" value="{{childName}}" bindinput="onChildNameInput" />
+        </view>
+        <view class="text-muted" style="margin-top: 8rpx;">孩子需要先注册并加入班级</view>
+      </block>
+
+      <view class="form-actions">
+        <button class="btn btn-ghost" bindtap="back" style="flex:1">返回</button>
+        <button class="btn btn-block" bindtap="onSubmit" disabled="{{loading}}" loading="{{loading}}" style="flex:2">完成注册</button>
+      </view>
+    </view>
+  </block>
+</view>

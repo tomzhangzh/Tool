@@ -1,0 +1,58 @@
+<!-- pages/ranking/ranking.wxml -->
+<view class="container">
+  <view class="tab-bar">
+    <view class="tab {{type === 'week' ? 'tab-active' : ''}}" bindtap="switchType" data-type="week">本周</view>
+    <view class="tab {{type === 'month' ? 'tab-active' : ''}}" bindtap="switchType" data-type="month">本月</view>
+  </view>
+
+  <view class="metric-bar">
+    <view wx:for="{{metrics}}" wx:key="id"
+      class="metric-cell {{metric === item.id ? 'metric-active' : ''}}"
+      bindtap="switchMetric" data-metric="{{item.id}}">
+      <text class="metric-emoji">{{item.icon}}</text>
+      <text>{{item.name}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+
+  <block wx:else>
+    <view wx:if="{{ranking.length}}" class="card rank-list">
+      <view wx:for="{{ranking}}" wx:key="openid" class="rank-row {{item.isMe ? 'rank-me' : ''}}">
+        <view class="rank-num rank-{{index + 1}}">
+          <text wx:if="{{index < 3}}">{{index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉')}}</text>
+          <text wx:else>{{index + 1}}</text>
+        </view>
+        <image wx:if="{{item.avatar}}" src="{{item.avatar}}" class="avatar rank-avatar" mode="aspectFill"></image>
+        <view wx:else class="avatar rank-avatar avatar-placeholder">{{item.name ? item.name[0] : '?'}}</view>
+        <view class="flex-1">
+          <view class="rank-name">{{item.name}}</view>
+          <view class="text-muted text-small">{{item.className}}</view>
+        </view>
+        <view class="rank-value">{{item.value}}</view>
+      </view>
+    </view>
+
+    <view wx:else class="empty">
+      <view class="empty-emoji">🏅</view>
+      <view>暂无排名数据</view>
+    </view>
+
+    <!-- 我的排名 -->
+    <view wx:if="{{myRank}}" class="card my-rank-card">
+      <view class="my-rank-label">我的排名</view>
+      <view class="rank-row">
+        <view class="rank-num rank-{{myRank.rank}}">
+          <text wx:if="{{myRank.rank < 4}}">{{myRank.rank === 1 ? '🥇' : (myRank.rank === 2 ? '🥈' : '🥉')}}</text>
+          <text wx:else>{{myRank.rank}}</text>
+        </view>
+        <view class="avatar rank-avatar avatar-placeholder">我</view>
+        <view class="flex-1">
+          <view class="rank-name">我</view>
+          <view class="text-muted text-small">第 {{myRank.rank}} 名 / 共 {{myRank.total}} 人</view>
+        </view>
+        <view class="rank-value">{{myRank.value}}</view>
+      </view>
+    </view>
+  </block>
+</view>

@@ -1,0 +1,7 @@
+<!-- components/stat-card/stat-card.wxml -->
+<view class="stat-grid" wx:if="{{items.length}}">
+  <view wx:for="{{items}}" wx:key="label" class="stat-cell">
+    <view class="stat-num {{item.color || ''}}">{{item.num}}</view>
+    <view class="stat-label">{{item.label}}</view>
+  </view>
+</view>

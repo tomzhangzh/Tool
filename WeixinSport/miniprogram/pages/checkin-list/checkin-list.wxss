@@ -1,0 +1,15 @@
+/* pages/checkin-list/checkin-list.wxss */
+.checkin-card { padding: 24rpx; }
+.checkin-header { display: flex; align-items: center; gap: 16rpx; }
+.checkin-icon { font-size: 56rpx; }
+.checkin-title { font-size: 32rpx; font-weight: 600; color: #333; }
+.delete-btn { color: #ff4d4f; font-size: 24rpx; padding: 8rpx 16rpx; }
+.delete-btn:active { opacity: 0.6; }
+
+.checkin-stats { display: flex; gap: 16rpx; margin-top: 16rpx; }
+.stat-pill { background: #f0f5ff; color: #4A90E2; padding: 8rpx 20rpx; border-radius: 24rpx; font-size: 24rpx; }
+.stat-pill-fire { background: #fff7e6; color: #FFA940; }
+
+.checkin-note { margin-top: 16rpx; padding: 16rpx; background: #f9f9fb; border-radius: 12rpx; font-size: 26rpx; color: #666; }
+
+.empty-emoji { font-size: 80rpx; margin-bottom: 12rpx; }

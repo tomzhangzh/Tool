@@ -1,0 +1,37 @@
+/* pages/login/login.wxss */
+.login-page { padding: 40rpx 24rpx; }
+
+.brand { text-align: center; padding: 60rpx 0 40rpx; }
+.brand-icon { font-size: 96rpx; }
+.brand-title { font-size: 44rpx; font-weight: 700; color: #4A90E2; margin-top: 12rpx; }
+.brand-sub { font-size: 26rpx; color: #999; margin-top: 8rpx; }
+
+.role-list { display: flex; flex-direction: column; gap: 16rpx; }
+.role-item {
+  display: flex; align-items: center; gap: 20rpx;
+  padding: 24rpx; border-radius: 16rpx; background: #f9f9fb;
+}
+.role-item:active { background: #eef4ff; }
+.role-emoji { font-size: 56rpx; width: 88rpx; text-align: center; }
+.role-info { flex: 1; }
+.role-name { font-size: 32rpx; font-weight: 600; color: #333; }
+.role-desc { font-size: 24rpx; color: #999; margin-top: 4rpx; }
+.role-arrow { color: #ccc; font-size: 40rpx; }
+
+.form-row {
+  display: flex; align-items: center; padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.form-label { width: 180rpx; color: #666; font-size: 28rpx; }
+.form-input { flex: 1; font-size: 30rpx; }
+
+.avatar-btn { padding: 0; background: transparent; line-height: 1.5; flex: 1; text-align: right; }
+.avatar-btn::after { border: none; }
+.avatar-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  width: 72rpx; height: 72rpx; font-size: 20rpx; color: #999;
+  background: #f0f0f0;
+}
+
+.form-actions { display: flex; gap: 16rpx; margin-top: 32rpx; }
+.form-actions .btn { border-radius: 48rpx; }

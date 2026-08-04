@@ -1,0 +1,28 @@
+/* components/award-card/award-card.wxss */
+.award-card { padding: 24rpx; margin-bottom: 20rpx; }
+.award-header { display: flex; align-items: center; gap: 16rpx; padding-bottom: 16rpx; border-bottom: 1rpx solid #f5f5f5; margin-bottom: 16rpx; }
+.award-icon { font-size: 56rpx; }
+.award-title { font-size: 32rpx; font-weight: 600; color: #333; }
+
+.winner-row {
+  display: flex; align-items: center; gap: 16rpx; padding: 16rpx 12rpx;
+  border-radius: 12rpx; margin-bottom: 8rpx;
+}
+.winner-top { background: linear-gradient(90deg, #fff8e6 0%, #fff 100%); }
+.rank-badge {
+  width: 48rpx; height: 48rpx; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #f0f0f0; font-size: 28rpx; font-weight: 700;
+}
+.rank-1 { background: #FFD700; color: #fff; }
+.rank-2 { background: #C0C0C0; color: #fff; }
+.rank-3 { background: #CD7F32; color: #fff; }
+.winner-avatar { width: 56rpx; height: 56rpx; }
+.avatar-placeholder { background: #ddd; font-size: 24rpx; color: #666; display: flex; align-items: center; justify-content: center; }
+.winner-info { flex: 1; }
+.winner-name { font-size: 28rpx; color: #333; font-weight: 500; }
+
+.mini-empty { padding: 40rpx 0; font-size: 24rpx; color: #999; text-align: center; }
+
+.text-muted { color: #999; font-size: 24rpx; }
+.text-small { font-size: 22rpx; }

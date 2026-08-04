@@ -1,0 +1,51 @@
+<!-- pages/checkin/checkin.wxml -->
+<view class="container">
+  <view class="card">
+    <view class="card-title">选择运动项目</view>
+    <view class="type-grid">
+      <view
+        wx:for="{{exerciseTypes}}"
+        wx:key="id"
+        class="type-cell {{selectedType === item.id ? 'type-cell-active' : ''}}"
+        bindtap="onSelectType"
+        data-type="{{item.id}}">
+        <view class="type-emoji">{{item.icon}}</view>
+        <view class="type-name">{{item.name}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{selectedExercise}}">
+    <view class="card-title">运动详情</view>
+    <view class="form-row">
+      <text class="form-label">运动时长</text>
+      <view class="duration-input">
+        <slider min="5" max="240" step="5" value="{{duration}}" show-value bindchange="onDurationChange" activeColor="#4A90E2" block-color="#4A90E2" />
+        <text class="text-muted">分钟</text>
+      </view>
+    </view>
+    <view class="form-row">
+      <text class="form-label">预计消耗</text>
+      <text class="calorie-text">🔥 {{calorie}} 千卡</text>
+    </view>
+    <view class="form-row">
+      <text class="form-label">备注</text>
+      <input class="form-input" placeholder="今天的感觉如何？（选填）" value="{{note}}" bindinput="onNoteInput" />
+    </view>
+    <button class="btn btn-block" bindtap="onSubmit" disabled="{{submitting}}" loading="{{submitting}}">完成打卡</button>
+  </view>
+
+  <view class="card" wx:if="{{todayList.length}}">
+    <view class="card-title">
+      <text>今日已打卡</text>
+      <text class="text-muted text-small" bindtap="goList">查看全部 ›</text>
+    </view>
+    <view wx:for="{{todayList}}" wx:key="_id" class="checkin-row">
+      <text class="checkin-emoji">{{item.exerciseIcon}}</text>
+      <view class="flex-1">
+        <view class="checkin-name">{{item.exerciseName}}</view>
+        <view class="text-muted text-small">{{item.duration}}分钟 · {{item.calorie}}千卡</view>
+      </view>
+    </view>
+  </view>
+</view>

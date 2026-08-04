@@ -1,0 +1,196 @@
+<!-- pages/index/index.wxml -->
+<view class="container home-page">
+
+  <!-- 顶部用户卡片 -->
+  <view class="hero theme-gradient">
+    <view class="hero-row">
+      <image wx:if="{{userInfo.avatar}}" src="{{userInfo.avatar}}" class="avatar hero-avatar" mode="aspectFill"></image>
+      <view wx:else class="avatar hero-avatar avatar-placeholder">{{userInfo.name ? userInfo.name[0] : '?'}}</view>
+      <view class="hero-info">
+        <view class="hero-name">{{userInfo.name || '同学'}}</view>
+        <view class="hero-role">{{role === 'student' ? '学生' : (role === 'teacher' ? '老师' : '家长')}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ============ 学生首页 ============ -->
+  <block wx:if="{{role === 'student'}}">
+    <!-- 今日打卡 -->
+    <view class="card">
+      <view class="card-title">
+        <text>今日运动</text>
+        <text class="text-muted text-small" bindtap="goCheckinList">查看记录 ›</text>
+      </view>
+      <block wx:if="{{todayCheckin.length}}">
+        <view wx:for="{{todayCheckin}}" wx:key="_id" class="checkin-mini">
+          <text class="checkin-emoji">{{item.exerciseIcon}}</text>
+          <view class="flex-1">
+            <view class="checkin-name">{{item.exerciseName}}</view>
+            <view class="text-muted text-small">{{item.duration}}分钟 · {{item.calorie}}千卡</view>
+          </view>
+        </view>
+        <button class="btn btn-ghost btn-block" style="margin-top: 16rpx;" bindtap="goCheckin">继续打卡</button>
+      </block>
+      <block wx:else>
+        <view class="empty">
+          <view class="empty-emoji">🏅</view>
+          <view>今天还没运动哦，快去打卡吧！</view>
+        </view>
+        <button class="btn btn-block" bindtap="goCheckin">立即打卡</button>
+      </block>
+    </view>
+
+    <!-- 本周统计 -->
+    <view class="card" wx:if="{{weekStats}}">
+      <view class="card-title">
+        <text>本周成绩</text>
+        <text class="text-muted text-small" bindtap="goStats">详细统计 ›</text>
+      </view>
+      <view class="stat-grid">
+        <view class="stat-cell">
+          <view class="stat-num text-primary">{{weekStats.totalDuration || 0}}</view>
+          <view class="stat-label">运动分钟</view>
+        </view>
+        <view class="stat-cell">
+          <view class="stat-num text-gold">{{weekStats.totalCalorie || 0}}</view>
+          <view class="stat-label">消耗千卡</view>
+        </view>
+        <view class="stat-cell">
+          <view class="stat-num">{{weekStats.checkinDays || 0}}</view>
+          <view class="stat-label">打卡天数</view>
+        </view>
+        <view class="stat-cell">
+          <view class="stat-num">{{weekStats.exerciseTypes || 0}}</view>
+          <view class="stat-label">运动种类</view>
+        </view>
+      </view>
+      <button class="btn btn-ghost btn-block" style="margin-top: 16rpx;" bindtap="goRanking">查看班级排名</button>
+    </view>
+
+    <!-- 我的最近奖项 -->
+    <view class="card" wx:if="{{myAwards.length}}">
+      <view class="card-title">
+        <text>我的奖项</text>
+        <text class="text-muted text-small" bindtap="goAwards">全部 ›</text>
+      </view>
+      <view class="award-mini-list">
+        <view wx:for="{{myAwards}}" wx:key="_id" class="award-mini">
+          <text class="award-emoji">{{item.awardIcon}}</text>
+          <view class="flex-1">
+            <view class="award-name">{{item.awardName}}</view>
+            <view class="text-muted text-small">{{item.periodLabel}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 入口 -->
+    <view class="entry-grid">
+      <view class="entry-item" bindtap="goWeekly">
+        <view class="entry-emoji">🎯</view>
+        <view class="entry-label">本周评选</view>
+      </view>
+      <view class="entry-item" bindtap="goMonthly">
+        <view class="entry-emoji">🏆</view>
+        <view class="entry-label">月度明星</view>
+      </view>
+      <view class="entry-item" bindtap="goAwards">
+        <view class="entry-emoji">🎖️</view>
+        <view class="entry-label">奖项墙</view>
+      </view>
+    </view>
+  </block>
+
+  <!-- ============ 老师首页 ============ -->
+  <block wx:if="{{role === 'teacher'}}">
+    <view class="card">
+      <view class="card-title">
+        <text>我的班级</text>
+        <text class="text-muted text-small" bindtap="goClass">管理 ›</text>
+      </view>
+      <block wx:if="{{classList.length}}">
+        <view wx:for="{{classList}}" wx:key="_id" class="class-item" bindtap="goClassDetail" data-id="{{item._id}}">
+          <view class="flex-1">
+            <view class="class-name">{{item.name}}</view>
+            <view class="text-muted text-small">邀请码：{{item.code}} · {{item.memberCount || 0}}人</view>
+          </view>
+          <view class="text-primary text-small">查看 ›</view>
+        </view>
+      </block>
+      <view wx:else class="empty">
+        <view class="empty-emoji">📚</view>
+        <view>还没有班级，去创建第一个班级吧</view>
+      </view>
+      <button class="btn btn-block" style="margin-top: 16rpx;" bindtap="goClass">创建班级</button>
+    </view>
+
+    <view class="entry-grid">
+      <view class="entry-item" bindtap="goWeekly">
+        <view class="entry-emoji">🎯</view>
+        <view class="entry-label">本周评选</view>
+      </view>
+      <view class="entry-item" bindtap="goMonthly">
+        <view class="entry-emoji">🏆</view>
+        <view class="entry-label">月度明星</view>
+      </view>
+      <view class="entry-item" bindtap="goRanking">
+        <view class="entry-emoji">📊</view>
+        <view class="entry-label">班级排名</view>
+      </view>
+    </view>
+  </block>
+
+  <!-- ============ 家长首页 ============ -->
+  <block wx:if="{{role === 'parent'}}">
+    <view class="card">
+      <view class="card-title">
+        <text>孩子的本周</text>
+        <text class="text-muted text-small" bindtap="goStats">详细 ›</text>
+      </view>
+      <block wx:if="{{childInfo}}">
+        <view class="hero-row" style="margin-bottom: 16rpx;">
+          <view class="avatar avatar-placeholder">{{childInfo.name ? childInfo.name[0] : '?'}}</view>
+          <view class="hero-info">
+            <view class="hero-name">{{childInfo.name}}</view>
+            <view class="hero-role">{{childInfo.className || ''}}</view>
+          </view>
+        </view>
+        <view class="stat-grid">
+          <view class="stat-cell">
+            <view class="stat-num text-primary">{{childWeekStats.totalDuration || 0}}</view>
+            <view class="stat-label">运动分钟</view>
+          </view>
+          <view class="stat-cell">
+            <view class="stat-num text-gold">{{childWeekStats.totalCalorie || 0}}</view>
+            <view class="stat-label">消耗千卡</view>
+          </view>
+          <view class="stat-cell">
+            <view class="stat-num">{{childWeekStats.checkinDays || 0}}</view>
+            <view class="stat-label">打卡天数</view>
+          </view>
+        </view>
+      </block>
+      <view wx:else class="empty">
+        <view class="empty-emoji">👶</view>
+        <view>还未绑定孩子账号，请联系老师</view>
+      </view>
+    </view>
+
+    <view class="entry-grid">
+      <view class="entry-item" bindtap="goWeekly">
+        <view class="entry-emoji">🎯</view>
+        <view class="entry-label">本周评选</view>
+      </view>
+      <view class="entry-item" bindtap="goMonthly">
+        <view class="entry-emoji">🏆</view>
+        <view class="entry-label">月度明星</view>
+      </view>
+      <view class="entry-item" bindtap="goAwards">
+        <view class="entry-emoji">🎖️</view>
+        <view class="entry-label">孩子奖项</view>
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+</view>

@@ -1,0 +1,45 @@
+/* pages/index/index.wxss */
+.home-page { padding: 0 0 32rpx; }
+
+.hero {
+  padding: 40rpx 32rpx;
+  color: #fff;
+  border-radius: 0 0 32rpx 32rpx;
+  margin-bottom: 24rpx;
+}
+.hero-row { display: flex; align-items: center; gap: 20rpx; }
+.hero-avatar { border: 4rpx solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.2); color: #fff; }
+.avatar-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32rpx; color: #999; background: #ddd;
+}
+.hero-info { flex: 1; }
+.hero-name { font-size: 36rpx; font-weight: 700; color: #fff; }
+.hero-role { font-size: 24rpx; color: rgba(255,255,255,0.85); margin-top: 4rpx; }
+
+.checkin-mini { display: flex; align-items: center; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f5f5f5; }
+.checkin-mini:last-child { border-bottom: none; }
+.checkin-emoji { font-size: 48rpx; width: 64rpx; text-align: center; }
+.checkin-name { font-size: 28rpx; color: #333; }
+
+.stat-grid { display: flex; gap: 16rpx; }
+.stat-cell { flex: 1; text-align: center; padding: 20rpx 0; background: #f9f9fb; border-radius: 12rpx; }
+.stat-num { font-size: 40rpx; font-weight: 700; }
+.stat-label { font-size: 22rpx; color: #999; margin-top: 4rpx; }
+
+.award-mini-list { display: flex; flex-direction: column; gap: 12rpx; }
+.award-mini { display: flex; align-items: center; gap: 16rpx; padding: 12rpx; background: #fff8e6; border-radius: 12rpx; }
+.award-emoji { font-size: 44rpx; }
+.award-name { font-size: 28rpx; color: #8a6500; font-weight: 600; }
+
+.entry-grid { display: flex; gap: 16rpx; margin-top: 8rpx; }
+.entry-item { flex: 1; background: #fff; border-radius: 16rpx; padding: 32rpx 16rpx; text-align: center; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04); }
+.entry-item:active { background: #f9f9fb; }
+.entry-emoji { font-size: 56rpx; }
+.entry-label { font-size: 26rpx; color: #555; margin-top: 8rpx; }
+
+.class-item { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 0; border-bottom: 1rpx solid #f5f5f5; }
+.class-item:last-child { border-bottom: none; }
+.class-name { font-size: 30rpx; color: #333; font-weight: 500; }
+
+.empty-emoji { font-size: 80rpx; margin-bottom: 12rpx; }

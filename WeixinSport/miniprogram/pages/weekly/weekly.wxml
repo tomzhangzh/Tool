@@ -1,0 +1,57 @@
+<!-- pages/weekly/weekly.wxml -->
+<view class="container">
+  <!-- 周切换 -->
+  <view class="week-switch">
+    <view class="week-tab {{weekOffset === 0 ? 'week-tab-active' : ''}}" bindtap="changeWeek" data-offset="0">本周</view>
+    <view class="week-tab {{weekOffset === -1 ? 'week-tab-active' : ''}}" bindtap="changeWeek" data-offset="-1">上周</view>
+    <view class="week-label">{{weekLabel}}</view>
+  </view>
+
+  <view wx:if="{{role === 'teacher' && canCalc}}" class="calc-bar">
+    <text>本周数据已更新，可生成评选结果</text>
+    <button class="btn" size="mini" bindtap="onCalc">生成评选</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+
+  <block wx:else>
+    <view wx:for="{{awards}}" wx:for-item="award" wx:key="awardType" class="card award-card">
+      <view class="award-header">
+        <view class="award-icon">{{award.awardIcon}}</view>
+        <view class="flex-1">
+          <view class="award-title">{{award.awardName}}</view>
+          <view class="text-muted text-small">{{award.desc}}</view>
+        </view>
+      </view>
+
+      <block wx:if="{{award.winners.length}}">
+        <view wx:for="{{award.winners}}" wx:for-item="winner" wx:key="openid" class="winner-row {{index === 0 ? 'winner-top' : ''}}">
+          <view class="rank-badge rank-{{index + 1}}">
+            <text wx:if="{{index < 3}}">{{index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉')}}</text>
+            <text wx:else>{{index + 1}}</text>
+          </view>
+          <image wx:if="{{winner.avatar}}" src="{{winner.avatar}}" class="avatar winner-avatar" mode="aspectFill"></image>
+          <view wx:else class="avatar winner-avatar avatar-placeholder">{{winner.name ? winner.name[0] : '?'}}</view>
+          <view class="winner-info">
+            <view class="winner-name">{{winner.name}}</view>
+            <view class="text-muted text-small">{{winner.value}}</view>
+          </view>
+          <view wx:if="{{index === 0}}" class="winner-tag">得主</view>
+        </view>
+      </block>
+      <view wx:else class="empty mini-empty">
+        <view>评选结果尚未产生{{weekOffset === 0 ? '，周日晚自动结算' : ''}}</view>
+      </view>
+    </view>
+
+    <view class="card rule-card">
+      <view class="card-title">评选规则</view>
+      <view class="rule-text">
+        · 每周日晚自动结算，老师也可手动生成
+      </view>
+      <view class="rule-text">· 每个奖项评选前3名作为获奖者</view>
+      <view class="rule-text">· 设立6个奖项让更多同学获得成就感</view>
+      <view class="rule-text">· 卡路里按体重换算更公平</view>
+    </view>
+  </block>
+</view>

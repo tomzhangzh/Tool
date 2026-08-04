@@ -1,0 +1,62 @@
+<!-- pages/monthly/monthly.wxml -->
+<view class="container">
+  <view class="month-switch">
+    <view class="week-tab {{monthOffset === 0 ? 'week-tab-active' : ''}}" bindtap="changeMonth" data-offset="0">本月</view>
+    <view class="week-tab {{monthOffset === -1 ? 'week-tab-active' : ''}}" bindtap="changeMonth" data-offset="-1">上月</view>
+    <view class="week-label">{{monthLabel}}</view>
+  </view>
+
+  <view wx:if="{{role === 'teacher' && canCalc}}" class="calc-bar">
+    <text>本月数据已更新，可生成月度明星</text>
+    <button class="btn" size="mini" bindtap="onCalc">生成</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+
+  <block wx:else>
+    <!-- 前三名领奖台 -->
+    <view class="podium-card card" wx:if="{{top3.length}}">
+      <view class="card-title text-center">🏆 月度运动榜单</view>
+      <view class="podium">
+        <view wx:for="{{top3}}" wx:key="openid" class="podium-col podium-{{index + 1}}">
+          <view class="podium-medal">{{index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉')}}</view>
+          <image wx:if="{{item.avatar}}" src="{{item.avatar}}" class="avatar podium-avatar" mode="aspectFill"></image>
+          <view wx:else class="avatar podium-avatar avatar-placeholder">{{item.name ? item.name[0] : '?'}}</view>
+          <view class="podium-name">{{item.name}}</view>
+          <view class="podium-score">{{item.score}}分</view>
+          <view class="podium-label">{{index === 0 ? '冠军' : (index === 1 ? '亚军' : '季军')}}</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 专项月度奖 -->
+    <view wx:if="{{specialAwards.length}}" class="card">
+      <view class="card-title">🌟 月度专项奖</view>
+      <view wx:for="{{specialAwards}}" wx:key="awardType" class="special-row">
+        <view class="special-emoji">{{item.awardIcon}}</view>
+        <view class="flex-1">
+          <view class="special-name">{{item.awardName}}</view>
+          <view class="text-muted text-small">{{item.desc}}</view>
+        </view>
+        <view class="special-winner">
+          <view class="winner-name">{{item.winner.name}}</view>
+          <view class="text-muted text-small">{{item.reason}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{!top3.length && !specialAwards.length}}" class="empty">
+      <view class="empty-emoji">🌙</view>
+      <view>月度明星将在月末自动评选</view>
+    </view>
+
+    <view class="card rule-card">
+      <view class="card-title">月度明星规则</view>
+      <view class="rule-text">· 综合得分 = 卡路里30% + 时长30% + 频率25% + 多样性15%</view>
+      <view class="rule-text">· 月末最后一天自动评选，老师可手动触发</view>
+      <view class="rule-text">· 前三名将获得月度冠军/亚军/季军称号</view>
+      <view class="rule-text">· 月度坚持之星需打卡满20天</view>
+      <view class="rule-text">· 月度进步之星对比上月进步最大</view>
+    </view>
+  </block>
+</view>

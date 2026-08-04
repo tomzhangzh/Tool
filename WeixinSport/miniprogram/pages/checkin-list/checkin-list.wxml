@@ -1,0 +1,43 @@
+<!-- pages/checkin-list/checkin-list.wxml -->
+<wxs module="util">
+var timeAgo = function(ts) {
+  if (!ts) return '';
+  var now = getDate().getTime();
+  var diff = now - ts;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff/60000) + '分钟前';
+  if (diff < 86400000) return Math.floor(diff/3600000) + '小时前';
+  if (diff < 604800000) return Math.floor(diff/86400000) + '天前';
+  var d = getDate(ts);
+  var m = (d.getMonth()+1) < 10 ? '0'+(d.getMonth()+1) : ''+(d.getMonth()+1);
+  var day = d.getDate() < 10 ? '0'+d.getDate() : ''+d.getDate();
+  return m + '-' + day;
+};
+module.exports = { timeAgo: timeAgo };
+</wxs>
+
+<view class="container">
+  <view wx:if="{{isEmpty && !loading}}" class="empty">
+    <view class="empty-emoji">📝</view>
+    <view>还没有打卡记录，去运动打卡吧！</view>
+  </view>
+
+  <view wx:for="{{list}}" wx:key="_id" class="card checkin-card">
+    <view class="checkin-header">
+      <view class="checkin-icon">{{item.exerciseIcon}}</view>
+      <view class="flex-1">
+        <view class="checkin-title">{{item.exerciseName}}</view>
+        <view class="text-muted text-small">{{util.timeAgo(item.createTime)}}</view>
+      </view>
+      <view class="delete-btn" bindtap="onDelete" data-id="{{item._id}}">删除</view>
+    </view>
+    <view class="checkin-stats">
+      <view class="stat-pill">⏱️ {{item.duration}}分钟</view>
+      <view class="stat-pill stat-pill-fire">🔥 {{item.calorie}}千卡</view>
+    </view>
+    <view wx:if="{{item.note}}" class="checkin-note">{{item.note}}</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+  <view wx:if="{{!hasMore && list.length}}" class="loading">已经到底了</view>
+</view>

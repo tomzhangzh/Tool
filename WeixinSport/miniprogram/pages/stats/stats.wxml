@@ -1,0 +1,68 @@
+<!-- pages/stats/stats.wxml -->
+<view class="container">
+  <view class="tab-bar">
+    <view class="tab {{type === 'week' ? 'tab-active' : ''}}" bindtap="switchType" data-type="week">本周</view>
+    <view class="tab {{type === 'month' ? 'tab-active' : ''}}" bindtap="switchType" data-type="month">本月</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+
+  <block wx:elif="{{stats}}">
+    <!-- 关键指标 -->
+    <view class="card">
+      <view class="card-title">运动概览</view>
+      <view class="stat-grid">
+        <view class="stat-cell">
+          <view class="stat-num text-primary">{{stats.totalDuration || 0}}</view>
+          <view class="stat-label">总时长(分)</view>
+        </view>
+        <view class="stat-cell">
+          <view class="stat-num text-gold">{{stats.totalCalorie || 0}}</view>
+          <view class="stat-label">总千卡</view>
+        </view>
+        <view class="stat-cell">
+          <view class="stat-num">{{stats.checkinDays || 0}}</view>
+          <view class="stat-label">打卡天数</view>
+        </view>
+        <view class="stat-cell">
+          <view class="stat-num">{{stats.totalCount || 0}}</view>
+          <view class="stat-label">打卡次数</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 每日柱状图 -->
+    <view class="card" wx:if="{{dailyData.length}}">
+      <view class="card-title">每日运动时长</view>
+      <view class="chart">
+        <view wx:for="{{dailyData}}" wx:key="date" class="chart-bar-wrap">
+          <view class="chart-bar" style="height: {{item.duration * 200 / maxVal}}rpx;"></view>
+          <view class="chart-val">{{item.duration || 0}}</view>
+          <view class="chart-label">{{item.label}}</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 运动类型分布 -->
+    <view class="card" wx:if="{{exerciseDistribution.length}}">
+      <view class="card-title">运动类型分布</view>
+      <view wx:for="{{exerciseDistribution}}" wx:key="exerciseId" class="dist-row">
+        <view class="dist-emoji">{{item.icon}}</view>
+        <view class="flex-1">
+          <view class="dist-name-row">
+            <text>{{item.name}}</text>
+            <text class="text-muted text-small">{{item.duration}}分钟</text>
+          </view>
+          <view class="dist-bar">
+            <view class="dist-bar-inner theme-bg" style="width: {{item.percent}}%;"></view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{!dailyData.length}}" class="empty">
+      <view class="empty-emoji">📊</view>
+      <view>{{type === 'week' ? '本周' : '本月'}}还没有运动数据</view>
+    </view>
+  </block>
+</view>

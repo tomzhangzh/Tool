@@ -1,0 +1,44 @@
+<!-- pages/class-detail/class-detail.wxml -->
+<view class="container">
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+
+  <block wx:elif="{{info}}">
+    <view class="card info-card theme-gradient">
+      <view class="info-name">{{info.name}}</view>
+      <view class="info-sub">{{members.length}} 名同学</view>
+      <view wx:if="{{role === 'teacher'}}" class="code-row" catchtap="copyCode">
+        <text class="code-text">邀请码：{{info.code}}</text>
+        <text class="copy-tag">复制</text>
+      </view>
+    </view>
+
+    <view class="entry-row">
+      <view class="entry-cell" bindtap="viewStats">
+        <view class="entry-emoji">📊</view>
+        <view>班级统计</view>
+      </view>
+      <view class="entry-cell" bindtap="viewRanking">
+        <view class="entry-emoji">🏆</view>
+        <view>班级排名</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">同学列表</view>
+      <view wx:for="{{members}}" wx:key="_id" class="member-row">
+        <view class="rank-num">{{index + 1}}</view>
+        <image wx:if="{{item.avatar}}" src="{{item.avatar}}" class="avatar member-avatar" mode="aspectFill"></image>
+        <view wx:else class="avatar member-avatar avatar-placeholder">{{item.name ? item.name[0] : '?'}}</view>
+        <view class="flex-1">
+          <view class="member-name">{{item.name}}</view>
+          <view class="text-muted text-small">{{item.totalCheckins || 0}} 次打卡</view>
+        </view>
+        <view wx:if="{{item.totalCalorie}}" class="member-stat">
+          <view class="stat-val">{{item.totalCalorie}}</view>
+          <view class="text-muted text-small">本周千卡</view>
+        </view>
+      </view>
+      <view wx:if="{{!members.length}}" class="empty">还没有同学加入</view>
+    </view>
+  </block>
+</view>

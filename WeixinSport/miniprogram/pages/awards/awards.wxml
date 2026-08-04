@@ -1,0 +1,62 @@
+<!-- pages/awards/awards.wxml -->
+<view class="container">
+  <!-- 奖牌概览 -->
+  <view class="medal-summary card">
+    <view class="summary-title">我{{userInfo.role === 'parent' ? '孩子' : ''}}的奖牌</view>
+    <view class="medal-row">
+      <view class="medal-cell">
+        <view class="medal-icon medal-gold">🥇</view>
+        <view class="medal-num">{{stats.gold}}</view>
+        <view class="medal-label">金牌</view>
+      </view>
+      <view class="medal-cell">
+        <view class="medal-icon medal-silver">🥈</view>
+        <view class="medal-num">{{stats.silver}}</view>
+        <view class="medal-label">银牌</view>
+      </view>
+      <view class="medal-cell">
+        <view class="medal-icon medal-bronze">🥉</view>
+        <view class="medal-num">{{stats.bronze}}</view>
+        <view class="medal-label">铜牌</view>
+      </view>
+      <view class="medal-cell">
+        <view class="medal-icon medal-total">🏆</view>
+        <view class="medal-num">{{stats.total}}</view>
+        <view class="medal-label">总数</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 筛选 -->
+  <view class="tab-bar">
+    <view class="tab {{filter === 'all' ? 'tab-active' : ''}}" bindtap="switchFilter" data-filter="all">全部</view>
+    <view class="tab {{filter === 'weekly' ? 'tab-active' : ''}}" bindtap="switchFilter" data-filter="weekly">周奖项</view>
+    <view class="tab {{filter === 'monthly' ? 'tab-active' : ''}}" bindtap="switchFilter" data-filter="monthly">月度</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+
+  <view wx:elif="{{awards.length}}">
+    <view wx:for="{{awards}}" wx:key="_id" class="card award-card {{item.rank === 1 ? 'award-gold' : (item.rank === 2 ? 'award-silver' : (item.rank === 3 ? 'award-bronze' : ''))}}">
+      <view class="award-row">
+        <view class="award-emoji {{item.rank === 1 ? 'medal-gold' : (item.rank === 2 ? 'medal-silver' : (item.rank === 3 ? 'medal-bronze' : 'medal-normal'))}}">{{item.awardIcon}}</view>
+        <view class="flex-1">
+          <view class="award-title">{{item.awardName}}</view>
+          <view class="text-muted text-small">{{item.periodLabel}}</view>
+        </view>
+        <view class="award-rank">
+          <text wx:if="{{item.rank === 1}}">🥇</text>
+          <text wx:elif="{{item.rank === 2}}">🥈</text>
+          <text wx:elif="{{item.rank === 3}}">🥉</text>
+          <text wx:else>第{{item.rank}}名</text>
+        </view>
+      </view>
+      <view class="award-value" wx:if="{{item.valueText}}">{{item.valueText}}</view>
+    </view>
+  </view>
+
+  <view wx:else class="empty">
+    <view class="empty-emoji">🎖️</view>
+    <view>{{filter === 'all' ? '快去运动打卡，争取第一块奖牌吧！' : '该类别下还没有奖项'}}</view>
+  </view>
+</view>

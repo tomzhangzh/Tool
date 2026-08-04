@@ -1,0 +1,32 @@
+/* pages/ranking/ranking.wxss */
+.tab-bar { display: flex; background: #fff; border-radius: 16rpx; padding: 8rpx; margin-bottom: 16rpx; }
+.tab { flex: 1; text-align: center; padding: 16rpx 0; font-size: 28rpx; color: #666; border-radius: 12rpx; }
+.tab-active { background: #4A90E2; color: #fff; font-weight: 600; }
+
+.metric-bar { display: flex; gap: 12rpx; margin-bottom: 20rpx; }
+.metric-cell {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4rpx;
+  padding: 16rpx 8rpx; background: #fff; border-radius: 12rpx;
+  font-size: 24rpx; color: #666;
+}
+.metric-active { background: #eef4ff; color: #4A90E2; font-weight: 600; }
+.metric-emoji { font-size: 36rpx; }
+
+.rank-list { padding: 8rpx 24rpx; }
+.rank-row { display: flex; align-items: center; gap: 16rpx; padding: 20rpx 0; border-bottom: 1rpx solid #f5f5f5; }
+.rank-row:last-child { border-bottom: none; }
+.rank-me { background: linear-gradient(90deg, #fff8e6 0%, transparent 100%); margin: 0 -24rpx; padding: 20rpx 24rpx; }
+
+.rank-num { width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; font-size: 28rpx; font-weight: 700; border-radius: 50%; background: #f0f0f0; color: #666; }
+.rank-1 { background: #FFD700; color: #fff; }
+.rank-2 { background: #C0C0C0; color: #fff; }
+.rank-3 { background: #CD7F32; color: #fff; }
+.rank-avatar { width: 56rpx; height: 56rpx; }
+.avatar-placeholder { background: #ddd; font-size: 24rpx; color: #666; }
+.rank-name { font-size: 28rpx; color: #333; }
+.rank-value { font-size: 32rpx; color: #FFA940; font-weight: 700; }
+
+.my-rank-card { background: linear-gradient(135deg, #fff8e6 0%, #fff 100%); }
+.my-rank-label { font-size: 24rpx; color: #8a6500; margin-bottom: 12rpx; }
+
+.empty-emoji { font-size: 80rpx; margin-bottom: 12rpx; }

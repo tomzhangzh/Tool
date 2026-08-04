@@ -1,0 +1,49 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/login/login",
+    "pages/checkin/checkin",
+    "pages/checkin-list/checkin-list",
+    "pages/weekly/weekly",
+    "pages/monthly/monthly",
+    "pages/stats/stats",
+    "pages/ranking/ranking",
+    "pages/class/class",
+    "pages/class-detail/class-detail",
+    "pages/awards/awards",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#4A90E2",
+    "navigationBarTitleText": "运动小达人",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#4A90E2",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/weekly/weekly",
+        "text": "周评选"
+      },
+      {
+        "pagePath": "pages/monthly/monthly",
+        "text": "月度明星"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

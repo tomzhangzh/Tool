@@ -1,0 +1,69 @@
+<!-- pages/class/class.wxml -->
+<view class="container">
+  <view wx:if="{{role === 'teacher'}}">
+    <view class="card create-card" bindtap="openCreate">
+      <view class="create-emoji">➕</view>
+      <view class="create-text">
+        <view class="create-title">创建班级</view>
+        <view class="text-muted text-small">为你的学生创建一个运动班级</view>
+      </view>
+    </view>
+
+    <view wx:if="{{loading}}" class="loading">加载中...</view>
+
+    <view wx:elif="{{classList.length}}">
+      <view wx:for="{{classList}}" wx:key="_id" class="card class-card" bindtap="goDetail" data-id="{{item._id}}">
+        <view class="class-card-header">
+          <view class="class-card-icon">📚</view>
+          <view class="flex-1">
+            <view class="class-card-name">{{item.name}}</view>
+            <view class="text-muted text-small">{{item.memberCount || 0}} 名学生</view>
+          </view>
+          <view class="text-primary text-small">详情 ›</view>
+        </view>
+        <view class="code-box">
+          <view class="code-label">邀请码</view>
+          <view class="code-value">{{item.code}}</view>
+          <view class="copy-btn" catchtap="copyCode" data-code="{{item.code}}">复制</view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:else class="empty">
+      <view class="empty-emoji">📚</view>
+      <view>还没有班级，点击上方创建</view>
+    </view>
+  </view>
+
+  <!-- 学生/家长看到自己所属班级 -->
+  <view wx:elif="{{role === 'student' || role === 'parent'}}">
+    <view wx:if="{{loading}}" class="loading">加载中...</view>
+    <view wx:elif="{{classList.length}}">
+      <view wx:for="{{classList}}" wx:key="_id" class="card class-card" bindtap="goDetail" data-id="{{item._id}}">
+        <view class="class-card-header">
+          <view class="class-card-icon">📚</view>
+          <view class="flex-1">
+            <view class="class-card-name">{{item.name}}</view>
+            <view class="text-muted text-small">{{item.memberCount || 0}} 名同学 · 老师：{{item.teacherName || '-'}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+    <view wx:else class="empty">
+      <view class="empty-emoji">🤝</view>
+      <view>{{role === 'student' ? '还未加入任何班级，请联系老师' : '孩子还未加入班级'}}</view>
+    </view>
+  </view>
+
+  <!-- 创建弹窗 -->
+  <view wx:if="{{showCreate}}" class="modal-mask" catchtap="closeCreate">
+    <view class="modal" catchtap="">
+      <view class="modal-title">创建班级</view>
+      <input class="modal-input" placeholder="如：三年2班" value="{{className}}" bindinput="onNameInput" focus="{{showCreate}}" />
+      <view class="modal-actions">
+        <button class="btn btn-ghost" bindtap="closeCreate" style="flex:1">取消</button>
+        <button class="btn" bindtap="onCreate" loading="{{creating}}" disabled="{{creating}}" style="flex:1">确定</button>
+      </view>
+    </view>
+  </view>
+</view>

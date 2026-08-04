@@ -1,0 +1,33 @@
+/* pages/awards/awards.wxss */
+.medal-summary { text-align: center; padding: 32rpx 24rpx; }
+.summary-title { font-size: 30rpx; font-weight: 600; color: #333; margin-bottom: 24rpx; }
+.medal-row { display: flex; justify-content: space-around; }
+.medal-cell { display: flex; flex-direction: column; align-items: center; gap: 4rpx; }
+.medal-icon {
+  width: 88rpx; height: 88rpx; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 40rpx;
+}
+.medal-gold { background: linear-gradient(135deg, #FFD700 0%, #FFA940 100%); color: #fff; }
+.medal-silver { background: linear-gradient(135deg, #E8E8E8 0%, #BFBFBF 100%); color: #fff; }
+.medal-bronze { background: linear-gradient(135deg, #D48806 0%, #AD6800 100%); color: #fff; }
+.medal-total { background: linear-gradient(135deg, #4A90E2 0%, #67B8F2 100%); color: #fff; }
+.medal-num { font-size: 36rpx; font-weight: 700; color: #333; }
+.medal-label { font-size: 22rpx; color: #999; }
+
+.tab-bar { display: flex; background: #fff; border-radius: 16rpx; padding: 8rpx; margin-bottom: 20rpx; }
+.tab { flex: 1; text-align: center; padding: 16rpx 0; font-size: 28rpx; color: #666; border-radius: 12rpx; }
+.tab-active { background: #4A90E2; color: #fff; font-weight: 600; }
+
+.award-card {
+  padding: 24rpx; margin-bottom: 16rpx; border-left: 6rpx solid #f0f0f0;
+}
+.award-gold { border-left-color: #FFD700; background: linear-gradient(90deg, #fff8e6 0%, #fff 100%); }
+.award-silver { border-left-color: #C0C0C0; background: linear-gradient(90deg, #f8f8f8 0%, #fff 100%); }
+.award-bronze { border-left-color: #CD7F32; background: linear-gradient(90deg, #fff5e6 0%, #fff 100%); }
+.award-row { display: flex; align-items: center; gap: 16rpx; }
+.award-emoji { width: 64rpx; height: 64rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32rpx; background: #f0f0f0; color: #999; }
+.award-title { font-size: 30rpx; font-weight: 600; color: #333; }
+.award-rank { font-size: 32rpx; }
+.award-value { margin-top: 12rpx; padding: 12rpx 16rpx; background: rgba(255,255,255,0.7); border-radius: 8rpx; font-size: 26rpx; color: #666; }
+
+.empty-emoji { font-size: 80rpx; margin-bottom: 12rpx; }
