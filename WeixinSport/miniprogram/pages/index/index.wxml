@@ -10,6 +10,10 @@
         <view class="hero-name">{{userInfo.name || '同学'}}</view>
         <view class="hero-role">{{role === 'student' ? '学生' : (role === 'teacher' ? '老师' : '家长')}}</view>
       </view>
+      <button class="share-btn" open-type="share">
+        <view class="share-emoji">📨</view>
+        <view class="share-text">{{role === 'teacher' ? '邀请' : '分享'}}</view>
+      </button>
     </view>
   </view>
 

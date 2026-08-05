@@ -69,5 +69,21 @@ Page({
         }
       }
     });
+  },
+
+  // 分享小程序
+  onShareAppMessage() {
+    const u = this.data.userInfo || {};
+    return {
+      title: `运动小达人：和孩子一起运动打卡，每周评运动之星！`,
+      path: '/pages/index/index',
+      imageUrl: ''
+    };
+  },
+
+  onShareTimeline() {
+    return {
+      title: `运动小达人：每周评选运动之星，月度明星等你来拿！`
+    };
   }
 });

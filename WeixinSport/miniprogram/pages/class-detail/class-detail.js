@@ -48,5 +48,24 @@ Page({
 
   viewRanking() {
     wx.navigateTo({ url: `/pages/ranking/ranking?classId=${this.data.classId}` });
+  },
+
+  // 分享班级，家长点击后可凭邀请码加入
+  onShareAppMessage() {
+    const info = this.data.info || {};
+    return {
+      title: `邀请你加入「${info.name || '运动班级'}」，邀请码：${info.code || ''}`,
+      path: `/pages/index/index`,
+      imageUrl: ''
+    };
+  },
+
+  // 分享班级到朋友圈
+  onShareTimeline() {
+    const info = this.data.info || {};
+    return {
+      title: `运动班级「${info.name}」招募中，邀请码：${info.code}`,
+      query: ''
+    };
   }
 });

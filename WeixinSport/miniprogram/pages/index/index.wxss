@@ -8,6 +8,27 @@
   margin-bottom: 24rpx;
 }
 .hero-row { display: flex; align-items: center; gap: 20rpx; }
+
+/* 分享按钮 */
+.share-btn {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: none;
+  padding: 12rpx 24rpx;
+  border-radius: 40rpx;
+  font-size: 24rpx;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rpx;
+  min-width: 88rpx;
+}
+.share-btn::after { border: none; }
+.share-btn:active { background: rgba(255, 255, 255, 0.3); }
+.share-emoji { font-size: 32rpx; }
+.share-text { font-size: 22rpx; }
 .hero-avatar { border: 4rpx solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.2); color: #fff; }
 .avatar-placeholder {
   display: flex; align-items: center; justify-content: center;

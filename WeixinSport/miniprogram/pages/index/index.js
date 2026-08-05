@@ -105,5 +105,32 @@ Page({
 
   goAwards() {
     wx.navigateTo({ url: '/pages/awards/awards' });
+  },
+
+  // 分享给微信好友/群聊
+  onShareAppMessage() {
+    const userInfo = this.data.userInfo || {};
+    const role = this.data.role;
+    if (role === 'teacher') {
+      return {
+        title: `${userInfo.name || '老师'}邀请你加入运动班级，一起运动打卡吧！`,
+        path: '/pages/index/index',
+        imageUrl: '' // 可换成自定义分享图
+      };
+    }
+    return {
+      title: `${userInfo.name || '我'}在「运动小达人」坚持运动打卡，快来一起拿奖吧！`,
+      path: '/pages/index/index',
+      imageUrl: ''
+    };
+  },
+
+  // 分享到朋友圈
+  onShareTimeline() {
+    const userInfo = this.data.userInfo || {};
+    return {
+      title: `运动小达人：每周评选运动之星，月度明星等你来拿！`,
+      query: ''
+    };
   }
 });
