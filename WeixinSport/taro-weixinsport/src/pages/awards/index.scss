@@ -1,0 +1,169 @@
+.awards-page {
+  min-height: 100vh;
+  background: #f7f8fa;
+}
+
+.content {
+  padding: 12px;
+  padding-bottom: 100px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+}
+
+.medal-summary {
+  text-align: center;
+}
+
+.summary-title {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.medal-row {
+  display: flex;
+  justify-content: space-around;
+}
+
+.medal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.medal-icon {
+  font-size: 34px;
+  margin-bottom: 4px;
+}
+
+.medal-num {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+}
+
+.medal-label {
+  font-size: 14px;
+  color: #999;
+  margin-top: 2px;
+}
+
+.medal-gold { color: #faad14; }
+.medal-silver { color: #8c8c8c; }
+.medal-bronze { color: #d48806; }
+.medal-total { color: #4A90E2; }
+
+.filter-bar {
+  display: flex;
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.filter-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 15px;
+  color: #666;
+  cursor: pointer;
+  
+  &.active {
+    background: #4A90E2;
+    color: #fff;
+  }
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+}
+
+.award-card {
+  &.award-gold {
+    background: linear-gradient(135deg, #fffbe6 0%, #fff 100%);
+    border: 1px solid #ffe58f;
+  }
+  &.award-silver {
+    background: linear-gradient(135deg, #f5f5f5 0%, #fff 100%);
+    border: 1px solid #d9d9d9;
+  }
+  &.award-bronze {
+    background: linear-gradient(135deg, #fff2e8 0%, #fff 100%);
+    border: 1px solid #ffbb96;
+  }
+}
+
+.award-row {
+  display: flex;
+  align-items: center;
+}
+
+.award-emoji {
+  font-size: 34px;
+  margin-right: 10px;
+  
+  &.medal-gold { color: #faad14; }
+  &.medal-silver { color: #8c8c8c; }
+  &.medal-bronze { color: #d48806; }
+  &.medal-normal { color: #4A90E2; }
+}
+
+.award-info {
+  flex: 1;
+}
+
+.award-title {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+.award-period {
+  display: block;
+  font-size: 14px;
+  color: #999;
+  margin-top: 2px;
+}
+
+.award-rank {
+  font-size: 22px;
+}
+
+.award-value {
+  display: block;
+  font-size: 15px;
+  color: #666;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #f0f0f0;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px;
+}
+
+.empty-emoji {
+  font-size: 58px;
+  margin-bottom: 12px;
+}
+
+.empty-text {
+  font-size: 17px;
+  color: #999;
+}

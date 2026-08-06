@@ -7,6 +7,13 @@
 .create-emoji { font-size: 56rpx; }
 .create-title { font-size: 32rpx; font-weight: 600; color: #4A90E2; }
 
+.join-card {
+  display: flex; align-items: center; gap: 16rpx; padding: 28rpx 24rpx; margin-top: 16rpx;
+  background: linear-gradient(135deg, #fff5e6 0%, #fff 100%);
+}
+.join-card:active { opacity: 0.8; }
+.join-card .create-title { color: #FFA940; }
+
 .class-card { padding: 24rpx; }
 .class-card-header { display: flex; align-items: center; gap: 16rpx; }
 .class-card-icon { font-size: 48rpx; }

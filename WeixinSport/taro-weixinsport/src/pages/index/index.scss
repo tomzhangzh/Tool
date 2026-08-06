@@ -1,0 +1,230 @@
+.index-page {
+  min-height: 100vh;
+  background: #f7f8fa;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 16px 16px;
+  background: linear-gradient(135deg, #4A90E2 0%, #5AA8F5 100%);
+  color: #fff;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.header .avatar {
+  width: 58px !important;
+  height: 58px !important;
+  border-radius: 50% !important;
+  background: rgba(255,255,255,0.2) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  margin-right: 12px !important;
+  margin: 0 !important;
+}
+
+.header .avatar-img {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.header .avatar-text {
+  font-size: 24px !important;
+  color: #fff !important;
+}
+
+.user-detail {
+  flex: 1;
+}
+
+.user-name {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.user-role {
+  font-size: 15px;
+  opacity: 0.8;
+  margin-top: 4px;
+}
+
+.header .logout-btn {
+  font-size: 13px !important;
+  padding: 4px 10px !important;
+  background: rgba(255,255,255,0.2) !important;
+  border-radius: 10px !important;
+  width: auto !important;
+  height: auto !important;
+  line-height: 1.5 !important;
+  color: #fff !important;
+  box-sizing: border-box !important;
+}
+
+.content {
+  padding: 12px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+}
+
+.today-card {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.today-title {
+  font-size: 17px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.today-count {
+  margin: 12px 0;
+}
+
+.count-num {
+  font-size: 58px;
+  font-weight: bold;
+  color: #FFA940;
+}
+
+.count-label {
+  font-size: 19px;
+  color: #666;
+  margin-left: 6px;
+}
+
+.today-desc {
+  font-size: 17px;
+  color: #999;
+}
+
+.stats-card {
+  padding: 16px;
+}
+
+.stats-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.stats-grid {
+  display: flex;
+  justify-content: space-around;
+}
+
+.stats-item {
+  text-align: center;
+}
+
+.stats-value {
+  display: block;
+  font-size: 24px;
+  font-weight: bold;
+  color: #4A90E2;
+}
+
+.stats-label {
+  display: block;
+  font-size: 14px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.class-card {
+  cursor: pointer;
+}
+
+.class-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.class-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.class-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: #f9f9fb;
+  border-radius: 6px;
+}
+
+.class-name {
+  font-size: 17px;
+  color: #333;
+}
+
+.class-count {
+  font-size: 14px;
+  color: #999;
+}
+
+.class-empty {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+  font-size: 17px;
+}
+
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.action-item {
+  flex: 1;
+  min-width: calc(50% - 6px);
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 12px;
+  text-align: center;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+  cursor: pointer;
+
+  &:active {
+    transform: scale(0.96);
+  }
+}
+
+.action-icon {
+  display: block;
+  font-size: 34px;
+  margin-bottom: 6px;
+}
+
+.action-label {
+  display: block;
+  font-size: 17px;
+  color: #666;
+}

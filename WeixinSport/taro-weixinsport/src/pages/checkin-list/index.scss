@@ -1,0 +1,190 @@
+.checkin-list-page {
+  min-height: 100vh;
+  background: #f7f8fa;
+}
+
+.content {
+  padding: 12px;
+  padding-bottom: 100px;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  margin-bottom: 12px;
+}
+
+.filter-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 17px;
+  color: #666;
+  cursor: pointer;
+
+  &.active {
+    background: #4A90E2;
+    color: #fff;
+  }
+}
+
+.total-label {
+  font-size: 14px;
+  color: #999;
+  padding: 0 12px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+}
+
+.checkin-item {
+  display: flex;
+  align-items: stretch;
+  padding: 14px;
+}
+
+.item-left {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+}
+
+.item-icon {
+  font-size: 38px;
+  width: 58px;
+  height: 58px;
+  background: #e8f0fe;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.item-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.item-calorie {
+  font-size: 17px;
+  font-weight: 600;
+  color: #FA8C16;
+}
+
+.item-detail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.item-duration {
+  font-size: 15px;
+  color: #4A90E2;
+}
+
+.item-time {
+  font-size: 14px;
+  color: #999;
+}
+
+.item-note {
+  display: block;
+  font-size: 15px;
+  color: #666;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.item-date {
+  font-size: 13px;
+  color: #bbb;
+}
+
+.item-action {
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  cursor: pointer;
+}
+
+.delete-icon {
+  font-size: 24px;
+  opacity: 0.6;
+
+  &:active {
+    opacity: 1;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 32px;
+}
+
+.empty-emoji {
+  font-size: 67px;
+  margin-bottom: 16px;
+}
+
+.empty-text {
+  font-size: 17px;
+  color: #999;
+  margin-bottom: 16px;
+}
+
+.go-checkin-btn {
+  background: #4A90E2 !important;
+  color: #fff !important;
+  font-size: 17px !important;
+  padding: 8px 24px !important;
+  height: auto !important;
+  border-radius: 20px !important;
+  border: none !important;
+}
+
+.pagination {
+  text-align: center;
+  padding: 16px;
+}
+
+.page-info {
+  font-size: 15px;
+  color: #999;
+}

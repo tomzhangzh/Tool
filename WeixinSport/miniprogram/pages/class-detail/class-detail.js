@@ -7,8 +7,10 @@ Page({
     classId: '',
     info: null,
     members: [],
+    teachers: [],
     loading: true,
-    role: ''
+    role: '',
+    isCreator: false
   },
 
   onLoad(options) {
@@ -23,11 +25,13 @@ Page({
   async loadDetail() {
     this.setData({ loading: true });
     try {
-      const [info, members] = await Promise.all([
+      const [info, members, teachers] = await Promise.all([
         api.getClassDetail(this.data.classId),
-        api.getClassMembers(this.data.classId)
+        api.getClassMembers(this.data.classId),
+        api.getClassTeachers(this.data.classId)
       ]);
-      this.setData({ info, members });
+      const isCreator = !!(info && app.globalData.openid && info.teacherOpenid === app.globalData.openid);
+      this.setData({ info, members, teachers, isCreator });
     } catch (e) {
       console.error('load class detail error', e);
     } finally {
@@ -39,6 +43,27 @@ Page({
     wx.setClipboardData({
       data: this.data.info.code,
       success: () => wx.showToast({ title: '已复制邀请码', icon: 'success' })
+    });
+  },
+
+  // 创建者移除共管老师
+  onRemoveTeacher(e) {
+    const targetOpenid = e.currentTarget.dataset.openid;
+    const targetName = e.currentTarget.dataset.name || '该老师';
+    wx.showModal({
+      title: '移除老师',
+      content: `确定将「${targetName}」移出班级管理？`,
+      confirmColor: '#e64340',
+      success: async (res) => {
+        if (!res.confirm) return;
+        try {
+          await api.removeTeacher(this.data.classId, targetOpenid);
+          wx.showToast({ title: '已移除', icon: 'success' });
+          this.loadDetail();
+        } catch (e) {
+          console.error('remove teacher error', e);
+        }
+      }
     });
   },
 

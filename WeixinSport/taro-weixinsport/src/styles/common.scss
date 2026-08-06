@@ -1,0 +1,134 @@
+/* src/styles/common.scss */
+/* 全局样式 */
+page, body, #app {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  color: #333;
+  background: #f7f8fa;
+  box-sizing: border-box;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+view, text {
+  box-sizing: border-box;
+}
+
+button,
+.taro-button-core {
+  &::after {
+    display: none !important;
+  }
+}
+
+/* Taro Button H5 样式覆盖 - 仅覆盖必要的部分 */
+taro-button-core {
+  border: none !important;
+  line-height: 1.5 !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+taro-button-core.btn-block {
+  width: 100%;
+}
+
+taro-button-core.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+taro-button-core + taro-button-core {
+  margin-top: 0;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.text-muted {
+  color: #999;
+}
+
+.text-primary {
+  color: #4A90E2;
+}
+
+.text-small {
+  font-size: 12px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* H5 页面容器 */
+.taro_page, .pages_container {
+  min-height: 100vh;
+  position: relative;
+}
+
+/* 修复 H5 环境下的滚动问题 */
+.scroll-view {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 隐藏 H5 原生 tabBar，使用自定义 TabBar */
+taro-tabbar,
+.taro-tabbar__tabbar,
+.taro-tabbar__border,
+.weui-tabbar {
+  display: none !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* 确保内容区有足够高度 */
+.taro-tabbar__panel {
+  min-height: calc(100vh - 50px);
+}
+
+/* 自定义 TabBar 样式 */
+.custom-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+  background: #ffffff;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+  z-index: 999;
+}
+
+.custom-tab-bar .tab-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999999;
+  cursor: pointer;
+}
+
+.custom-tab-bar .tab-item.active {
+  color: #4A90E2;
+  font-weight: 600;
+}
+
+.custom-tab-bar .tab-text {
+  font-size: 44px;
+}
+
+/* tabBar 页面需要底部空间 */
+.page-with-tabbar {
+  padding-bottom: 90px;
+}

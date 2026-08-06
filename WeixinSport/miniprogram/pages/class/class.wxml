@@ -9,6 +9,14 @@
       </view>
     </view>
 
+    <view class="card join-card" bindtap="openJoin">
+      <view class="create-emoji">🤝</view>
+      <view class="create-text">
+        <view class="create-title">加入班级</view>
+        <view class="text-muted text-small">凭邀请码成为共管老师</view>
+      </view>
+    </view>
+
     <view wx:if="{{loading}}" class="loading">加载中...</view>
 
     <view wx:elif="{{classList.length}}">
@@ -17,7 +25,7 @@
           <view class="class-card-icon">📚</view>
           <view class="flex-1">
             <view class="class-card-name">{{item.name}}</view>
-            <view class="text-muted text-small">{{item.memberCount || 0}} 名学生</view>
+            <view class="text-muted text-small">{{item.memberCount || 0}} 名学生 · {{item.teacherCount || 1}} 位老师</view>
           </view>
           <view class="text-primary text-small">详情 ›</view>
         </view>
@@ -31,7 +39,7 @@
 
     <view wx:else class="empty">
       <view class="empty-emoji">📚</view>
-      <view>还没有班级，点击上方创建</view>
+      <view>还没有班级，点击上方创建或加入</view>
     </view>
   </view>
 
@@ -63,6 +71,18 @@
       <view class="modal-actions">
         <button class="btn btn-ghost" bindtap="closeCreate" style="flex:1">取消</button>
         <button class="btn" bindtap="onCreate" loading="{{creating}}" disabled="{{creating}}" style="flex:1">确定</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加入班级弹窗 -->
+  <view wx:if="{{showJoin}}" class="modal-mask" catchtap="closeJoin">
+    <view class="modal" catchtap="">
+      <view class="modal-title">{{role === 'teacher' ? '加入班级成为共管老师' : '加入班级'}}</view>
+      <input class="modal-input" placeholder="请输入6位邀请码" value="{{joinCode}}" bindinput="onJoinCodeInput" focus="{{showJoin}}" maxlength="6" />
+      <view class="modal-actions">
+        <button class="btn btn-ghost" bindtap="closeJoin" style="flex:1">取消</button>
+        <button class="btn" bindtap="onJoin" loading="{{joining}}" disabled="{{joining}}" style="flex:1">确定</button>
       </view>
     </view>
   </view>

@@ -50,9 +50,17 @@ const getWeekLabel = (start, end) => {
   return `${start.getFullYear()}.${start.getMonth() + 1}.${start.getDate()}-${end.getMonth() + 1}.${end.getDate()}`;
 };
 
-exports.main = async (event, context) => {
+// 获取用户 ID：兼容小程序（OPENID）和 H5（event._uid）环境
+const getUserId = (event) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  if (wxCtx.OPENID) return wxCtx.OPENID;
+  if (event._uid) return event._uid;
+  return null;
+};
+
+exports.main = async (event, context) => {
+  const openid = getUserId(event);
+  if (!openid) return { code: 1, message: '未获取到用户身份' };
   const action = event.action;
 
   try {
@@ -69,15 +77,22 @@ exports.main = async (event, context) => {
       if (!u) return { code: 0, data: { awards: [], weekLabel, canCalc: false } };
 
       let classId = event.classId;
+      let isTeacherOf = false;
       if (!classId) {
         if (u.role === 'teacher') {
-          const cls = await db.collection('classes').where({ teacherOpenid: openid }).limit(1).get();
-          if (cls.data.length) classId = cls.data[0]._id;
+          const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+          if (t.data.length) {
+            classId = t.data[0].classId;
+            isTeacherOf = true;
+          }
         } else {
           const targetOpenid = u.role === 'parent' ? u.childOpenid : openid;
           const m = await db.collection('class_members').where({ openid: targetOpenid }).limit(1).get();
           if (m.data.length) classId = m.data[0].classId;
         }
+      } else if (u.role === 'teacher') {
+        const t = await db.collection('class_teachers').where({ classId, openid }).count();
+        isTeacherOf = t.total > 0;
       }
       if (!classId) return { code: 0, data: { awards: [], weekLabel, canCalc: false } };
 
@@ -98,8 +113,8 @@ exports.main = async (event, context) => {
         };
       });
 
-      // 老师可手动计算（本周已结束或在周日及以后）
-      const canCalc = u.role === 'teacher';
+      // 老师可手动计算（必须是该班级老师）
+      const canCalc = isTeacherOf;
 
       return { code: 0, data: { awards, weekLabel, canCalc } };
     }
@@ -113,9 +128,15 @@ exports.main = async (event, context) => {
       const userQ = await db.collection('users').where({ openid }).get();
       const u = userQ.data[0];
       if (!u || u.role !== 'teacher') return { code: 1, message: '仅老师可生成' };
-      const cls = await db.collection('classes').where({ teacherOpenid: openid }).limit(1).get();
-      if (!cls.data.length) return { code: 1, message: '请先创建班级' };
-      const classId = cls.data[0]._id;
+      let classId = event.classId;
+      if (classId) {
+        const t = await db.collection('class_teachers').where({ classId, openid }).count();
+        if (t.total === 0) return { code: 1, message: '无权操作该班级' };
+      } else {
+        const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+        if (!t.data.length) return { code: 1, message: '请先创建或加入班级' };
+        classId = t.data[0].classId;
+      }
 
       // 班级学生
       const members = (await db.collection('class_members').where({ classId, role: 'student' }).get()).data;
@@ -272,15 +293,22 @@ exports.main = async (event, context) => {
       if (!u) return { code: 0, data: { top3: [], specialAwards: [], monthLabel, canCalc: false } };
 
       let classId = event.classId;
+      let isTeacherOf = false;
       if (!classId) {
         if (u.role === 'teacher') {
-          const cls = await db.collection('classes').where({ teacherOpenid: openid }).limit(1).get();
-          if (cls.data.length) classId = cls.data[0]._id;
+          const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+          if (t.data.length) {
+            classId = t.data[0].classId;
+            isTeacherOf = true;
+          }
         } else {
           const targetOpenid = u.role === 'parent' ? u.childOpenid : openid;
           const m = await db.collection('class_members').where({ openid: targetOpenid }).limit(1).get();
           if (m.data.length) classId = m.data[0].classId;
         }
+      } else if (u.role === 'teacher') {
+        const t = await db.collection('class_teachers').where({ classId, openid }).count();
+        isTeacherOf = t.total > 0;
       }
       if (!classId) return { code: 0, data: { top3: [], specialAwards: [], monthLabel, canCalc: false } };
 
@@ -295,7 +323,7 @@ exports.main = async (event, context) => {
         winner: a.winner || {}
       }));
 
-      return { code: 0, data: { top3, specialAwards, monthLabel, canCalc: u.role === 'teacher' } };
+      return { code: 0, data: { top3, specialAwards, monthLabel, canCalc: isTeacherOf } };
     }
 
     // 老师生成月度明星
@@ -308,9 +336,15 @@ exports.main = async (event, context) => {
       const userQ = await db.collection('users').where({ openid }).get();
       const u = userQ.data[0];
       if (!u || u.role !== 'teacher') return { code: 1, message: '仅老师可生成' };
-      const cls = await db.collection('classes').where({ teacherOpenid: openid }).limit(1).get();
-      if (!cls.data.length) return { code: 1, message: '请先创建班级' };
-      const classId = cls.data[0]._id;
+      let classId = event.classId;
+      if (classId) {
+        const t = await db.collection('class_teachers').where({ classId, openid }).count();
+        if (t.total === 0) return { code: 1, message: '无权操作该班级' };
+      } else {
+        const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+        if (!t.data.length) return { code: 1, message: '请先创建或加入班级' };
+        classId = t.data[0].classId;
+      }
 
       const members = (await db.collection('class_members').where({ classId, role: 'student' }).get()).data;
       const openids = members.map(m => m.openid);

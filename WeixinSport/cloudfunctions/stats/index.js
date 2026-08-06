@@ -24,9 +24,17 @@ const getMonthRange = (offset = 0) => {
   return { start, end };
 };
 
-exports.main = async (event, context) => {
+// 获取用户 ID：兼容小程序（OPENID）和 H5（event._uid）环境
+const getUserId = (event) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  if (wxCtx.OPENID) return wxCtx.OPENID;
+  if (event._uid) return event._uid;
+  return null;
+};
+
+exports.main = async (event, context) => {
+  const openid = getUserId(event);
+  if (!openid) return { code: 1, message: '未获取到用户身份' };
   const action = event.action;
 
   try {
@@ -171,8 +179,8 @@ exports.main = async (event, context) => {
       let classId = event.classId;
       if (!classId) {
         if (u.role === 'teacher') {
-          const cls = await db.collection('classes').where({ teacherOpenid: openid }).limit(1).get();
-          if (cls.data.length) classId = cls.data[0]._id;
+          const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+          if (t.data.length) classId = t.data[0].classId;
         } else {
           const targetOpenid = u.role === 'parent' ? u.childOpenid : openid;
           const m = await db.collection('class_members').where({ openid: targetOpenid }).limit(1).get();

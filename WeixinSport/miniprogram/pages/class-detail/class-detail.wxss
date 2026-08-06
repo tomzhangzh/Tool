@@ -21,3 +21,12 @@
 .member-name { font-size: 28rpx; color: #333; }
 .member-stat { text-align: right; }
 .stat-val { font-size: 30rpx; color: #FFA940; font-weight: 600; }
+
+.teacher-row { display: flex; align-items: center; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f5f5f5; }
+.teacher-row:last-child { border-bottom: none; }
+.remove-btn {
+  font-size: 24rpx; color: #e64340;
+  border: 1rpx solid #e64340; border-radius: 28rpx;
+  padding: 6rpx 20rpx;
+}
+.remove-btn:active { opacity: 0.6; }

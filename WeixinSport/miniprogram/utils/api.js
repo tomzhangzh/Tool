@@ -33,12 +33,16 @@ const login = () => call('login', {});
 const bindRole = (data) => call('login', { action: 'bindRole', ...data });
 const getProfile = () => call('login', { action: 'getProfile' });
 const updateProfile = (data) => call('login', { action: 'updateProfile', ...data });
+const dedupUsers = () => call('login', { action: 'dedupUsers' });
 
 // 班级
 const createClass = (data) => call('class', { action: 'create', ...data });
 const joinClass = (data) => call('class', { action: 'join', ...data });
 const getClassDetail = (classId) => call('class', { action: 'detail', classId });
 const getClassMembers = (classId) => call('class', { action: 'members', classId });
+const getClassTeachers = (classId) => call('class', { action: 'listTeachers', classId });
+const addTeacher = (code) => call('class', { action: 'addTeacher', code });
+const removeTeacher = (classId, targetOpenid) => call('class', { action: 'removeTeacher', classId, targetOpenid });
 const getMyClasses = () => call('class', { action: 'my' });
 const bindChild = (data) => call('class', { action: 'bindChild', ...data });
 
@@ -66,10 +70,14 @@ module.exports = {
   bindRole,
   getProfile,
   updateProfile,
+  dedupUsers,
   createClass,
   joinClass,
   getClassDetail,
   getClassMembers,
+  getClassTeachers,
+  addTeacher,
+  removeTeacher,
   getMyClasses,
   bindChild,
   submitCheckin,

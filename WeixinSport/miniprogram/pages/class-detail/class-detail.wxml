@@ -23,6 +23,19 @@
       </view>
     </view>
 
+    <view wx:if="{{teachers.length}}" class="card">
+      <view class="card-title">{{info.isTeacher ? '管理老师' : '班级老师'}}（{{teachers.length}}）</view>
+      <view wx:for="{{teachers}}" wx:key="openid" class="teacher-row">
+        <image wx:if="{{item.avatar}}" src="{{item.avatar}}" class="avatar member-avatar" mode="aspectFill"></image>
+        <view wx:else class="avatar member-avatar avatar-placeholder">{{item.name ? item.name[0] : '?'}}</view>
+        <view class="flex-1">
+          <view class="member-name">{{item.name || '未命名'}}</view>
+          <view class="text-muted text-small">{{item.role === 'creator' ? '创建者' : '共管老师'}}</view>
+        </view>
+        <view wx:if="{{isCreator && item.role !== 'creator'}}" class="remove-btn" catchtap="onRemoveTeacher" data-openid="{{item.openid}}" data-name="{{item.name}}">移除</view>
+      </view>
+    </view>
+
     <view class="card">
       <view class="card-title">同学列表</view>
       <view wx:for="{{members}}" wx:key="_id" class="member-row">

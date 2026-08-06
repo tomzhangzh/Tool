@@ -17,9 +17,17 @@ const formatDate = (date, fmt = 'YYYY-MM-DD') => {
   return fmt.replace(/YYYY|MM|DD/g, m => o[m]);
 };
 
-exports.main = async (event, context) => {
+// 获取用户 ID：兼容小程序（OPENID）和 H5（event._uid）环境
+const getUserId = (event) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  if (wxCtx.OPENID) return wxCtx.OPENID;
+  if (event._uid) return event._uid;
+  return null;
+};
+
+exports.main = async (event, context) => {
+  const openid = getUserId(event);
+  if (!openid) return { code: 1, message: '未获取到用户身份' };
   const action = event.action;
 
   try {

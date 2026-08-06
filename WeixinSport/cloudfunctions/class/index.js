@@ -12,9 +12,30 @@ const genCode = () => {
   return s;
 };
 
-exports.main = async (event, context) => {
+// 判断某 openid 是否为某班级的老师（creator 或 teacher）
+const isClassTeacher = async (classId, openid) => {
+  if (!classId || !openid) return false;
+  const q = await db.collection('class_teachers').where({ classId, openid }).count();
+  return q.total > 0;
+};
+
+// 获取某 openid 拥有管理权限的全部班级 ID
+const getTeacherClassIds = async (openid) => {
+  const q = await db.collection('class_teachers').where({ openid }).get();
+  return q.data.map(t => t.classId);
+};
+
+// 获取用户 ID：兼容小程序（OPENID）和 H5（event._uid）环境
+const getUserId = (event) => {
   const wxCtx = cloud.getWXContext();
-  const openid = wxCtx.OPENID;
+  if (wxCtx.OPENID) return wxCtx.OPENID;
+  if (event._uid) return event._uid;
+  return null;
+};
+
+exports.main = async (event, context) => {
+  const openid = getUserId(event);
+  if (!openid) return { code: 1, message: '未获取到用户身份' };
   const action = event.action;
 
   try {
@@ -42,14 +63,23 @@ exports.main = async (event, context) => {
         data: {
           name: name.trim(),
           code,
-          teacherOpenid: openid,
+          teacherOpenid: openid,        // 创建者（保留用于展示）
           teacherName: userQ.data[0].name,
           status: 'active',
           createTime: now
         }
       });
+      // 同步写入 class_teachers 关联表
+      await db.collection('class_teachers').add({
+        data: {
+          classId: addRes._id,
+          openid,
+          role: 'creator',
+          joinTime: now
+        }
+      });
       const cls = (await db.collection('classes').doc(addRes._id).get()).data;
-      return { code: 0, data: { ...cls, memberCount: 0 } };
+      return { code: 0, data: { ...cls, memberCount: 0, isTeacher: true } };
     }
 
     // 学生加入班级
@@ -81,12 +111,81 @@ exports.main = async (event, context) => {
       return { code: 0, data: { classId: cls._id } };
     }
 
+    // 老师凭邀请码加入班级成为共管老师
+    if (action === 'addTeacher') {
+      const { code } = event;
+      if (!code) return { code: 1, message: '请填写邀请码' };
+
+      const userQ = await db.collection('users').where({ openid }).get();
+      if (!userQ.data.length || userQ.data[0].role !== 'teacher') {
+        return { code: 1, message: '仅老师可加入班级' };
+      }
+
+      const clsQ = await db.collection('classes').where({ code, status: 'active' }).get();
+      if (!clsQ.data.length) return { code: 1, message: '邀请码无效' };
+      const cls = clsQ.data[0];
+
+      // 已经是该班级老师？
+      const exist = await db.collection('class_teachers').where({ classId: cls._id, openid }).count();
+      if (exist.total > 0) return { code: 1, message: '你已是该班级老师' };
+
+      await db.collection('class_teachers').add({
+        data: {
+          classId: cls._id,
+          openid,
+          role: 'teacher',
+          joinTime: Date.now()
+        }
+      });
+      return { code: 0, data: { classId: cls._id, name: cls.name } };
+    }
+
+    // 班级老师列表
+    if (action === 'listTeachers') {
+      const { classId } = event;
+      const tQ = await db.collection('class_teachers').where({ classId }).get();
+      if (!tQ.data.length) return { code: 0, data: [] };
+      const openids = tQ.data.map(t => t.openid);
+      const users = await db.collection('users').where({ openid: _.in(openids) }).get();
+      const uMap = {};
+      users.data.forEach(u => { uMap[u.openid] = u; });
+      const list = tQ.data
+        .map(t => ({
+          openid: t.openid,
+          role: t.role,
+          joinTime: t.joinTime,
+          name: (uMap[t.openid] && uMap[t.openid].name) || '',
+          avatar: (uMap[t.openid] && uMap[t.openid].avatar) || ''
+        }))
+        .sort((a, b) => (a.role === 'creator' ? -1 : 1) - (b.role === 'creator' ? -1 : 1));
+      return { code: 0, data: list };
+    }
+
+    // 创建者移除共管老师（不能移除自己）
+    if (action === 'removeTeacher') {
+      const { classId, targetOpenid } = event;
+      if (!classId || !targetOpenid) return { code: 1, message: '参数缺失' };
+      if (targetOpenid === openid) return { code: 1, message: '不能移除自己' };
+
+      // 当前用户必须是该班级创建者
+      const creatorQ = await db.collection('class_teachers')
+        .where({ classId, openid, role: 'creator' }).count();
+      if (creatorQ.total === 0) return { code: 1, message: '仅创建者可移除老师' };
+
+      await db.collection('class_teachers')
+        .where({ classId, openid: targetOpenid, role: _.neq('creator') })
+        .remove();
+      return { code: 0, data: { ok: true } };
+    }
+
     // 班级详情
     if (action === 'detail') {
       const { classId } = event;
       const cls = (await db.collection('classes').doc(classId).get()).data;
       const memberCount = (await db.collection('class_members').where({ classId }).count()).total;
-      return { code: 0, data: { ...cls, memberCount } };
+      const teacherCount = (await db.collection('class_teachers').where({ classId }).count()).total;
+      const isTeacher = await isClassTeacher(classId, openid);
+      return { code: 0, data: { ...cls, memberCount, teacherCount, isTeacher } };
     }
 
     // 班级成员列表
@@ -132,20 +231,36 @@ exports.main = async (event, context) => {
       const user = userQ.data[0];
       if (!user) return { code: 0, data: [] };
 
-      // 老师：作为创建者
-      // 学生/家长：通过 class_members 或孩子的 class_members
-      let classIds = [];
+      // 老师：通过 class_teachers 关联表
       if (user.role === 'teacher') {
-        const q = await db.collection('classes').where({ teacherOpenid: openid }).get();
+        let tIds = await getTeacherClassIds(openid);
+
+        // 老数据兼容：把以本老师为创建者、但 class_teachers 缺失的班级回填
+        const legacyQ = await db.collection('classes').where({ teacherOpenid: openid }).get();
+        const legacyMissing = legacyQ.data.filter(c => !tIds.includes(c._id));
+        if (legacyMissing.length) {
+          const now = Date.now();
+          for (const c of legacyMissing) {
+            await db.collection('class_teachers').add({
+              data: { classId: c._id, openid, role: 'creator', joinTime: now }
+            });
+            tIds.push(c._id);
+          }
+        }
+
+        if (!tIds.length) return { code: 0, data: [] };
+        const clsQ = await db.collection('classes').where({ _id: _.in(tIds) }).get();
         const list = [];
-        for (const c of q.data) {
+        for (const c of clsQ.data) {
           const memberCount = (await db.collection('class_members').where({ classId: c._id }).count()).total;
-          list.push({ ...c, memberCount });
+          const teacherCount = (await db.collection('class_teachers').where({ classId: c._id }).count()).total;
+          list.push({ ...c, memberCount, teacherCount, isTeacher: true });
         }
         return { code: 0, data: list };
       }
 
       // 学生
+      let classIds = [];
       if (user.role === 'student') {
         const q = await db.collection('class_members').where({ openid }).get();
         classIds = q.data.map(m => m.classId);
@@ -162,7 +277,8 @@ exports.main = async (event, context) => {
       const list = [];
       for (const c of clsQ.data) {
         const memberCount = (await db.collection('class_members').where({ classId: c._id }).count()).total;
-        list.push({ ...c, memberCount });
+        const teacherCount = (await db.collection('class_teachers').where({ classId: c._id }).count()).total;
+        list.push({ ...c, memberCount, teacherCount, isTeacher: false });
       }
       return { code: 0, data: list };
     }
