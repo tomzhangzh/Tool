@@ -25,12 +25,15 @@ export default function CheckinList() {
   const [previewImage, setPreviewImage] = useState('');
   const [likedMap, setLikedMap] = useState({});
   const [likeDetailTarget, setLikeDetailTarget] = useState(null);
+  const [currentUserInfo, setCurrentUserInfo] = useState(null);
+  const [role, setRole] = useState('');
   const pageSize = 20;
 
   const loadList = async (f = filter, p = page) => {
     setLoading(true);
     try {
       const userInfo = getUserInfo();
+      const role = getRole();
       const data = await api.getCheckinList({ 
         page: p, 
         pageSize,
@@ -46,7 +49,12 @@ export default function CheckinList() {
           if (itemImage) {
             displayImage = await resolveFileURL(itemImage);
           }
-          return { ...item, displayImage };
+          // 转换用户头像 URL（用于老师查看时显示学生信息）
+          let displayAvatar = '';
+          if (item.avatar) {
+            displayAvatar = await resolveFileURL(item.avatar);
+          }
+          return { ...item, displayImage, displayAvatar };
         })
       );
       
@@ -98,10 +106,13 @@ export default function CheckinList() {
 
   useDidShow(() => {
     const userInfo = getUserInfo();
+    const userRole = getRole();
     if (!userInfo) {
       Taro.redirectTo({ url: '/pages/login/index' });
       return;
     }
+    setCurrentUserInfo(userInfo);
+    setRole(userRole || userInfo.role || '');
     loadList('all', 1);
   });
 
@@ -162,12 +173,27 @@ export default function CheckinList() {
             {list.map(item => {
               const isLiked = likedMap[item._id];
               const likeCount = item.likeCount || 0;
+              const isOwnRecord = currentUserInfo?.username === item.username;
               return (
                 <View className='card checkin-item' key={item._id}>
                   <View className='item-left'>
                     <Text className='item-icon'>{item.exerciseIcon || '🏃'}</Text>
                   </View>
                   <View className='item-content'>
+                    {/* 老师查看时显示学生信息 */}
+                    {role === 'teacher' && (
+                      <View className='item-user-info' style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}>
+                        {item.displayAvatar ? (
+                          <Image src={item.displayAvatar} style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+                        ) : (
+                          <View style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#4A90E2', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
+                            {item.userName?.[0] || '?'}
+                          </View>
+                        )}
+                        <Text style={{ fontSize: '13px', color: '#666', marginLeft: '6px' }}>{item.userName || '匿名学生'}</Text>
+                        {isOwnRecord && <Text style={{ fontSize: '11px', color: '#999', marginLeft: '4px' }}>(我)</Text>}
+                      </View>
+                    )}
                     <View className='item-header'>
                       <Text className='item-name'>{item.exerciseName}</Text>
                       <Text className='item-calorie'>{item.calorie}千卡</Text>
@@ -197,9 +223,12 @@ export default function CheckinList() {
                       </View>
                     </View>
                   </View>
-                  <View className='item-action' onClick={() => onDelete(item)}>
-                    <Text className='delete-icon'>🗑️</Text>
-                  </View>
+                  {/* 只有自己的记录才能删除 */}
+                  {(role !== 'teacher' || isOwnRecord) && (
+                    <View className='item-action' onClick={() => onDelete(item)}>
+                      <Text className='delete-icon'>🗑️</Text>
+                    </View>
+                  )}
                 </View>
               );
             })}

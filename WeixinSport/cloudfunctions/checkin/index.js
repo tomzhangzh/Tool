@@ -39,6 +39,21 @@ const getUserClassIds = async (username) => {
   return memberQ.data.map(m => m.classId);
 };
 
+// 获取老师管理的班级的所有学生 username
+const getTeacherStudentUsernames = async (username) => {
+  if (!username) return [];
+  // 从 class_teachers 表获取老师管理的班级
+  const teacherQ = await db.collection('class_teachers').where({ username }).get();
+  const classIds = teacherQ.data.map(t => t.classId);
+  if (classIds.length === 0) return [];
+  // 获取这些班级的所有学生
+  const memberQ = await db.collection('class_members').where({
+    classId: _.in(classIds),
+    role: 'student'
+  }).get();
+  return memberQ.data.map(m => m.username).filter(Boolean);
+};
+
 exports.main = async (event, context) => {
   const openid = getUserId(event);
   const action = event.action;
@@ -103,22 +118,35 @@ exports.main = async (event, context) => {
     if (action === 'list') {
       const page = event.page || 1;
       const pageSize = event.pageSize || 20;
-      const targetUsername = event.targetUsername || username;
       
       const user = await findUser(username);
       if (!user) return { code: 1, message: '用户不存在' };
       
-      // 若为家长请求孩子数据，需校验绑定关系
-      if (targetUsername !== username) {
-        const targetUser = await findUser(targetUsername);
-        if (!targetUser || (user.role === 'parent' && targetUser.username !== user.childUsername)) {
-          return { code: 1, message: '无权查看' };
+      let queryCondition = {};
+      
+      // 老师查看：显示其管理班级的所有学生打卡
+      if (user.role === 'teacher') {
+        const studentUsernames = await getTeacherStudentUsernames(username);
+        if (studentUsernames.length === 0) {
+          return { code: 0, data: { list: [], total: 0 } };
         }
+        queryCondition = { username: _.in(studentUsernames) };
+      } else {
+        // 学生/家长：只能查看自己的
+        const targetUsername = event.targetUsername || username;
+        if (targetUsername !== username) {
+          const targetUser = await findUser(targetUsername);
+          if (!targetUser || (user.role === 'parent' && targetUser.username !== user.childUsername)) {
+            return { code: 1, message: '无权查看' };
+          }
+        }
+        queryCondition = { username: targetUsername };
       }
       
-      const total = (await db.collection('checkins').where({ username: targetUsername }).count).total;
+      const countResult = await db.collection('checkins').where(queryCondition).count();
+      const total = countResult.total;
       const q = await db.collection('checkins')
-        .where({ username: targetUsername })
+        .where(queryCondition)
         .orderBy('createTime', 'desc')
         .skip((page - 1) * pageSize)
         .limit(pageSize)
