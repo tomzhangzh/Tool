@@ -1,5 +1,7 @@
 .index-page {
   min-height: 100vh;
+  /* 使用动态视口高度，解决移动端软键盘问题 */
+  min-height: calc(var(--vh, 1vh) * 100);
   background: #f7f8fa;
 
   .header {

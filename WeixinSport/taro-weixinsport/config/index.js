@@ -15,7 +15,13 @@ const config = {
   plugins: [],
   defineConstants: {},
   copy: {
-    patterns: [],
+    patterns: [
+      {
+        from: 'public',
+        to: 'dist',
+        ignore: ['**/.*']
+      }
+    ],
     options: {}
   },
   framework: 'react',

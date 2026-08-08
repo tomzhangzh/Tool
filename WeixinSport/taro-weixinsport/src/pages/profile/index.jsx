@@ -1,11 +1,11 @@
 // src/pages/profile/index.jsx
-import React, { useState, useRef } from 'react';
-import { View, Text, Button, Image, ScrollView } from '@tarojs/components';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, Button, Image, ScrollView, Input } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo, getRole, setUserInfo, clearLogin } from '../../utils/auth';
 import { ROLE_LABEL } from '../../utils/constants';
-import { callFunction } from '../../utils/cloud';
+import { callFunction, resolveFileURL } from '../../utils/cloud';
 import { compressImageH5, blobToBase64 } from '../../utils/compress';
 import CustomTabBar from '../../components/CustomTabBar';
 import './index.scss';
@@ -16,7 +16,20 @@ export default function Profile() {
   const [summary, setSummary] = useState(null);
   const [awardCount, setAwardCount] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(''); // 解析后的可访问 URL
   const fileInputRef = useRef(null);
+
+  // 修改密码相关状态
+  const [showPwdModal, setShowPwdModal] = useState(false);
+  const [oldPwd, setOldPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  // 退出班级相关状态
+  const [showQuitModal, setShowQuitModal] = useState(false);
+  const [classList, setClassList] = useState([]);
+  const [quitLoading, setQuitLoading] = useState(false);
 
   useDidShow(() => {
     const info = getUserInfo();
@@ -29,6 +42,19 @@ export default function Profile() {
     setRoleLabel(ROLE_LABEL[role] || '');
     loadSummary();
   });
+
+  // 当 userInfo 变化时，解析头像 fileID 为可访问的 URL
+  useEffect(() => {
+    const resolveAvatar = async () => {
+      if (userInfo?.avatar) {
+        const url = await resolveFileURL(userInfo.avatar);
+        setAvatarUrl(url);
+      } else {
+        setAvatarUrl('');
+      }
+    };
+    resolveAvatar();
+  }, [userInfo?.avatar]);
 
   const loadSummary = async () => {
     try {
@@ -52,27 +78,21 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 清空 input 值，允许重复选择同一文件
     e.target.value = '';
 
     try {
       setUploading(true);
       Taro.showLoading({ title: '压缩中...', mask: true });
 
-      // 压缩图片到 1MB 以内
       const compressedBlob = await compressImageH5(file, 1024 * 1024);
-      
-      // 转换为 base64 用于云函数传输
       const base64 = await blobToBase64(compressedBlob);
       
-      // 生成云端路径
       const ext = file.type.includes('png') ? 'png' : 'jpg';
       const ts = Date.now();
       const cloudPath = `avatars/avatar_${ts}.${ext}`;
 
       Taro.showLoading({ title: '上传中...', mask: true });
 
-      // 通过 login 云函数的 uploadAvatar action 上传
       const result = await callFunction('login', {
         action: 'uploadAvatar',
         fileContent: base64,
@@ -83,11 +103,11 @@ export default function Profile() {
         throw new Error(result.result?.message || '上传失败');
       }
 
-      const avatarUrl = result.result.data.url;
+      // 存储 fileID（永久有效）而不是临时 URL
+      const fileID = result.result.data.fileID;
 
-      // 更新用户信息
-      await api.updateProfile({ avatar: avatarUrl });
-      const updatedInfo = { ...userInfo, avatar: avatarUrl };
+      await api.updateProfile({ avatar: fileID });
+      const updatedInfo = { ...userInfo, avatar: fileID };
       setUserInfo(updatedInfo);
       setUserInfoState(updatedInfo);
       
@@ -111,7 +131,6 @@ export default function Profile() {
       setUploading(true);
       Taro.showLoading({ title: '上传中...', mask: true });
 
-      // 小程序环境：直接上传临时文件到云存储
       const ext = 'jpg';
       const ts = Date.now();
       const cloudPath = `avatars/avatar_${ts}.${ext}`;
@@ -125,7 +144,6 @@ export default function Profile() {
         });
       });
 
-      // 更新用户信息
       await api.updateProfile({ avatar: uploadResult.url });
       const updatedInfo = { ...userInfo, avatar: uploadResult.url };
       setUserInfo(updatedInfo);
@@ -155,6 +173,89 @@ export default function Profile() {
     });
   };
 
+  // 打开修改密码弹窗
+  const openPwdModal = () => {
+    setOldPwd('');
+    setNewPwd('');
+    setConfirmPwd('');
+    setShowPwdModal(true);
+  };
+
+  // 提交修改密码
+  const handleChangePassword = async () => {
+    if (!oldPwd) {
+      Taro.showToast({ title: '请输入原密码', icon: 'none' });
+      return;
+    }
+    if (!newPwd || newPwd.length < 4) {
+      Taro.showToast({ title: '新密码至少4位', icon: 'none' });
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      Taro.showToast({ title: '两次密码不一致', icon: 'none' });
+      return;
+    }
+    if (newPwd === oldPwd) {
+      Taro.showToast({ title: '新密码不能与原密码相同', icon: 'none' });
+      return;
+    }
+
+    try {
+      setPwdLoading(true);
+      await api.changePassword({ oldPassword: oldPwd, newPassword: newPwd });
+      setShowPwdModal(false);
+      Taro.showToast({ title: '密码修改成功', icon: 'success' });
+    } catch (e) {
+      // api.js 已处理 toast
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
+  // 打开退出班级弹窗，加载班级列表
+  const openQuitModal = async () => {
+    try {
+      setQuitLoading(true);
+      const data = await api.getMyClasses(userInfo?.username);
+      setClassList(data || []);
+      setShowQuitModal(true);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setQuitLoading(false);
+    }
+  };
+
+  // 确认退出班级
+  const handleQuitClass = (cls) => {
+    Taro.showModal({
+      title: '退出班级',
+      content: `确定要退出"${cls.name}"吗？`,
+      success: async (res) => {
+        if (res.confirm) {
+          try {
+            setQuitLoading(true);
+            await api.quitClass(cls._id);
+            Taro.showToast({ title: '已退出班级', icon: 'success' });
+            // 刷新班级列表
+            const data = await api.getMyClasses(userInfo?.username);
+            setClassList(data || []);
+            // 如果退出后没有班级了，关闭弹窗
+            if (!data || data.length === 0) {
+              setShowQuitModal(false);
+            }
+            // 刷新 profile summary
+            loadSummary();
+          } catch (e) {
+            // api.js 已处理 toast
+          } finally {
+            setQuitLoading(false);
+          }
+        }
+      }
+    });
+  };
+
   return (
     <View className='profile-page page-with-tabbar'>
       <ScrollView scrollY className='content' style={{ paddingBottom: '80px' }}>
@@ -166,8 +267,8 @@ export default function Profile() {
               className={`avatar ${uploading ? 'uploading' : ''}`} 
               onClick={handleChooseAvatarH5}
             >
-              {userInfo?.avatar ? (
-                <Image src={userInfo.avatar} className='avatar-img' mode='aspectFill' />
+              {avatarUrl ? (
+                <Image src={avatarUrl} className='avatar-img' mode='aspectFill' />
               ) : (
                 <Text className='avatar-text'>{userInfo?.name?.[0] || '?'}</Text>
               )}
@@ -190,7 +291,6 @@ export default function Profile() {
               </View>
             </Button>
           )}
-          {/* H5 隐藏的文件选择器 */}
           {process.env.TARO_ENV === 'h5' && (
             <input
               ref={fileInputRef}
@@ -241,6 +341,16 @@ export default function Profile() {
           <Text className='menu-label'>打卡记录</Text>
           <Text className='menu-arrow'>›</Text>
         </View>
+        <View className='menu-item' onClick={openPwdModal}>
+          <Text className='menu-icon'>🔒</Text>
+          <Text className='menu-label'>修改密码</Text>
+          <Text className='menu-arrow'>›</Text>
+        </View>
+        <View className='menu-item' onClick={openQuitModal}>
+          <Text className='menu-icon'>🚪</Text>
+          <Text className='menu-label'>退出班级</Text>
+          <Text className='menu-arrow'>›</Text>
+        </View>
       </View>
 
       {/* 退出按钮 */}
@@ -248,6 +358,91 @@ export default function Profile() {
         <Button className='logout-btn' onClick={handleLogout}>退出登录</Button>
       </View>
       </ScrollView>
+
+      {/* 修改密码弹窗 */}
+      {showPwdModal && (
+        <View className='modal-mask' onClick={() => !pwdLoading && setShowPwdModal(false)}>
+          <View className='modal-box' onClick={(e) => e.stopPropagation()}>
+            <Text className='modal-title'>修改密码</Text>
+            <View className='modal-form'>
+              <View className='form-row'>
+                <Text className='form-label'>原密码</Text>
+                <Input 
+                  className='form-input' 
+                  type='password' 
+                  placeholder='请输入原密码' 
+                  value={oldPwd} 
+                  onInput={(e) => setOldPwd(e.detail.value)} 
+                />
+              </View>
+              <View className='form-row'>
+                <Text className='form-label'>新密码</Text>
+                <Input 
+                  className='form-input' 
+                  type='password' 
+                  placeholder='至少4位字符' 
+                  value={newPwd} 
+                  onInput={(e) => setNewPwd(e.detail.value)} 
+                />
+              </View>
+              <View className='form-row'>
+                <Text className='form-label'>确认密码</Text>
+                <Input 
+                  className='form-input' 
+                  type='password' 
+                  placeholder='再次输入新密码' 
+                  value={confirmPwd} 
+                  onInput={(e) => setConfirmPwd(e.detail.value)} 
+                />
+              </View>
+            </View>
+            <View className='modal-actions'>
+              <Button className='modal-btn cancel' onClick={() => setShowPwdModal(false)} disabled={pwdLoading}>取消</Button>
+              <Button className='modal-btn confirm' onClick={handleChangePassword} loading={pwdLoading}>确认修改</Button>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* 退出班级弹窗 */}
+      {showQuitModal && (
+        <View className='modal-mask' onClick={() => !quitLoading && setShowQuitModal(false)}>
+          <View className='modal-box quit-modal' onClick={(e) => e.stopPropagation()}>
+            <Text className='modal-title'>退出班级</Text>
+            {quitLoading ? (
+              <View className='modal-empty'><Text>加载中...</Text></View>
+            ) : classList.length === 0 ? (
+              <View className='modal-empty'>
+                <Text className='empty-text'>暂无加入的班级</Text>
+              </View>
+            ) : (
+              <ScrollView scrollY className='class-list'>
+                {classList.map((cls) => (
+                  <View key={cls._id} className='class-item'>
+                    <View className='class-info'>
+                      <Text className='class-name'>{cls.name}</Text>
+                      <Text className='class-meta'>
+                        {cls.isTeacher ? '老师' : '学生'} · {cls.memberCount || 0}人
+                      </Text>
+                    </View>
+                    <Button 
+                      className='quit-btn' 
+                      size='mini' 
+                      onClick={() => handleQuitClass(cls)}
+                    >
+                      退出
+                    </Button>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            <View className='modal-actions'>
+              <Button className='modal-btn cancel' onClick={() => setShowQuitModal(false)}>关闭</Button>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* 自定义 TabBar */}
       <CustomTabBar />
     </View>

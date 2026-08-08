@@ -1,10 +1,11 @@
 // src/pages/weekly/index.jsx
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Button, Image } from '@tarojs/components';
+import { View, Text, ScrollView, Button } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo, getRole } from '../../utils/auth';
 import { WEEKLY_AWARD_TYPES } from '../../utils/constants';
+import AvatarImage from '../../components/AvatarImage';
 import CustomTabBar from '../../components/CustomTabBar';
 import './index.scss';
 
@@ -104,12 +105,12 @@ export default function Weekly() {
 
                 {award.winners && award.winners.length > 0 ? (
                   award.winners.map((winner, idx) => (
-                    <View className={`winner-row ${idx === 0 ? 'winner-top' : ''}`} key={winner.openid}>
+                    <View className={`winner-row ${idx === 0 ? 'winner-top' : ''}`} key={winner.username}>
                       <View className='rank-badge'>
                         <Text>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1)}</Text>
                       </View>
                       <View className='winner-avatar'>
-                        {winner.avatar ? <Image src={winner.avatar} className='avatar' /> : <Text className='avatar-placeholder'>{winner.name ? winner.name[0] : '?'}</Text>}
+                        {winner.avatar ? <AvatarImage src={winner.avatar} className='avatar' /> : <Text className='avatar-placeholder'>{winner.name ? winner.name[0] : '?'}</Text>}
                       </View>
                       <View className='winner-info'>
                         <Text className='winner-name'>{winner.name}</Text>

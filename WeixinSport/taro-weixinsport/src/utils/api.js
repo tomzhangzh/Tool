@@ -2,6 +2,7 @@
 // 统一 API 层：兼容小程序 (Taro.cloud) 和 H5 (CloudBase JS SDK)
 import Taro from '@tarojs/taro';
 import { callFunction } from './cloud';
+import { getUserInfo } from './auth';
 
 /**
  * 调用云函数
@@ -11,6 +12,12 @@ import { callFunction } from './cloud';
  */
 export const call = async (name, data = {}) => {
   try {
+    // 自动注入 username（如果未显式传递）
+    const userInfo = getUserInfo();
+    if (userInfo && userInfo.username && !data.username) {
+      data.username = userInfo.username;
+    }
+    
     const res = await callFunction(name, data);
 
     // H5 环境：CloudBase JS SDK 返回的格式
@@ -53,6 +60,7 @@ export const loginByAccount = (data) => call('login', { action: 'loginByAccount'
 export const register = (data) => call('login', { action: 'register', ...data });
 export const getProfile = () => call('login', { action: 'getProfile' });
 export const updateProfile = (data) => call('login', { action: 'updateProfile', ...data });
+export const changePassword = (data) => call('login', { action: 'changePassword', ...data });
 
 // --- 班级 ---
 export const createClass = (data) => call('class', { action: 'create', ...data });
@@ -61,9 +69,10 @@ export const getClassDetail = (classId) => call('class', { action: 'detail', cla
 export const getClassMembers = (classId) => call('class', { action: 'members', classId });
 export const getClassTeachers = (classId) => call('class', { action: 'listTeachers', classId });
 export const addTeacher = (code) => call('class', { action: 'addTeacher', code });
-export const removeTeacher = (classId, targetOpenid) => call('class', { action: 'removeTeacher', classId, targetOpenid });
+export const removeTeacher = (classId, targetUsername) => call('class', { action: 'removeTeacher', classId, targetUsername });
 export const getMyClasses = (username) => call('class', { action: 'my', username });
 export const bindChild = (data) => call('class', { action: 'bindChild', ...data });
+export const quitClass = (classId) => call('class', { action: 'quitClass', classId });
 
 // --- 打卡 ---
 export const submitCheckin = (data) => call('checkin', { action: 'submit', ...data });
@@ -86,8 +95,8 @@ export const calcWeeklyAwards = (data) => call('awards', { action: 'calcWeekly',
 export const calcMonthlyStars = (data) => call('awards', { action: 'calcMonthly', ...data });
 
 export default {
-  login, loginByAccount, register, bindRole, getProfile, updateProfile,
-  createClass, joinClass, getClassDetail, getClassMembers, getClassTeachers, addTeacher, removeTeacher, getMyClasses, bindChild,
+  login, loginByAccount, register, bindRole, getProfile, updateProfile, changePassword,
+  createClass, joinClass, getClassDetail, getClassMembers, getClassTeachers, addTeacher, removeTeacher, getMyClasses, bindChild, quitClass,
   submitCheckin, getCheckinList, deleteCheckin, getTodayCheckin, getClassFeed, getImageUrl,
   getWeeklyStats, getMonthlyStats, getRanking,
   getWeeklyAwards, getMonthlyStars, getMyAwards, calcWeeklyAwards, calcMonthlyStars

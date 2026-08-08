@@ -1,11 +1,13 @@
 // src/pages/index/index.jsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Image } from '@tarojs/components';
+import { View, Text, ScrollView } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo, getRole, clearLogin } from '../../utils/auth';
 import { ROLE_LABEL } from '../../utils/constants';
+import AvatarImage from '../../components/AvatarImage';
 import CustomTabBar from '../../components/CustomTabBar';
+import PWAInstallPrompt from '../../components/PWAInstallPrompt';
 import './index.scss';
 
 export default function Index() {
@@ -15,10 +17,41 @@ export default function Index() {
   const [todayCheckin, setTodayCheckin] = useState([]);
   const [weekStats, setWeekStats] = useState(null);
   const [classList, setClassList] = useState([]);
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
 
   useDidShow(() => {
     loadData();
   });
+
+  useEffect(() => {
+    // 动态视口高度：解决移动端软键盘导致的布局问题
+    const updateViewportHeight = () => {
+      const newHeight = window.innerHeight;
+      setViewportHeight(newHeight);
+      // 同时更新 CSS 变量
+      document.documentElement.style.setProperty('--vh', `${newHeight * 0.01}px`);
+    };
+
+    // 初始设置
+    updateViewportHeight();
+
+    // 监听窗口大小变化（软键盘弹起/收起）
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+
+    // 延迟再次校准，确保键盘完全收起
+    const timer1 = setTimeout(updateViewportHeight, 300);
+    const timer2 = setTimeout(updateViewportHeight, 800);
+    const timer3 = setTimeout(updateViewportHeight, 1500);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, []);
 
   const loadData = async () => {
     const info = getUserInfo();
@@ -99,7 +132,7 @@ export default function Index() {
         <View className='user-info' onClick={goProfile}>
           <View className='avatar'>
             {userInfo?.avatar ? (
-              <Image src={userInfo.avatar} className='avatar-img' />
+              <AvatarImage src={userInfo.avatar} className='avatar-img' />
             ) : (
               <Text className='avatar-text'>{userInfo?.name?.[0] || '?'}</Text>
             )}
@@ -255,6 +288,8 @@ export default function Index() {
       )}
       {/* 自定义 TabBar */}
       <CustomTabBar />
+      {/* PWA 安装引导 */}
+      <PWAInstallPrompt />
     </View>
   );
 }

@@ -3,15 +3,20 @@
 import Taro from '@tarojs/taro';
 import cloudbase from '@cloudbase/js-sdk';
 
-// 替换为你自己的云开发环境 ID
 const ENV_ID = 'cloud1-d9g0cl0c6e5006db7'; 
-
-// 本地用户ID存储键（独立于CloudBase，确保身份切换可靠）
 const LOCAL_USER_ID_KEY = 'weixinsport_local_uid';
+const INIT_VERSION_KEY = 'weixinsport_init_version';
+const FORCE_RESET_FLAG = 'weixinsport_force_reset';
 
 let cloudInstance = null;
 let isAnonymousLogin = false;
 let initPromise = null;
+
+// 判断是否为微信浏览器
+const isWeChatBrowser = () => {
+  if (typeof navigator === 'undefined') return false;
+  return /MicroMessenger/i.test(navigator.userAgent);
+};
 
 // 生成UUID v4
 const generateUUID = () => {
@@ -20,8 +25,6 @@ const generateUUID = () => {
       return crypto.randomUUID();
     }
   } catch (e) {}
-  
-  // 手动生成UUID v4
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -55,45 +58,108 @@ const clearLocalUserId = () => {
   }
 };
 
-// 彻底清除所有浏览器存储（确保下次登录获得全新身份）
-const clearAllBrowserStorage = () => {
+// 清除所有 CloudBase 相关的 localStorage
+const clearCloudBaseLocalStorage = () => {
   try {
-    // 清除所有 localStorage
-    const allLocalKeys = [];
+    const prefixes = [
+      'credentials_cloud',
+      'user_info_cloud',
+      'anonymous_uuid',
+      'auth_cloud',
+      'temp_auth_cloud',
+      'lang_cloud',
+      'cloudbase_auth',
+      'device_id',
+    ];
+    const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
-      allLocalKeys.push(localStorage.key(i));
-    }
-    allLocalKeys.forEach(key => {
-      localStorage.removeItem(key);
-    });
-    console.log('[clearStorage] 清除 localStorage:', allLocalKeys.length, '项');
-
-    // 清除所有 sessionStorage
-    const allSessionKeys = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      allSessionKeys.push(sessionStorage.key(i));
-    }
-    allSessionKeys.forEach(key => {
-      sessionStorage.removeItem(key);
-    });
-    console.log('[clearStorage] 清除 sessionStorage:', allSessionKeys.length, '项');
-
-    // 清除 IndexedDB
-    try {
-      if (indexedDB && indexedDB.databases) {
-        const dbs = indexedDB.databases();
-        dbs.forEach(db => {
-          if (db.name) {
-            indexedDB.deleteDatabase(db.name);
-            console.log('[clearStorage] 删除 IndexedDB:', db.name);
-          }
-        });
+      const key = localStorage.key(i);
+      if (prefixes.some(p => key.startsWith(p))) {
+        keysToRemove.push(key);
       }
-    } catch (e) {
-      console.warn('[clearStorage] 清除 IndexedDB 失败:', e.message);
     }
+    keysToRemove.forEach(key => {
+      try { localStorage.removeItem(key); } catch (e) {}
+    });
+    console.log('[clearStorage] 清除 CloudBase localStorage:', keysToRemove.length, '项', keysToRemove);
   } catch (e) {
-    console.warn('[clearStorage] 清除存储失败:', e.message);
+    console.warn('[clearStorage] 清除失败:', e.message);
+  }
+};
+
+// 带超时的 Promise
+const withTimeout = (promise, timeoutMs, label) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} 超时(${timeoutMs}ms)`)), timeoutMs);
+    })
+  ]);
+};
+
+// 检查是否需要强制重置（URL参数或标记）
+const checkForceReset = () => {
+  // URL 参数 ?reset=1
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('reset') === '1') {
+      console.log('[forceReset] 检测到 URL 参数 reset=1，执行强制重置');
+      return true;
+    }
+  } catch (e) {}
+  
+  // 全局标记
+  try {
+    if (window.__forceReset === true) {
+      console.log('[forceReset] 检测到全局重置标记');
+      return true;
+    }
+  } catch (e) {}
+  
+  return false;
+};
+
+// 执行强制重置（清除所有存储 + 重新初始化）
+export const forceResetAll = () => {
+  console.log('[forceResetAll] 执行强制重置...');
+  try {
+    // 清除所有相关的 localStorage
+    const allKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('cloud') || key.startsWith('weixinsport_') || key.startsWith('credentials') || key.startsWith('user_info') || key.startsWith('auth_') || key.startsWith('anonymous') || key.startsWith('device_id')) {
+        allKeys.push(key);
+      }
+    }
+    allKeys.forEach(key => {
+      try { localStorage.removeItem(key); } catch (e) {}
+    });
+    console.log('[forceResetAll] 已清除:', allKeys.length, '项', allKeys);
+    
+    // 清除 sessionStorage
+    try {
+      const sessionKeys = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key.startsWith('cloud') || key.startsWith('weixinsport_') || key.startsWith('credentials') || key.startsWith('user_info')) {
+          sessionKeys.push(key);
+        }
+      }
+      sessionKeys.forEach(key => {
+        try { sessionStorage.removeItem(key); } catch (e) {}
+      });
+    } catch (e) {}
+    
+    // 重置 SDK 实例
+    cloudInstance = null;
+    isAnonymousLogin = false;
+    initPromise = null;
+    
+    console.log('[forceResetAll] 重置完成，请刷新页面');
+    return true;
+  } catch (e) {
+    console.error('[forceResetAll] 失败:', e.message);
+    return false;
   }
 };
 
@@ -104,46 +170,103 @@ export const initCloud = async () => {
   }
   
   initPromise = (async () => {
-    if (process.env.TARO_ENV === 'h5') {
-      // H5 环境：使用 CloudBase JS SDK npm 包
-      if (cloudbase) {
-        cloudInstance = cloudbase.init({
-          env: ENV_ID
-        });
-        console.log('云开发 Web SDK 初始化成功 (H5)');
-        
-        // H5 环境需要匿名登录才能调用云函数
-        try {
-          const auth = cloudInstance.auth();
-          const user = auth.getCurrentUser();
-          if (!user) {
-            console.log('[initCloud] 开始匿名登录...');
-            await auth.signInAnonymously();
-            isAnonymousLogin = true;
-            console.log('[initCloud] 匿名登录成功');
-          } else {
-            isAnonymousLogin = true;
-            console.log('[initCloud] 已有登录状态:', user.uid);
-          }
-        } catch (err) {
-          console.error('[initCloud] 匿名登录失败:', err);
-        }
-      } else {
-        console.warn('CloudBase JS SDK 加载失败');
-      }
-    } else {
-      // 小程序环境：使用 Taro.cloud
+    if (process.env.TARO_ENV !== 'h5') {
       if (Taro.cloud) {
-        Taro.cloud.init({
-          env: ENV_ID
-        });
+        Taro.cloud.init({ env: ENV_ID });
         cloudInstance = Taro.cloud;
         console.log('云开发初始化成功 (小程序)');
       }
+      return;
+    }
+
+    if (!cloudbase) {
+      console.warn('CloudBase JS SDK 加载失败');
+      return;
+    }
+
+    const isWX = isWeChatBrowser();
+    console.log('[initCloud] 环境:', isWX ? '微信浏览器' : '普通浏览器');
+
+    // 1. 检查 URL 参数或全局重置标记
+    const needReset = checkForceReset();
+    
+    // 2. 检查初始化版本号
+    const CURRENT_VERSION = 'v3';
+    let versionChanged = false;
+    try {
+      const savedVersion = localStorage.getItem(INIT_VERSION_KEY);
+      if (savedVersion !== CURRENT_VERSION) {
+        versionChanged = true;
+      }
+    } catch (e) {}
+
+    // 3. 如果需要重置或版本变更，彻底清理
+    if (needReset || versionChanged) {
+      console.log('[initCloud] 执行清理...', { needReset, versionChanged });
+      clearCloudBaseLocalStorage();
+      // 如果是 URL 参数重置，也清除业务身份
+      if (needReset) {
+        clearLocalUserId();
+        // 从 URL 中移除 reset 参数
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('reset');
+          window.history.replaceState({}, '', url.toString());
+        } catch (e) {}
+      }
+      try {
+        localStorage.setItem(INIT_VERSION_KEY, CURRENT_VERSION);
+      } catch (e) {}
+    }
+
+    // 创建 SDK 实例
+    cloudInstance = cloudbase.init({ env: ENV_ID });
+    console.log('[initCloud] SDK 实例创建成功');
+
+    // 匿名登录
+    try {
+      console.log('[initCloud] 开始匿名登录...');
+      const auth = cloudInstance.auth();
+      const result = await withTimeout(
+        auth.signInAnonymously(),
+        15000,
+        '匿名登录'
+      );
+      if (result && result.error) {
+        throw new Error('匿名登录失败: ' + result.error.message);
+      }
+      isAnonymousLogin = true;
+      const newUser = auth.getCurrentUser();
+      console.log('[initCloud] 匿名登录成功:', newUser ? newUser.uid : 'null');
+    } catch (err) {
+      console.error('[initCloud] 首次匿名登录失败:', err.message);
+      
+      // 失败后尝试：清存储 → 重建实例 → 重试
+      try {
+        console.log('[initCloud] 清理存储后重试...');
+        clearCloudBaseLocalStorage();
+        cloudInstance = cloudbase.init({ env: ENV_ID });
+        const auth2 = cloudInstance.auth();
+        await withTimeout(auth2.signInAnonymously(), 15000, '重试匿名登录');
+        isAnonymousLogin = true;
+        console.log('[initCloud] 重试匿名登录成功:', auth2.getCurrentUser()?.uid);
+      } catch (retryErr) {
+        console.error('[initCloud] 重试也失败:', retryErr.message);
+      }
     }
   })();
-  
+
   return initPromise;
+};
+
+// 强制重新初始化（用于鉴权失败后的恢复）
+const forceReinitCloudBase = async () => {
+  console.log('[forceReinit] 开始强制重新初始化...');
+  cloudInstance = null;
+  isAnonymousLogin = false;
+  initPromise = null;
+  clearCloudBaseLocalStorage();
+  return initCloud();
 };
 
 // 等待初始化完成
@@ -152,37 +275,13 @@ export const waitForInit = () => initPromise || Promise.resolve();
 // 获取云开发实例
 export const getCloud = () => cloudInstance;
 
-// 退出 CloudBase 登录（用于切换用户）
+// 退出登录（仅清除业务身份）
 export const signOutCloudBase = async () => {
-  if (process.env.TARO_ENV !== 'h5' || !cloudInstance) {
-    isAnonymousLogin = false;
-    initPromise = null;
-    clearLocalUserId();
-    return;
-  }
-
-  try {
-    const auth = cloudInstance.auth();
-    const user = auth.getCurrentUser();
-    if (user) {
-      await auth.signOut();
-      console.log('[signOutCloudBase] 已退出 CloudBase 登录');
-    }
-  } catch (err) {
-    console.warn('[signOutCloudBase] 退出失败:', err.message);
-  }
-
-  // 清除本地用户ID
   clearLocalUserId();
-
-  // 彻底清除所有浏览器存储
-  clearAllBrowserStorage();
-
-  isAnonymousLogin = false;
-  initPromise = null;
+  console.log('[signOutCloudBase] 业务身份已清除');
 };
 
-// 获取当前用户的业务ID（本地UUID，独立于CloudBase）
+// 获取当前用户的业务ID
 export const getCurrentUid = async () => {
   if (process.env.TARO_ENV === 'h5') {
     return getOrCreateLocalUserId();
@@ -192,34 +291,57 @@ export const getCurrentUid = async () => {
 
 // 确保 H5 环境已登录
 const ensureLogin = async () => {
-  if (process.env.TARO_ENV !== 'h5' || !cloudInstance) return;
+  if (process.env.TARO_ENV !== 'h5') return;
+  if (!cloudInstance) {
+    await initCloud();
+  }
+  if (!cloudInstance) {
+    throw new Error('云开发未初始化');
+  }
 
   const auth = cloudInstance.auth();
-
-  let user = auth.getCurrentUser();
-  if (user) {
-    isAnonymousLogin = true;
-    return user;
+  try {
+    const user = auth.getCurrentUser();
+    if (user) {
+      isAnonymousLogin = true;
+      return user;
+    }
+  } catch (e) {
+    console.warn('[ensureLogin] getCurrentUser 异常，重新登录:', e.message);
   }
 
   try {
-    const result = await auth.signInAnonymously();
-    if (result.error) {
-      throw new Error('匿名登录失败：' + result.error.message);
+    const result = await withTimeout(auth.signInAnonymously(), 15000, 'ensureLogin');
+    if (result && result.error) {
+      throw new Error('匿名登录失败: ' + result.error.message);
     }
     isAnonymousLogin = true;
-    user = auth.getCurrentUser();
-    console.log('[ensureLogin] 匿名登录成功:', user ? user.uid : 'null');
-    return user;
+    const newUser = auth.getCurrentUser();
+    console.log('[ensureLogin] 匿名登录成功:', newUser ? newUser.uid : 'null');
+    return newUser;
   } catch (err) {
     console.error('[ensureLogin] 匿名登录失败:', err.message);
-    throw new Error('匿名登录失败：' + (err.message || '请检查网络连接'));
+    throw new Error('登录失败：' + (err.message || '请检查网络连接'));
   }
 };
 
-// 调用云函数（H5 和 小程序 统一接口）
+// 判断是否为鉴权错误
+const isAuthError = (err) => {
+  const errMsg = JSON.stringify(err);
+  return err.error === 'unauthenticated' ||
+    err.error_code === 'UNAUTHENTICATED' ||
+    errMsg.includes('unauthenticated') ||
+    errMsg.includes('credentials not found') ||
+    errMsg.includes('credentials');
+};
+
+// 调用云函数
 export const callFunction = async (name, data = {}) => {
   await waitForInit();
+
+  if (!cloudInstance) {
+    await initCloud();
+  }
 
   const cloud = getCloud();
   if (!cloud) {
@@ -229,9 +351,7 @@ export const callFunction = async (name, data = {}) => {
   if (process.env.TARO_ENV === 'h5') {
     await ensureLogin();
 
-    // 使用本地用户ID作为业务标识
     const localUid = getOrCreateLocalUserId();
-    console.log('[callFunction] name:', name, 'localUid:', localUid);
     const requestData = { ...data, _uid: localUid };
 
     try {
@@ -240,22 +360,18 @@ export const callFunction = async (name, data = {}) => {
     } catch (err) {
       console.error('[callFunction] error:', err);
 
-      const errMsg = JSON.stringify(err);
-      const isAuthError = err.error === 'unauthenticated' ||
-        err.error_code === 'UNAUTHENTICATED' ||
-        errMsg.includes('unauthenticated') ||
-        errMsg.includes('credentials not found');
-
-      if (isAuthError) {
-        console.log('[callFunction] 认证失效，重新登录后重试...');
+      if (isAuthError(err)) {
+        console.log('[callFunction] 鉴权失效，执行恢复...');
         try {
-          await ensureLogin();
-          const retryData = { ...data, _uid: localUid };
-          return cloud.callFunction({ name, data: retryData });
+          await forceReinitCloudBase();
+          const retryCloud = getCloud();
+          if (retryCloud) {
+            return await retryCloud.callFunction({ name, data: { ...data, _uid: localUid } });
+          }
         } catch (retryErr) {
-          console.error('[callFunction] 重试失败:', retryErr);
-          throw new Error('登录状态失效，请点击重试');
+          console.error('[callFunction] 恢复重试失败:', retryErr);
         }
+        throw new Error('登录状态失效，请刷新页面重试');
       }
 
       throw err;
@@ -277,8 +393,10 @@ export const uploadFile = async (file, cloudPath) => {
   await waitForInit();
   
   if (process.env.TARO_ENV === 'h5') {
-    const cloud = getCloud();
-    if (!cloud) {
+    if (!cloudInstance) {
+      await initCloud();
+    }
+    if (!cloudInstance) {
       throw new Error('云开发未初始化');
     }
     await ensureLogin();
@@ -296,18 +414,19 @@ export const uploadFile = async (file, cloudPath) => {
     
     console.log('[uploadFile] cloudPath:', safePath, 'size:', fileContent?.byteLength || file?.size);
     
-    const uploadRes = await cloud.uploadFile({
+    const uploadRes = await cloudInstance.uploadFile({
       cloudPath: safePath,
       fileContent
     });
     
-    const downloadUrl = await cloud.getTempFileURL({
-      fileIDs: [uploadRes.fileID]
+    // H5 环境：使用 fileList 参数获取临时链接
+    const downloadUrl = await cloudInstance.getTempFileURL({
+      fileList: [uploadRes.fileID]
     });
     
     return {
       fileID: uploadRes.fileID,
-      url: downloadUrl.fileList?.[0]?.tempFileURL || ''
+      url: downloadUrl.fileList?.[0]?.tempFileURL || downloadUrl.fileList?.[0]?.downloadUrl || ''
     };
   } else {
     return new Promise((resolve, reject) => {
@@ -323,5 +442,171 @@ export const uploadFile = async (file, cloudPath) => {
         fail: reject
       });
     });
+  }
+};
+
+// 缓存 fileID -> URL 的映射，避免重复请求
+const urlCache = new Map();
+const URL_CACHE_TTL = 30 * 60 * 1000; // 30 分钟缓存（临时链接有效期 2 小时）
+
+/**
+ * 将 fileID 转换为可访问的 URL
+ * - 如果已经是 http(s) URL，直接返回
+ * - 如果是 fileID（cloud:// 开头），调用 getTempFileURL 获取临时链接
+ * - 结果会被缓存 30 分钟
+ * @param {string} fileIDOrUrl - fileID 或 URL
+ * @returns {Promise<string>} 可访问的 URL
+ */
+export const resolveFileURL = async (fileIDOrUrl) => {
+  if (!fileIDOrUrl || typeof fileIDOrUrl !== 'string' || fileIDOrUrl.trim() === '') {
+    return '';
+  }
+  
+  const trimmed = fileIDOrUrl.trim();
+  
+  // 已经是 http(s) URL，直接返回
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  
+  // 不是 fileID 格式，直接返回
+  if (!trimmed.startsWith('cloud://')) {
+    return trimmed;
+  }
+  
+  // 检查缓存
+  const cached = urlCache.get(trimmed);
+  if (cached && Date.now() - cached.time < URL_CACHE_TTL) {
+    return cached.url;
+  }
+  
+  await waitForInit();
+  
+  try {
+    let url;
+    
+    if (process.env.TARO_ENV === 'h5') {
+      if (!cloudInstance) {
+        await initCloud();
+      }
+      if (!cloudInstance) {
+        throw new Error('云开发未初始化');
+      }
+      await ensureLogin();
+      
+      // H5 环境：使用 fileList 参数
+      const result = await cloudInstance.getTempFileURL({
+        fileList: [trimmed]
+      });
+      url = result.fileList?.[0]?.tempFileURL || result.fileList?.[0]?.downloadUrl || '';
+    } else {
+      // 小程序环境
+      url = await new Promise((resolve, reject) => {
+        Taro.cloud.getTempFileURL({
+          fileList: [trimmed],
+          success: (res) => {
+            resolve(res.fileList?.[0]?.tempFileURL || '');
+          },
+          fail: reject
+        });
+      });
+    }
+    
+    // 存入缓存
+    if (url) {
+      urlCache.set(trimmed, { url, time: Date.now() });
+    }
+    
+    return url;
+  } catch (err) {
+    console.error('[resolveFileURL] error:', err);
+    // 缓存失败结果，避免重复请求
+    urlCache.set(trimmed, { url: '', time: Date.now() });
+    return '';
+  }
+};
+
+/**
+ * 批量将 fileID 转换为可访问的 URL
+ * @param {string[]} fileIDs - fileID 数组
+ * @returns {Promise<Map<string, string>>} fileID -> URL 映射
+ */
+export const resolveFileURLs = async (fileIDs) => {
+  const result = new Map();
+  const needResolve = [];
+  
+  // 分类：已缓存 / 需要解析
+  for (const id of fileIDs) {
+    if (!id || typeof id !== 'string' || id.trim() === '') {
+      result.set(id, '');
+      continue;
+    }
+    const trimmed = id.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      result.set(trimmed, trimmed);
+      continue;
+    }
+    if (!trimmed.startsWith('cloud://')) {
+      result.set(trimmed, trimmed);
+      continue;
+    }
+    const cached = urlCache.get(trimmed);
+    if (cached && Date.now() - cached.time < URL_CACHE_TTL) {
+      result.set(trimmed, cached.url);
+    } else {
+      needResolve.push(trimmed);
+    }
+  }
+  
+  if (needResolve.length === 0) {
+    return result;
+  }
+  
+  await waitForInit();
+  
+  try {
+    let urls;
+    
+    if (process.env.TARO_ENV === 'h5') {
+      if (!cloudInstance) {
+        await initCloud();
+      }
+      if (!cloudInstance) {
+        throw new Error('云开发未初始化');
+      }
+      await ensureLogin();
+      
+      // H5 环境：使用 fileList 参数
+      const res = await cloudInstance.getTempFileURL({
+        fileList: needResolve
+      });
+      urls = res.fileList || [];
+    } else {
+      // 小程序环境
+      urls = await new Promise((resolve, reject) => {
+        Taro.cloud.getTempFileURL({
+          fileList: needResolve,
+          success: (res) => resolve(res.fileList || []),
+          fail: reject
+        });
+      });
+    }
+    
+    // 更新缓存和结果
+    for (let i = 0; i < needResolve.length; i++) {
+      const id = needResolve[i];
+      const url = urls[i]?.tempFileURL || urls[i]?.downloadUrl || '';
+      urlCache.set(id, { url, time: Date.now() });
+      result.set(id, url);
+    }
+    
+    return result;
+  } catch (err) {
+    console.error('[resolveFileURLs] error:', err);
+    // 失败时返回空字符串
+    for (const id of needResolve) {
+      result.set(id, '');
+    }
+    return result;
   }
 };

@@ -2,13 +2,39 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-  <title>微信运动</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>华曜运动打卡</title>
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/manifest.json">
+  <!-- 移动端全屏 -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="华曜打卡">
+  <meta name="theme-color" content="#07c160">
+  <!-- 浏览器标签页图标（支持 SVG 的浏览器） -->
+  <link rel="icon" href="/favicon.jpg" type="image/svg+xml">
+  <!-- 兼容性：老浏览器/收藏夹使用 ICO -->
+  <link rel="alternate icon" href="/favicon.jpg" type="image/jpeg">
+  <!-- iPhone/iPad 添加到主屏幕 -->
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon.jpg">
+  <!-- Android 添加到主屏幕 -->
+  <link rel="shortcut icon" href="/favicon.jpg">
   <link rel="stylesheet" href="<%= htmlWebpackPlugin.options.css %>">
 </head>
 <body>
   <div id="app"></div>
   <script src="<%= htmlWebpackPlugin.options.appJs %>"></script>
   <script src="<%= htmlWebpackPlugin.options.runtimeJs %>"></script>
+  <!-- Service Worker 注册 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(() => console.log('Service Worker 注册成功'))
+          .catch(err => console.log('Service Worker 注册失败:', err));
+      });
+    }
+  </script>
 </body>
 </html>

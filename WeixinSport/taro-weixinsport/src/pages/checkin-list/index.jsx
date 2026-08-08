@@ -5,6 +5,7 @@ import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo, getRole } from '../../utils/auth';
 import { timeAgo } from '../../utils/constants';
+import { resolveFileURL } from '../../utils/cloud';
 import CustomTabBar from '../../components/CustomTabBar';
 import './index.scss';
 
@@ -13,21 +14,6 @@ const FILTERS = [
   { id: 'week', name: '本周' },
   { id: 'month', name: '本月' }
 ];
-
-// 辅助函数：获取图片真实 URL
-const resolveImageUrl = async (image) => {
-  if (!image) return '';
-  // 如果已经是 http 开头，直接返回
-  if (image.startsWith('http')) return image;
-  // 如果是 fileID，获取临时链接
-  try {
-    const data = await api.getImageUrl(image);
-    return data.url || '';
-  } catch (e) {
-    console.error('getImageUrl error', e);
-    return '';
-  }
-};
 
 export default function CheckinList() {
   const [list, setList] = useState([]);
@@ -55,7 +41,7 @@ export default function CheckinList() {
           const itemImage = item.image || '';
           let displayImage = '';
           if (itemImage) {
-            displayImage = await resolveImageUrl(itemImage);
+            displayImage = await resolveFileURL(itemImage);
           }
           return { ...item, displayImage };
         })

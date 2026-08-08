@@ -185,4 +185,171 @@
       }
     }
   }
+
+  // 弹窗样式
+  .modal-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 40px 24px;
+  }
+
+  .modal-box {
+    background: #fff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 360px;
+    overflow: hidden;
+  }
+
+  .modal-title {
+    display: block;
+    font-size: 17px;
+    font-weight: bold;
+    color: #333;
+    text-align: center;
+    padding: 20px 0 0;
+  }
+
+  .modal-form {
+    padding: 20px 20px 10px;
+  }
+
+  .form-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 8px;
+
+    .form-label {
+      width: 70px;
+      font-size: 14px;
+      color: #666;
+      flex-shrink: 0;
+    }
+
+    .form-input {
+      flex: 1;
+      font-size: 15px;
+      color: #333;
+    }
+  }
+
+  .modal-actions {
+    display: flex;
+    border-top: 0.5px solid #f0f0f0;
+    margin-top: 10px;
+
+    .modal-btn {
+      flex: 1;
+      height: 48px;
+      line-height: 48px;
+      font-size: 16px;
+      border-radius: 0;
+      border: none;
+      background: #fff;
+      color: #333;
+
+      &::after {
+        display: none;
+      }
+
+      &.cancel {
+        border-right: 0.5px solid #f0f0f0;
+        color: #999;
+      }
+
+      &.confirm {
+        color: #4A90E2;
+        font-weight: 500;
+      }
+
+      &:active {
+        background: #f5f5f5;
+      }
+    }
+  }
+
+  // 退出班级弹窗
+  .quit-modal {
+    max-width: 340px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .class-list {
+    flex: 1;
+    padding: 16px 20px;
+    max-height: 360px;
+  }
+
+  .class-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 0.5px solid #f0f0f0;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .class-info {
+      flex: 1;
+
+      .class-name {
+        display: block;
+        font-size: 16px;
+        color: #333;
+        font-weight: 500;
+      }
+
+      .class-meta {
+        display: block;
+        font-size: 12px;
+        color: #999;
+        margin-top: 4px;
+      }
+    }
+
+    .quit-btn {
+      font-size: 13px;
+      padding: 4px 12px;
+      background: #fff;
+      color: #e64340;
+      border: 1px solid #e64340;
+      border-radius: 4px;
+      line-height: 1.4;
+      height: auto;
+      min-height: auto;
+
+      &::after {
+        display: none;
+      }
+
+      &:active {
+        background: #fef0ef;
+      }
+    }
+  }
+
+  .modal-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+
+    .empty-text {
+      color: #999;
+    }
+  }
 }

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Input, Button, Image } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import api from '../../utils/api';
-import { setUserInfo, getUserInfo, getOpenid, clearLogin } from '../../utils/auth';
+import { setUserInfo, getUserInfo, getUsername, clearLogin } from '../../utils/auth';
 import { ROLE_LABEL } from '../../utils/constants';
 import './index.scss';
 
@@ -24,6 +24,8 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
@@ -31,7 +33,7 @@ export default function Login() {
   useEffect(() => {
     // 检查是否已登录
     const userInfo = getUserInfo();
-    if (userInfo && getOpenid()) {
+    if (userInfo && getUsername()) {
       Taro.switchTab({ url: '/pages/index/index' });
     }
   }, []);
@@ -72,9 +74,10 @@ export default function Login() {
       
       setUserInfo(userInfo);
       Taro.showToast({ title: '登录成功', icon: 'success' });
+      // 延迟跳转，确保软键盘完全收起
       setTimeout(() => {
         Taro.switchTab({ url: '/pages/index/index' });
-      }, 800);
+      }, 1500);
     } catch (e) {
       console.error('login error', e);
       setLoginError(e.message || '登录失败，请检查用户名和密码');
@@ -137,9 +140,10 @@ export default function Login() {
       
       setUserInfo(userInfo);
       Taro.showToast({ title: '注册成功', icon: 'success' });
+      // 延迟跳转，确保软键盘完全收起
       setTimeout(() => {
         Taro.switchTab({ url: '/pages/index/index' });
-      }, 800);
+      }, 1500);
     } catch (e) {
       console.error('register error', e);
       setLoginError(e.message || '注册失败，请重试');
@@ -225,13 +229,18 @@ export default function Login() {
 
           <View className='form-row'>
             <Text className='form-label'>密码</Text>
-            <Input 
-              className='form-input' 
-              type='password'
-              placeholder='请输入密码' 
-              value={password} 
-              onInput={(e) => setPassword(e.detail.value)} 
-            />
+            <View className='password-input-wrapper'>
+              <Input 
+                className='form-input password-input' 
+                type={showPassword ? 'text' : 'password'}
+                placeholder='请输入密码' 
+                value={password} 
+                onInput={(e) => setPassword(e.detail.value)} 
+              />
+              <View className='password-eye' onClick={() => setShowPassword(!showPassword)}>
+                <Text>{showPassword ? '👁️‍🗨️' : '👁️'}</Text>
+              </View>
+            </View>
           </View>
 
           {loginError && (
@@ -260,6 +269,8 @@ export default function Login() {
               setTeacherCode('');
               setChildName('');
               setLoginError('');
+              setShowPassword(false);
+              setShowConfirmPassword(false);
               setMode('role');
               setStep('role');
             }}>立即注册</Text>
@@ -344,30 +355,40 @@ export default function Login() {
 
           <View className='form-row'>
             <Text className='form-label'>密码</Text>
-            <Input 
-              className='form-input' 
-              type='password'
-              placeholder='至少6位' 
-              value={password} 
-              onInput={(e) => {
-                const val = e.detail?.value || e.target?.value || '';
-                setPassword(val);
-              }}
-            />
+            <View className='password-input-wrapper'>
+              <Input 
+                className='form-input password-input' 
+                type={showPassword ? 'text' : 'password'}
+                placeholder='至少6位' 
+                value={password} 
+                onInput={(e) => {
+                  const val = e.detail?.value || e.target?.value || '';
+                  setPassword(val);
+                }}
+              />
+              <View className='password-eye' onClick={() => setShowPassword(!showPassword)}>
+                <Text>{showPassword ? '👁️‍🗨️' : '👁️'}</Text>
+              </View>
+            </View>
           </View>
 
           <View className='form-row'>
             <Text className='form-label'>确认密码</Text>
-            <Input 
-              className='form-input' 
-              type='password'
-              placeholder='再次输入密码' 
-              value={confirmPassword} 
-              onInput={(e) => {
-                const val = e.detail?.value || e.target?.value || '';
-                setConfirmPassword(val);
-              }}
-            />
+            <View className='password-input-wrapper'>
+              <Input 
+                className='form-input password-input' 
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder='再次输入密码' 
+                value={confirmPassword} 
+                onInput={(e) => {
+                  const val = e.detail?.value || e.target?.value || '';
+                  setConfirmPassword(val);
+                }}
+              />
+              <View className='password-eye' onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                <Text>{showConfirmPassword ? '👁️‍🗨️' : '👁️'}</Text>
+              </View>
+            </View>
           </View>
 
           <View className='form-row'>
@@ -435,6 +456,8 @@ export default function Login() {
               setClassCode('');
               setTeacherCode('');
               setChildName('');
+              setShowPassword(false);
+              setShowConfirmPassword(false);
             }}>返回</Button>
             <Button className='btn btn-block' onClick={handleRegister} loading={loading} disabled={loading}>
               完成注册
@@ -454,6 +477,8 @@ export default function Login() {
               setClassCode('');
               setTeacherCode('');
               setChildName('');
+              setShowPassword(false);
+              setShowConfirmPassword(false);
             }}>去登录</Text>
           </View>
         </View>

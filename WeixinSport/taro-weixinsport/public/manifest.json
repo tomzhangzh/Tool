@@ -1,0 +1,26 @@
+{
+  "name": "华曜运动打卡",
+  "short_name": "华曜打卡",
+  "description": "华曜大学城运动打卡记录",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#07c160",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/favicon.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "health", "lifestyle"]
+}

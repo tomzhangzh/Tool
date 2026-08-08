@@ -13,18 +13,18 @@ export const setUserInfo = (userInfo) => {
     const safeInfo = { ...userInfo };
     delete safeInfo.password;
     
-    // 确保 role 字段存在且正确
+    // 确保 role 和 username 字段存在且正确
     const role = safeInfo.role || null;
-    const openid = safeInfo.openid || null;
+    const username = safeInfo.username || null;
     
     Taro.setStorageSync(USER_INFO_KEY, safeInfo);
     Taro.setStorageSync('role', role);
-    Taro.setStorageSync('openid', openid);
+    Taro.setStorageSync('username', username);
     
     // 记录 CloudBase 已登录状态
     Taro.setStorageSync(CLOUD_LOGIN_KEY, Date.now());
     
-    console.log('[setUserInfo] 存储用户信息:', { role, openid, name: safeInfo.name });
+    console.log('[setUserInfo] 存储用户信息:', { role, username, name: safeInfo.name });
   }
 };
 
@@ -62,10 +62,10 @@ export const getRole = () => {
   }
 };
 
-// 获取 openid
-export const getOpenid = () => {
+// 获取 username
+export const getUsername = () => {
   try {
-    return Taro.getStorageSync('openid') || null;
+    return Taro.getStorageSync('username') || null;
   } catch (e) {
     return null;
   }
@@ -75,8 +75,8 @@ export const getOpenid = () => {
 export const isLoggedIn = () => {
   try {
     const userInfo = Taro.getStorageSync(USER_INFO_KEY);
-    const openid = Taro.getStorageSync('openid');
-    return !!(userInfo && openid);
+    const username = Taro.getStorageSync('username');
+    return !!(userInfo && username);
   } catch (e) {
     return false;
   }
@@ -87,7 +87,7 @@ export const clearLogin = async () => {
   try {
     Taro.removeStorageSync(USER_INFO_KEY);
     Taro.removeStorageSync('role');
-    Taro.removeStorageSync('openid');
+    Taro.removeStorageSync('username');
     Taro.removeStorageSync(CLOUD_LOGIN_KEY);
     // 退出 CloudBase 登录，确保下次匿名登录获得新 uid
     await signOutCloudBase();

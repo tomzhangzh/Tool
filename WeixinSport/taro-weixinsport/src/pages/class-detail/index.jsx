@@ -1,9 +1,10 @@
 // src/pages/class-detail/index.jsx
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Image } from '@tarojs/components';
+import { View, Text, ScrollView } from '@tarojs/components';
 import Taro, { useDidShow, useRouter } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo } from '../../utils/auth';
+import AvatarImage from '../../components/AvatarImage';
 import CustomTabBar from '../../components/CustomTabBar';
 import './index.scss';
 
@@ -37,11 +38,11 @@ export default function ClassDetail() {
         api.getClassMembers(id),
         api.getClassTeachers(id)
       ]);
-      const openid = getUserInfo()?.openid;
+      const username = getUserInfo()?.username;
       setInfo(detail);
       setMembers(memberList);
       setTeachers(teacherList);
-      setIsCreator(detail?.teacherOpenid === openid);
+      setIsCreator(detail?.creatorUsername === username);
     } catch (e) {
       console.error('load class detail error', e);
     } finally {
@@ -58,7 +59,7 @@ export default function ClassDetail() {
     }
   };
 
-  const removeTeacher = async (targetOpenid, targetName) => {
+  const removeTeacher = async (targetUsername, targetName) => {
     Taro.showModal({
       title: '移除老师',
       content: `确定将「${targetName}」移出班级管理？`,
@@ -66,7 +67,7 @@ export default function ClassDetail() {
       success: async (res) => {
         if (!res.confirm) return;
         try {
-          await api.removeTeacher(classId, targetOpenid);
+          await api.removeTeacher(classId, targetUsername);
           Taro.showToast({ title: '已移除', icon: 'success' });
           loadDetail(classId);
         } catch (e) {
@@ -116,10 +117,10 @@ export default function ClassDetail() {
               <View className='card-title'>{info.isTeacher ? '管理老师' : '班级老师'}（{teachers.length}）</View>
               <View className='teacher-list'>
                 {teachers.map(teacher => (
-                  <View className='teacher-item' key={teacher.openid}>
+                  <View className='teacher-item' key={teacher.username}>
                     <View className='avatar'>
                       {teacher.avatar ? (
-                        <Image src={teacher.avatar} className='avatar-img' />
+                        <AvatarImage src={teacher.avatar} className='avatar-img' />
                       ) : (
                         <Text className='avatar-text'>{teacher.name?.[0] || '?'}</Text>
                       )}
@@ -129,7 +130,7 @@ export default function ClassDetail() {
                       <Text className='teacher-role'>{teacher.role === 'creator' ? '创建者' : '共管老师'}</Text>
                     </View>
                     {isCreator && teacher.role !== 'creator' && (
-                      <View className='remove-btn' onClick={() => removeTeacher(teacher.openid, teacher.name)}>
+                      <View className='remove-btn' onClick={() => removeTeacher(teacher.username, teacher.name)}>
                         移除
                       </View>
                     )}
@@ -149,7 +150,7 @@ export default function ClassDetail() {
                     <View className='rank-num'>#{members.indexOf(member) + 1}</View>
                     <View className='avatar small'>
                       {member.avatar ? (
-                        <Image src={member.avatar} className='avatar-img' />
+                        <AvatarImage src={member.avatar} className='avatar-img' />
                       ) : (
                         <Text className='avatar-text'>{member.name?.[0] || '?'}</Text>
                       )}

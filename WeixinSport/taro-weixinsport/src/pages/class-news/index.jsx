@@ -5,20 +5,8 @@ import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo } from '../../utils/auth';
 import { timeAgo } from '../../utils/constants';
+import { resolveFileURL } from '../../utils/cloud';
 import CustomTabBar from '../../components/CustomTabBar';
-
-// 辅助函数：获取图片真实 URL
-const resolveImageUrl = async (image) => {
-  if (!image) return '';
-  if (image.startsWith('http')) return image;
-  try {
-    const data = await api.getImageUrl(image);
-    return data.url || '';
-  } catch (e) {
-    console.error('getImageUrl error', e);
-    return '';
-  }
-};
 
 export default function ClassNews() {
   const [classes, setClasses] = useState([]);
@@ -86,7 +74,7 @@ export default function ClassNews() {
           const itemImage = item.image || '';
           let displayImage = '';
           if (itemImage) {
-            displayImage = await resolveImageUrl(itemImage);
+            displayImage = await resolveFileURL(itemImage);
           }
           return { ...item, displayImage };
         })

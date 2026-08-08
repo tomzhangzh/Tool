@@ -1,9 +1,10 @@
 // src/pages/monthly/index.jsx
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Button, Image } from '@tarojs/components';
+import { View, Text, ScrollView, Button } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo, getRole } from '../../utils/auth';
+import AvatarImage from '../../components/AvatarImage';
 import CustomTabBar from '../../components/CustomTabBar';
 import './index.scss';
 
@@ -87,10 +88,10 @@ export default function Monthly() {
                 <Text className='card-title text-center'>🏆 月度运动榜单</Text>
                 <View className='podium'>
                   {top3.map((item, idx) => (
-                    <View className={`podium-col podium-${idx + 1}`} key={item.openid}>
+                    <View className={`podium-col podium-${idx + 1}`} key={item.username}>
                       <Text className='podium-medal'>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</Text>
                       <View className='podium-avatar'>
-                        {item.avatar ? <Image src={item.avatar} className='avatar' /> : <Text className='avatar-placeholder'>{item.name ? item.name[0] : '?'}</Text>}
+                        {item.avatar ? <AvatarImage src={item.avatar} className='avatar' /> : <Text className='avatar-placeholder'>{item.name ? item.name[0] : '?'}</Text>}
                       </View>
                       <Text className='podium-name'>{item.name}</Text>
                       <Text className='podium-score'>{item.score}分</Text>

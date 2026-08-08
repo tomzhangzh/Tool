@@ -1,9 +1,10 @@
 // src/pages/ranking/index.jsx
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Image } from '@tarojs/components';
+import { View, Text, ScrollView } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo } from '../../utils/auth';
+import AvatarImage from '../../components/AvatarImage';
 import CustomTabBar from '../../components/CustomTabBar';
 import './index.scss';
 
@@ -82,12 +83,12 @@ export default function Ranking() {
             {ranking.length > 0 ? (
               <View className='card rank-list'>
                 {ranking.map((item, idx) => (
-                  <View className={`rank-row ${item.isMe ? 'rank-me' : ''}`} key={item.openid}>
+                  <View className={`rank-row ${item.isMe ? 'rank-me' : ''}`} key={item.username}>
                     <View className='rank-num'>
                       <Text>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1)}</Text>
                     </View>
                     <View className='rank-avatar'>
-                      {item.avatar ? <Image src={item.avatar} className='avatar' /> : <Text className='avatar-placeholder'>{item.name ? item.name[0] : '?'}</Text>}
+                      {item.avatar ? <AvatarImage src={item.avatar} className='avatar' /> : <Text className='avatar-placeholder'>{item.name ? item.name[0] : '?'}</Text>}
                     </View>
                     <View className='rank-info'>
                       <Text className='rank-name'>{item.name}</Text>
