@@ -83,7 +83,6 @@ exports.main = async (event, context) => {
         name: name || username,
         avatar: avatar || '',
         weight: role === 'student' ? (weight || 30) : 30,
-        classIds: joinedClassIds,
         childOpenid: '',
         parentOpenids: [],
         createTime: Date.now(),
@@ -105,12 +104,12 @@ exports.main = async (event, context) => {
 
       const addRes = await userCol.add({ data: addData });
 
-      // 学生加入班级：写入 class_members 表
+      // 学生加入班级：写入 class_members 表（使用 username 作为关联键）
       if (role === 'student' && joinedClassIds.length > 0) {
         await db.collection('class_members').add({
           data: {
             classId: joinedClassIds[0],
-            openid,
+            username,
             role: 'student',
             joinTime: Date.now()
           }
@@ -169,7 +168,7 @@ exports.main = async (event, context) => {
         update.weight = weight || 30;
       }
 
-      // 学生加入班级
+      // 学生加入班级（使用 username 作为关联键）
       let joinedClassIds = [];
       if (role === 'student' && classCode) {
         const classCol = db.collection('classes');
@@ -179,16 +178,23 @@ exports.main = async (event, context) => {
         }
         const c = cls.data[0];
         joinedClassIds = [c._id];
-        update.classIds = joinedClassIds;
-        // 班级成员表登记
-        await db.collection('class_members').add({
-          data: {
-            classId: c._id,
-            openid,
-            role: 'student',
-            joinTime: Date.now()
-          }
-        });
+        
+        // 班级成员表登记（使用 username）
+        const userCol = db.collection('users');
+        const existing = await userCol.where({ openid }).orderBy('createTime', 'asc').get();
+        const userRecord = existing.data[0];
+        const username = userRecord ? userRecord.username : null;
+        
+        if (username) {
+          await db.collection('class_members').add({
+            data: {
+              classId: c._id,
+              username,
+              role: 'student',
+              joinTime: Date.now()
+            }
+          });
+        }
       }
 
       // 家长绑定孩子
@@ -243,7 +249,6 @@ exports.main = async (event, context) => {
             name,
             avatar: avatar || '',
             weight: role === 'student' ? (weight || 30) : 30,
-            classIds: joinedClassIds,
             childOpenid: '',
             parentOpenids: [],
             createTime: Date.now(),
@@ -262,15 +267,15 @@ exports.main = async (event, context) => {
       if (!userQ.data.length) return { code: 1, message: '用户不存在' };
       const user = userQ.data[0];
 
-      // 视角：家长看孩子
-      let targetOpenid = openid;
-      if (user.role === 'parent' && user.childOpenid) {
-        targetOpenid = user.childOpenid;
+      // 视角：家长看孩子（使用 username）
+      let targetUsername = user.username;
+      if (user.role === 'parent' && user.childUsername) {
+        targetUsername = user.childUsername;
       }
 
-      // 汇总打卡数据
+      // 汇总打卡数据（使用 username 查询）
       const agg = db.collection('checkins').aggregate();
-      const statRes = await agg.match({ openid: targetOpenid })
+      const statRes = await agg.match({ username: targetUsername })
         .group({
           _id: null,
           totalDuration: { $sum: '$duration' },
@@ -282,14 +287,14 @@ exports.main = async (event, context) => {
 
       // 坚持天数（去重打卡日）
       const dayAgg = db.collection('checkins').aggregate();
-      const dayRes = await dayAgg.match({ openid: targetOpenid })
+      const dayRes = await dayAgg.match({ username: targetUsername })
         .group({ _id: '$dateStr' })
         .count('days')
         .end();
       summary.totalDays = dayRes.list.length || 0;
 
-      // 奖项数
-      const awardCount = (await db.collection('awards').where({ openid: targetOpenid }).count()).total;
+      // 奖项数（使用 username 查询）
+      const awardCount = (await db.collection('awards').where({ username: targetUsername }).count()).total;
 
       return { code: 0, data: { summary, awardCount } };
     }
@@ -304,6 +309,31 @@ exports.main = async (event, context) => {
       }
       const updated = (await db.collection('users').doc(userQ.data[0]._id).get()).data;
       return { code: 0, data: updated };
+    }
+
+    // 修改密码
+    if (action === 'changePassword') {
+      const { oldPassword, newPassword } = event;
+      if (!oldPassword || !newPassword) {
+        return { code: 1, message: '密码不能为空' };
+      }
+      if (newPassword.length < 4) {
+        return { code: 1, message: '新密码至少4位' };
+      }
+
+      const userCol = db.collection('users');
+      const userQ = await userCol.where({ openid }).orderBy('createTime', 'asc').get();
+      if (!userQ.data.length) return { code: 1, message: '用户不存在' };
+      const user = userQ.data[0];
+
+      if (user.password !== oldPassword) {
+        return { code: 1, message: '原密码错误' };
+      }
+
+      await userCol.doc(user._id).update({
+        data: { password: newPassword, updateTime: Date.now() }
+      });
+      return { code: 0, data: { ok: true } };
     }
 
     // 一次性全表去重：合并同 openid 的多余记录，保留 createTime 最早一条

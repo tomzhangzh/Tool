@@ -67,5 +67,53 @@ export const timeAgo = (ts) => {
   const d = new Date(ts);
   const m = (d.getMonth() + 1).toString().padStart(2, '0');
   const day = d.getDate().toString().padStart(2, '0');
-  return `${m}-${day}`;
+  const h = d.getHours().toString().padStart(2, '0');
+  const min = d.getMinutes().toString().padStart(2, '0');
+  return `${m}-${day} ${h}:${min}`;
+};
+
+// 格式化日期时间（显示到分钟）
+export const formatDateTime = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  const h = d.getHours().toString().padStart(2, '0');
+  const min = d.getMinutes().toString().padStart(2, '0');
+  return `${y}-${m}-${day} ${h}:${min}`;
+};
+
+// 简洁日期时间（用于卡片底部）
+export const shortDateTime = (ts) => {
+  if (!ts) return '';
+  const now = new Date();
+  const d = new Date(ts);
+  const h = d.getHours().toString().padStart(2, '0');
+  const min = d.getMinutes().toString().padStart(2, '0');
+  
+  // 今天显示 HH:mm
+  if (d.toDateString() === now.toDateString()) {
+    return `今天 ${h}:${min}`;
+  }
+  
+  // 昨天
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) {
+    return `昨天 ${h}:${min}`;
+  }
+  
+  // 今年内显示 MM-DD HH:mm
+  if (d.getFullYear() === now.getFullYear()) {
+    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${m}-${day} ${h}:${min}`;
+  }
+  
+  // 其他显示完整日期
+  const y = d.getFullYear();
+  const m = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${y}-${m}-${day} ${h}:${min}`;
 };

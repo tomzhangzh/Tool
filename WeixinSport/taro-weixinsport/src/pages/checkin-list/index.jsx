@@ -4,9 +4,10 @@ import { View, Text, ScrollView, Button, Image } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo, getRole } from '../../utils/auth';
-import { timeAgo } from '../../utils/constants';
+import { timeAgo, shortDateTime } from '../../utils/constants';
 import { resolveFileURL } from '../../utils/cloud';
 import CustomTabBar from '../../components/CustomTabBar';
+import LikeDetail from '../../components/LikeDetail';
 import './index.scss';
 
 const FILTERS = [
@@ -22,6 +23,8 @@ export default function CheckinList() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [previewImage, setPreviewImage] = useState('');
+  const [likedMap, setLikedMap] = useState({});
+  const [likeDetailTarget, setLikeDetailTarget] = useState(null);
   const pageSize = 20;
 
   const loadList = async (f = filter, p = page) => {
@@ -49,11 +52,48 @@ export default function CheckinList() {
       
       setList(processedList);
       setTotal(data.total || 0);
+
+      // 批量获取点赞状态
+      if (processedList.length > 0 && userInfo?.username) {
+        try {
+          const targetIds = processedList.map(item => item._id);
+          const likes = await api.batchCheckLikes(targetIds);
+          setLikedMap(likes || {});
+        } catch (e) {
+          console.error('batch check likes error', e);
+        }
+      }
     } catch (e) {
       console.error('load checkin list error', e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLike = async (item) => {
+    try {
+      const result = await api.toggleLike(item._id);
+      setLikedMap(prev => ({ ...prev, [item._id]: result.liked }));
+      // 更新列表中的点赞数
+      setList(prev => prev.map(i => 
+        i._id === item._id 
+          ? { ...i, likeCount: result.likeCount }
+          : i
+      ));
+      Taro.vibrateShort && Taro.vibrateShort({ type: 'light' });
+    } catch (e) {
+      console.error('toggle like error', e);
+    }
+  };
+
+  const openLikeDetail = (item) => {
+    if (item.likeCount > 0) {
+      setLikeDetailTarget(item._id);
+    }
+  };
+
+  const closeLikeDetail = () => {
+    setLikeDetailTarget(null);
   };
 
   useDidShow(() => {
@@ -119,33 +159,50 @@ export default function CheckinList() {
           <View className='loading'>加载中...</View>
         ) : list.length > 0 ? (
           <View className='list'>
-            {list.map(item => (
-              <View className='card checkin-item' key={item._id}>
-                <View className='item-left'>
-                  <Text className='item-icon'>{item.exerciseIcon || '🏃'}</Text>
-                </View>
-                <View className='item-content'>
-                  <View className='item-header'>
-                    <Text className='item-name'>{item.exerciseName}</Text>
-                    <Text className='item-calorie'>{item.calorie}千卡</Text>
+            {list.map(item => {
+              const isLiked = likedMap[item._id];
+              const likeCount = item.likeCount || 0;
+              return (
+                <View className='card checkin-item' key={item._id}>
+                  <View className='item-left'>
+                    <Text className='item-icon'>{item.exerciseIcon || '🏃'}</Text>
                   </View>
-                  <View className='item-detail'>
-                    <Text className='item-duration'>⏱️ {item.duration}分钟</Text>
-                    <Text className='item-time'>{timeAgo(item.createTime)}</Text>
-                  </View>
-                  {item.note && <Text className='item-note'>💬 {item.note}</Text>}
-                  {item.displayImage && (
-                    <View className='item-image' onClick={() => previewImg(item.displayImage)}>
-                      <Image src={item.displayImage} className='item-img' mode='aspectFit' />
+                  <View className='item-content'>
+                    <View className='item-header'>
+                      <Text className='item-name'>{item.exerciseName}</Text>
+                      <Text className='item-calorie'>{item.calorie}千卡</Text>
                     </View>
-                  )}
-                  <Text className='item-date'>{item.dateStr}</Text>
+                    <View className='item-detail'>
+                      <Text className='item-duration'>⏱️ {item.duration}分钟</Text>
+                      <Text className='item-time'>{timeAgo(item.createTime)}</Text>
+                    </View>
+                    {item.note && <Text className='item-note'>💬 {item.note}</Text>}
+                    {item.displayImage && (
+                      <View className='item-image' onClick={() => previewImg(item.displayImage)}>
+                        <Image src={item.displayImage} className='item-img' mode='aspectFit' />
+                      </View>
+                    )}
+                    <View className='item-footer'>
+                      <Text className='item-date'>{shortDateTime(item.createTime)}</Text>
+                      <View className='item-footer-actions'>
+                        {likeCount > 0 && (
+                          <View className='item-like-count' onClick={() => openLikeDetail(item)}>
+                            <Text className='like-count-icon'>❤️</Text>
+                            <Text className='like-count-num'>{likeCount}</Text>
+                          </View>
+                        )}
+                        <View className={`item-like ${isLiked ? 'liked' : ''}`} onClick={() => handleLike(item)}>
+                          <Text className='like-icon'>{isLiked ? '❤️' : '🤍'}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  <View className='item-action' onClick={() => onDelete(item)}>
+                    <Text className='delete-icon'>🗑️</Text>
+                  </View>
                 </View>
-                <View className='item-action' onClick={() => onDelete(item)}>
-                  <Text className='delete-icon'>🗑️</Text>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <View className='card empty'>
@@ -169,6 +226,13 @@ export default function CheckinList() {
           <Text className='img-preview-close' style={{ color: '#fff', fontSize: '14px', marginTop: '10px', position: 'absolute', bottom: '40px' }}>点击关闭</Text>
         </View>
       )}
+
+      {/* 点赞详情弹窗 */}
+      <LikeDetail 
+        visible={!!likeDetailTarget} 
+        targetId={likeDetailTarget} 
+        onClose={closeLikeDetail} 
+      />
       
       <CustomTabBar />
     </View>

@@ -94,10 +94,17 @@ export const getMyAwards = (data) => call('awards', { action: 'mine', ...data })
 export const calcWeeklyAwards = (data) => call('awards', { action: 'calcWeekly', ...data });
 export const calcMonthlyStars = (data) => call('awards', { action: 'calcMonthly', ...data });
 
+// --- 点赞 ---
+export const toggleLike = (targetId, targetType = 'checkin') => call('like', { action: 'toggle', targetId, targetType });
+export const batchCheckLikes = (targetIds, targetType = 'checkin') => call('like', { action: 'batchCheck', targetIds, targetType });
+export const getLikeList = (targetId, targetType = 'checkin', data = {}) => call('like', { action: 'list', targetId, targetType, ...data });
+export const getMyLikes = (data = {}) => call('like', { action: 'mine', ...data });
+
 export default {
   login, loginByAccount, register, bindRole, getProfile, updateProfile, changePassword,
   createClass, joinClass, getClassDetail, getClassMembers, getClassTeachers, addTeacher, removeTeacher, getMyClasses, bindChild, quitClass,
   submitCheckin, getCheckinList, deleteCheckin, getTodayCheckin, getClassFeed, getImageUrl,
   getWeeklyStats, getMonthlyStats, getRanking,
-  getWeeklyAwards, getMonthlyStars, getMyAwards, calcWeeklyAwards, calcMonthlyStars
+  getWeeklyAwards, getMonthlyStars, getMyAwards, calcWeeklyAwards, calcMonthlyStars,
+  toggleLike, batchCheckLikes, getLikeList, getMyLikes
 };

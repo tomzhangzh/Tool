@@ -4,9 +4,10 @@ import { View, Text, ScrollView, Image } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo } from '../../utils/auth';
-import { timeAgo } from '../../utils/constants';
+import { timeAgo, shortDateTime } from '../../utils/constants';
 import { resolveFileURL } from '../../utils/cloud';
 import CustomTabBar from '../../components/CustomTabBar';
+import LikeDetail from '../../components/LikeDetail';
 
 export default function ClassNews() {
   const [classes, setClasses] = useState([]);
@@ -15,6 +16,8 @@ export default function ClassNews() {
   const [loading, setLoading] = useState(true);
   const [previewImage, setPreviewImage] = useState('');
   const [timeFilter, setTimeFilter] = useState('today');
+  const [likedMap, setLikedMap] = useState({});
+  const [likeDetailTarget, setLikeDetailTarget] = useState(null);
 
   // 根据时间周期过滤列表
   const getFilteredList = () => {
@@ -76,16 +79,58 @@ export default function ClassNews() {
           if (itemImage) {
             displayImage = await resolveFileURL(itemImage);
           }
-          return { ...item, displayImage };
+          // 转换头像 URL
+          let displayAvatar = '';
+          if (item.avatar) {
+            displayAvatar = await resolveFileURL(item.avatar);
+          }
+          return { ...item, displayImage, displayAvatar };
         })
       );
       
       setFeedList(processedList);
+
+      // 批量获取点赞状态
+      if (processedList.length > 0 && userInfo?.username) {
+        try {
+          const targetIds = processedList.map(item => item._id);
+          const likes = await api.batchCheckLikes(targetIds);
+          setLikedMap(likes || {});
+        } catch (e) {
+          console.error('batch check likes error', e);
+        }
+      }
     } catch (e) {
       console.error('load feed error', e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLike = async (item) => {
+    try {
+      const result = await api.toggleLike(item._id);
+      setLikedMap(prev => ({ ...prev, [item._id]: result.liked }));
+      // 更新列表中的点赞数
+      setFeedList(prev => prev.map(i => 
+        i._id === item._id 
+          ? { ...i, likeCount: result.likeCount }
+          : i
+      ));
+      Taro.vibrateShort && Taro.vibrateShort({ type: 'light' });
+    } catch (e) {
+      console.error('toggle like error', e);
+    }
+  };
+
+  const openLikeDetail = (item) => {
+    if (item.likeCount > 0) {
+      setLikeDetailTarget(item._id);
+    }
+  };
+
+  const closeLikeDetail = () => {
+    setLikeDetailTarget(null);
   };
 
   useDidShow(() => {
@@ -200,46 +245,61 @@ export default function ClassNews() {
           </View>
         ) : (
           <View className='feed-list'>
-            {getFilteredList().map(item => (
-              <View className='feed-card' key={item._id} style={{ background: '#fff', borderRadius: '12px', padding: '14px', marginBottom: '12px', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.04)' }}>
-                <View className='feed-header' style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                  <View className='feed-user' style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                    {item.avatar ? (
-                      <Image src={item.avatar} className='feed-avatar' style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
-                    ) : (
-                      <View className='feed-avatar-placeholder' style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4A90E2', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', marginRight: '10px' }}>
-                        <Text>{item.userName?.[0] || '?'}</Text>
+            {getFilteredList().map(item => {
+              const isLiked = likedMap[item._id];
+              const likeCount = item.likeCount || 0;
+              return (
+                <View className='feed-card' key={item._id} style={{ background: '#fff', borderRadius: '12px', padding: '14px', marginBottom: '12px', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.04)' }}>
+                  <View className='feed-header' style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                    <View className='feed-user' style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                      {item.displayAvatar ? (
+                        <Image src={item.displayAvatar} className='feed-avatar' style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
+                      ) : (
+                        <View className='feed-avatar-placeholder' style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4A90E2', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', marginRight: '10px' }}>
+                          <Text>{item.userName?.[0] || '?'}</Text>
+                        </View>
+                      )}
+                      <View className='feed-user-info' style={{ marginLeft: '10px', flex: 1 }}>
+                        <Text className='feed-username' style={{ fontSize: '14px', fontWeight: 500, color: '#333', display: 'block' }}>{item.userName}</Text>
+                        <Text className='feed-time' style={{ fontSize: '12px', color: '#999', display: 'block', marginTop: '2px' }}>{timeAgo(item.createTime)}</Text>
+                      </View>
+                    </View>
+                    <Text className='feed-calorie' style={{ fontSize: '13px', color: '#ff6b35', fontWeight: 500, flexShrink: 0 }}>🔥 {item.calorie}千卡</Text>
+                  </View>
+                  
+                  <View className='feed-content' style={{ paddingTop: '8px', borderTop: '1px solid #f5f5f5' }}>
+                    <View className='feed-exercise' style={{ display: 'flex', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      <Text className='feed-exercise-icon' style={{ fontSize: '20px', marginRight: '6px' }}>{item.exerciseIcon || '🏃'}</Text>
+                      <Text className='feed-exercise-name' style={{ fontSize: '15px', fontWeight: 500, color: '#333', marginRight: '8px' }}>{item.exerciseName}</Text>
+                      <Text className='feed-duration' style={{ fontSize: '13px', color: '#666' }}>{item.duration}分钟</Text>
+                    </View>
+                    
+                    {item.note && <Text className='feed-note' style={{ display: 'block', fontSize: '13px', color: '#666', marginBottom: '10px', lineHeight: 1.5 }}>"{item.note}"</Text>}
+                    
+                    {item.displayImage && (
+                      <View className='feed-image' style={{ borderRadius: '8px', overflow: 'hidden', marginTop: '8px', background: '#f5f5f5', display: 'flex', justifyContent: 'center' }} onClick={() => previewImg(item.displayImage)}>
+                        <Image src={item.displayImage} className='feed-img' style={{ maxWidth: '100%', maxHeight: '300px', display: 'block' }} mode='aspectFit' />
                       </View>
                     )}
-                    <View className='feed-user-info' style={{ marginLeft: '10px', flex: 1 }}>
-                      <Text className='feed-username' style={{ fontSize: '14px', fontWeight: 500, color: '#333', display: 'block' }}>{item.userName}</Text>
-                      <Text className='feed-time' style={{ fontSize: '12px', color: '#999', display: 'block', marginTop: '2px' }}>{timeAgo(item.createTime)}</Text>
-                    </View>
-                  </View>
-                  <Text className='feed-calorie' style={{ fontSize: '13px', color: '#ff6b35', fontWeight: 500, flexShrink: 0 }}>🔥 {item.calorie}千卡</Text>
-                </View>
-                
-                <View className='feed-content' style={{ paddingTop: '8px', borderTop: '1px solid #f5f5f5' }}>
-                  <View className='feed-exercise' style={{ display: 'flex', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap' }}>
-                    <Text className='feed-exercise-icon' style={{ fontSize: '20px', marginRight: '6px' }}>{item.exerciseIcon || '🏃'}</Text>
-                    <Text className='feed-exercise-name' style={{ fontSize: '15px', fontWeight: 500, color: '#333', marginRight: '8px' }}>{item.exerciseName}</Text>
-                    <Text className='feed-duration' style={{ fontSize: '13px', color: '#666' }}>{item.duration}分钟</Text>
                   </View>
                   
-                  {item.note && <Text className='feed-note' style={{ display: 'block', fontSize: '13px', color: '#666', marginBottom: '10px', lineHeight: 1.5 }}>"{item.note}"</Text>}
-                  
-                  {item.displayImage && (
-                    <View className='feed-image' style={{ borderRadius: '8px', overflow: 'hidden', marginTop: '8px', background: '#f5f5f5', display: 'flex', justifyContent: 'center' }} onClick={() => previewImg(item.displayImage)}>
-                      <Image src={item.displayImage} className='feed-img' style={{ maxWidth: '100%', maxHeight: '300px', display: 'block' }} mode='aspectFit' />
+                  <View className='feed-footer' style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #f5f5f5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text className='feed-date' style={{ fontSize: '12px', color: '#bbb' }}>{shortDateTime(item.createTime)}</Text>
+                    <View className='feed-footer-actions' style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {likeCount > 0 && (
+                        <View className='feed-like-count' onClick={() => openLikeDetail(item)} style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderRadius: '16px', cursor: 'pointer', background: '#fff5f5' }}>
+                          <Text style={{ fontSize: '14px', marginRight: '4px' }}>❤️</Text>
+                          <Text style={{ fontSize: '13px', color: '#ff6b6b', fontWeight: 500 }}>{likeCount}</Text>
+                        </View>
+                      )}
+                      <View className={`feed-like ${isLiked ? 'liked' : ''}`} onClick={() => handleLike(item)} style={{ display: 'flex', alignItems: 'center', padding: '4px 10px', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <Text style={{ fontSize: '18px' }}>{isLiked ? '❤️' : '🤍'}</Text>
+                      </View>
                     </View>
-                  )}
+                  </View>
                 </View>
-                
-                <View className='feed-footer' style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #f5f5f5' }}>
-                  <Text className='feed-date' style={{ fontSize: '12px', color: '#bbb' }}>{item.dateStr}</Text>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -250,6 +310,13 @@ export default function ClassNews() {
           <Text className='img-preview-close' style={{ color: '#fff', fontSize: '14px', marginTop: '10px', position: 'absolute', bottom: '40px' }}>点击关闭</Text>
         </View>
       )}
+
+      {/* 点赞详情弹窗 */}
+      <LikeDetail 
+        visible={!!likeDetailTarget} 
+        targetId={likeDetailTarget} 
+        onClose={closeLikeDetail} 
+      />
       
       <CustomTabBar />
     </View>

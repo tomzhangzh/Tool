@@ -4,7 +4,6 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 
-// 周奖项类型
 const WEEKLY_AWARD_TYPES = [
   { id: 'calorie_star', name: '卡路里燃烧之星', icon: '🔥', desc: '本周累计消耗卡路里最多', field: 'calorie' },
   { id: 'duration_star', name: '运动时长之星', icon: '⏱️', desc: '本周累计运动时长最长', field: 'duration' },
@@ -14,7 +13,6 @@ const WEEKLY_AWARD_TYPES = [
   { id: 'early_bird', name: '早起运动之星', icon: '🌅', desc: '本周最早开始运动', field: 'early' }
 ];
 
-// 月度专项奖项
 const MONTHLY_SPECIAL = [
   { id: 'monthly_persistent', name: '月度坚持之星', icon: '💪', desc: '本月打卡满20天', threshold: 20 },
   { id: 'monthly_improvement', name: '月度进步之星', icon: '🌟', desc: '本月比上月进步最大' }
@@ -50,53 +48,46 @@ const getWeekLabel = (start, end) => {
   return `${start.getFullYear()}.${start.getMonth() + 1}.${start.getDate()}-${end.getMonth() + 1}.${end.getDate()}`;
 };
 
-// 获取用户 ID：兼容小程序（OPENID）和 H5（event._uid）环境
-const getUserId = (event) => {
-  const wxCtx = cloud.getWXContext();
-  if (wxCtx.OPENID) return wxCtx.OPENID;
-  if (event._uid) return event._uid;
-  return null;
+const findUser = async (username) => {
+  if (!username) return null;
+  const q = await db.collection('users').where({ username }).get();
+  return q.data.length ? q.data[0] : null;
 };
 
 exports.main = async (event, context) => {
-  const openid = getUserId(event);
-  if (!openid) return { code: 1, message: '未获取到用户身份' };
   const action = event.action;
+  const username = event.username;
 
   try {
-    // 查询周评选结果
+    const user = await findUser(username);
+    if (!user) return { code: 1, message: '用户不存在' };
+
     if (action === 'weekly') {
       const offset = event.weekOffset || 0;
       const { start, end } = getWeekRange(offset);
       const weekKey = getWeekKey(start);
       const weekLabel = getWeekLabel(start, end);
 
-      // 找我的班级
-      const userQ = await db.collection('users').where({ openid }).get();
-      const u = userQ.data[0];
-      if (!u) return { code: 0, data: { awards: [], weekLabel, canCalc: false } };
-
       let classId = event.classId;
       let isTeacherOf = false;
       if (!classId) {
-        if (u.role === 'teacher') {
-          const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+        if (user.role === 'teacher') {
+          const t = await db.collection('class_teachers').where({ username }).limit(1).get();
           if (t.data.length) {
             classId = t.data[0].classId;
             isTeacherOf = true;
           }
         } else {
-          const targetOpenid = u.role === 'parent' ? u.childOpenid : openid;
-          const m = await db.collection('class_members').where({ openid: targetOpenid }).limit(1).get();
+          const targetUsername = user.role === 'parent' ? user.childUsername : username;
+          const m = await db.collection('class_members').where({ username: targetUsername }).limit(1).get();
           if (m.data.length) classId = m.data[0].classId;
         }
-      } else if (u.role === 'teacher') {
-        const t = await db.collection('class_teachers').where({ classId, openid }).count();
+      } else if (user.role === 'teacher') {
+        const t = await db.collection('class_teachers').where({ classId, username }).count();
         isTeacherOf = t.total > 0;
       }
       if (!classId) return { code: 0, data: { awards: [], weekLabel, canCalc: false } };
 
-      // 查已生成的奖项
       const aQ = await db.collection('awards').where({ classId, periodKey: weekKey, periodType: 'weekly' }).get();
       const awardsMap = {};
       aQ.data.forEach(a => { awardsMap[a.awardType] = a; });
@@ -113,66 +104,57 @@ exports.main = async (event, context) => {
         };
       });
 
-      // 老师可手动计算（必须是该班级老师）
       const canCalc = isTeacherOf;
-
       return { code: 0, data: { awards, weekLabel, canCalc } };
     }
 
-    // 老师手动生成本周评选
     if (action === 'calcWeekly') {
       const offset = event.weekOffset || 0;
       const { start, end } = getWeekRange(offset);
       const weekKey = getWeekKey(start);
 
-      const userQ = await db.collection('users').where({ openid }).get();
-      const u = userQ.data[0];
-      if (!u || u.role !== 'teacher') return { code: 1, message: '仅老师可生成' };
+      if (user.role !== 'teacher') return { code: 1, message: '仅老师可生成' };
+      
       let classId = event.classId;
       if (classId) {
-        const t = await db.collection('class_teachers').where({ classId, openid }).count();
+        const t = await db.collection('class_teachers').where({ classId, username }).count();
         if (t.total === 0) return { code: 1, message: '无权操作该班级' };
       } else {
-        const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+        const t = await db.collection('class_teachers').where({ username }).limit(1).get();
         if (!t.data.length) return { code: 1, message: '请先创建或加入班级' };
         classId = t.data[0].classId;
       }
 
-      // 班级学生
       const members = (await db.collection('class_members').where({ classId, role: 'student' }).get()).data;
-      const openids = members.map(m => m.openid);
-      if (!openids.length) return { code: 1, message: '班级还没有学生' };
+      const memberUsernames = members.map(m => m.username).filter(Boolean);
+      if (!memberUsernames.length) return { code: 1, message: '班级还没有学生' };
 
-      const users = (await db.collection('users').where({ openid: _.in(openids) }).get()).data;
+      const users = (await db.collection('users').where({ username: _.in(memberUsernames) }).get()).data;
       const uMap = {};
-      users.forEach(uu => { uMap[uu.openid] = uu; });
+      users.forEach(uu => { uMap[uu.username] = uu; });
 
-      // 本周打卡
       const weekQ = await db.collection('checkins').where({
-        openid: _.in(openids),
+        username: _.in(memberUsernames),
         createTime: _.gte(start.getTime()).and(_.lte(end.getTime()))
       }).get();
       const weekList = weekQ.data;
 
-      // 上周打卡（用于进步奖）
       const prevRange = getWeekRange(offset - 1);
       const prevQ = await db.collection('checkins').where({
-        openid: _.in(openids),
+        username: _.in(memberUsernames),
         createTime: _.gte(prevRange.start.getTime()).and(_.lte(prevRange.end.getTime()))
       }).get();
       const prevList = prevQ.data;
 
-      // 聚合每个学生
       const stat = {};
-      openids.forEach(oid => {
-        stat[oid] = {
+      memberUsernames.forEach(uname => {
+        stat[uname] = {
           calorie: 0, duration: 0, frequency: new Set(), diversity: new Set(),
-          earliestTime: null,
-          prevCalorie: 0
+          earliestTime: null, prevCalorie: 0
         };
       });
       weekList.forEach(c => {
-        const s = stat[c.openid];
+        const s = stat[c.username];
         if (!s) return;
         s.calorie += (c.calorie || 0);
         s.duration += (c.duration || 0);
@@ -181,10 +163,9 @@ exports.main = async (event, context) => {
         if (s.earliestTime === null || c.createTime < s.earliestTime) s.earliestTime = c.createTime;
       });
       prevList.forEach(c => {
-        if (stat[c.openid]) stat[c.openid].prevCalorie += (c.calorie || 0);
+        if (stat[c.username]) stat[c.username].prevCalorie += (c.calorie || 0);
       });
 
-      // 生成各奖项 top3
       const pickTop = (field, n = 3) => {
         return Object.entries(stat)
           .filter(([_, s]) => {
@@ -192,7 +173,7 @@ exports.main = async (event, context) => {
             if (field === 'early') return s.earliestTime !== null;
             return (s[field] || 0) > 0;
           })
-          .map(([oid, s]) => {
+          .map(([uname, s]) => {
             let val = 0;
             let valueText = '';
             if (field === 'calorie') { val = s.calorie; valueText = `${val}千卡`; }
@@ -202,9 +183,9 @@ exports.main = async (event, context) => {
             else if (field === 'improvement') { val = s.calorie - s.prevCalorie; valueText = `+${val}千卡`; }
             else if (field === 'early') { val = -s.earliestTime; valueText = new Date(s.earliestTime).toLocaleString('zh-CN'); }
             return {
-              openid: oid,
-              name: uMap[oid] ? uMap[oid].name : '',
-              avatar: uMap[oid] ? uMap[oid].avatar : '',
+              username: uname,
+              name: uMap[uname] ? uMap[uname].name : '',
+              avatar: uMap[uname] ? uMap[uname].avatar : '',
               value: valueText,
               _val: val
             };
@@ -223,10 +204,8 @@ exports.main = async (event, context) => {
         early_bird: 'early'
       };
 
-      // 清理旧的本周奖项
       await db.collection('awards').where({ classId, periodKey: weekKey, periodType: 'weekly' }).remove();
 
-      // 写入新奖项
       const periodLabel = getWeekLabel(start, end);
       const winnersList = [];
       WEEKLY_AWARD_TYPES.forEach(t => {
@@ -242,9 +221,7 @@ exports.main = async (event, context) => {
         }
       });
 
-      // 批量写入数据库
       for (const w of winnersList) {
-        // 班级奖项
         await db.collection('awards').add({
           data: {
             classId,
@@ -258,11 +235,10 @@ exports.main = async (event, context) => {
             createTime: Date.now()
           }
         });
-        // 给每个获奖者个人奖项副本（用于个人奖项墙）
         for (const win of w.winners) {
           await db.collection('awards').add({
             data: {
-              openid: win.openid,
+              username: win.username,
               classId,
               periodType: 'weekly',
               periodKey: weekKey,
@@ -281,33 +257,28 @@ exports.main = async (event, context) => {
       return { code: 0, data: { generated: winnersList.length } };
     }
 
-    // 查询月度明星
     if (action === 'monthly') {
       const offset = event.monthOffset || 0;
       const { start, end } = getMonthRange(offset);
       const monthKey = `M${start.getFullYear()}${String(start.getMonth() + 1).padStart(2, '0')}`;
       const monthLabel = `${start.getFullYear()}年${start.getMonth() + 1}月`;
 
-      const userQ = await db.collection('users').where({ openid }).get();
-      const u = userQ.data[0];
-      if (!u) return { code: 0, data: { top3: [], specialAwards: [], monthLabel, canCalc: false } };
-
       let classId = event.classId;
       let isTeacherOf = false;
       if (!classId) {
-        if (u.role === 'teacher') {
-          const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+        if (user.role === 'teacher') {
+          const t = await db.collection('class_teachers').where({ username }).limit(1).get();
           if (t.data.length) {
             classId = t.data[0].classId;
             isTeacherOf = true;
           }
         } else {
-          const targetOpenid = u.role === 'parent' ? u.childOpenid : openid;
-          const m = await db.collection('class_members').where({ openid: targetOpenid }).limit(1).get();
+          const targetUsername = user.role === 'parent' ? user.childUsername : username;
+          const m = await db.collection('class_members').where({ username: targetUsername }).limit(1).get();
           if (m.data.length) classId = m.data[0].classId;
         }
-      } else if (u.role === 'teacher') {
-        const t = await db.collection('class_teachers').where({ classId, openid }).count();
+      } else if (user.role === 'teacher') {
+        const t = await db.collection('class_teachers').where({ classId, username }).count();
         isTeacherOf = t.total > 0;
       }
       if (!classId) return { code: 0, data: { top3: [], specialAwards: [], monthLabel, canCalc: false } };
@@ -326,54 +297,51 @@ exports.main = async (event, context) => {
       return { code: 0, data: { top3, specialAwards, monthLabel, canCalc: isTeacherOf } };
     }
 
-    // 老师生成月度明星
     if (action === 'calcMonthly') {
       const offset = event.monthOffset || 0;
       const { start, end } = getMonthRange(offset);
       const monthKey = `M${start.getFullYear()}${String(start.getMonth() + 1).padStart(2, '0')}`;
       const monthLabel = `${start.getFullYear()}年${start.getMonth() + 1}月`;
 
-      const userQ = await db.collection('users').where({ openid }).get();
-      const u = userQ.data[0];
-      if (!u || u.role !== 'teacher') return { code: 1, message: '仅老师可生成' };
+      if (user.role !== 'teacher') return { code: 1, message: '仅老师可生成' };
+      
       let classId = event.classId;
       if (classId) {
-        const t = await db.collection('class_teachers').where({ classId, openid }).count();
+        const t = await db.collection('class_teachers').where({ classId, username }).count();
         if (t.total === 0) return { code: 1, message: '无权操作该班级' };
       } else {
-        const t = await db.collection('class_teachers').where({ openid }).limit(1).get();
+        const t = await db.collection('class_teachers').where({ username }).limit(1).get();
         if (!t.data.length) return { code: 1, message: '请先创建或加入班级' };
         classId = t.data[0].classId;
       }
 
       const members = (await db.collection('class_members').where({ classId, role: 'student' }).get()).data;
-      const openids = members.map(m => m.openid);
-      if (!openids.length) return { code: 1, message: '班级还没有学生' };
+      const memberUsernames = members.map(m => m.username).filter(Boolean);
+      if (!memberUsernames.length) return { code: 1, message: '班级还没有学生' };
 
-      const users = (await db.collection('users').where({ openid: _.in(openids) }).get()).data;
+      const users = (await db.collection('users').where({ username: _.in(memberUsernames) }).get()).data;
       const uMap = {};
-      users.forEach(uu => { uMap[uu.openid] = uu; });
+      users.forEach(uu => { uMap[uu.username] = uu; });
 
       const monthQ = await db.collection('checkins').where({
-        openid: _.in(openids),
+        username: _.in(memberUsernames),
         createTime: _.gte(start.getTime()).and(_.lte(end.getTime()))
       }).get();
       const mList = monthQ.data;
 
-      // 上月数据（计算进步）
       const prevRange = getMonthRange(offset - 1);
       const prevQ = await db.collection('checkins').where({
-        openid: _.in(openids),
+        username: _.in(memberUsernames),
         createTime: _.gte(prevRange.start.getTime()).and(_.lte(prevRange.end.getTime()))
       }).get();
       const prevList = prevQ.data;
 
       const stat = {};
-      openids.forEach(oid => {
-        stat[oid] = { calorie: 0, duration: 0, frequency: new Set(), diversity: new Set(), prevCalorie: 0 };
+      memberUsernames.forEach(uname => {
+        stat[uname] = { calorie: 0, duration: 0, frequency: new Set(), diversity: new Set(), prevCalorie: 0 };
       });
       mList.forEach(c => {
-        const s = stat[c.openid];
+        const s = stat[c.username];
         if (!s) return;
         s.calorie += (c.calorie || 0);
         s.duration += (c.duration || 0);
@@ -381,10 +349,9 @@ exports.main = async (event, context) => {
         s.diversity.add(c.exerciseId);
       });
       prevList.forEach(c => {
-        if (stat[c.openid]) stat[c.openid].prevCalorie += (c.calorie || 0);
+        if (stat[c.username]) stat[c.username].prevCalorie += (c.calorie || 0);
       });
 
-      // 综合得分（标准化后加权）
       const max = { calorie: 1, duration: 1, frequency: 1, diversity: 1 };
       Object.values(stat).forEach(s => {
         max.calorie = Math.max(max.calorie, s.calorie);
@@ -392,12 +359,12 @@ exports.main = async (event, context) => {
         max.frequency = Math.max(max.frequency, s.frequency.size);
         max.diversity = Math.max(max.diversity, s.diversity.size);
       });
-      const scored = Object.entries(stat).map(([oid, s]) => {
+      const scored = Object.entries(stat).map(([uname, s]) => {
         const score = (s.calorie / max.calorie) * 30 + (s.duration / max.duration) * 30 + (s.frequency.size / max.frequency) * 25 + (s.diversity.size / max.diversity) * 15;
         return {
-          openid: oid,
-          name: uMap[oid] ? uMap[oid].name : '',
-          avatar: uMap[oid] ? uMap[oid].avatar : '',
+          username: uname,
+          name: uMap[uname] ? uMap[uname].name : '',
+          avatar: uMap[uname] ? uMap[uname].avatar : '',
           calorie: s.calorie,
           duration: s.duration,
           frequency: s.frequency.size,
@@ -407,10 +374,8 @@ exports.main = async (event, context) => {
         };
       }).sort((a, b) => b.score - a.score);
 
-      // 清理旧数据
       await db.collection('awards').where({ classId, periodKey: monthKey }).remove();
 
-      // 写入 top3
       const top3 = scored.slice(0, 3).map((s, i) => ({ ...s, rank: i + 1 }));
       await db.collection('awards').add({
         data: {
@@ -422,13 +387,12 @@ exports.main = async (event, context) => {
           createTime: Date.now()
         }
       });
-      // 给 top3 个人奖项副本
       const topAwardName = ['月度运动冠军', '月度运动亚军', '月度运动季军'];
       const topIcon = ['🏆', '🥈', '🥉'];
       for (let i = 0; i < top3.length; i++) {
         await db.collection('awards').add({
           data: {
-            openid: top3[i].openid,
+            username: top3[i].username,
             classId,
             periodType: 'monthly',
             periodKey: monthKey,
@@ -443,7 +407,6 @@ exports.main = async (event, context) => {
         });
       }
 
-      // 专项奖：坚持之星
       const specialAwards = [];
       const persistent = scored.filter(s => s.frequency >= 20);
       if (persistent.length) {
@@ -453,12 +416,12 @@ exports.main = async (event, context) => {
           awardName: '月度坚持之星',
           awardIcon: '💪',
           desc: '本月打卡满20天',
-          winner: { name: winner.name, avatar: winner.avatar, openid: winner.openid },
+          winner: { name: winner.name, avatar: winner.avatar, username: winner.username },
           reason: `本月打卡${winner.frequency}天`
         });
         await db.collection('awards').add({
           data: {
-            openid: winner.openid,
+            username: winner.username,
             classId,
             periodType: 'monthly',
             periodKey: monthKey,
@@ -473,7 +436,6 @@ exports.main = async (event, context) => {
         });
       }
 
-      // 专项奖：进步之星
       const improved = scored.filter(s => s.improvement > 0).sort((a, b) => b.improvement - a.improvement);
       if (improved.length) {
         const winner = improved[0];
@@ -482,12 +444,12 @@ exports.main = async (event, context) => {
           awardName: '月度进步之星',
           awardIcon: '🌟',
           desc: '本月比上月进步最大',
-          winner: { name: winner.name, avatar: winner.avatar, openid: winner.openid },
+          winner: { name: winner.name, avatar: winner.avatar, username: winner.username },
           reason: `比上月多${winner.improvement}千卡`
         });
         await db.collection('awards').add({
           data: {
-            openid: winner.openid,
+            username: winner.username,
             classId,
             periodType: 'monthly',
             periodKey: monthKey,
@@ -502,7 +464,6 @@ exports.main = async (event, context) => {
         });
       }
 
-      // 写入班级专项奖项记录
       for (const s of specialAwards) {
         await db.collection('awards').add({
           data: {
@@ -524,22 +485,15 @@ exports.main = async (event, context) => {
       return { code: 0, data: { top3, specialAwards } };
     }
 
-    // 我的奖项墙
     if (action === 'mine') {
-      const userQ = await db.collection('users').where({ openid }).get();
-      const u = userQ.data[0];
-      if (!u) return { code: 0, data: [] };
+      let targetUsername = username;
+      if (user.role === 'parent' && user.childUsername) targetUsername = user.childUsername;
 
-      let targetOpenid = openid;
-      if (u.role === 'parent' && u.childOpenid) targetOpenid = u.childOpenid;
-
-      let q = db.collection('awards').where({ openid: targetOpenid });
+      let q = db.collection('awards').where({ username: targetUsername });
       if (event.type) {
-        q = db.collection('awards').where({ openid: targetOpenid, periodType: event.type === 'weekly' ? 'weekly' : 'monthly' });
+        q = db.collection('awards').where({ username: targetUsername, periodType: event.type === 'weekly' ? 'weekly' : 'monthly' });
       }
       const res = await q.orderBy('createTime', 'desc').limit(event.limit || 100).get();
-      // 数据可能包含班级维度奖项（无 openid 的不会查到，因为 where openid）；
-      // 这里直接返回所有个人维度奖项
       return { code: 0, data: res.data };
     }
 

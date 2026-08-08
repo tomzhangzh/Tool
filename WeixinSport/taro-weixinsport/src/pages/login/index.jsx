@@ -414,7 +414,7 @@ export default function Login() {
             <>
               <View className='form-row'>
                 <Text className='form-label'>体重(kg)</Text>
-                <Input className='form-input' type='number' placeholder='用于计算卡路里（如30）' value={weight} onInput={(e) => setWeight(e.detail.value)} />
+                <Input className='form-input' type='number' placeholder='用于计算卡路里（如60）' value={weight} onInput={(e) => setWeight(e.detail.value)} />
               </View>
               <View className='form-row'>
                 <Text className='form-label'>班级邀请码</Text>

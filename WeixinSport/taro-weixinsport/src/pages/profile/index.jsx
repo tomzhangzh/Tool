@@ -282,8 +282,8 @@ export default function Profile() {
               disabled={uploading}
             >
               <View className={`avatar ${uploading ? 'uploading' : ''}`}>
-                {userInfo?.avatar ? (
-                  <Image src={userInfo.avatar} className='avatar-img' mode='aspectFill' />
+                {avatarUrl ? (
+                  <Image src={avatarUrl} className='avatar-img' mode='aspectFill' />
                 ) : (
                   <Text className='avatar-text'>{userInfo?.name?.[0] || '?'}</Text>
                 )}

@@ -14,7 +14,7 @@ export default function Checkin() {
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [duration, setDuration] = useState(30);
   const [note, setNote] = useState('');
-  const [weight, setWeight] = useState(30);
+  const [weight, setWeight] = useState(60);
   const [calorie, setCalorie] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [todayList, setTodayList] = useState([]);
@@ -40,7 +40,7 @@ export default function Checkin() {
       }, 1000);
       return;
     }
-    setWeight(userInfo.weight || 30);
+    setWeight(userInfo.weight || 60);
     loadToday();
   });
 
