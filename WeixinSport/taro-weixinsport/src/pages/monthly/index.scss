@@ -1,253 +1,253 @@
 .monthly-page {
   min-height: 100vh;
   background: #f7f8fa;
-}
 
-.content {
-  padding: 12px;
-  padding-bottom: 100px;
-}
-
-.month-switch {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 8px;
-  margin-bottom: 12px;
-}
-
-.month-tab {
-  padding: 6px 16px;
-  border-radius: 16px;
-  font-size: 26px;
-  color: #666;
-  cursor: pointer;
-  
-  &.active {
-    background: #4A90E2;
-    color: #fff;
+  .content {
+    padding: 12px;
+    padding-bottom: 100px;
   }
-}
 
-.month-label {
-  flex: 1;
-  text-align: right;
-  font-size: 23px;
-  color: #999;
-}
+  .month-switch {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: #fff;
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
 
-.calc-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: #fff7e6;
-  border-radius: 8px;
-  margin-bottom: 12px;
-  border: 1px solid #ffd591;
-}
+  .month-tab {
+    padding: 6px 16px;
+    border-radius: 16px;
+    font-size: 16px;
+    color: #666;
+    cursor: pointer;
 
-.calc-hint {
-  font-size: 23px;
-  color: #d48806;
-}
+    &.active {
+      background: #4A90E2;
+      color: #fff;
+    }
+  }
 
-.calc-btn {
-  font-size: 23px !important;
-  padding: 0 16px !important;
-  height: 48px !important;
-  line-height: 48px !important;
-  background: #fa8c16 !important;
-  color: #fff !important;
-  border-radius: 24px !important;
-  border: none !important;
-}
+  .month-label {
+    flex: 1;
+    text-align: right;
+    font-size: 13px;
+    color: #999;
+  }
 
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #999;
-}
+  .calc-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #fff7e6;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border: 1px solid #ffd591;
+  }
 
-.card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.04);
-}
+  .calc-hint {
+    font-size: 13px;
+    color: #d48806;
+  }
 
-.card-title {
-  display: block;
-  font-size: 27px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 12px;
-  
-  &.text-center {
+  .calc-btn {
+    font-size: 13px !important;
+    padding: 0 16px !important;
+    height: 32px !important;
+    line-height: 32px !important;
+    background: #fa8c16 !important;
+    color: #fff !important;
+    border-radius: 16px !important;
+    border: none !important;
+  }
+
+  .loading {
     text-align: center;
+    padding: 40px;
+    color: #999;
   }
-}
 
-.podium-card {
-  background: linear-gradient(135deg, #fff7e6 0%, #fff 100%);
-}
-
-.podium {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 16px 0;
-}
-
-.podium-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  
-  &.podium-1 {
-    order: 2;
-    transform: scale(1.1);
+  .card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
   }
-  &.podium-2 {
-    order: 1;
+
+  .card-title {
+    display: block;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+
+    &.text-center {
+      text-align: center;
+    }
   }
-  &.podium-3 {
-    order: 3;
+
+  .podium-card {
+    background: linear-gradient(135deg, #fff7e6 0%, #fff 100%);
   }
-}
 
-.podium-medal {
-  font-size: 57px;
-  margin-bottom: 6px;
-}
-
-.podium-avatar {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: #e8f0fe;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-.avatar {
-  width: 100%;
-  height: 100%;
-}
-
-.avatar-placeholder {
-  font-size: 36px;
-  color: #4A90E2;
-  font-weight: 600;
-}
-
-.podium-name {
-  font-size: 26px;
-  font-weight: 600;
-  color: #333;
-}
-
-.podium-score {
-  font-size: 21px;
-  color: #ff8c16;
-  font-weight: 600;
-}
-
-.podium-label {
-  font-size: 20px;
-  color: #999;
-  margin-top: 2px;
-}
-
-.special-row {
-  display: flex;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #f5f5f5;
-  
-  &:last-child {
-    border-bottom: none;
+  .podium {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 16px 0;
   }
-}
 
-.special-emoji {
-  font-size: 44px;
-  margin-right: 10px;
-}
+  .podium-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
 
-.special-info {
-  flex: 1;
-}
+    &.podium-1 {
+      order: 2;
+      transform: scale(1.1);
+    }
+    &.podium-2 {
+      order: 1;
+    }
+    &.podium-3 {
+      order: 3;
+    }
+  }
 
-.special-name {
-  display: block;
-  font-size: 26px;
-  color: #333;
-}
+  .podium-medal {
+    font-size: 28px;
+    margin-bottom: 6px;
+  }
 
-.special-desc {
-  display: block;
-  font-size: 21px;
-  color: #999;
-  margin-top: 2px;
-}
+  .podium-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #e8f0fe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
 
-.special-winner {
-  text-align: right;
-}
+  .avatar {
+    width: 100%;
+    height: 100%;
+  }
 
-.winner-name {
-  display: block;
-  font-size: 26px;
-  color: #4A90E2;
-  font-weight: 600;
-}
+  .avatar-placeholder {
+    font-size: 20px;
+    color: #4A90E2;
+    font-weight: 600;
+  }
 
-.winner-reason {
-  display: block;
-  font-size: 21px;
-  color: #999;
-}
+  .podium-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+  }
 
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 32px;
-}
+  .podium-score {
+    font-size: 12px;
+    color: #ff8c16;
+    font-weight: 600;
+  }
 
-.empty-emoji {
-  font-size: 87px;
-  margin-bottom: 12px;
-}
+  .podium-label {
+    font-size: 12px;
+    color: #999;
+    margin-top: 2px;
+  }
 
-.empty-text {
-  font-size: 26px;
-  color: #999;
-}
+  .special-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5f5f5;
 
-.rule-card {
-  padding: 16px;
-}
+    &:last-child {
+      border-bottom: none;
+    }
+  }
 
-.rule-title {
-  display: block;
-  font-size: 26px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
-}
+  .special-emoji {
+    font-size: 24px;
+    margin-right: 10px;
+  }
 
-.rule-text {
-  display: block;
-  font-size: 21px;
-  color: #666;
-  line-height: 1.8;
+  .special-info {
+    flex: 1;
+  }
+
+  .special-name {
+    display: block;
+    font-size: 16px;
+    color: #333;
+  }
+
+  .special-desc {
+    display: block;
+    font-size: 12px;
+    color: #999;
+    margin-top: 2px;
+  }
+
+  .special-winner {
+    text-align: right;
+  }
+
+  .winner-name {
+    display: block;
+    font-size: 16px;
+    color: #4A90E2;
+    font-weight: 600;
+  }
+
+  .winner-reason {
+    display: block;
+    font-size: 12px;
+    color: #999;
+  }
+
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px;
+  }
+
+  .empty-emoji {
+    font-size: 32px;
+    margin-bottom: 12px;
+  }
+
+  .empty-text {
+    font-size: 16px;
+    color: #999;
+  }
+
+  .rule-card {
+    padding: 16px;
+  }
+
+  .rule-title {
+    display: block;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+  }
+
+  .rule-text {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    line-height: 1.8;
+  }
 }

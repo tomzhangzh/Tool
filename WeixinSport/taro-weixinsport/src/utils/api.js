@@ -49,6 +49,8 @@ export const call = async (name, data = {}) => {
 // --- 登录/账号 ---
 export const login = () => call('login', {});
 export const bindRole = (data) => call('login', { action: 'bindRole', ...data });
+export const loginByAccount = (data) => call('login', { action: 'loginByAccount', ...data });
+export const register = (data) => call('login', { action: 'register', ...data });
 export const getProfile = () => call('login', { action: 'getProfile' });
 export const updateProfile = (data) => call('login', { action: 'updateProfile', ...data });
 
@@ -82,7 +84,7 @@ export const calcWeeklyAwards = (data) => call('awards', { action: 'calcWeekly',
 export const calcMonthlyStars = (data) => call('awards', { action: 'calcMonthly', ...data });
 
 export default {
-  login, bindRole, getProfile, updateProfile,
+  login, loginByAccount, register, bindRole, getProfile, updateProfile,
   createClass, joinClass, getClassDetail, getClassMembers, getClassTeachers, addTeacher, removeTeacher, getMyClasses, bindChild,
   submitCheckin, getCheckinList, deleteCheckin, getTodayCheckin,
   getWeeklyStats, getMonthlyStats, getRanking,

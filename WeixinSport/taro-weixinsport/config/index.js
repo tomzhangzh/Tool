@@ -4,7 +4,7 @@ const path = require('path')
 const config = {
   projectName: 'taro-weixinsport',
   date: '2026-8-7',
-  designWidth: 750,
+  designWidth: 375,
   deviceRatio: {
     640: 2.34 / 2,
     750: 1,
@@ -55,6 +55,10 @@ const config = {
           namingPattern: 'module',
           generateScopedName: '[name]__[local]___[hash:base64:5]'
         }
+      },
+      // 禁用 px 转 rem，保持原始 px 单位
+      pxtransform: {
+        enable: false
       }
     }
   }

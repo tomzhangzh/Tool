@@ -3,12 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Input, Button, Image } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import api from '../../utils/api';
-import { setUserInfo, handleWxCallback, redirectToWxAuth, getOpenid } from '../../utils/auth';
+import { setUserInfo, getUserInfo, getOpenid, clearLogin } from '../../utils/auth';
 import { ROLE_LABEL } from '../../utils/constants';
 import './index.scss';
 
 export default function Login() {
-  const [step, setStep] = useState('role'); // 'role' | 'info'
+  // 登录模式：'account' | 'register' | 'role' | 'info'
+  const [mode, setMode] = useState('account');
+  const [step, setStep] = useState('role');
   const [role, setRole] = useState('');
   const [roleLabel, setRoleLabel] = useState('');
   const [name, setName] = useState('');
@@ -16,30 +18,107 @@ export default function Login() {
   const [weight, setWeight] = useState('');
   const [classCode, setClassCode] = useState('');
   const [childName, setChildName] = useState('');
+  
+  // 账号密码字段
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
     // 检查是否已登录
-    const openid = getOpenid();
-    if (openid) {
+    const userInfo = getUserInfo();
+    if (userInfo && getOpenid()) {
       Taro.switchTab({ url: '/pages/index/index' });
-    } else {
-      // H5 环境下处理微信回调
-      handleWxCallback().then(userInfo => {
-        if (userInfo) {
-          Taro.switchTab({ url: '/pages/index/index' });
-        }
-      });
     }
   }, []);
 
   const onChooseRole = (selectedRole) => {
     setRole(selectedRole);
     setRoleLabel(ROLE_LABEL[selectedRole] || '');
+    setMode('register');
     setStep('info');
   };
 
+  // ========== 账号密码登录 ==========
+  const handleAccountLogin = async () => {
+    if (!username || !username.trim()) {
+      Taro.showToast({ title: '请输入用户名', icon: 'none' });
+      return;
+    }
+    if (!password) {
+      Taro.showToast({ title: '请输入密码', icon: 'none' });
+      return;
+    }
+
+    setLoading(true);
+    setLoginError('');
+    try {
+      // 先确保 CloudBase 已登录（获取 _uid）
+      await api.login();
+      
+      // 使用账号密码登录
+      const userInfo = await api.loginByAccount({ username: username.trim(), password });
+      
+      setUserInfo(userInfo);
+      Taro.showToast({ title: '登录成功', icon: 'success' });
+      setTimeout(() => {
+        Taro.switchTab({ url: '/pages/index/index' });
+      }, 800);
+    } catch (e) {
+      console.error('login error', e);
+      setLoginError(e.message || '登录失败，请检查用户名和密码');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ========== 注册新用户 ==========
+  const handleRegister = async () => {
+    if (!username || !username.trim()) {
+      Taro.showToast({ title: '请输入用户名', icon: 'none' });
+      return;
+    }
+    if (!password || password.length < 6) {
+      Taro.showToast({ title: '密码至少6位', icon: 'none' });
+      return;
+    }
+    if (password !== confirmPassword) {
+      Taro.showToast({ title: '两次密码不一致', icon: 'none' });
+      return;
+    }
+
+    setLoading(true);
+    setLoginError('');
+    try {
+      // 先确保 CloudBase 已登录
+      await api.login();
+      
+      // 注册新用户
+      const userInfo = await api.register({
+        username: username.trim(),
+        password,
+        role,
+        name: name.trim() || username.trim(),
+        avatar: avatar || ''
+      });
+      
+      setUserInfo(userInfo);
+      Taro.showToast({ title: '注册成功', icon: 'success' });
+      setTimeout(() => {
+        Taro.switchTab({ url: '/pages/index/index' });
+      }, 800);
+    } catch (e) {
+      console.error('register error', e);
+      setLoginError(e.message || '注册失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ========== 微信登录（小程序端 / 旧版）==========
   const handleSubmit = async () => {
     if (!name || !name.trim()) {
       Taro.showToast({ title: '请填写姓名', icon: 'none' });
@@ -63,19 +142,8 @@ export default function Login() {
     setLoading(true);
     setLoginError('');
     try {
-      // 先尝试登录获取 openid（小程序环境会直接返回，H5 环境如果是首次可能需要先授权）
-      let userInfo = await api.login();
-
-      // 如果 H5 环境下没有 openid，说明需要先授权
-      if (!userInfo || !userInfo.openid) {
-        if (process.env.TARO_ENV === 'h5') {
-          const redirectUri = window.location.href;
-          redirectToWxAuth(redirectUri);
-          return; // 授权后会回调回来
-        } else {
-          throw new Error('获取用户信息失败');
-        }
-      }
+      // 先确保 CloudBase 已登录
+      await api.login();
 
       // 绑定角色
       const payload = {
@@ -86,7 +154,7 @@ export default function Login() {
         classCode: role === 'student' ? classCode : undefined,
         childName: role === 'parent' ? childName : undefined
       };
-      userInfo = await api.bindRole(payload);
+      const userInfo = await api.bindRole(payload);
       setUserInfo(userInfo);
       Taro.showToast({ title: '欢迎加入', icon: 'success' });
       setTimeout(() => {
@@ -94,22 +162,88 @@ export default function Login() {
       }, 800);
     } catch (e) {
       console.error('login error', e);
-      // 显示错误信息并允许重试
       setLoginError(e.message || '登录失败，请重试');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <View className='login-page'>
-      <View className='brand'>
-        <View className='brand-icon'>🏃‍♂️</View>
-        <View className='brand-title'>运动小达人</View>
-        <View className='brand-sub'>运动打卡 · 周评选 · 月度明星</View>
-      </View>
+  // ========== 渲染 ==========
+  
+  // 账号登录/注册页面
+  if (mode === 'account') {
+    return (
+      <View className='login-page'>
+        <View className='brand'>
+          <View className='brand-icon'>🏃‍♂️</View>
+          <View className='brand-title'>运动小达人</View>
+          <View className='brand-sub'>运动打卡 · 周评选 · 月度明星</View>
+        </View>
 
-      {step === 'role' && (
+        <View className='card'>
+          <View className='card-title'>账号登录</View>
+          
+          <View className='form-row'>
+            <Text className='form-label'>用户名</Text>
+            <Input 
+              className='form-input' 
+              placeholder='请输入用户名' 
+              value={username} 
+              onInput={(e) => setUsername(e.detail.value)} 
+            />
+          </View>
+
+          <View className='form-row'>
+            <Text className='form-label'>密码</Text>
+            <Input 
+              className='form-input' 
+              type='password'
+              placeholder='请输入密码' 
+              value={password} 
+              onInput={(e) => setPassword(e.detail.value)} 
+            />
+          </View>
+
+          {loginError && (
+            <View className='error-tip'>
+              <Text>{loginError}</Text>
+              <Text className='error-retry' onClick={handleAccountLogin}>点击重试</Text>
+            </View>
+          )}
+
+          <View className='form-actions'>
+            <Button className='btn btn-block' onClick={handleAccountLogin} loading={loading} disabled={loading}>
+              登录
+            </Button>
+          </View>
+
+          <View className='switch-tip'>
+            <Text className='switch-text'>还没有账号？</Text>
+            <Text className='switch-link' onClick={() => {
+              setUsername('');
+              setPassword('');
+              setConfirmPassword('');
+              setName('');
+              setLoginError('');
+              setMode('role');
+              setStep('role');
+            }}>立即注册</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // 注册 - 选择角色
+  if (mode === 'role') {
+    return (
+      <View className='login-page'>
+        <View className='brand'>
+          <View className='brand-icon'>🏃‍♂️</View>
+          <View className='brand-title'>运动小达人</View>
+          <View className='brand-sub'>运动打卡 · 周评选 · 月度明星</View>
+        </View>
+
         <View className='card'>
           <View className='card-title'>选择你的身份</View>
           <View className='role-list'>
@@ -138,37 +272,86 @@ export default function Login() {
               <View className='role-arrow'>›</View>
             </View>
           </View>
-        </View>
-      )}
 
-      {step === 'info' && (
+          <View className='form-actions' style={{ marginTop: '16px' }}>
+            <Button className='btn btn-ghost' onClick={() => setMode('account')}>返回登录</Button>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // 注册 - 填写信息
+  if (mode === 'register' || step === 'info') {
+    return (
+      <View className='login-page'>
+        <View className='brand'>
+          <View className='brand-icon'>🏃‍♂️</View>
+          <View className='brand-title'>运动小达人</View>
+          <View className='brand-sub'>运动打卡 · 周评选 · 月度明星</View>
+        </View>
+
         <View className='card'>
-          <View className='card-title'>完善信息（{roleLabel}）</View>
+          <View className='card-title'>注册账号（{roleLabel}）</View>
 
           <View className='form-row'>
-            <Text className='form-label'>头像</Text>
-            {/* H5 环境：可点击生成随机头像 */}
-            {process.env.TARO_ENV === 'h5' ? (
-              <div className='avatar-btn' onClick={() => {
-                setAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=' + Math.random());
-              }}>
-                {avatar ? <Image src={avatar} className='avatar' /> : <View className='avatar avatar-placeholder'>点击选择</View>}
-              </div>
-            ) : (
-              <Button className='avatar-btn' openType='chooseAvatar' onChooseAvatar={(e) => setAvatar(e.detail.avatarUrl)}>
-                {avatar ? <Image src={avatar} className='avatar' /> : <View className='avatar avatar-placeholder'>点击选择</View>}
-              </Button>
-            )}
+            <Text className='form-label'>用户名</Text>
+            <Input 
+              className='form-input' 
+              placeholder='设置登录用户名' 
+              value={username} 
+              onInput={(e) => {
+                const val = e.detail?.value || e.target?.value || '';
+                setUsername(val);
+              }}
+            />
+          </View>
+
+          <View className='form-row'>
+            <Text className='form-label'>密码</Text>
+            <Input 
+              className='form-input' 
+              type='password'
+              placeholder='至少6位' 
+              value={password} 
+              onInput={(e) => {
+                const val = e.detail?.value || e.target?.value || '';
+                setPassword(val);
+              }}
+            />
+          </View>
+
+          <View className='form-row'>
+            <Text className='form-label'>确认密码</Text>
+            <Input 
+              className='form-input' 
+              type='password'
+              placeholder='再次输入密码' 
+              value={confirmPassword} 
+              onInput={(e) => {
+                const val = e.detail?.value || e.target?.value || '';
+                setConfirmPassword(val);
+              }}
+            />
           </View>
 
           <View className='form-row'>
             <Text className='form-label'>{role === 'parent' ? '家长姓名' : '姓名'}</Text>
             <Input 
               className='form-input' 
-              placeholder='请输入姓名' 
+              placeholder='请输入真实姓名' 
               value={name} 
               onInput={(e) => setName(e.detail.value)} 
             />
+          </View>
+
+          <View className='form-row'>
+            <Text className='form-label'>头像</Text>
+            <div className='avatar-btn' onClick={() => {
+              setAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=' + Math.random());
+            }}>
+              {avatar ? <Image src={avatar} className='avatar' /> : <View className='avatar avatar-placeholder'>点击生成</View>}
+            </div>
           </View>
 
           {role === 'student' && (
@@ -194,18 +377,32 @@ export default function Login() {
           {loginError && (
             <View className='error-tip'>
               <Text>{loginError}</Text>
-              <Text className='error-retry' onClick={handleSubmit}>点击重试</Text>
             </View>
           )}
 
           <View className='form-actions'>
-            <Button className='btn btn-ghost' onClick={() => setStep('role')}>返回</Button>
-            <Button className='btn btn-block' onClick={handleSubmit} loading={loading} disabled={loading}>
+            <Button className='btn btn-ghost' onClick={() => {
+              setStep('role');
+              setMode('role');
+            }}>返回</Button>
+            <Button className='btn btn-block' onClick={handleRegister} loading={loading} disabled={loading}>
               完成注册
             </Button>
           </View>
+
+          <View className='switch-tip'>
+            <Text className='switch-text'>已有账号？</Text>
+            <Text className='switch-link' onClick={() => {
+              setMode('account');
+              setUsername('');
+              setPassword('');
+              setConfirmPassword('');
+            }}>去登录</Text>
+          </View>
         </View>
-      )}
-    </View>
-  );
+      </View>
+    );
+  }
+
+  return null;
 }

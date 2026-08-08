@@ -37,6 +37,73 @@ exports.main = async (event, context) => {
       return { code: 0, data: { openid, ...(user || {}) } };
     }
 
+    // ========== 用户名密码注册 ==========
+    if (action === 'register') {
+      const { username, password, role, name, avatar } = event;
+      if (!username || !password) {
+        return { code: 1, message: '用户名和密码不能为空' };
+      }
+
+      // 检查用户名是否已存在
+      const userCol = db.collection('users');
+      const existUser = await userCol.where({ username }).get();
+      if (existUser.data.length > 0) {
+        return { code: 1, message: '用户名已存在' };
+      }
+
+      // 创建用户（包含账号密码）
+      const addRes = await userCol.add({
+        data: {
+          openid,
+          username,
+          password, // 注意：生产环境应该加密存储
+          role: role || 'student',
+          name: name || username,
+          avatar: avatar || '',
+          weight: role === 'student' ? (event.weight || 30) : 30,
+          classIds: [],
+          childOpenid: '',
+          parentOpenids: [],
+          createTime: Date.now(),
+          updateTime: Date.now()
+        }
+      });
+
+      const newUser = (await userCol.doc(addRes._id).get()).data;
+      return { code: 0, data: newUser };
+    }
+
+    // ========== 用户名密码登录 ==========
+    if (action === 'loginByAccount') {
+      const { username, password } = event;
+      if (!username || !password) {
+        return { code: 1, message: '用户名和密码不能为空' };
+      }
+
+      // 根据用户名查找用户
+      const userCol = db.collection('users');
+      const userQ = await userCol.where({ username }).get();
+      if (!userQ.data.length) {
+        return { code: 1, message: '用户名或密码错误' };
+      }
+
+      const user = userQ.data[0];
+      // 验证密码
+      if (user.password !== password) {
+        return { code: 1, message: '用户名或密码错误' };
+      }
+
+      // 登录成功，更新 openid 绑定
+      if (user.openid !== openid) {
+        await userCol.doc(user._id).update({
+          data: { openid, updateTime: Date.now() }
+        });
+        user.openid = openid;
+      }
+
+      return { code: 0, data: user };
+    }
+
     if (action === 'bindRole') {
       // 注册/绑定角色，由 login 页调用
       const { role, name, avatar, weight, classCode, childName } = event;
@@ -224,6 +291,43 @@ exports.main = async (event, context) => {
         }
       }
       return { code: 0, data: { processed, removed } };
+    }
+
+    // 上传头像到云存储
+    if (action === 'uploadAvatar') {
+      const { fileContent, cloudPath } = event;
+      if (!fileContent || !cloudPath) {
+        return { code: 1, message: '缺少参数' };
+      }
+
+      // 处理 base64 数据
+      let fileBuffer;
+      if (fileContent.startsWith('data:')) {
+        const base64Data = fileContent.replace(/^data:image\/\w+;base64,/, '');
+        fileBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        fileBuffer = Buffer.from(fileContent, 'base64');
+      }
+
+      // 限制大小 1MB
+      if (fileBuffer.length > 1024 * 1024) {
+        return { code: 1, message: '文件过大，最大支持 1MB' };
+      }
+
+      // 上传到云存储
+      const uploadResult = await cloud.uploadFile({
+        cloudPath,
+        fileContent: fileBuffer,
+      });
+
+      // 获取临时下载链接
+      const tempUrlResult = await cloud.getTempFileURL({
+        fileList: [uploadResult.fileID],
+      });
+
+      const url = tempUrlResult.fileList[0]?.tempFileURL || uploadResult.fileID;
+
+      return { code: 0, data: { fileID: uploadResult.fileID, url } };
     }
 
     return { code: 1, message: '未知 action' };

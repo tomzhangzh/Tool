@@ -114,16 +114,16 @@ export default function Index() {
               {weekStats && (
                 <View className='card stats-card'>
                   <View className='stats-title'>本周统计</View>
-                  <View className='stats-grid'>
-                    <View className='stats-item'>
+                  <View className='stats-grid' style={{ display: 'flex', flexDirection: 'row', width: '100%' }}>
+                    <View className='stats-item' style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <Text className='stats-value'>{weekStats.totalCalorie || 0}</Text>
                       <Text className='stats-label'>总卡路里</Text>
                     </View>
-                    <View className='stats-item'>
+                    <View className='stats-item' style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <Text className='stats-value'>{weekStats.totalDuration || 0}</Text>
                       <Text className='stats-label'>总时长(分)</Text>
                     </View>
-                    <View className='stats-item'>
+                    <View className='stats-item' style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <Text className='stats-value'>{weekStats.rank || '-'}</Text>
                       <Text className='stats-label'>班级排名</Text>
                     </View>
@@ -158,16 +158,16 @@ export default function Index() {
               <View className='card today-card'>
                 <View className='today-title'>孩子的运动</View>
                 {weekStats && weekStats.summary ? (
-                  <View className='stats-grid' style={{ marginTop: '12px' }}>
-                    <View className='stats-item'>
+                  <View className='stats-grid' style={{ display: 'flex', flexDirection: 'row', width: '100%', marginTop: '12px' }}>
+                    <View className='stats-item' style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <Text className='stats-value'>{weekStats.summary.totalCheckins || 0}</Text>
                       <Text className='stats-label'>累计打卡</Text>
                     </View>
-                    <View className='stats-item'>
+                    <View className='stats-item' style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <Text className='stats-value'>{weekStats.summary.totalCalorie || 0}</Text>
                       <Text className='stats-label'>总卡路里</Text>
                     </View>
-                    <View className='stats-item'>
+                    <View className='stats-item' style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <Text className='stats-value'>{weekStats.summary.totalDuration || 0}</Text>
                       <Text className='stats-label'>总时长(分)</Text>
                     </View>
@@ -196,36 +196,36 @@ export default function Index() {
           )}
 
           {/* 快捷入口 */}
-          <View className='quick-actions'>
-            <View className='action-item' onClick={goCheckin}>
+          <View className='quick-actions' style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px' }}>
+            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={goCheckin}>
               <Text className='action-icon'>🏃</Text>
               <Text className='action-label'>运动打卡</Text>
             </View>
-            <View className='action-item' onClick={goClass}>
+            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={goClass}>
               <Text className='action-icon'>📚</Text>
               <Text className='action-label'>班级管理</Text>
             </View>
-            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/weekly/index' })}>
+            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/weekly/index' })}>
               <Text className='action-icon'>🏆</Text>
               <Text className='action-label'>周榜</Text>
             </View>
-            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/monthly/index' })}>
+            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/monthly/index' })}>
               <Text className='action-icon'>⭐</Text>
               <Text className='action-label'>月度明星</Text>
             </View>
-            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/ranking/index' })}>
+            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/ranking/index' })}>
               <Text className='action-icon'>📊</Text>
               <Text className='action-label'>排行榜</Text>
             </View>
-            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/stats/index' })}>
+            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/stats/index' })}>
               <Text className='action-icon'>📈</Text>
               <Text className='action-label'>数据统计</Text>
             </View>
-            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/checkin-list/index' })}>
+            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/checkin-list/index' })}>
               <Text className='action-icon'>📋</Text>
               <Text className='action-label'>打卡记录</Text>
             </View>
-            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/awards/index' })}>
+            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/awards/index' })}>
               <Text className='action-icon'>🎖️</Text>
               <Text className='action-label'>我的奖项</Text>
             </View>
