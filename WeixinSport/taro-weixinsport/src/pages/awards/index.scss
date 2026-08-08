@@ -22,7 +22,7 @@
 
 .summary-title {
   display: block;
-  font-size: 18px;
+  font-size: 27px;
   font-weight: 600;
   color: #333;
   margin-bottom: 12px;
@@ -40,18 +40,18 @@
 }
 
 .medal-icon {
-  font-size: 34px;
+  font-size: 51px;
   margin-bottom: 4px;
 }
 
 .medal-num {
-  font-size: 24px;
+  font-size: 36px;
   font-weight: bold;
   color: #333;
 }
 
 .medal-label {
-  font-size: 14px;
+  font-size: 21px;
   color: #999;
   margin-top: 2px;
 }
@@ -74,7 +74,7 @@
   text-align: center;
   padding: 8px;
   border-radius: 6px;
-  font-size: 15px;
+  font-size: 23px;
   color: #666;
   cursor: pointer;
   
@@ -111,7 +111,7 @@
 }
 
 .award-emoji {
-  font-size: 34px;
+  font-size: 51px;
   margin-right: 10px;
   
   &.medal-gold { color: #faad14; }
@@ -126,25 +126,25 @@
 
 .award-title {
   display: block;
-  font-size: 17px;
+  font-size: 26px;
   font-weight: 600;
   color: #333;
 }
 
 .award-period {
   display: block;
-  font-size: 14px;
+  font-size: 21px;
   color: #999;
   margin-top: 2px;
 }
 
 .award-rank {
-  font-size: 22px;
+  font-size: 33px;
 }
 
 .award-value {
   display: block;
-  font-size: 15px;
+  font-size: 23px;
   color: #666;
   margin-top: 8px;
   padding-top: 8px;
@@ -159,11 +159,11 @@
 }
 
 .empty-emoji {
-  font-size: 58px;
+  font-size: 87px;
   margin-bottom: 12px;
 }
 
 .empty-text {
-  font-size: 17px;
+  font-size: 26px;
   color: #999;
 }

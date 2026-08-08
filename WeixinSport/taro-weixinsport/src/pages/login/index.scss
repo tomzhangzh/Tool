@@ -10,18 +10,18 @@
 }
 
 .brand-icon {
-  font-size: 72px;
+  font-size: 108px;
 }
 
 .brand-title {
-  font-size: 29px;
+  font-size: 44px;
   font-weight: bold;
   color: #333;
   margin-top: 10px;
 }
 
 .brand-sub {
-  font-size: 15px;
+  font-size: 23px;
   color: #999;
   margin-top: 6px;
 }
@@ -35,7 +35,7 @@
 }
 
 .card-title {
-  font-size: 19px;
+  font-size: 29px;
   font-weight: 600;
   color: #333;
   margin-bottom: 12px;
@@ -63,7 +63,7 @@
 }
 
 .role-emoji {
-  font-size: 38px;
+  font-size: 57px;
   margin-right: 12px;
 }
 
@@ -72,19 +72,19 @@
 }
 
 .role-name {
-  font-size: 19px;
+  font-size: 29px;
   font-weight: 600;
   color: #333;
 }
 
 .role-desc {
-  font-size: 15px;
+  font-size: 23px;
   color: #999;
   margin-top: 4px;
 }
 
 .role-arrow {
-  font-size: 24px;
+  font-size: 36px;
   color: #ccc;
 }
 
@@ -101,14 +101,14 @@
 
 .form-label {
   width: 90px;
-  font-size: 17px;
+  font-size: 26px;
   color: #666;
   flex-shrink: 0;
 }
 
 .form-input {
   flex: 1;
-  font-size: 17px;
+  font-size: 26px;
   color: #333;
 }
 
@@ -126,20 +126,39 @@
 }
 
 .avatar {
-  width: 60px;
-  height: 60px;
+  width: 90px;
+  height: 90px;
   border-radius: 50%;
   background: #eee;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 21px;
   color: #666;
   overflow: hidden;
 }
 
 .avatar-placeholder {
   background: #f0f0f0;
+}
+
+.error-tip {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  font-size: 21px;
+  color: #856404;
+  text-align: center;
+
+  .error-retry {
+    display: block;
+    margin-top: 8px;
+    color: #007bff;
+    text-decoration: underline;
+    cursor: pointer;
+  }
 }
 
 .form-actions {
@@ -150,11 +169,11 @@
 
 .btn {
   flex: 1;
-  min-height: 53px !important;
-  height: 53px !important;
-  line-height: 53px !important;
-  border-radius: 26px !important;
-  font-size: 18px !important;
+  min-height: 80px !important;
+  height: 80px !important;
+  line-height: 80px !important;
+  border-radius: 40px !important;
+  font-size: 27px !important;
   border: none !important;
   text-align: center;
   display: flex !important;

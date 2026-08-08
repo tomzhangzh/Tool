@@ -20,7 +20,7 @@
 .month-tab {
   padding: 6px 16px;
   border-radius: 16px;
-  font-size: 17px;
+  font-size: 26px;
   color: #666;
   cursor: pointer;
   
@@ -33,7 +33,7 @@
 .month-label {
   flex: 1;
   text-align: right;
-  font-size: 15px;
+  font-size: 23px;
   color: #999;
 }
 
@@ -49,18 +49,18 @@
 }
 
 .calc-hint {
-  font-size: 15px;
+  font-size: 23px;
   color: #d48806;
 }
 
 .calc-btn {
-  font-size: 15px !important;
+  font-size: 23px !important;
   padding: 0 16px !important;
-  height: 32px !important;
-  line-height: 32px !important;
+  height: 48px !important;
+  line-height: 48px !important;
   background: #fa8c16 !important;
   color: #fff !important;
-  border-radius: 16px !important;
+  border-radius: 24px !important;
   border: none !important;
 }
 
@@ -80,7 +80,7 @@
 
 .card-title {
   display: block;
-  font-size: 18px;
+  font-size: 27px;
   font-weight: 600;
   color: #333;
   margin-bottom: 12px;
@@ -121,13 +121,13 @@
 }
 
 .podium-medal {
-  font-size: 38px;
+  font-size: 57px;
   margin-bottom: 6px;
 }
 
 .podium-avatar {
-  width: 67px;
-  height: 67px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   background: #e8f0fe;
   display: flex;
@@ -143,25 +143,25 @@
 }
 
 .avatar-placeholder {
-  font-size: 24px;
+  font-size: 36px;
   color: #4A90E2;
   font-weight: 600;
 }
 
 .podium-name {
-  font-size: 17px;
+  font-size: 26px;
   font-weight: 600;
   color: #333;
 }
 
 .podium-score {
-  font-size: 14px;
+  font-size: 21px;
   color: #ff8c16;
   font-weight: 600;
 }
 
 .podium-label {
-  font-size: 13px;
+  font-size: 20px;
   color: #999;
   margin-top: 2px;
 }
@@ -178,7 +178,7 @@
 }
 
 .special-emoji {
-  font-size: 29px;
+  font-size: 44px;
   margin-right: 10px;
 }
 
@@ -188,13 +188,13 @@
 
 .special-name {
   display: block;
-  font-size: 17px;
+  font-size: 26px;
   color: #333;
 }
 
 .special-desc {
   display: block;
-  font-size: 14px;
+  font-size: 21px;
   color: #999;
   margin-top: 2px;
 }
@@ -205,14 +205,14 @@
 
 .winner-name {
   display: block;
-  font-size: 17px;
+  font-size: 26px;
   color: #4A90E2;
   font-weight: 600;
 }
 
 .winner-reason {
   display: block;
-  font-size: 14px;
+  font-size: 21px;
   color: #999;
 }
 
@@ -224,12 +224,12 @@
 }
 
 .empty-emoji {
-  font-size: 58px;
+  font-size: 87px;
   margin-bottom: 12px;
 }
 
 .empty-text {
-  font-size: 17px;
+  font-size: 26px;
   color: #999;
 }
 
@@ -239,7 +239,7 @@
 
 .rule-title {
   display: block;
-  font-size: 17px;
+  font-size: 26px;
   font-weight: 600;
   color: #333;
   margin-bottom: 8px;
@@ -247,7 +247,7 @@
 
 .rule-text {
   display: block;
-  font-size: 14px;
+  font-size: 21px;
   color: #666;
   line-height: 1.8;
 }

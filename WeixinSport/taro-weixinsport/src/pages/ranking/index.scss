@@ -21,7 +21,7 @@
   text-align: center;
   padding: 8px;
   border-radius: 6px;
-  font-size: 17px;
+  font-size: 26px;
   color: #666;
   cursor: pointer;
   
@@ -55,12 +55,12 @@
 }
 
 .metric-emoji {
-  font-size: 24px;
+  font-size: 36px;
   margin-bottom: 2px;
 }
 
 .metric-name {
-  font-size: 14px;
+  font-size: 21px;
   color: #666;
 }
 
@@ -104,13 +104,13 @@
 .rank-num {
   width: 32px;
   text-align: center;
-  font-size: 22px;
+  font-size: 33px;
   margin-right: 10px;
 }
 
 .rank-avatar {
-  width: 43px;
-  height: 43px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: #e8f0fe;
   display: flex;
@@ -126,7 +126,7 @@
 }
 
 .avatar-placeholder {
-  font-size: 17px;
+  font-size: 26px;
   color: #4A90E2;
   font-weight: 600;
 }
@@ -137,19 +137,19 @@
 
 .rank-name {
   display: block;
-  font-size: 17px;
+  font-size: 26px;
   color: #333;
 }
 
 .rank-class {
   display: block;
-  font-size: 14px;
+  font-size: 21px;
   color: #999;
   margin-top: 2px;
 }
 
 .rank-value {
-  font-size: 17px;
+  font-size: 26px;
   font-weight: 600;
   color: #4A90E2;
 }
@@ -162,12 +162,12 @@
 }
 
 .empty-emoji {
-  font-size: 58px;
+  font-size: 87px;
   margin-bottom: 12px;
 }
 
 .empty-text {
-  font-size: 17px;
+  font-size: 26px;
   color: #999;
 }
 
@@ -178,7 +178,7 @@
 
 .my-rank-label {
   display: block;
-  font-size: 15px;
+  font-size: 23px;
   color: #4A90E2;
   font-weight: 600;
   margin-bottom: 10px;

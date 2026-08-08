@@ -42,6 +42,14 @@ export default function Index() {
       } else if (currentRole === 'teacher') {
         const list = await api.getMyClasses().catch(() => []);
         setClassList(list);
+      } else if (currentRole === 'parent') {
+        // 家长：加载孩子的班级列表和统计数据
+        const [list, stats] = await Promise.all([
+          api.getMyClasses().catch(() => []),
+          api.getProfile().catch(() => null)
+        ]);
+        setClassList(list);
+        setWeekStats(stats);
       }
     } catch (e) {
       console.error('load data error', e);
@@ -142,6 +150,49 @@ export default function Index() {
                 <View className='class-empty'>暂无班级，点击创建或加入</View>
               )}
             </View>
+          )}
+
+          {/* 家长视图 */}
+          {role === 'parent' && (
+            <>
+              <View className='card today-card'>
+                <View className='today-title'>孩子的运动</View>
+                {weekStats && weekStats.summary ? (
+                  <View className='stats-grid' style={{ marginTop: '12px' }}>
+                    <View className='stats-item'>
+                      <Text className='stats-value'>{weekStats.summary.totalCheckins || 0}</Text>
+                      <Text className='stats-label'>累计打卡</Text>
+                    </View>
+                    <View className='stats-item'>
+                      <Text className='stats-value'>{weekStats.summary.totalCalorie || 0}</Text>
+                      <Text className='stats-label'>总卡路里</Text>
+                    </View>
+                    <View className='stats-item'>
+                      <Text className='stats-value'>{weekStats.summary.totalDuration || 0}</Text>
+                      <Text className='stats-label'>总时长(分)</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View className='today-desc'>暂无数据</View>
+                )}
+              </View>
+
+              <View className='card class-card' onClick={goClass}>
+                <View className='class-title'>孩子的班级</View>
+                {classList.length > 0 ? (
+                  <View className='class-list'>
+                    {classList.map(cls => (
+                      <View className='class-item' key={cls._id}>
+                        <Text className='class-name'>{cls.name}</Text>
+                        <Text className='class-count'>{cls.memberCount || 0} 名学生</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View className='class-empty'>孩子暂未加入班级</View>
+                )}
+              </View>
+            </>
           )}
 
           {/* 快捷入口 */}

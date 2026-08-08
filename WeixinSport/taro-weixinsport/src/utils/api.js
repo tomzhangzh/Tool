@@ -12,11 +12,11 @@ import { callFunction } from './cloud';
 export const call = async (name, data = {}) => {
   try {
     const res = await callFunction(name, data);
-    
+
     // H5 环境：CloudBase JS SDK 返回的格式
     // 小程序环境：Taro.cloud 返回的格式
     const result = res.result || res;
-    
+
     if (result && result.code === 0) {
       return result.data;
     } else {
@@ -26,11 +26,22 @@ export const call = async (name, data = {}) => {
     }
   } catch (err) {
     console.error('callFunction fail:', err);
+
+    // 显示更具体的错误信息
+    let errorMsg = '网络错误，请重试';
+
     if (err.message === '云开发未初始化') {
-      Taro.showToast({ title: '云开发未初始化', icon: 'none' });
-    } else {
-      Taro.showToast({ title: '网络错误', icon: 'none' });
+      errorMsg = '云开发未初始化，请刷新页面';
+    } else if (err.message && err.message.includes('匿名登录失败')) {
+      errorMsg = '登录失败：' + err.message;
+    } else if (err.error_description || err.error) {
+      // CloudBase SDK 返回的错误
+      errorMsg = '连接失败：' + (err.error_description || err.error);
+    } else if (err.message) {
+      errorMsg = err.message;
     }
+
+    Taro.showToast({ title: errorMsg, icon: 'none', duration: 3000 });
     throw err;
   }
 };

@@ -17,6 +17,7 @@ export default function Login() {
   const [classCode, setClassCode] = useState('');
   const [childName, setChildName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
     // 检查是否已登录
@@ -60,10 +61,11 @@ export default function Login() {
     }
 
     setLoading(true);
+    setLoginError('');
     try {
       // 先尝试登录获取 openid（小程序环境会直接返回，H5 环境如果是首次可能需要先授权）
       let userInfo = await api.login();
-      
+
       // 如果 H5 环境下没有 openid，说明需要先授权
       if (!userInfo || !userInfo.openid) {
         if (process.env.TARO_ENV === 'h5') {
@@ -92,6 +94,8 @@ export default function Login() {
       }, 800);
     } catch (e) {
       console.error('login error', e);
+      // 显示错误信息并允许重试
+      setLoginError(e.message || '登录失败，请重试');
     } finally {
       setLoading(false);
     }
@@ -143,14 +147,12 @@ export default function Login() {
 
           <View className='form-row'>
             <Text className='form-label'>头像</Text>
-            {/* H5 环境：如果有微信头像则使用，否则可选择 */}
+            {/* H5 环境：可点击生成随机头像 */}
             {process.env.TARO_ENV === 'h5' ? (
               <div className='avatar-btn' onClick={() => {
-                if (wxUser && wxUser.avatar) return; // 微信头像不可更改
                 setAvatar('https://api.dicebear.com/7.x/avataaars/svg?seed=' + Math.random());
               }}>
                 {avatar ? <Image src={avatar} className='avatar' /> : <View className='avatar avatar-placeholder'>点击选择</View>}
-                {wxUser && wxUser.avatar && <View className='avatar-tip'>微信头像</View>}
               </div>
             ) : (
               <Button className='avatar-btn' openType='chooseAvatar' onChooseAvatar={(e) => setAvatar(e.detail.avatarUrl)}>
@@ -166,7 +168,6 @@ export default function Login() {
               placeholder='请输入姓名' 
               value={name} 
               onInput={(e) => setName(e.detail.value)} 
-              disabled={wxUser && wxUser.name}
             />
           </View>
 
@@ -187,6 +188,13 @@ export default function Login() {
             <View className='form-row'>
               <Text className='form-label'>孩子姓名</Text>
               <Input className='form-input' placeholder='绑定的孩子姓名' value={childName} onInput={(e) => setChildName(e.detail.value)} />
+            </View>
+          )}
+
+          {loginError && (
+            <View className='error-tip'>
+              <Text>{loginError}</Text>
+              <Text className='error-retry' onClick={handleSubmit}>点击重试</Text>
             </View>
           )}
 
