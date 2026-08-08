@@ -84,30 +84,54 @@ exports.main = async (event, context) => {
 
     // 学生加入班级
     if (action === 'join') {
-      const { code } = event;
+      const { code, username } = event;
       const clsQ = await db.collection('classes').where({ code, status: 'active' }).get();
       if (!clsQ.data.length) return { code: 1, message: '邀请码无效' };
       const cls = clsQ.data[0];
 
-      // 已加入？
-      const memberQ = await db.collection('class_members').where({ classId: cls._id, openid }).get();
+      // 已加入？（容错：检查当前 openid 和可能的旧 openid）
+      let memberQ = await db.collection('class_members').where({ classId: cls._id, openid }).get();
+      if (memberQ.data.length) return { code: 1, message: '已加入该班级' };
+      
+      // 容错：查找用户（可能 openid 已变化）
+      let userQ = await db.collection('users').where({ openid }).get();
+      let user = userQ.data[0];
+      if (!user && username) {
+        userQ = await db.collection('users').where({ username }).get();
+        user = userQ.data[0];
+        // 如果找到用户但 openid 不匹配，更新 openid
+        if (user && user.openid !== openid) {
+          await db.collection('users').doc(user._id).update({
+            data: { openid, updateTime: Date.now() }
+          });
+          console.log('[join] 更新用户 openid:', { old: user.openid, new: openid });
+        }
+      }
+      if (!user) return { code: 1, message: '用户不存在，请先注册' };
+      
+      // 检查用户是否已加入（用用户的当前 openid 或旧 openid）
+      memberQ = await db.collection('class_members').where({ classId: cls._id, openid: user.openid }).get();
       if (memberQ.data.length) return { code: 1, message: '已加入该班级' };
 
+      // 添加成员记录
       await db.collection('class_members').add({
         data: {
           classId: cls._id,
-          openid,
+          openid: user.openid,
           role: 'student',
           joinTime: Date.now()
         }
       });
+      
       // 写入用户 classIds
-      const userQ = await db.collection('users').where({ openid }).get();
-      if (userQ.data.length) {
-        await db.collection('users').doc(userQ.data[0]._id).update({
+      const currentClassIds = user.classIds || [];
+      if (!currentClassIds.includes(cls._id)) {
+        await db.collection('users').doc(user._id).update({
           data: { classIds: _.push([cls._id]) }
         });
+        console.log('[join] 更新用户 classIds:', { classIds: [...currentClassIds, cls._id] });
       }
+      
       return { code: 0, data: { classId: cls._id } };
     }
 
@@ -227,8 +251,21 @@ exports.main = async (event, context) => {
 
     // 我的班级列表
     if (action === 'my') {
-      const userQ = await db.collection('users').where({ openid }).get();
-      const user = userQ.data[0];
+      // 容错查找用户：先按 openid，找不到按 username
+      let userQ = await db.collection('users').where({ openid }).get();
+      let user = userQ.data[0];
+      if (!user && event.username) {
+        userQ = await db.collection('users').where({ username: event.username }).get();
+        user = userQ.data[0];
+        // 如果找到用户但 openid 不匹配，更新 openid
+        if (user && user.openid !== openid) {
+          await db.collection('users').doc(user._id).update({
+            data: { openid, updateTime: Date.now() }
+          });
+          console.log('[my] 更新用户 openid:', { old: user.openid, new: openid });
+          user.openid = openid;
+        }
+      }
       if (!user) return { code: 0, data: [] };
 
       // 老师：通过 class_teachers 关联表
@@ -262,8 +299,33 @@ exports.main = async (event, context) => {
       // 学生
       let classIds = [];
       if (user.role === 'student') {
-        const q = await db.collection('class_members').where({ openid }).get();
+        // 先按当前 openid 查
+        let q = await db.collection('class_members').where({ openid }).get();
         classIds = q.data.map(m => m.classId);
+        
+        // 容错：如果没查到，尝试用旧 openid（用户原来的 openid）查
+        if (classIds.length === 0 && user.openid !== openid) {
+          q = await db.collection('class_members').where({ openid: user.openid }).get();
+          classIds = q.data.map(m => m.classId);
+          // 如果查到了，更新 class_members 中的 openid
+          if (classIds.length > 0) {
+            const now = Date.now();
+            for (const m of q.data) {
+              if (m.openid !== openid) {
+                await db.collection('class_members').doc(m._id).update({
+                  data: { openid, updateTime: now }
+                });
+              }
+            }
+            console.log('[my] 更新 class_members openid:', { classIds });
+          }
+        }
+        
+        // 再容错：如果还没查到，从用户的 classIds 字段获取
+        if (classIds.length === 0 && user.classIds && user.classIds.length) {
+          classIds = user.classIds;
+          console.log('[my] 从用户 classIds 字段获取:', { classIds });
+        }
       }
 
       // 家长：看孩子班级

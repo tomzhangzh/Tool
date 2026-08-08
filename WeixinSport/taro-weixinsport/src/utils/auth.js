@@ -1,6 +1,7 @@
 // src/utils/auth.js
 // 登录与鉴权处理，特别是 H5 环境下的登录状态管理
 import Taro from '@tarojs/taro';
+import { signOutCloudBase } from './cloud';
 
 const USER_INFO_KEY = 'weixinsport_user_info';
 const CLOUD_LOGIN_KEY = 'weixinsport_cloud_login';
@@ -12,12 +13,18 @@ export const setUserInfo = (userInfo) => {
     const safeInfo = { ...userInfo };
     delete safeInfo.password;
     
+    // 确保 role 字段存在且正确
+    const role = safeInfo.role || null;
+    const openid = safeInfo.openid || null;
+    
     Taro.setStorageSync(USER_INFO_KEY, safeInfo);
-    Taro.setStorageSync('role', safeInfo.role);
-    Taro.setStorageSync('openid', safeInfo.openid);
+    Taro.setStorageSync('role', role);
+    Taro.setStorageSync('openid', openid);
     
     // 记录 CloudBase 已登录状态
     Taro.setStorageSync(CLOUD_LOGIN_KEY, Date.now());
+    
+    console.log('[setUserInfo] 存储用户信息:', { role, openid, name: safeInfo.name });
   }
 };
 
@@ -33,8 +40,24 @@ export const getUserInfo = () => {
 // 获取角色
 export const getRole = () => {
   try {
-    return Taro.getStorageSync('role') || null;
+    // 优先从单独的 role 键读取
+    const role = Taro.getStorageSync('role');
+    if (role) {
+      console.log('[getRole] 从 role 键获取:', role);
+      return role;
+    }
+    // 容错：从 userInfo 中获取 role
+    const userInfo = Taro.getStorageSync(USER_INFO_KEY);
+    if (userInfo && userInfo.role) {
+      console.log('[getRole] 从 userInfo 获取:', userInfo.role);
+      // 同步到 role 键
+      Taro.setStorageSync('role', userInfo.role);
+      return userInfo.role;
+    }
+    console.warn('[getRole] 未找到角色信息');
+    return null;
   } catch (e) {
+    console.error('[getRole] 错误:', e);
     return null;
   }
 };
@@ -60,13 +83,17 @@ export const isLoggedIn = () => {
 };
 
 // 清除登录状态（退出登录时调用）
-export const clearLogin = () => {
+export const clearLogin = async () => {
   try {
     Taro.removeStorageSync(USER_INFO_KEY);
     Taro.removeStorageSync('role');
     Taro.removeStorageSync('openid');
     Taro.removeStorageSync(CLOUD_LOGIN_KEY);
-  } catch (e) {}
+    // 退出 CloudBase 登录，确保下次匿名登录获得新 uid
+    await signOutCloudBase();
+  } catch (e) {
+    console.warn('[clearLogin] 退出异常:', e);
+  }
 };
 
 /**

@@ -146,9 +146,9 @@ export default function Profile() {
     Taro.showModal({
       title: '退出登录',
       content: '确定退出当前账号吗？',
-      success: (res) => {
+      success: async (res) => {
         if (res.confirm) {
-          clearLogin();
+          await clearLogin();
           Taro.redirectTo({ url: '/pages/login/index' });
         }
       }

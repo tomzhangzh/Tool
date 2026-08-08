@@ -17,6 +17,7 @@ export default function Login() {
   const [avatar, setAvatar] = useState('');
   const [weight, setWeight] = useState('');
   const [classCode, setClassCode] = useState('');
+  const [teacherCode, setTeacherCode] = useState('');
   const [childName, setChildName] = useState('');
   
   // 账号密码字段
@@ -62,6 +63,13 @@ export default function Login() {
       // 使用账号密码登录
       const userInfo = await api.loginByAccount({ username: username.trim(), password });
       
+      console.log('[login] 登录返回用户信息:', userInfo);
+      
+      // 验证 role 字段
+      if (!userInfo.role) {
+        console.warn('[login] 用户信息中缺少 role 字段');
+      }
+      
       setUserInfo(userInfo);
       Taro.showToast({ title: '登录成功', icon: 'success' });
       setTimeout(() => {
@@ -90,6 +98,24 @@ export default function Login() {
       return;
     }
 
+    // 学生必须输入班级邀请码
+    if (role === 'student' && (!classCode || !classCode.trim())) {
+      Taro.showToast({ title: '请输入班级邀请码', icon: 'none' });
+      return;
+    }
+
+    // 老师必须输入注册码
+    if (role === 'teacher' && (!teacherCode || !teacherCode.trim())) {
+      Taro.showToast({ title: '请输入老师注册码', icon: 'none' });
+      return;
+    }
+
+    // 家长必须输入孩子姓名
+    if (role === 'parent' && (!childName || !childName.trim())) {
+      Taro.showToast({ title: '请输入孩子姓名', icon: 'none' });
+      return;
+    }
+
     setLoading(true);
     setLoginError('');
     try {
@@ -102,7 +128,11 @@ export default function Login() {
         password,
         role,
         name: name.trim() || username.trim(),
-        avatar: avatar || ''
+        avatar: avatar || '',
+        weight: role === 'student' ? Number(weight) : undefined,
+        classCode: role === 'student' ? classCode.trim() : undefined,
+        teacherCode: role === 'teacher' ? teacherCode.trim() : undefined,
+        childName: role === 'parent' ? childName.trim() : undefined
       });
       
       setUserInfo(userInfo);
@@ -176,7 +206,7 @@ export default function Login() {
       <View className='login-page'>
         <View className='brand'>
           <View className='brand-icon'>🏃‍♂️</View>
-          <View className='brand-title'>运动小达人</View>
+          <View className='brand-title'>华曜运动小达人</View>
           <View className='brand-sub'>运动打卡 · 周评选 · 月度明星</View>
         </View>
 
@@ -224,6 +254,11 @@ export default function Login() {
               setPassword('');
               setConfirmPassword('');
               setName('');
+              setAvatar('');
+              setWeight('');
+              setClassCode('');
+              setTeacherCode('');
+              setChildName('');
               setLoginError('');
               setMode('role');
               setStep('role');
@@ -240,7 +275,7 @@ export default function Login() {
       <View className='login-page'>
         <View className='brand'>
           <View className='brand-icon'>🏃‍♂️</View>
-          <View className='brand-title'>运动小达人</View>
+          <View className='brand-title'>华曜运动小达人</View>
           <View className='brand-sub'>运动打卡 · 周评选 · 月度明星</View>
         </View>
 
@@ -287,7 +322,7 @@ export default function Login() {
       <View className='login-page'>
         <View className='brand'>
           <View className='brand-icon'>🏃‍♂️</View>
-          <View className='brand-title'>运动小达人</View>
+          <View className='brand-title'>华曜运动小达人</View>
           <View className='brand-sub'>运动打卡 · 周评选 · 月度明星</View>
         </View>
 
@@ -362,9 +397,16 @@ export default function Login() {
               </View>
               <View className='form-row'>
                 <Text className='form-label'>班级邀请码</Text>
-                <Input className='form-input' placeholder='请输入老师提供的邀请码' value={classCode} onInput={(e) => setClassCode(e.detail.value)} />
+                <Input className='form-input' placeholder='请输入老师提供的邀请码（必填）' value={classCode} onInput={(e) => setClassCode(e.detail.value)} />
               </View>
             </>
+          )}
+
+          {role === 'teacher' && (
+            <View className='form-row'>
+              <Text className='form-label'>老师注册码</Text>
+              <Input className='form-input' placeholder='请输入管理员提供的注册码（必填）' value={teacherCode} onInput={(e) => setTeacherCode(e.detail.value)} />
+            </View>
           )}
 
           {role === 'parent' && (
@@ -384,6 +426,15 @@ export default function Login() {
             <Button className='btn btn-ghost' onClick={() => {
               setStep('role');
               setMode('role');
+              setUsername('');
+              setPassword('');
+              setConfirmPassword('');
+              setName('');
+              setAvatar('');
+              setWeight('');
+              setClassCode('');
+              setTeacherCode('');
+              setChildName('');
             }}>返回</Button>
             <Button className='btn btn-block' onClick={handleRegister} loading={loading} disabled={loading}>
               完成注册
@@ -397,6 +448,12 @@ export default function Login() {
               setUsername('');
               setPassword('');
               setConfirmPassword('');
+              setName('');
+              setAvatar('');
+              setWeight('');
+              setClassCode('');
+              setTeacherCode('');
+              setChildName('');
             }}>去登录</Text>
           </View>
         </View>

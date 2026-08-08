@@ -1,6 +1,6 @@
 // src/pages/checkin-list/index.jsx
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Button } from '@tarojs/components';
+import { View, Text, ScrollView, Button, Image } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo, getRole } from '../../utils/auth';
@@ -14,19 +14,54 @@ const FILTERS = [
   { id: 'month', name: '本月' }
 ];
 
+// 辅助函数：获取图片真实 URL
+const resolveImageUrl = async (image) => {
+  if (!image) return '';
+  // 如果已经是 http 开头，直接返回
+  if (image.startsWith('http')) return image;
+  // 如果是 fileID，获取临时链接
+  try {
+    const data = await api.getImageUrl(image);
+    return data.url || '';
+  } catch (e) {
+    console.error('getImageUrl error', e);
+    return '';
+  }
+};
+
 export default function CheckinList() {
   const [list, setList] = useState([]);
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [previewImage, setPreviewImage] = useState('');
   const pageSize = 20;
 
   const loadList = async (f = filter, p = page) => {
     setLoading(true);
     try {
-      const data = await api.getCheckinList({ page: p, pageSize });
-      setList(data.list || []);
+      const userInfo = getUserInfo();
+      const data = await api.getCheckinList({ 
+        page: p, 
+        pageSize,
+        username: userInfo?.username // 传递 username 用于容错
+      });
+      
+      // 处理图片 URL：将 fileID 转换为可访问的 URL
+      const items = data.list || [];
+      const processedList = await Promise.all(
+        items.map(async (item) => {
+          const itemImage = item.image || '';
+          let displayImage = '';
+          if (itemImage) {
+            displayImage = await resolveImageUrl(itemImage);
+          }
+          return { ...item, displayImage };
+        })
+      );
+      
+      setList(processedList);
       setTotal(data.total || 0);
     } catch (e) {
       console.error('load checkin list error', e);
@@ -66,6 +101,11 @@ export default function CheckinList() {
         }
       }
     });
+  };
+
+  const previewImg = (url) => {
+    if (!url) return;
+    setPreviewImage(url);
   };
 
   const goCheckin = () => {
@@ -108,6 +148,11 @@ export default function CheckinList() {
                     <Text className='item-time'>{timeAgo(item.createTime)}</Text>
                   </View>
                   {item.note && <Text className='item-note'>💬 {item.note}</Text>}
+                  {item.displayImage && (
+                    <View className='item-image' onClick={() => previewImg(item.displayImage)}>
+                      <Image src={item.displayImage} className='item-img' mode='aspectFit' />
+                    </View>
+                  )}
                   <Text className='item-date'>{item.dateStr}</Text>
                 </View>
                 <View className='item-action' onClick={() => onDelete(item)}>
@@ -130,6 +175,15 @@ export default function CheckinList() {
           </View>
         )}
       </ScrollView>
+      
+      {/* 图片预览弹窗 */}
+      {previewImage && (
+        <View className='img-preview-mask' style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setPreviewImage('')}>
+          <Image src={previewImage} className='img-preview-big' style={{ width: '100%', height: '100%' }} mode='aspectFit' />
+          <Text className='img-preview-close' style={{ color: '#fff', fontSize: '14px', marginTop: '10px', position: 'absolute', bottom: '40px' }}>点击关闭</Text>
+        </View>
+      )}
+      
       <CustomTabBar />
     </View>
   );

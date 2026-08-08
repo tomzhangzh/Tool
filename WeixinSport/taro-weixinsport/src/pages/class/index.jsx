@@ -32,7 +32,8 @@ export default function Class() {
   const loadClasses = async () => {
     setLoading(true);
     try {
-      const list = await api.getMyClasses();
+      const userInfo = getUserInfo();
+      const list = await api.getMyClasses(userInfo?.username);
       setClassList(list);
     } catch (e) {
       console.error('load classes error', e);
@@ -69,11 +70,12 @@ export default function Class() {
     }
     setJoining(true);
     try {
+      const userInfo = getUserInfo();
       if (role === 'teacher') {
         const res = await api.addTeacher(code);
         Taro.showToast({ title: `已加入「${res.name}」`, icon: 'success' });
       } else {
-        await api.joinClass({ code });
+        await api.joinClass({ code, username: userInfo?.username });
         Taro.showToast({ title: '加入成功', icon: 'success' });
       }
       setShowJoin(false);

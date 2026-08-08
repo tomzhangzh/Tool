@@ -6,7 +6,7 @@ import './index.scss';
 const tabs = [
   { pagePath: 'pages/index/index', text: '首页' },
   { pagePath: 'pages/checkin/index', text: '打卡' },
-  { pagePath: 'pages/class/index', text: '班级' },
+  { pagePath: 'pages/class-news/index', text: '班级动态' },
   { pagePath: 'pages/profile/index', text: '我的' }
 ];
 
@@ -18,7 +18,7 @@ export default function CustomTabBar() {
     const url = `/${pagePath}`;
     console.log('[CustomTabBar] switch to:', url);
     // 对于 tabBar 页面，使用 switchTab；否则使用 navigateTo
-    if (['pages/index/index', 'pages/checkin/index', 'pages/class/index', 'pages/profile/index'].includes(pagePath)) {
+    if (['pages/index/index', 'pages/checkin/index', 'pages/profile/index'].includes(pagePath)) {
       Taro.switchTab({ 
         url,
         fail: (err) => {

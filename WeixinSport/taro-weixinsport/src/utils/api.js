@@ -62,7 +62,7 @@ export const getClassMembers = (classId) => call('class', { action: 'members', c
 export const getClassTeachers = (classId) => call('class', { action: 'listTeachers', classId });
 export const addTeacher = (code) => call('class', { action: 'addTeacher', code });
 export const removeTeacher = (classId, targetOpenid) => call('class', { action: 'removeTeacher', classId, targetOpenid });
-export const getMyClasses = () => call('class', { action: 'my' });
+export const getMyClasses = (username) => call('class', { action: 'my', username });
 export const bindChild = (data) => call('class', { action: 'bindChild', ...data });
 
 // --- 打卡 ---
@@ -70,6 +70,8 @@ export const submitCheckin = (data) => call('checkin', { action: 'submit', ...da
 export const getCheckinList = (data) => call('checkin', { action: 'list', ...data });
 export const deleteCheckin = (id) => call('checkin', { action: 'delete', id });
 export const getTodayCheckin = () => call('checkin', { action: 'today' });
+export const getClassFeed = (data) => call('checkin', { action: 'classFeed', ...data });
+export const getImageUrl = (fileID) => call('checkin', { action: 'getImageUrl', fileID });
 
 // --- 统计 ---
 export const getWeeklyStats = (data) => call('stats', { action: 'weekly', ...data });
@@ -86,7 +88,7 @@ export const calcMonthlyStars = (data) => call('awards', { action: 'calcMonthly'
 export default {
   login, loginByAccount, register, bindRole, getProfile, updateProfile,
   createClass, joinClass, getClassDetail, getClassMembers, getClassTeachers, addTeacher, removeTeacher, getMyClasses, bindChild,
-  submitCheckin, getCheckinList, deleteCheckin, getTodayCheckin,
+  submitCheckin, getCheckinList, deleteCheckin, getTodayCheckin, getClassFeed, getImageUrl,
   getWeeklyStats, getMonthlyStats, getRanking,
   getWeeklyAwards, getMonthlyStars, getMyAwards, calcWeeklyAwards, calcMonthlyStars
 };

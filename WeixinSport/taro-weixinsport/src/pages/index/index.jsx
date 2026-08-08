@@ -40,12 +40,12 @@ export default function Index() {
         setTodayCheckin(today);
         setWeekStats(week);
       } else if (currentRole === 'teacher') {
-        const list = await api.getMyClasses().catch(() => []);
+        const list = await api.getMyClasses(info?.username).catch(() => []);
         setClassList(list);
       } else if (currentRole === 'parent') {
         // 家长：加载孩子的班级列表和统计数据
         const [list, stats] = await Promise.all([
-          api.getMyClasses().catch(() => []),
+          api.getMyClasses(info?.username).catch(() => []),
           api.getProfile().catch(() => null)
         ]);
         setClassList(list);
@@ -61,14 +61,31 @@ export default function Index() {
   const goCheckin = () => Taro.navigateTo({ url: '/pages/checkin/index' });
   const goClass = () => Taro.navigateTo({ url: '/pages/class/index' });
   const goProfile = () => Taro.navigateTo({ url: '/pages/profile/index' });
+  const goFeed = () => {
+    console.log('[goFeed] 点击班级动态');
+    try {
+      Taro.navigateTo({ 
+        url: '/pages/class-news/index',
+        fail: (err) => {
+          console.error('[goFeed] 跳转失败:', err);
+          Taro.showToast({ title: '跳转失败', icon: 'none' });
+        },
+        success: () => {
+          console.log('[goFeed] 跳转成功');
+        }
+      });
+    } catch (e) {
+      console.error('[goFeed] 异常:', e);
+    }
+  };
 
   const handleLogout = () => {
     Taro.showModal({
       title: '退出登录',
       content: '确定退出当前账号吗？',
-      success: (res) => {
+      success: async (res) => {
         if (res.confirm) {
-          clearLogin();
+          await clearLogin();
           Taro.redirectTo({ url: '/pages/login/index' });
         }
       }
@@ -196,36 +213,40 @@ export default function Index() {
           )}
 
           {/* 快捷入口 */}
-          <View className='quick-actions' style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px' }}>
-            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={goCheckin}>
+          <View className='quick-actions'>
+            <View className='action-item' onClick={goCheckin}>
               <Text className='action-icon'>🏃</Text>
               <Text className='action-label'>运动打卡</Text>
             </View>
-            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={goClass}>
+            <View className='action-item' onClick={goFeed}>
+              <Text className='action-icon'>📣</Text>
+              <Text className='action-label'>班级动态</Text>
+            </View>
+            <View className='action-item' onClick={goClass}>
               <Text className='action-icon'>📚</Text>
               <Text className='action-label'>班级管理</Text>
             </View>
-            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/weekly/index' })}>
+            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/weekly/index' })}>
               <Text className='action-icon'>🏆</Text>
               <Text className='action-label'>周榜</Text>
             </View>
-            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/monthly/index' })}>
+            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/monthly/index' })}>
               <Text className='action-icon'>⭐</Text>
               <Text className='action-label'>月度明星</Text>
             </View>
-            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/ranking/index' })}>
+            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/ranking/index' })}>
               <Text className='action-icon'>📊</Text>
               <Text className='action-label'>排行榜</Text>
             </View>
-            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/stats/index' })}>
+            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/stats/index' })}>
               <Text className='action-icon'>📈</Text>
               <Text className='action-label'>数据统计</Text>
             </View>
-            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/checkin-list/index' })}>
+            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/checkin-list/index' })}>
               <Text className='action-icon'>📋</Text>
               <Text className='action-label'>打卡记录</Text>
             </View>
-            <View className='action-item' style={{ flex: 1, minWidth: 'calc(50% - 5px)' }} onClick={() => Taro.navigateTo({ url: '/pages/awards/index' })}>
+            <View className='action-item' onClick={() => Taro.navigateTo({ url: '/pages/awards/index' })}>
               <Text className='action-icon'>🎖️</Text>
               <Text className='action-label'>我的奖项</Text>
             </View>

@@ -6,6 +6,8 @@ export default {
     'pages/login/index',
     'pages/index/index',
     'pages/checkin/index',
+    'pages/checkin-list/index',
+    'pages/class-news/index',
     'pages/class/index',
     'pages/class-detail/index',
     'pages/weekly/index',
@@ -13,13 +15,12 @@ export default {
     'pages/ranking/index',
     'pages/stats/index',
     'pages/awards/index',
-    'pages/profile/index',
-    'pages/checkin-list/index'
+    'pages/profile/index'
   ],
   window: {
     navigationBarBackgroundColor: '#4A90E2',
     navigationBarTextStyle: 'white',
-    navigationBarTitleText: '运动小达人',
+    navigationBarTitleText: '华曜运动打卡',
     backgroundTextStyle: 'light'
   },
   tabBar: {

@@ -39,7 +39,7 @@ exports.main = async (event, context) => {
 
     // ========== 用户名密码注册 ==========
     if (action === 'register') {
-      const { username, password, role, name, avatar } = event;
+      const { username, password, role, name, avatar, weight, classCode, teacherCode } = event;
       if (!username || !password) {
         return { code: 1, message: '用户名和密码不能为空' };
       }
@@ -51,23 +51,71 @@ exports.main = async (event, context) => {
         return { code: 1, message: '用户名已存在' };
       }
 
-      // 创建用户（包含账号密码）
-      const addRes = await userCol.add({
-        data: {
-          openid,
-          username,
-          password, // 注意：生产环境应该加密存储
-          role: role || 'student',
-          name: name || username,
-          avatar: avatar || '',
-          weight: role === 'student' ? (event.weight || 30) : 30,
-          classIds: [],
-          childOpenid: '',
-          parentOpenids: [],
-          createTime: Date.now(),
-          updateTime: Date.now()
+      // 老师注册需要验证注册码
+      if (role === 'teacher') {
+        const TEACHER_CODE = 'hydxc';
+        if (!teacherCode || teacherCode.trim().toLowerCase() !== TEACHER_CODE) {
+          return { code: 1, message: '老师注册码错误' };
         }
-      });
+      }
+
+      // 学生注册必须提供班级邀请码
+      let joinedClassIds = [];
+      if (role === 'student') {
+        if (!classCode || !classCode.trim()) {
+          return { code: 1, message: '学生注册必须输入班级邀请码' };
+        }
+        const classCol = db.collection('classes');
+        const cls = await classCol.where({ code: classCode.trim(), status: 'active' }).get();
+        if (!cls.data.length) {
+          return { code: 1, message: '邀请码无效或班级已关闭' };
+        }
+        const c = cls.data[0];
+        joinedClassIds = [c._id];
+      }
+
+      // 创建用户（包含账号密码）
+      const addData = {
+        openid,
+        username,
+        password, // 注意：生产环境应该加密存储
+        role: role || 'student',
+        name: name || username,
+        avatar: avatar || '',
+        weight: role === 'student' ? (weight || 30) : 30,
+        classIds: joinedClassIds,
+        childOpenid: '',
+        parentOpenids: [],
+        createTime: Date.now(),
+        updateTime: Date.now()
+      };
+
+      // 家长绑定孩子
+      if (role === 'parent' && event.childName) {
+        const stu = await userCol.where({ role: 'student', name: event.childName }).get();
+        if (!stu.data.length) {
+          return { code: 1, message: '未找到该姓名的学生，请确认孩子已注册' };
+        }
+        addData.childOpenid = stu.data[0].openid;
+        // 把家长 openid 加入孩子的 parentOpenids
+        await userCol.doc(stu.data[0]._id).update({
+          data: { parentOpenids: _.push([openid]) }
+        });
+      }
+
+      const addRes = await userCol.add({ data: addData });
+
+      // 学生加入班级：写入 class_members 表
+      if (role === 'student' && joinedClassIds.length > 0) {
+        await db.collection('class_members').add({
+          data: {
+            classId: joinedClassIds[0],
+            openid,
+            role: 'student',
+            joinTime: Date.now()
+          }
+        });
+      }
 
       const newUser = (await userCol.doc(addRes._id).get()).data;
       return { code: 0, data: newUser };
@@ -93,15 +141,19 @@ exports.main = async (event, context) => {
         return { code: 1, message: '用户名或密码错误' };
       }
 
-      // 登录成功，更新 openid 绑定
+      // 登录成功，更新 openid 绑定（如果变化）
       if (user.openid !== openid) {
+        console.log('[loginByAccount] 更新用户 openid:', { old: user.openid, new: openid });
         await userCol.doc(user._id).update({
           data: { openid, updateTime: Date.now() }
         });
         user.openid = openid;
       }
 
-      return { code: 0, data: user };
+      // 确保返回数据包含 username
+      const result = { ...user, username: user.username || username };
+      console.log('[loginByAccount] 登录成功:', { username, openid, role: user.role });
+      return { code: 0, data: result };
     }
 
     if (action === 'bindRole') {
