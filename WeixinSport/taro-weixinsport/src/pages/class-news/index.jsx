@@ -5,7 +5,7 @@ import Taro, { useDidShow } from '@tarojs/taro';
 import api from '../../utils/api';
 import { getUserInfo } from '../../utils/auth';
 import { timeAgo, shortDateTime } from '../../utils/constants';
-import { resolveFileURL } from '../../utils/cloud';
+import { resolveFileURLs } from '../../utils/cloud';
 import CustomTabBar from '../../components/CustomTabBar';
 import LikeDetail from '../../components/LikeDetail';
 
@@ -72,21 +72,24 @@ export default function ClassNews() {
       console.log('[class-news] 动态数据:', data);
       
       const items = data.list || [];
-      const processedList = await Promise.all(
-        items.map(async (item) => {
-          const itemImage = item.image || '';
-          let displayImage = '';
-          if (itemImage) {
-            displayImage = await resolveFileURL(itemImage);
-          }
-          // 转换头像 URL
-          let displayAvatar = '';
-          if (item.avatar) {
-            displayAvatar = await resolveFileURL(item.avatar);
-          }
-          return { ...item, displayImage, displayAvatar };
-        })
-      );
+      
+      // 收集所有 fileID，批量解析以减少云函数调用
+      const fileIDs = [];
+      items.forEach(item => {
+        if (item.image) fileIDs.push(item.image);
+        if (item.avatar) fileIDs.push(item.avatar);
+      });
+      
+      let urlMap = new Map();
+      if (fileIDs.length > 0) {
+        urlMap = await resolveFileURLs(fileIDs);
+      }
+      
+      const processedList = items.map(item => ({
+        ...item,
+        displayImage: item.image ? urlMap.get(item.image) || '' : '',
+        displayAvatar: item.avatar ? urlMap.get(item.avatar) || '' : ''
+      }));
       
       setFeedList(processedList);
 

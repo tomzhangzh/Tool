@@ -4,7 +4,7 @@ import { View, Text, ScrollView, Image } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import api from '../../utils/api';
 import { shortDateTime } from '../../utils/constants';
-import { resolveFileURL } from '../../utils/cloud';
+import { resolveFileURLs } from '../../utils/cloud';
 import './index.scss';
 
 /**
@@ -29,16 +29,21 @@ export default function LikeDetail({ visible, targetId, targetType = 'checkin', 
       const data = await api.getLikeList(targetId, targetType, { page: 1, pageSize: 50 });
       const list = data.list || [];
       
-      // 批量转换头像 URL
-      const processedList = await Promise.all(
-        list.map(async (like) => {
-          let displayAvatar = '';
-          if (like.avatar) {
-            displayAvatar = await resolveFileURL(like.avatar);
-          }
-          return { ...like, displayAvatar };
-        })
-      );
+      // 收集所有 fileID，批量解析以减少云函数调用
+      const fileIDs = [];
+      list.forEach(like => {
+        if (like.avatar) fileIDs.push(like.avatar);
+      });
+      
+      let urlMap = new Map();
+      if (fileIDs.length > 0) {
+        urlMap = await resolveFileURLs(fileIDs);
+      }
+      
+      const processedList = list.map(like => ({
+        ...like,
+        displayAvatar: like.avatar ? urlMap.get(like.avatar) || '' : ''
+      }));
       
       setLikes(processedList);
       setTotal(data.total || 0);
