@@ -256,7 +256,7 @@ export default function ClassNews() {
                   <View className='feed-header' style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                     <View className='feed-user' style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                       {item.displayAvatar ? (
-                        <Image src={item.displayAvatar} className='feed-avatar' style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
+                        <Image src={item.displayAvatar} className='feed-avatar' style={{ width: '36px', height: '36px', borderRadius: '50%' }} lazyLoad />
                       ) : (
                         <View className='feed-avatar-placeholder' style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#4A90E2', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', marginRight: '10px' }}>
                           <Text>{item.userName?.[0] || '?'}</Text>
@@ -281,7 +281,7 @@ export default function ClassNews() {
                     
                     {item.displayImage && (
                       <View className='feed-image' style={{ borderRadius: '8px', overflow: 'hidden', marginTop: '8px', background: '#f5f5f5', display: 'flex', justifyContent: 'center' }} onClick={() => previewImg(item.displayImage)}>
-                        <Image src={item.displayImage} className='feed-img' style={{ maxWidth: '100%', maxHeight: '300px', display: 'block' }} mode='aspectFit' />
+                        <Image src={item.displayImage} className='feed-img' style={{ maxWidth: '100%', maxHeight: '300px', display: 'block' }} mode='aspectFit' lazyLoad />
                       </View>
                     )}
                   </View>

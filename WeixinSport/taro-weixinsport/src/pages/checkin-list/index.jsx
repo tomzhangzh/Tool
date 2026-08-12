@@ -185,7 +185,7 @@ export default function CheckinList() {
                     {role === 'teacher' && (
                       <View className='item-user-info' style={{ display: 'flex', alignItems: 'center', marginBottom: '6px' }}>
                         {item.displayAvatar ? (
-                          <Image src={item.displayAvatar} style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+                          <Image src={item.displayAvatar} style={{ width: '24px', height: '24px', borderRadius: '50%' }} lazyLoad />
                         ) : (
                           <View style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#4A90E2', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
                             {item.userName?.[0] || '?'}
@@ -206,7 +206,7 @@ export default function CheckinList() {
                     {item.note && <Text className='item-note'>💬 {item.note}</Text>}
                     {item.displayImage && (
                       <View className='item-image' onClick={() => previewImg(item.displayImage)}>
-                        <Image src={item.displayImage} className='item-img' mode='aspectFit' />
+                        <Image src={item.displayImage} className='item-img' mode='aspectFit' lazyLoad />
                       </View>
                     )}
                     <View className='item-footer'>

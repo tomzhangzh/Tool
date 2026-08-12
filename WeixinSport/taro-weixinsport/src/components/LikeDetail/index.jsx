@@ -75,7 +75,7 @@ export default function LikeDetail({ visible, targetId, targetType = 'checkin', 
             likes.map(like => (
               <View className='like-item' key={like._id}>
                 {like.displayAvatar ? (
-                  <Image src={like.displayAvatar} className='like-avatar' />
+                  <Image src={like.displayAvatar} className='like-avatar' lazyLoad />
                 ) : (
                   <View className='like-avatar-placeholder'>
                     <Text>{like.userName?.[0] || '?'}</Text>

@@ -26,6 +26,12 @@ export default function Profile() {
   const [confirmPwd, setConfirmPwd] = useState('');
   const [pwdLoading, setPwdLoading] = useState(false);
 
+  // 编辑资料相关状态
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
   // 退出班级相关状态
   const [showQuitModal, setShowQuitModal] = useState(false);
   const [classList, setClassList] = useState([]);
@@ -181,6 +187,51 @@ export default function Profile() {
     setShowPwdModal(true);
   };
 
+  // 打开编辑资料弹窗
+  const openEditModal = () => {
+    setEditName(userInfo?.name || '');
+    setEditWeight(userInfo?.weight ? String(userInfo.weight) : '');
+    setShowEditModal(true);
+  };
+
+  // 提交保存资料
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Taro.showToast({ title: '请输入姓名', icon: 'none' });
+      return;
+    }
+
+    const weightNum = parseFloat(editWeight);
+    if (editWeight && (isNaN(weightNum) || weightNum < 10 || weightNum > 300)) {
+      Taro.showToast({ title: '请输入正确的体重(10-300kg)', icon: 'none' });
+      return;
+    }
+
+    try {
+      setEditLoading(true);
+      const updateData = { name: editName.trim() };
+      if (editWeight) {
+        updateData.weight = weightNum;
+      }
+      if (avatarUrl && avatarUrl !== userInfo?.avatar) {
+        updateData.avatar = avatarUrl;
+      }
+
+      const result = await api.updateProfile(updateData);
+      
+      const updatedInfo = { ...userInfo, ...updateData, ...result };
+      setUserInfo(updatedInfo);
+      setUserInfoState(updatedInfo);
+      
+      setShowEditModal(false);
+      Taro.showToast({ title: '保存成功', icon: 'success' });
+    } catch (e) {
+      // api.js 已处理 toast
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   // 提交修改密码
   const handleChangePassword = async () => {
     if (!oldPwd) {
@@ -326,6 +377,11 @@ export default function Profile() {
 
       {/* 功能菜单 */}
       <View className='menu-list'>
+        <View className='menu-item' onClick={openEditModal}>
+          <Text className='menu-icon'>✏️</Text>
+          <Text className='menu-label'>编辑资料</Text>
+          <Text className='menu-arrow'>›</Text>
+        </View>
         <View className='menu-item' onClick={() => Taro.navigateTo({ url: '/pages/awards/index' })}>
           <Text className='menu-icon'>🏆</Text>
           <Text className='menu-label'>我的奖项</Text>
@@ -358,6 +414,75 @@ export default function Profile() {
         <Button className='logout-btn' onClick={handleLogout}>退出登录</Button>
       </View>
       </ScrollView>
+
+      {/* 编辑资料弹窗 */}
+      {showEditModal && (
+        <View className='modal-mask' onClick={() => !editLoading && setShowEditModal(false)}>
+          <View className='modal-box' onClick={(e) => e.stopPropagation()}>
+            <Text className='modal-title'>编辑个人资料</Text>
+            <View className='modal-form'>
+              <View className='form-row'>
+                <Text className='form-label'>头像</Text>
+                <View className='form-row-content'>
+                  {process.env.TARO_ENV === 'h5' ? (
+                    <View 
+                      className={`edit-avatar ${uploading ? 'uploading' : ''}`}
+                      onClick={handleChooseAvatarH5}
+                    >
+                      {avatarUrl ? (
+                        <Image src={avatarUrl} className='edit-avatar-img' mode='aspectFill' />
+                      ) : (
+                        <Text className='edit-avatar-text'>{editName?.[0]?.toUpperCase() || '?'}</Text>
+                      )}
+                      {uploading && <View className='edit-avatar-loading'><Text>上传中</Text></View>}
+                    </View>
+                  ) : (
+                    <Button 
+                      className='edit-avatar-btn'
+                      openType='chooseAvatar'
+                      onChooseAvatar={handleAvatarUpdateMini}
+                      disabled={uploading}
+                    >
+                      {avatarUrl ? (
+                        <Image src={avatarUrl} className='edit-avatar-img' mode='aspectFill' />
+                      ) : (
+                        <Text className='edit-avatar-text'>{editName?.[0]?.toUpperCase() || '?'}</Text>
+                      )}
+                    </Button>
+                  )}
+                  {process.env.TARO_ENV === 'h5' && (
+                    <Text className='form-hint'>点击头像更换</Text>
+                  )}
+                </View>
+              </View>
+              <View className='form-row'>
+                <Text className='form-label'>姓名</Text>
+                <Input 
+                  className='form-input' 
+                  placeholder='请输入姓名' 
+                  value={editName} 
+                  onInput={(e) => setEditName(e.detail.value)} 
+                  maxlength={20}
+                />
+              </View>
+              <View className='form-row'>
+                <Text className='form-label'>体重</Text>
+                <Input 
+                  className='form-input' 
+                  type='number' 
+                  placeholder='用于计算卡路里 (kg)' 
+                  value={editWeight} 
+                  onInput={(e) => setEditWeight(e.detail.value)} 
+                />
+              </View>
+            </View>
+            <View className='modal-actions'>
+              <Button className='modal-btn cancel' onClick={() => setShowEditModal(false)} disabled={editLoading}>取消</Button>
+              <Button className='modal-btn confirm' onClick={handleSaveProfile} loading={editLoading}>保存</Button>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* 修改密码弹窗 */}
       {showPwdModal && (
