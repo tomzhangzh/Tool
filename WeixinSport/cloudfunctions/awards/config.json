@@ -1,0 +1,14 @@
+{
+  "triggers": [
+    {
+      "name": "weekly_awards",
+      "type": "timer",
+      "config": "0 0 23 ? * SUN *"
+    },
+    {
+      "name": "monthly_awards",
+      "type": "timer",
+      "config": "0 5 0 1 * ? *"
+    }
+  ]
+}
