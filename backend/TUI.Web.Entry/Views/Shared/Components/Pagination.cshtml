@@ -1,0 +1,38 @@
+﻿@model TUI.Core.Models.PageInfo
+@{
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+<div id="@(extId)pagination"></div>
+
+
+<script>
+    $( function () {
+        var laypage = layui.laypage;
+        var $pagination = $("#@(extId)pagination");
+        // 分页配置
+        var options = {
+            elem: $pagination.get(0), // 分页容器的 ID
+            count: @Model.Count, // 数据总数
+            curr:@Model.CurrentPage,
+            limits: [10, 20, 50, 100, 200, 300, 500],
+            limit: @Model.Limit,
+            theme: '#1E9FFF',
+            layout: ['count', 'prev', 'page', 'next', 'limit', 'refresh', 'skip'], // 功能布局
+            jump: function (obj, first) { // 分页回调函数
+                if (!first) { // 首次不触发
+                    var currPage = obj.curr; // 获取当前页码
+                    console.log('页码改变为：' + currPage);
+                    var model = tAPP.dom.getModel($pagination);
+                    model.PageInfo.CurrentPage = currPage;
+                    model.PageInfo.Limit = obj.limit;
+                    tAPP.dom.postData($pagination);
+                    // 在这里执行页码改变后的逻辑操作
+                }
+            }
+        };
+
+        // 渲染分页组件
+        laypage.render(options);
+       
+    });
+</script>

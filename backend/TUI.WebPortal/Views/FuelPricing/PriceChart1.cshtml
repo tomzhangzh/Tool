@@ -1,0 +1,302 @@
+﻿@model FuelPricingViewModel
+@{
+    List<tblPriceBrand> BrandList = this.ViewBag.BrandList;
+
+    List<(long, long?, string, string)> List = this.ViewBag.List;
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    CommonCore.Models.ChevronModel PriceModel = this.ViewBag.PriceModel;
+
+}
+
+<div id="@extId"></div>
+<div class="chartContainer d-flex flex-wrap" style="height:100%">
+    <div class="w-50 h-50  chart1"></div>
+    <div class="w-50 h-50  chart2"></div>
+    <div class="w-50 h-50  chart3"></div>
+    <div class="w-50 h-50  chart4"></div>
+</div>
+<script>
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+        var myChart=echarts.init($this.find(".chart1").get(0));
+        var option1 = {
+            tooltip: {
+                trigger: 'item'
+            },
+            legend: {
+                top: '5%',
+                left: 'center'
+            },
+            series: [
+                {
+                    name: 'RACK PRICE',
+                    type: 'pie',
+                    radius: ['20%', '40%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 1,
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    },
+                    label: {
+                        alignTo: 'edge',
+                        formatter: '{name|{b}}\n${c}',
+                        minMargin: 5,
+                        edgeDistance: 10,
+                        lineHeight: 15,
+                        rich: {
+                            time: {
+                                fontSize: 10,
+                                color: '#999'
+                            }
+                        }
+                    },
+                    labelLine: {
+                        length: 15,
+                        length2: 0,
+                        maxSurfaceAngle: 80
+                    },
+                    labelLayout: function (params) {
+                        const isLeft = params.labelRect.x < myChart.getWidth() / 2;
+                        const points = params.labelLinePoints;
+                        // Update the end point.
+                        points[2][0] = isLeft
+                            ? params.labelRect.x
+                            : params.labelRect.x + params.labelRect.width;
+                        return {
+                            labelLinePoints: points
+                        };
+                    },
+                    data: [
+                        { value: @PriceModel.RackPriceUnleaded, name: 'RACK PRICE' }
+                    ]
+                }
+            ]
+        };
+        myChart.setOption(option1);
+  //////////////////////////////////////////
+         var myChart2=echarts.init($this.find(".chart2").get(0));
+        var option2 = {
+            title: {
+                text: 'MIAMI- DADE',
+                left: 'center',
+                textStyle: {
+                    color: '#999',
+                    fontWeight: 'normal',
+                    fontSize: 14
+                }
+            },
+            tooltip: {
+                trigger: 'item'
+            },
+            legend: {
+                top: '5%',
+                left: 'center'
+            },
+            series: [
+                {
+                    name: 'MIAMI- DADE',
+                    type: 'pie',
+                    radius: ['20%', '40%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 1,
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    },
+                    label: {
+                        alignTo: 'edge',
+                        formatter: '{name|{b}}\n${c}',
+                        minMargin: 5,
+                        edgeDistance: 10,
+                        lineHeight: 15,
+                        rich: {
+                            time: {
+                                fontSize: 10,
+                                color: '#999'
+                            }
+                        }
+                    },
+                    labelLine: {
+                        length: 15,
+                        length2: 0,
+                        maxSurfaceAngle: 80
+                    },
+                    labelLayout: function (params) {
+                        const isLeft = params.labelRect.x < myChart.getWidth() / 2;
+                        const points = params.labelLinePoints;
+                        // Update the end point.
+                        points[2][0] = isLeft
+                            ? params.labelRect.x
+                            : params.labelRect.x + params.labelRect.width;
+                        return {
+                            labelLinePoints: points
+                        };
+                    },
+                    data: [
+                        {
+                            value: @PriceModel.RackPriceUnleaded, name: 'RACK PRICE'
+                        }
+                             @foreach(var item in new decimal[] { 0.57M,0.003M, 0.003M, 0.001M, 0.00122M, 0.005M, 0.00407M, 0.00493M, 0.008M })
+      {
+          <text>
+                        , { value: @item, name: '@(item)' }
+      </text>
+                        }
+                    ]
+                }
+            ]
+        };
+        myChart2.setOption(option2);
+         /////////////////////////////////////
+        var myChart3 = echarts.init($this.find(".chart3").get(0));
+
+        var option3 = {
+            title: {
+                text: 'BROWARD & PALM BEACH',
+                left: 'center',
+                textStyle: {
+                    color: '#999',
+                    fontWeight: 'normal',
+                    fontSize: 14
+                }
+            },
+            tooltip: {
+                trigger: 'item'
+            },
+            legend: {
+                top: '5%',
+                left: 'center'
+            },
+            series: [
+                {
+                    name: 'MIAMI- DADE',
+                    type: 'pie',
+                    radius: ['20%', '40%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 1,
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    },
+                    label: {
+                        alignTo: 'edge',
+                        formatter: '{name|{b}}\n${c}',
+                        minMargin: 5,
+                        edgeDistance: 10,
+                        lineHeight: 15,
+                        rich: {
+                            time: {
+                                fontSize: 10,
+                                color: '#999'
+                            }
+                        }
+                    },
+                    labelLine: {
+                        length: 15,
+                        length2: 0,
+                        maxSurfaceAngle: 80
+                    },
+                    labelLayout: function (params) {
+                        const isLeft = params.labelRect.x < myChart.getWidth() / 2;
+                        const points = params.labelLinePoints;
+                        // Update the end point.
+                        points[2][0] = isLeft
+                            ? params.labelRect.x
+                            : params.labelRect.x + params.labelRect.width;
+                        return {
+                            labelLinePoints: points
+                        };
+                    },
+                    data: [
+                        {
+                            value: @PriceModel.RackPriceUnleaded, name: 'RACK PRICE'
+                        }
+                             @foreach(var item in new decimal[] { 0.57M,0.003M, 0.003M, 0.001M, 0.00122M, 0.005M, 0.00407M, 0.00493M, 0.008M, 0.02M })
+                             {
+          <text>
+                        , { value: @item, name: '@(item)' }
+      </text>
+                        }
+                    ]
+                }
+            ]
+        };
+        myChart3.setOption(option3);
+         /////////////////////////////////////
+        var myChart4 = echarts.init($this.find(".chart4").get(0));
+
+        var option4 = {
+            title: {
+                text: 'MONROE',
+                left: 'center',
+                textStyle: {
+                    color: '#999',
+                    fontWeight: 'normal',
+                    fontSize: 14
+                }
+            },
+            tooltip: {
+                trigger: 'item'
+            },
+            legend: {
+                top: '5%',
+                left: 'center'
+            },
+            series: [
+                {
+                    name: 'MONROE',
+                    type: 'pie',
+                    radius: ['20%', '40%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 1,
+                        borderColor: '#fff',
+                        borderWidth:1
+                    },
+                    label: {
+                        alignTo: 'edge',
+                        formatter: '{name|{b}}\n${c}',
+                        minMargin: 5,
+                        edgeDistance: 10,
+                        lineHeight: 15,
+                        rich: {
+                            time: {
+                                fontSize: 10,
+                                color: '#999'
+                            }
+                        }
+                    },
+                    labelLine: {
+                        length: 15,
+                        length2: 0,
+                        maxSurfaceAngle: 80
+                    },
+                    labelLayout: function (params) {
+                        const isLeft = params.labelRect.x < myChart.getWidth() / 2;
+                        const points = params.labelLinePoints;
+                        // Update the end point.
+                        points[2][0] = isLeft
+                            ? params.labelRect.x
+                            : params.labelRect.x + params.labelRect.width;
+                        return {
+                            labelLinePoints: points
+                        };
+                    },
+                    data: [
+                        {
+                            value: @PriceModel.RackPriceUnleaded, name: 'RACK PRICE'
+                        }
+                             @foreach(var item in new decimal[] { 0.57M,0.003M, 0.003M, 0.001M, 0.00122M, 0.005M, 0.00407M, 0.00493M, 0.008M, 0.02M ,0.64789M , 0.008M })
+                             {
+          <text>
+                        , { value: @item, name: '@(item)' }
+      </text>
+                        }
+                    ]
+                }
+            ]
+        };
+        myChart4.setOption(option4);
+    });
+</script>

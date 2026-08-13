@@ -1,0 +1,41 @@
+﻿
+<el-radio-group ref="current"
+           v-model="modelinfo"
+           v-bind="options?.comoptions">
+    <el-radio-button v-for="item in comInnerInfo.options"
+               :key="item.Value"
+              :label="item.Value"
+
+              >{{item.Text}}</el-radio-button>
+</el-radio-group>
+
+<script>
+    @section setupScripts{
+        //if (props.options)
+        // extensionInfo.options=props.options.options || [];
+        DVALUE=[];
+    VueUse.tryOnMounted(async () => {
+        comInnerInfo.options = [];
+        const initOptions = async () => {
+            if (props.jsonconfig.options.dictTableName) {
+                comInnerInfo.options = await tAPP.utility.postData('/share/GetDict', props.jsonconfig.options);
+            }
+            else if (props.jsonconfig.options.ajaxUrl) {
+                comInnerInfo.options = await tAPP.utility.postData(props.jsonconfig.options.ajaxUrl, {});
+            }
+            else {
+                comInnerInfo.options = Enumerable.from((props.jsonconfig.options?.optionValues || "").split(',')).select(x => { return { Value: x, Text: x } }).toArray();
+            }
+        }
+        initOptions();
+        Vue.watch(
+            props.jsonconfig.options,
+            async () => {
+                initOptions();
+                await Vue.nextTick()
+            }
+        )
+    });
+
+    }
+</script>

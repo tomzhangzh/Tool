@@ -1,0 +1,154 @@
+﻿@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.PromptSettingInfo;
+    var extId = Guid.NewGuid().ToString("N");
+
+    var currentModel =this.ViewBag.CurrentModel;  //Html.ViewContext.Controller.ViewBag.CurrentModel;
+    if (currentModel == null)
+    {
+        throw new Exception("Current Model can not be empty.");
+    }
+    var htmlFieldPrefix = "";
+    if (string.IsNullOrEmpty(ViewData.TemplateInfo.HtmlFieldPrefix) == false)
+    {
+        htmlFieldPrefix = ViewData.TemplateInfo.HtmlFieldPrefix;
+        htmlFieldPrefix = htmlFieldPrefix.Substring(0, htmlFieldPrefix.Length - ViewData.ModelMetadata.PropertyName.Length);
+    }
+    object value = null;
+    if (string.IsNullOrEmpty(extendP.Display) == true)
+    {
+        value = Model;
+    }
+    else
+    {
+        if (string.IsNullOrEmpty(App.HttpContext.Request.Form[Html.NameFor(x => x).ToString() + "_Name"]) == false)
+        {
+            value = App.HttpContext.Request.Form[Html.NameFor(x => x).ToString() + "_Name"];
+        }
+        else
+        {
+            if (extendP.Display.StartsWith("$"))
+            {
+                if (extendP.Display.StartsWith("$"))
+                {
+                    extendP.Display = extendP.Display.TrimStart('$');
+                }
+
+            }
+            var display = extendP.Display.Split(',');
+            if (display.Length == 1)
+            {
+                 value =currentModel.GetValueByPath(display[0]);
+
+            }
+            else if (display.Length == 2)
+            {
+                value = string.Format(display[1], currentModel.GetValueByPath(display[0]));
+            }
+            else
+            {
+                throw new Exception("Display只能有一个,");
+            }
+        }
+    }
+}
+<div class="input-group prompt">
+    @Html.HiddenFor(x => x)
+    <input readonly="readonly" class="form-control  @detailItem.GetValidateClass()" name="@(Html.NameFor(x => x))_Name"
+           value="@value"
+           type="text" />
+    <span class="input-group-addon"><i class="icon-search "></i></span>
+</div>
+<div id="@extId" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#@extId").parent();
+            var $Prompt = $this.find('.prompt');
+            var $hidden=$this.find("[name='@(Html.NameForModel())']");
+            $Prompt.on("click",function (e) {
+                e.preventDefault();
+                @if(detailItem.Disabled)
+                {
+                    @:return;
+                }
+                var params = {};
+                var $click=$(this);
+                var htmlFieldPrefix="@htmlFieldPrefix";
+                if ('@Html.Raw(extendP.UrlParams)') {
+                    var urlParams = @Html.Raw(extendP.UrlParams);
+                    var $myDataItem=$click.closest(".myDataItem");
+                        if ($myDataItem.length==0)
+                        {
+                            $myDataItem=$click.closest("form");
+                        }
+                        if ($myDataItem.length==0)
+                        {
+                            alert("必须在form 或者 .myDataItem 中");
+                            return;
+                        }
+                    $.each(urlParams, function (i, v) {
+
+                        var json=$myDataItem.serializeJson(true);
+                        if (json[htmlFieldPrefix+v]){
+                            params[i]=json[htmlFieldPrefix+v];
+
+                        }
+                    });
+
+                }
+                var win = utility.openWindow("@Html.Raw(extendP.URL)", "Load", {}, params);
+                    $(win).get(0).setResult = function (id, name, data) {
+                    $this.find("[name='@Html.NameFor(x => x)']").val(id);
+                    $this.find("[name='@(Html.NameFor(x => x))_Name']").val(name);
+                    if ('@Html.Raw(extendP.ReturnParams)') {
+                        var $myDataItem=$click.closest(".myDataItem");
+                        if ($myDataItem.length==0)
+                        {
+                            $myDataItem=$click.closest("form");
+                        }
+                        if ($myDataItem.length==0)
+                        {
+                            alert("必须在form 或者 .myDataItem 中");
+                            return;
+                        }
+                        var returnParams = @Html.Raw(extendP.ReturnParams);
+
+                        $.each(returnParams, function (i, v) {
+
+                            var $findEl=$myDataItem.find($.format("[name='{0}']",htmlFieldPrefix+i));
+                            if ($findEl.length==1){
+                                var value=data[v];
+                                if (value){
+                                    $findEl.val(value);
+                                }
+                            }
+                        });
+
+                    }
+                        $hidden.trigger("change");
+                    $Prompt.trigger("change", [id, name, data]);
+                    setTimeout(function(){$this.find("[name='@(Html.NameFor(x => x))_Name']").focus();},50);
+                    $this.find("[name='@(Html.NameFor(x => x))_Name']").trigger("keyup");
+                    return false;
+                }
+            });
+            $this.find("[name='@(Html.NameFor(x => x))_Name']").bind('keydown', 'return', function (evt) {
+               evt.preventDefault();
+               setTimeout(function(){$Prompt.trigger("click")},0);
+            });
+         $("#@extId").remove();
+     });
+    </script>
+</div>

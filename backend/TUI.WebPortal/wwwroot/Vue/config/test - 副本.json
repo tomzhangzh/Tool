@@ -1,0 +1,420 @@
+{
+	"component": "TContainer",
+	"keyId": "6zp5bum0bw",
+	"childrenCtrls": [
+		{
+			"component": "TPanel",
+			"keyId": "91nldrauvr",
+			"childrenCtrls": [
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TIconPark",
+							"options": {
+								"type": "icon-abdominal",
+								"size": 16,
+								"strokeWidth": 2,
+								"fill": "#2146ac"
+							}
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "基本设置"
+							}
+						}
+					],
+					"options": {
+						"slotName": "header",
+						"class": "flex justify-items-start items-center space-x-2 pl-2 h-4"
+					}
+				},
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TInput",
+							"keyId": "6zif7ccqmh",
+							"options": {
+								"labelOptions": {
+									"label": "组件"
+								},
+								"maxlength": 0,
+								"prefix-icon": "icon-components"
+							},
+							"modelName": "component"
+						},
+						{
+							"component": "TInput",
+							"keyId": "4k7a8p9xsr",
+							"options": {
+								"labelOptions": {
+									"label": "绑定名称"
+								},
+								"prefix-icon": "icon-column"
+							},
+							"modelName": "modelName"
+						},
+						{
+							"component": "TInput",
+							"keyId": "91hyijzukx",
+							"options": {
+								"labelOptions": {
+									"label": "标签"
+								},
+								"prefix-icon": "icon-label",
+								"maxlength": 0
+							},
+							"modelName": "options.labelOptions.label"
+						},
+						{
+							"component": "TTextArea",
+							"keyId": "91hyijzukx",
+							"options": {
+								"labelOptions": {
+									"label": "属性设置后fun"
+								},
+								"autosize": true,
+								"prefix-icon": null
+							},
+							"modelName": "options.afterSet"
+						}
+					],
+					"options": {
+						"slotName": "default",
+						"class": "grid grid-cols- gap-2 ",
+						"itemOptions": {
+							"size": "small",
+							"class": "flex"
+						},
+						"labelOptions": {
+							"style": {
+								"width": "120px"
+							},
+							"class": "text-right pr-3"
+						}
+					},
+					"class": "grid grid-cols-1 place-content-start gap-4 "
+				}
+			]
+		},
+		{
+			"component": "TPanel",
+			"keyId": "414k8rega2",
+			"childrenCtrls": [
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TIconPark",
+							"options": {
+								"type": "icon-html-five",
+								"size": 16,
+								"strokeWidth": 2,
+								"fill": "#2146ac"
+							}
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "样式sss"
+							}
+						}
+					],
+					"options": {
+						"slotName": "header",
+						"class": "flex justify-items-start items-center space-x-2 pl-2 h-4"
+					}
+				},
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TInput",
+							"keyId": "6zif7ccqmh",
+							"options": {
+								"labelOptions": {
+									"label": "class"
+								},
+								"prefix-icon": "icon-text-style"
+							},
+							"modelName": "options.class"
+						},
+						{
+							"component": "TInput",
+							"keyId": "6zif7ccqmh2",
+							"options": {
+								"labelOptions": {
+									"label": "Item class"
+								},
+								"maxlength": 0,
+								"prefix-icon": "icon-add-item"
+							},
+							"modelName": "options.itemOptions.class"
+						},
+						{
+							"component": "TJson",
+							"keyId": "4k7a8p9xsr",
+							"options": {
+								"labelOptions": {
+									"label": "style"
+								}
+							},
+							"modelName": "options.style"
+						}
+					],
+					"options": {
+						"slotName": "default",
+						"class": "grid grid-cols-1 place-content-start gap-2 ",
+						"itemOptions": {
+							"size": "small",
+							"class": "flex"
+						},
+						"labelOptions": {
+							"style": {
+								"width": "120px"
+							},
+							"class": "text-right pr-3"
+						}
+					},
+					"class": "grid grid-cols-1 place-content-start gap-4 "
+				}
+			]
+		},
+		{
+			"component": "TPanel",
+			"keyId": "91nldrauvr2",
+			"childrenCtrls": [
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TIconPark",
+							"options": {
+								"type": "icon-components",
+								"size": 37,
+								"strokeWidth": 2,
+								"fill": "#06A193"
+							}
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "组件设置",
+								"class": "bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500"
+							},
+							"keyId": "z1ojecw3o1"
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "组件设置",
+								"class": "bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500"
+							},
+							"keyId": "p07xszohrf"
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "组件设置",
+								"class": "bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500"
+							},
+							"keyId": "bmdwtfxdbd"
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "组件设置",
+								"class": "bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500"
+							},
+							"keyId": "9hna6gbzde"
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "组件设置",
+								"class": "bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500"
+							},
+							"keyId": "dwjdao9lu"
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "组件设置",
+								"class": "bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-blue-500"
+							}
+						}
+					],
+					"options": {
+						"slotName": "header",
+						"class": "flex justify-items-start items-center space-x-8 pl-2 h-6",
+						"maxlength": 0,
+						"itemOptions": {
+							"class": "transition duration-300 ease transform scale-100 hover:scale-150 hover:border-blue-500"
+						}
+					}
+				},
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TSvgPicker",
+							"keyId": "91hyijzukx3",
+							"options": {
+								"labelOptions": {
+									"label": "前缀图标"
+								}
+							},
+							"modelName": "options.prefix-icon"
+						},
+						{
+							"component": "TSvgPicker",
+							"keyId": "91hyijzukx4",
+							"options": {
+								"labelOptions": {
+									"label": "后缀图标"
+								}
+							},
+							"modelName": "options.suffix-icon"
+						},
+						{
+							"component": "TSelect",
+							"keyId": "6zif7ccqmh",
+							"options": {
+								"labelOptions": {
+									"label": "组件的尺寸"
+								},
+								"maxlength": 0,
+								"options": [
+									{
+										"value": "default",
+										"label": "default"
+									},
+									{
+										"value": "medium",
+										"label": "medium"
+									},
+									{
+										"value": "small",
+										"label": "small"
+									},
+									{
+										"value": "mini",
+										"label": "mini"
+									}
+								]
+							},
+							"modelName": "options.size"
+						},
+						{
+							"component": "TSelect",
+							"keyId": "6zif7ccqmh",
+							"options": {
+								"labelOptions": {
+									"label": "类型"
+								},
+								"maxlength": 0,
+								"options": [
+									{
+										"value": "text",
+										"label": "text"
+									},
+									{
+										"value": "password",
+										"label": "password"
+									},
+									{
+										"value": "number",
+										"label": "number"
+									},
+									{
+										"value": "search",
+										"label": "search"
+									}
+								]
+							},
+							"modelName": "options.type"
+						},
+						{
+							"component": "TInput",
+							"keyId": "91hyijzukx1",
+							"options": {
+								"labelOptions": {
+									"label": "placeholder"
+								},
+								"maxlength": 0,
+								"prefix-icon": "icon-texture"
+							},
+							"modelName": "options.placeholder"
+						},
+						{
+							"component": "TInputNumber",
+							"keyId": "91hyijzukx6",
+							"options": {
+								"labelOptions": {
+									"label": "最大输入长度"
+								},
+								"size": 33
+							},
+							"modelName": "options.maxlength"
+						},
+						{
+							"component": "TSwitch",
+							"keyId": "91hyijzukx2",
+							"options": {
+								"labelOptions": {
+									"label": "show-word-limit"
+								}
+							},
+							"modelName": "options.show-word-limit"
+						},
+						{
+							"component": "TSwitch",
+							"keyId": "91hyijzukx2",
+							"options": {
+								"labelOptions": {
+									"label": "只读"
+								}
+							},
+							"modelName": "options.readonly"
+						}
+					],
+					"options": {
+						"slotName": "default",
+						"class": "grid grid-cols-1 place-content-start gap-2 ",
+						"itemOptions": {
+							"size": "small",
+							"class": "flex"
+						},
+						"labelOptions": {
+							"style": {
+								"width": "120px"
+							},
+							"class": "text-right pr-3"
+						}
+					},
+					"class": "grid grid-cols-1 place-content-start gap-4 "
+				}
+			]
+		}
+	],
+	"options": {
+		"slotName": "default",
+		"class": "grid grid-cols-1 place-content-start gap-4 ",
+		"itemOptions": {
+			"size": "small",
+			"class": "flex"
+		},
+		"labelOptions": {
+			"style": {
+				"width": "120px"
+			},
+			"class": "text-right pr-3"
+		},
+		"style": {
+			"width": "100%"
+		},
+		"maxlength": 0
+	}
+}

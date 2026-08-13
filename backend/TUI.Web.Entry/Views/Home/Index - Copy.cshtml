@@ -1,0 +1,102 @@
+﻿<!-- 注意，必须引入 Vue 3 及以上版本 -->
+<script src="https://unpkg.com/vue@next"></script>
+<script src="https://unpkg.com/@@vueuse/shared"></script>
+<script src="https://unpkg.com/@@vueuse/core"></script>
+<script src="https://unpkg.com/@@vueuse/motion@@2.0.0/dist/index.cjs"></script>
+<!-- 引入 layui.css -->
+<link href="//unpkg.com/layui@2.8.7/dist/css/layui.css" rel="stylesheet">
+<!-- 引入 layui.js -->
+<script src="//unpkg.com/layui@2.8.7/dist/layui.js">
+<script src="~/js/common.js"></script>
+
+<div id="app">
+    <div id="test"
+      
+        style="
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: start;
+    width:600px;
+    height: 600px;
+    background-color: aqua;
+  ">
+        <div style="background-color: blue;width: 100px; height: 100px;margin: 10px;"></div>
+        <div style="background-color: blue;width: 100px; height: 100px;margin: 10px;"></div>
+        <div style="background-color: blue;width: 100px; height: 100px;margin: 10px;"></div>
+        <div style="background-color: blue;width: 100px; height: 100px;margin: 10px;"></div>
+        <div style="background-color: blue;width: 100px; height: 100px;margin: 10px;"></div>
+        <div style="background-color: blue;width: 100px; height: 100px;margin: 10px;"></div>
+        <div style="background-color: blue;width: 100px; height: 100px;margin: 10px;"></div>
+        <div style="background-color: blue;width: 100px; height: 100px;margin: 10px;"></div>
+    </div>
+    aaaa
+    <button @@click="increment">{{ model.count }}</button>
+
+        <div v-if="eyeDropper.isSupported">
+            <div>isSupported: {{ eyeDropper.isSupported }}</div>
+            <div>sRGBHex: <span :style="{ color: eyeDropper.sRGBHex }">{{ eyeDropper.sRGBHex }}</span></div>
+            <button :disabled="!eyeDropper.isSupported"
+                    @@click="() => eyeDropper.open()">
+                Open Eye Dropper
+            </button>
+        </div>
+        <div v-else>
+            <span>Not Supported by Your Browser</span>
+        </div>
+    <button id="myHoverableElement">
+        {{ isHovered }}
+    </button>
+ @*   <div :style="elementStyle" @@click="toggleColor" >bbbbbbbb</div>*@
+</div>
+
+
+
+<script>
+    // 在 mounted 钩子函数中将 setup() 返回的数据挂载到 Vue 实例上
+    const app = Vue.createApp({
+        data() {
+            return {}
+        },
+        setup(prop){
+            var model=Vue.ref({count:0});
+            
+            const eyeDropper = VueUse.useEyeDropper();
+            increment=()=>{
+                model.value.count++;
+            }
+            const myHoverableElement = Vue.ref()
+           // debugger;
+            const isHovered = VueUse.useElementHover(myHoverableElement)
+            VueUse.tryOnBeforeMount(() => {
+                console.log("BeforMount")
+            })
+            //debugger;
+            //const { state, style: elementStyle } = VueUse.reactiveStyle({
+            //    opacity: 0,
+            //    backgroundColor: 'blue',
+            //})
+
+            //const toggleColor = () => {
+            //    if (state.backgroundColor === 'blue')
+            //        state.backgroundColor === 'red'
+            //    else
+            //        state.backgroundColor === 'blue'
+            //}
+            return { model, increment, eyeDropper, isHovered }
+        }
+    })
+    //Vue.use(window['@@vueuse/motion'].default)
+    app.mount('#app')
+    // Usage
+    layer.open({
+        type: 1, // page 层类型
+        area: ['500px', '300px'],
+        title: 'Hello layer',
+        shade: 0.6, // 遮罩透明度
+        shadeClose: true, // 点击遮罩区域，关闭弹层
+        maxmin: true, // 允许全屏最小化
+        anim: 1, // 0-6 的动画形式，-1 不开启
+        content: '<div style="padding: 32px;">一个普通的页面层，传入了自定义的 HTML</div>'
+    });
+</script>

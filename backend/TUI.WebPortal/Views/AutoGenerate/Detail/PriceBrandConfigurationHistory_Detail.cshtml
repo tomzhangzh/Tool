@@ -1,0 +1,146 @@
+﻿
+@model TUI.Services.DBModel.PriceBrandConfigurationHistory
+
+
+@{var itemList = new List<DETAILITEM>();
+DETAILITEM detailItem= null;
+detailItem=new DETAILITEM(){   
+COLUMNNAME="ID", 
+AS1COLUMN=false, 
+COLUMNTYPE="Hidden", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=100, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="ID", 
+EXTENDEDPROPERTIES="",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="PriceBrandConfigurationID", 
+AS1COLUMN=false, 
+COLUMNTYPE="Hidden", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=200, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="PriceBrandConfigurationID", 
+EXTENDEDPROPERTIES="",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="Price", 
+AS1COLUMN=false, 
+COLUMNTYPE="TextBox", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=300, 
+VALIDATETYPE="number", 
+ISSHOW= true,
+LABEL="Price", 
+EXTENDEDPROPERTIES="",  
+Disabled=true  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="EffectiveTime", 
+AS1COLUMN=false, 
+COLUMNTYPE="TextBox", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=400, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="EffectiveTime", 
+EXTENDEDPROPERTIES="",  
+Disabled=true  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="LastUpdated", 
+AS1COLUMN=false, 
+COLUMNTYPE="DatePicker", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=500, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="LastUpdated", 
+EXTENDEDPROPERTIES="",  
+Disabled=true  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="RecordDate", 
+AS1COLUMN=false, 
+COLUMNTYPE="DatePicker", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=600, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="RecordDate", 
+EXTENDEDPROPERTIES="",  
+Disabled=true  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="RecordDateUtc", 
+AS1COLUMN=false, 
+COLUMNTYPE="DatePicker", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=700, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="RecordDateUtc", 
+EXTENDEDPROPERTIES="",  
+Disabled=true  
+}; 
+    itemList.Add(detailItem);
+}
+
+
+<div class="grid grid-cols-1 place-content-start gap-4 items-center">
+    @foreach (var item in itemList)
+    {
+    if (item.COLUMNTYPE == "Hidden")
+    {
+    @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+    }
+    else
+    {
+    <div class="flex self-start items-center">
+
+        <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 200px;">@item.LABEL</label>
+        <div class="flex-grow inline-flex items-start w-full flex-column myctrl">
+            @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+        </div>
+    </div>
+    }
+    }
+
+</div>
+  
+
+
+
+
+
+<div id="pagefa39701b76c8473184f2355aa42027de" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#pagefa39701b76c8473184f2355aa42027de").parent();
+            
+            $("#pagefa39701b76c8473184f2355aa42027de").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

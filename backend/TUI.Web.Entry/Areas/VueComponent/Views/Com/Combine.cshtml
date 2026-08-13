@@ -1,0 +1,35 @@
+﻿<template>
+    <div class="w-full h-full relative" v-if="desginSharedData.isDesign">
+        <t-dynamic-com :jsonconfig="comInnerInfo?.jsonconfig" v-if="comInnerInfo?.jsonconfig?.component" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+        <div class="absolute h-full w-full left-0 top-0 bg-gray-300 bg-stripes bg-stripes-white opacity-20 pointer-events-none z-10">
+        </div>
+    </div>
+    <t-dynamic-com v-else :jsonconfig="comInnerInfo?.jsonconfig" v-if="comInnerInfo?.jsonconfig?.component" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+</template>
+<script>
+    @section setupScripts{
+    Vue.provide('desgin_ParentData', { editChild: false });
+    Vue.provide('parent_jsonconfig', props.jsonconfig);
+    Vue.provide('parent_com', Vue.getCurrentInstance().proxy);
+    VueUse.tryOnMounted(async () => {
+        comInnerInfo.jsonconfig = {};
+        const initOptions = async () => {
+            if (props.jsonconfig.options.comoptions.comid) {
+                res = await tAPP.utility.postData('/Tools/ComponentSetting/GetJson', { Id: props.jsonconfig.options.comoptions.comid });
+                comInnerInfo.jsonconfig = JSON.parse(res?.ConfigJson || "{}");
+            }
+
+        }
+        initOptions();
+
+        Vue.watch(
+            props.jsonconfig.options,
+            async () => {
+                initOptions();
+                await Vue.nextTick()
+            }
+        );
+
+    })
+    }
+</script>

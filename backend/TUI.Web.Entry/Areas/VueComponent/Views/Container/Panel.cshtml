@@ -1,0 +1,32 @@
+﻿<template>
+
+    <pv-panel v-bind="props.jsonconfig.options.comoptions"
+              :style="getStyle(props.jsonconfig.options?.options)"
+              class="t_container"
+              :class="[getClass(props.jsonconfig.options?.options), desginSharedData?.current?.container === props.jsonconfig ? 'com_container' : '']"
+              ref="comList"
+              v-on="props.jsonconfig.options.comlisteners">
+        <template #header v-if="props.jsonconfig.slots.header">
+            <t-dynamic-com :jsonconfig="props.jsonconfig.slots.header" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+        </template>
+        <template #default >
+            
+            <t-dynamic-com v-if="props.jsonconfig.slots.default" :jsonconfig="props.jsonconfig.slots.default" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+            <t-dynamic-com v-else :jsonconfig="comInnerInfo.defaultSlot" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+        </template>
+       
+    </pv-panel>
+
+</template>
+<script>
+    @section setupScripts{
+        comInnerInfo.defaultSlot=props.jsonconfig.slots?.default;
+    if (!comInnerInfo.defaultSlot) {
+        comInnerInfo.defaultSlot = {
+            "component": "t-div-container",
+            "options": props.jsonconfig.options,
+            "childrenctrls": props.jsonconfig.childrenctrls
+        }
+    }
+    }
+</script>

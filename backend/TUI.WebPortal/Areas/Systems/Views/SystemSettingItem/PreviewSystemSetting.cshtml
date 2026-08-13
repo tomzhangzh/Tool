@@ -1,0 +1,27 @@
+﻿
+<script>
+    $(() => {
+        $('#json-renderer').jsonViewer(@Html.Raw(App.SystemSetting.ToJSON()), { collapsed: false, withQuotes: true, withLinks: false });
+
+    })
+</script>
+
+<div id="panel-2" class="panel h-full" data-panel-fullscreen="" data-panel-close="" data-panel-collapsed="" data-panel-locked="" data-panel-reset="" data-panel-color="" data-panel-custombutton="">
+  
+
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted">
+        <div class="d-flex justify-content-between">
+            <div class="d-flex justify-content-between space-x-4">
+                <button class="btn btn-info waves-effect waves-themed" type="button" id="Refresh" myaction-postback><i class="fal fa-undo p-1"></i>Refresh</button>
+
+            </div>
+
+
+        </div>
+    </div>
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted  h-full overflow-y-auto" id="DivResult">
+        <div class="w-full h-full border border-info" id="json-renderer">
+
+        </div>
+    </div>
+</div>

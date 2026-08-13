@@ -1,0 +1,233 @@
+﻿@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.DropdownAjaxSettingInfo;
+    var extId = Guid.NewGuid().ToString("N");
+
+    var currentModel =this.ViewBag.CurrentModel;  //Html.ViewContext.Controller.ViewBag.CurrentModel;
+    if (currentModel == null)
+    {
+        throw new Exception("Current Model can not be empty.");
+    }
+    var htmlFieldPrefix = "";
+    if (string.IsNullOrEmpty(ViewData.TemplateInfo.HtmlFieldPrefix) == false)
+    {
+        htmlFieldPrefix = ViewData.TemplateInfo.HtmlFieldPrefix;
+        htmlFieldPrefix = htmlFieldPrefix.Substring(0, htmlFieldPrefix.Length - ViewData.ModelMetadata.PropertyName.Length);
+    }
+    object value = null;
+    if (string.IsNullOrEmpty(extendP.Display) == true)
+    {
+        value = Model;
+    }
+    else
+    {
+        if (string.IsNullOrEmpty(App.HttpContext.Request.Form[Html.NameFor(x => x).ToString() + "_Name"]) == false)
+        {
+            value = App.HttpContext.Request.Form[Html.NameFor(x => x).ToString() + "_Name"];
+        }
+        else
+        {
+            if (extendP.Display.StartsWith("$"))
+            {
+                if (extendP.Display.StartsWith("$"))
+                {
+                    extendP.Display = extendP.Display.TrimStart('$');
+                }
+
+            }
+            var display = extendP.Display.Split(',');
+            if (display.Length == 1)
+            {
+                 value =currentModel.GetValueByPath(display[0]);
+            }
+            else if (display.Length == 2)
+            {
+                value = string.Format(display[1], currentModel.GetValueByPath(display[0]));
+            }
+            else
+            {
+                throw new Exception("Display只能有一个,");
+            }
+        }
+    }
+    var displayNameId = string.Format("ID{0:N}", Guid.NewGuid());
+    object modelValue = Model;
+    if (Model is Int32 && (int)Model == 0)
+    {
+        modelValue = null;
+    }
+    var HtmlAttributes = detailItem.GetHTMLATTRIBUTES();
+    HtmlAttributes["class"] = " col-xs-12  form-control " + detailItem.GetValidateClass();
+}
+<div>
+    <input type="hidden" id="@displayNameId" name="@(Html.NameFor(x => x))_Name" value="@value" />
+    @Html.TextBox("", modelValue, HtmlAttributes)
+</div>
+<div id="@extId" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#@extId").parent();
+            var $select = $this.find("[name='@(Html.NameForModel())']");
+            $select.get(0).clearValue=function()
+            {
+                $select.val("");
+                //debugger;
+                $this.find(".select2-chosen").text("");
+            }
+
+            var movieFormatResult = function (movie) {
+                var $table = $('<table style="width:100%">');
+                var $tr = $("<tr >")
+                //debugger
+                if ($.isArray(movie)) {
+                    $.each(columns, function (index, item) {
+                        var $td = $(String.format("<th style='width:{0}px'>", item.Width)).text(item.Title);
+
+                        $td.appendTo($tr)
+                    });
+                }
+                else {
+                    $.each(columns, function (index, item) {
+                        var $td = $(String.format("<td style='width:{0}px'>", item.Width)).text(movie[item.DataField]);
+
+                        $td.appendTo($tr)
+                    });
+                }
+                $tr.appendTo($table);
+
+
+                return $table;
+
+            }
+
+            var movieFormatSelection = function (movie) {
+                $("#@displayNameId").val(movie.text);
+                 if ('@Html.Raw(extendP.ReturnParams)') {
+                        var htmlFieldPrefix="@htmlFieldPrefix";
+                        var $myDataItem=$this.closest(".myDataItem");
+                        if ($myDataItem.length==0)
+                        {
+                            $myDataItem=$this.closest("form");
+                        }
+                        if ($myDataItem.length==0)
+                        {
+                            alert("必须在form 或者 .myDataItem 中");
+                            return;
+                        }
+                        var returnParams = @Html.Raw(extendP.ReturnParams);
+
+                        $.each(returnParams, function (i, v) {
+                            //debugger;
+                            var $findEl=$myDataItem.find($.format("[name='{0}']",htmlFieldPrefix+i));
+                            if ($findEl.length==1){
+                                var value=movie[v];
+                                if (value){
+                                    $findEl.val(value);
+                                    $findEl.trigger("change");
+                                }
+                                else{
+                                    value="";
+                                    $findEl.val(value);
+                                    $findEl.trigger("change");
+                                }
+                            }
+                        });
+
+                    }
+                return movie.text;
+            }
+            var columns = null;
+
+            $select.select2({
+                placeholder: "Please select...",
+                //width: 'resolve',
+                minimumInputLength: "@extendP.minimumInputLength",
+                dropdownWidth: "@extendP.dropdownWidth",
+                ajax: { // instead of writing the function to execute the request we use Select2's convenient helper
+                    url: "@extendP.URL",
+                    dataType: 'json',
+                    type: "POST",
+                    data: function (term, page) {
+                        var params = {};
+                       var htmlFieldPrefix="@htmlFieldPrefix";
+                        if ('@Html.Raw(extendP.UrlParams)') {
+                            var urlParams = @Html.Raw(extendP.UrlParams);
+                            var $myDataItem=$this.closest(".myDataItem");
+                                if ($myDataItem.length==0)
+                                {
+                                    $myDataItem=$this.closest("form");
+                                }
+                                if ($myDataItem.length==0)
+                                {
+                                    alert("必须在form 或者 .myDataItem 中");
+                                    return;
+                                }
+                            $.each(urlParams, function (i, v) {
+
+                                var json=$myDataItem.serializeJson(true);
+                                if (json[htmlFieldPrefix+v]){
+                                    params[i]=json[htmlFieldPrefix+v];
+
+                                }
+                            });
+
+                        }
+                        if ('@Html.Raw(extendP.UrlParamsInPage)') {
+                            var urlParams = @Html.Raw(extendP.UrlParamsInPage);
+                            var $myDataItem=utility.getPageInfo($this).$page;
+
+                                if (!$myDataItem)
+                                {
+                                    alert("找不到当前PageInfo.");
+                                    return;
+                                }
+                            $.each(urlParams, function (i, v) {
+
+                                var json=$myDataItem.serializeJson(true);
+                                if (json[v]){
+                                    params[i]=json[v];
+
+                                }
+                            });
+
+                        }
+                        return $.extend(params,{
+                            q: term, // search term
+                            _Event: "JSON",
+                            page_limit: 10
+                        });
+                    },
+                    results: function (data, page) { // parse the results into the format expected by Select2.
+                        // since we are using custom formatting functions we do not need to alter remote JSON data
+                        columns = data.Columns;
+                        return { results: data.WithHeaderData };
+                    }
+                },
+                initSelection: function (item, callback) {
+                    var id = item.val();
+                    var text = item.data('option');
+                    var data = { id: id, text: "@value" };
+                    callback(data);
+                },
+                formatResult: movieFormatResult, // omitted for brevity, see the source of this page
+                formatSelection: movieFormatSelection,  // omitted for brevity, see the source of this page
+                //dropdownCssClass: "bigdrop", // apply css that makes the dropdown taller
+                escapeMarkup: function (m) { return m; } // we do not want to escape markup since we are displaying html in results
+            });
+            $this.find(".select2-container").addClass("col-xs-12");
+            $("#@extId").remove();
+        });
+    </script>
+</div>

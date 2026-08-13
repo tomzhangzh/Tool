@@ -1,0 +1,32 @@
+﻿<template>
+    @*{{parent_Com?.jsonconfig.options?.labeloptions?.class }}
+    {{ parent_Com?.jsonconfig.options?.itemoptions?.class }}
+    {{lodash.merge(parent_Com?.jsonconfig.options?.labeloptions?.class ?? {}, parent_Com?.jsonconfig?options?.itemoptions?.class ?? {})}}*@
+    <label v-if="parent_Com?.jsonconfig.options?.labeloptions?.show!==false && ( !desginSharedData.isDesign || desgin_ParentData?.editChild ===false)"
+           ref="label"
+           class="itemLabel flex-shrink-0"
+           :class="getClass(parent_Com?.jsonconfig.options?.labeloptions,props.jsonconfig?.options?.labeloptions)"
+           style="width: 150px;"
+           :style="getStyle(parent_Com?.jsonconfig.options?.labeloptions,props.jsonconfig?.options?.labeloptions)"
+           v-bind="parent_Com?.jsonconfig.options?.labeloptions">
+        {{ props.jsonconfig.options?.labeloptions?.label }}
+    </label>
+    <contenteditable v-if="parent_Com?.jsonconfig.options?.labeloptions?.show!==false && desginSharedData.isDesign && desgin_ParentData?.editChild !==false"
+                     ref="label"
+                     class="itemLabel flex-shrink-0 contenteditable"
+                     :class="getClass(parent_Com?.jsonconfig.options?.labeloptions,props.jsonconfig?.options?.labeloptions)"
+                     style="width: 150px;"
+                     :style="getStyle(parent_Com?.jsonconfig.options?.labeloptions,props.jsonconfig?.options?.labeloptions)"
+                     v-bind="parent_Com?.jsonconfig.options?.labeloptions"
+                     tag="div" :contenteditable="true" v-model="props.jsonconfig.options.labeloptions.label" :no-nl="true" :no-html="true">
+
+    </contenteditable>
+    <div class="flex-grow  inline-flex  items-start w-full relative  " v-if="parent_Com?.jsonconfig.options?.labeloptions?.onlyshowlabel!=true">
+        <slot></slot>
+        <contenteditable v-if="parent_Com?.jsonconfig.options?.labeloptions?.show!==false && desginSharedData.isDesign && desgin_ParentData?.editChild !==false"
+                         class="absolute -bottom-4 right-0 bg-blue-400  text-white min-w-6 "
+                         tag="div" :contenteditable="true" v-model="props.jsonconfig.modelname" :no-nl="true" :no-html="true"></contenteditable>
+    </div>
+
+</template>
+

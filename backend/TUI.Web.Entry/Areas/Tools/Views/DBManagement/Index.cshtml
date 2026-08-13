@@ -1,0 +1,284 @@
+﻿@model TUI.Core.Models.SummaryPageInfo<DbTableInfo>
+@{
+    var list = this.SqlSugarClient.DbMaintenance.GetTableInfoList(false);
+    list = list.WhereIF(Model.Filter.Name.IsNullOrEmpty() == false, x => x.Name.Contains(Model.Filter.Name,StringComparison.OrdinalIgnoreCase)).ToList();
+    list = list.WhereIF(Model.Filter.Description.IsNullOrEmpty() == false, x => x.Name.Contains(Model.Filter.Description, StringComparison.OrdinalIgnoreCase)).ToList();
+    Model.PageInfo.Count = list.Count;
+    var items = list.Skip(Model.PageInfo.Skip).Take(Model.PageInfo.Limit);
+}
+<div t-init-vueinit="@(Model.ToJson())"
+     t-init-winMax
+@*t-init-winStyle="@(new{left="10px",top="10px"}.ToJson())" *@
+class="flex flex-col p-2 w-full h-full justify-stretch overflow-auto bg-gray-100">
+@*<t-checkbox :value="true"></t-checkbox>*@
+<div class="flex ">
+
+   <div>
+ 
+            <t-dynamic-com :jsonconfig="model.optionjson" :parentmodelinfo="model"></t-dynamic-com>
+
+    
+      @*  <t-check-box :options="{labeloptions:{label:'dddd'},comoptions:{label:'dddd'}}" :parentmodelinfo="model" modelname="test" :extendinfo="{items:[1,2,3]}"></t-check-box>
+        <t-color-picker :options="{labeloptions:{label:'dddd'},comoptions:{label:'dddd'}}" :parentmodelinfo="model" modelname="test" :extendinfo="{items:[1,2,3]}"></t-color-picker>
+        <t-date-picker :options="{labeloptions:{label:'dddd'},comoptions:{label:'dddd'}}" :parentmodelinfo="model" modelname="test" :extendinfo="{items:[1,2,3]}"></t-date-picker>
+        <t-rate :options="{labeloptions:{label:'dddd'},comoptions:{label:'dddd'}}" :parentmodelinfo="model" modelname="test" :extendinfo="{items:[1,2,3]}"></t-rate>
+        <t-select :options="{labeloptions:{label:'dddd'},comoptions:{label:'dddd'}}" :parentmodelinfo="model" modelname="test" :extendinfo="{items:[1,2,3]}"></t-select>
+*@</div>
+    <Vue-Draggable ref="el" v-model="list">
+        <div v-for="item in list" :key="item.id">
+            {{ item.name }}
+        </div>
+    </Vue-Draggable>
+    <div v-draggable="[
+        list,
+        {
+          animation: 150,
+        }
+      ]">
+        <div v-for="item in list"
+             :key="item.id">
+            {{ item.name }}
+        </div>
+    </div>
+    <div ref="el">
+        <div v-for="item in list"
+             :key="item.id">
+            {{ item.name }}
+        </div>
+    </div>
+    <v-ace-editor v-model:value="model.xxx" lang="json" theme="github_dark" :options="{
+        showGutter: true,
+        showPrintMargin: false,
+        useWorker: true,
+    }" style="height:300px" />
+    <div class="layui-card" t-change-postData="@(new{@event="Search"}.ToJson())">
+        <div class="layui-card-header bg-blue-500 text-white">查询</div>
+        <div class="layui-card-body">
+            <el-form :model="model.Filter" label-width="120px" class="grid grid-cols-3 gap-4">
+                <el-form-item label="Name">
+                    <el-input v-model="model.Filter.Name"></el-input>
+                </el-form-item>
+                
+                <el-form-item label="Description" >
+                    <el-input v-model="model.Filter.Description"></el-input>
+                </el-form-item>
+            </el-form>
+        </div>
+    </div>
+    <div>
+        <div class="flex justify-between h-10 items-center border bg-white" >
+            <div class="flex-grow flex flex-row  text-stronger content-start gap-1 place-items-center px-2">
+                <img src="/img/icon1/10023.png" class="h-6 w-6 ">
+                <div class="text">组件设计/img/icon1/10023.png</div>
+            </div>
+            <div class="layui-btn-group">
+                <span class="layui-btn layui-btn-normal px-2"><i class="layui-icon layui-icon-add-1"></i>添加</span>
+                <span class="layui-btn layui-btn-normal px-2" t-click-postData="@(new{@event="Search"}.ToJson())"><i class="layui-icon layui-icon-search"></i>查询</span>
+                <span class="layui-btn layui-btn-normal px-2" t-click-postData="@(new{@event="Clear"}.ToJson())"><i class="layui-icon layui-icon-refresh-1"></i>清除</span>
+            </div>
+        </div>
+        <div class="flex justify-between h-10 items-center border  bg-white px-2" t-init-updateEl="/WebControl/Pagination">
+           
+        </div>
+        <table id="dt-basic-example" class="layui-table table-hover table-striped w-100 m-0">
+            <thead class="bg-blue-500 text-white">
+                <tr>
+                    <th width="150px">
+
+                    </th>
+                    <th sortname="Name"
+                        style="width:200px">
+                        Name
+                    </th>
+                    <th sortname="DbObjectType"
+                        style="width:300px">
+                        Db Type
+                    </th>
+                    <th sortname="DbObjectType"
+                        style="width:300px">
+                        Description
+                    </th>
+
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in items)
+                {
+                    <tr>
+                        <td style="padding: 0px 5px">
+                            <div class="d-flex justify-content-between content-center gap-2 place-items-center w-full">
+                                <span class="hover:bg-blue-300 h-8 hover:bg-opacity-30  p-2"
+                                      t-click-openWinurl="@(new{title="编辑表"+item.Name,url=$"/Tools/DBManagement/Detail?TableName={item.Name}",options=new{shade=0}}.ToJson())">
+                                    <i class="layui-icon layui-icon-edit" style="font-size: 20px; color: #1E9FFF;"></i>编辑
+                                </span>
+                                <span class="hover:bg-blue-300 h-8 hover:bg-opacity-30  p-2">
+                                    <i class="layui-icon layui-icon-delete" style="font-size: 20px; color: red;"></i>删除
+                                </span>
+                                
+                                @*     <a href="javascript: void(0); " myaction-openwindow="
+                            @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Systems/EmailTemplate/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                            " class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                            <i class="fal fa-edit"></i>
+                            </a>
+                            <a href="javascript: void(0); " myaction-delete="
+                            @(new  {url="/Systems/EmailTemplate/Delete",@params=new{item.ID } }.ToJSON())
+                            " class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                            <i class="fal fa-trash"></i>
+                            </a> *@
+                            </div>
+
+                        </td>
+                        <td>
+                            @item.Name
+
+                        </td>
+                        <td>
+                            @item.DbObjectType
+
+                        </td>
+                        <td>
+                            @item.Description
+
+                        </td>
+
+                        <td></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <div class="flex justify-between h-10 items-center border  bg-white px-2">
+            <div></div>
+            @await Html.PartialAsync("~/Views/Shared/Components/Pagination.cshtml",Model.PageInfo)
+        </div>
+      
+        
+    </div>
+    <script tag='appconfig'>
+       var appConfig={
+            
+            setup(prop) {
+                var obj = {};
+                var attrName = `${actionHelper.tagAttrName("vueInit", "init")}`.toLowerCase();
+                if ($(element).attr(attrName)) {
+                    obj = JSON.parse($(element).attr(attrName));
+                }
+                else {
+                    obj = dom.getModel(element);
+                }
+               
+                obj.test=[];
+                obj.optionjson={
+                        "component": "t-div-container",
+  "modelname": "test1",
+  "childrenctrls": [
+    {
+      "component": "t-check-box",
+                                "modelname": "testcheck-box",
+      "options": {
+        "comoptions": {
+                                        "label": "Item3", "border":true
+        }
+      }
+    },
+    {
+      "component": "t-input",
+                                "modelname": "test-t-input",
+      "options": {
+        "comoptions": {
+          "label": "Item4"
+        }
+      }
+    },
+    {
+      "component": "t-check-box-group",
+                                "modelname": "t-check-box-group",
+      "options": {
+                                    "dictTableName": "test",
+                                    "comoptions": {
+                                        "label": "Item3", "border": true,
+                                    },
+                                    "comlisteners": { "change":"comInnerInfo.testfun" }
+      }
+    }
+  ],
+  "options": {
+    "labeloptions": {
+      "label": "dddd"
+    },
+    "comoptions": {
+                                "placeholder": "xxxxxxxxxx",
+                                "suffix-icon":"Search"
+    },
+                            "comlisteners": { "change":()=>{alert(1);} }
+  },
+  "slots": [
+    {
+      "slotname": "header",
+      "component": "TCheckBox",
+      "modelname": "test",
+      "options": {
+        "comoptions": {
+          "label": "Item4"
+        }
+      }
+    },
+    {
+      "slotname": "footer",
+      "component": "TCheckBox",
+      "modelname": "test",
+      "options": {
+        "comoptions": {
+          "label": "Item4"
+        }
+      }
+    }
+  ]
+};
+                obj.xxx = JSON.stringify(obj.optionjson, null, "\t");
+                var model = Vue.ref(obj);
+                const now = VueUse.useNow();
+               
+              
+                //const setActiveWin = function (item) {
+                //    tAPP.dom.setActiveWin(item.com.index);
+                //}
+                const moment = window.moment;
+                const list = Vue.ref([
+                    {
+                        name: 'Joao',
+                        id: 1
+                    },
+                    {
+                        name: 'Jean',
+                        id: 2
+                    },
+                    {
+                        name: 'Johanna',
+                        id: 3
+                    },
+                    {
+                        name: 'Juan',
+                        id: 4
+                    }
+                ])
+                VueUse.tryOnMounted(() => {
+                    const $this = Vue.getCurrentInstance();
+                    const draggable = TUI.VueDraggablePlus.useDraggable($this.refs.el, list, {
+                        animation: 150,
+                        onStart() {
+                            console.log('start')
+                        },
+                        onUpdate() {
+                            console.log('update')
+                        }
+                    });
+                    draggable.start();
+                   
+                })
+                return { model, now, moment,list }
+            }
+        };
+       
+    </script>
+</div>

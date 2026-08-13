@@ -1,0 +1,247 @@
+﻿@model FuelPricingViewModel
+@{
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    //IService<tblPriceHistory> service = this.ViewBag.service;
+    TUI.Services.Manager.IPriceService priceService = this.ViewBag.priceService;
+    var BrandList = this.SqlSugarClient.Queryable<tblPriceBrand>().Where(x => x.IsActive == 1).ToList();
+    if (Model.BrandID == null)
+    {
+        Model.BrandID = BrandList.FirstOrDefault()?.ID;
+        Model.BrandName = BrandList.FirstOrDefault()?.BrandName;
+    }
+
+    var PriceBrandConfigurationList = this.SqlSugarClient.Queryable<tblPriceBrandConfiguration>().Where(x => x.BrandID == Model.BrandID).ToList();
+    this.ViewBag.PriceBrandConfigurationList = PriceBrandConfigurationList;
+    if (Model.PriceBrandConfigurationID == null)
+    {
+        Model.PriceBrandConfigurationID = PriceBrandConfigurationList.FirstOrDefault().ID;
+
+    }
+    Model.CurrentBrandConfiguration = PriceBrandConfigurationList.Where(x => x.ID == Model.PriceBrandConfigurationID).Single();
+    Model.ProductName = Model.CurrentBrandConfiguration.ReportVariableName;
+    Model.Data = priceService.GetByBrandAndMonth(Model.BrandID.Value, Model.SelectedDate.Value).ToList();
+
+    }
+<div id="@extId"></div>
+<div class="row  h-100 app" >
+    <div class="col-xl-5 ">
+        <div id="panel-2" class="panel h-100" data-panel-fullscreen="false" role="widget">
+            <div class="panel-hdr" role="heading">
+                <h2 class="ui-sortable-handle">
+                    <i class="fal fa-2x fa-calendar mx-2" ></i>
+                    Calendar
+                </h2>
+                <div class="panel-toolbar" role="menu">
+                    <input type="hidden" v-model="model.BrandID" name="BrandID" />
+                    <input type="hidden" v-model="model.PriceBrandConfigurationID" name="PriceBrandConfigurationID" />
+                    <el-select v-model="model.PriceBrandConfigurationID" :value-key="ID" filterable placeholder="Select"  style="width:100%">
+                        <el-option v-for="item in PriceBrandConfigurationList"
+                                   :key="item.ID"
+                                   :label="item.ReportVariableName"
+                                   :value="item.ID">
+                        </el-option>
+                    </el-select>
+                    <el-select v-model="model.BrandID" :value-key="ID" filterable placeholder="Select"  style="width:100%">
+                        <el-option v-for="item in brandList"
+                                   :key="item.ID"
+                                   :label="item.BrandName"
+                                   :value="item.ID">
+                        </el-option>
+                    </el-select>
+                </div>
+            </div>
+            <div class="panel-container show" role="content">
+
+                <div>
+                    <input name="SelectedDate" type="hidden" value="@Model.SelectedDate.Value.ToString("yyyy/MM/dd")" />
+                    <mycalendar v-model="model.SelectedDate">
+
+                    </mycalendar>
+                    <div class="chartContainer w-100" style="height:300px"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div class="col-xl-7 ">
+        <div id="panel-2" class="panel h-100" data-panel-fullscreen="false" role="widget">
+            <div class="panel-hdr" role="heading">
+                <h2 class="ui-sortable-handle">
+                    <i class="fal fa-2x fa-file  mx-2"></i>
+                    History Data
+                </h2>
+                <div class="panel-toolbar" role="menu">
+                </div>
+            </div>
+            <div class="panel-container show p-5"  role="content" >
+                <div class="row">
+                    <div  data-size="A4" style=" background: white; display: block; margin: 0 auto; margin-bottom: 0.5cm;min-width:800px; -webkit-box-shadow: 0 0 0.5cm rgb(0 0 0 / 50%); box-shadow: 0 0 0.5cm rgb(0 0 0 / 50%); background-size: cover; padding: 4rem; position: relative;">
+                        <div id="reportContainer" style="min-height:300px;min-width:800px"></div>
+                    </div>
+                    @*<div class="col-xl-6 col-lg-12" id="priceChartContainter"  style="min-height:300px"></div>*@
+                </div>
+                
+                
+
+            </div>
+        </div>
+
+    </div>
+</div>
+<script>
+
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+        var brandList =@Html.Raw(BrandList.ToJSON());
+        var PriceBrandConfigurationList =@Html.Raw((this.ViewBag.PriceBrandConfigurationList as List<tblPriceBrandConfiguration>).ToJSON());
+        var model=@Html.Raw(Model.ToJSON());
+        const App = {
+            data() {
+                return {
+                     model:model
+                    , brandList: brandList
+                    , PriceBrandConfigurationList: PriceBrandConfigurationList
+                    , moment: moment
+                    }
+            },
+            methods: {
+                getPrice: function (data) {
+                    var find = Enumerable.from(model.Data).where((x) => x.ProductID == model.CurrentBrandConfiguration.ProductID
+                        && (x.TerminalID ?? model.CurrentBrandConfiguration.TerminalID) == model.CurrentBrandConfiguration.TerminalID
+                        && (x.SupplierID ?? model.CurrentBrandConfiguration.SupplierID) == model.CurrentBrandConfiguration.SupplierID
+                        && x.CityID == model.CurrentBrandConfiguration.CityID
+                        && moment(x.Ext_EST_LastUpdated).format('Y/M/D') == moment(data.day).format('Y/M/D')).toArray();
+                    if (find == 0) {
+                        return '';
+                    }
+                    else {
+                        return `$${find[0].Price}`;
+                    }
+                },
+                getStatus: function (data) {
+                    var find = Enumerable.from(model.Data).where((x) => moment(x.Ext_EST_LastUpdated).format('Y/M/D') == moment(data.day).format('Y/M/D')).toArray();
+                    if (find.length >0 && find.length != PriceBrandConfigurationList.length) {
+
+                        return `<div class="text-info fw-900" style="    position: absolute;
+    bottom: 0px;
+    margin: 0px;
+    left: 0px;"><a href="javascript:void(0);" class="btn btn-warning btn-xs btn-icon rounded-circle waves-effect waves-themed">
+                                                        <i class="fal fa-exclamation-triangle"></i>
+                                                    </a></div>
+</div>`;
+                    }
+                    else {
+                        return ``;
+                    }
+                },
+                getParams: function (data) {
+                    var result = {
+                        "BrandID": model.BrandID,
+                        SelectedDate: moment(data.day).format('Y/M/D')
+                    }
+                    return JSON.stringify(result);
+                },
+                updateReportContainer: function (data) {
+                    var $reportContiner = $this.find("#reportContainer");
+                    if (model.BrandID && this.getPrice(data)) {
+                        var params = {
+                            "BrandID": model.BrandID,
+                            SelectedDate: moment(data.day).format('Y/M/D')
+                        };
+
+                        $reportContiner.myLoad('/FuelPricing/ViewHtml', 'Load', {}, params);
+                      /*  $this.find("#priceChartContainter").myLoad('/FuelPricing/PriceChart', 'Load', {}, params);*/
+                    }
+                    else {
+                        $this.find("#priceChartContainter").html('');
+                        $reportContiner.html('');
+                    }
+
+                }
+            }
+
+        };
+        const app = Vue.createApp(App);
+        app.use(ElementPlus);
+
+        app.component("mycalendar", {
+            template: `
+        <el-calendar>
+    <template #dateCell="{ data }" class="height-sm">
+<div class="w-100 h-100 " :class="data.isSelected ? 'is-selected' : ''"
+ @@click="$root.updateReportContainer(data)"
+style="position: relative;">
+<div class="data-params " style="display:none">{{ $root.getParams(data) }}</div>
+<p >{{ data.day.split('-').slice(2).join('-') }}</p>
+<div class="text-info fw-900" style="    position: absolute;
+    bottom: 0px;
+    margin: 0px;
+    right: 0px;">{{ $root.getPrice(data) }}</div>
+<div v-html='$root.getStatus(data)'></div>
+</div>
+
+    </template>
+  </el-calendar>
+        `
+        });
+        app.mount($this.find(".app").get(0));
+        var vm = app._instance.ctx;
+        vm.$watch('model.BrandID', function (newValue, oldValue) {
+            setTimeout(() => $this.myReload("BrandIDChange"), 100);
+
+        });
+        vm.$watch('model.PriceBrandConfigurationID', function (newValue, oldValue) {
+            setTimeout(() => $this.myReload(), 100);
+
+        });
+        vm.$watch('model.SelectedDate', function (newValue, oldValue) {
+            $this.find("[name='SelectedDate']").val(moment(newValue).format('Y/M/D'));
+            if (moment(newValue).year() != moment(oldValue).year() || moment(newValue).month() != moment(oldValue).month()) {
+                setTimeout(() => $this.myReload(), 100);
+            }
+
+        });
+        if (model.SelectedDate && model.BrandID) {
+            setTimeout(() => { $this.find(".is-selected").trigger("click") }, 100);
+        }
+         var reanderChart = () => {
+            // 基于准备好的dom，初始化echarts实例
+            var myChart = echarts.init($this.find(".chartContainer").get(0));
+
+            // 指定图表的配置项和数据
+            var option = {
+                title: {
+                    text: '@Model.BrandName'
+                },
+                tooltip: {},
+                legend: {
+                    data: @Html.Raw(PriceBrandConfigurationList.Select(x=>x.ReportVariableName).ToList().ToJSON())
+                },
+                xAxis: {
+                    data: @Html.Raw(Enumerable.Range(1,Model.SelectedDate.Value.LastDayOfMonth().Day).ToList().ToJSON())
+                },
+                yAxis: {min:@(Model.Data.Select(x=>x.Price).Min()??0)},
+                series:@Html.Raw( PriceBrandConfigurationList.Select(x=>new {
+                      name=x.ReportVariableName,
+                      type="line",
+                      data= Enumerable.Range(1, Model.SelectedDate.Value.LastDayOfMonth().Day).Select(b =>
+                      {
+                          var date = new DateTime(Model.SelectedDate.Value.Year, Model.SelectedDate.Value.Month, b);
+                          var find = Model.Data.Where(o=>
+                         o.ProductID == x.ProductID
+                         && (o.TerminalID??x.TerminalID) == x.TerminalID
+                         && (o.SupplierID??x.SupplierID) == x.SupplierID
+                         && o.CityID == x.CityID
+                         && o.Ext_EST_LastUpdated.Value.Date == date).OrderByDescending(o=>o.LastUpdated).FirstOrDefault();
+                          return find?.Price;
+                      }
+                       )
+                  }).ToJSON())
+            };
+
+            // 使用刚指定的配置项和数据显示图表。
+            myChart.setOption(option);
+        };
+        reanderChart();
+    })
+</script>

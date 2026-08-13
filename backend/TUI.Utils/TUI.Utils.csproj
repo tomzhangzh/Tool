@@ -1,0 +1,129 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Db\EF\**" />
+    <Compile Remove="Db\SqlSugar\Paged\**" />
+    <EmbeddedResource Remove="Db\EF\**" />
+    <EmbeddedResource Remove="Db\SqlSugar\Paged\**" />
+    <None Remove="Db\EF\**" />
+    <None Remove="Db\SqlSugar\Paged\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Db\SqlSugar\Attributes\SugarColumn2.cs" />
+    <Compile Remove="Db\SqlSugar\Attributes\SugarStringAttribute.cs" />
+    <Compile Remove="Db\SqlSugar\SqlSugarEx\SqlSugarRepository.cs" />
+    <Compile Remove="Helpers\RazorHelper.cs" />
+    <Compile Remove="Options\AbcInfoOptions.cs" />
+    <Compile Remove="Web\MvcLogin\MvcLoginExtensions.cs" />
+    <Compile Remove="Web\WebRESTfulResultProvider.cs" />
+  </ItemGroup>
+	<ItemGroup>
+		<None Update="Configs\AppInfo.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Configs\Logging.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Configs\Serilog.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\Application_Input.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\Application_IService.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\Application_MapperInput.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\Application_MapperOut.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\Application_Out.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\Application_Query.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\Application_Service.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\View_Controller.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\View_PearViews_example.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\View_PearViews_Index.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\View_PearViews_Info.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\MVC\View_PearViews_InfoTable.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\WebAPI\Application_Input.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\WebAPI\Application_MapperInput.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\WebAPI\Application_MapperOut.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\WebAPI\Application_Out.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\WebAPI\Application_Query.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Module\CodeGenerate\CodeTemplates\WebAPI\Application_Service.txt">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Furion.Extras.Logging.Serilog" Version="4.8.8.21" />
+		<PackageReference Include="Furion.Extras.ObjectMapper.Mapster" Version="4.8.8.21" />
+		<PackageReference Include="Furion.Extras.Authentication.JwtBearer" Version="4.8.8.21" />
+		<PackageReference Include="Furion.Extras.DependencyModel.CodeAnalysis" Version="4.8.8.21" />
+		<PackageReference Include="Furion.Pure" Version="4.8.8.23" />
+		<PackageReference Include="HtmlSanitizer" Version="8.0.645" />
+		<PackageReference Include="MailKit" Version="4.0.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="7.0.5" />
+		<PackageReference Include="MiniExcel" Version="1.30.3" />
+		<PackageReference Include="NPOI" Version="2.6.0" />
+		<PackageReference Include="Pather.CSharp" Version="2.1.0" />
+		<PackageReference Include="SkiaSharp" Version="2.88.3" />
+		<!--解决linux上报错-->
+		<PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.3" />
+		<PackageReference Include="SqlSugarCore" Version="5.1.4.80" />
+		<PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+		<PackageReference Include="System.Linq.Dynamic.Core" Version="1.3.2" />
+		<PackageReference Include="System.Text.Json" Version="7.0.2" />
+		<PackageReference Include="Yitter.IdGenerator" Version="1.0.14" />
+		<PackageReference Include="Z.Linq.Async" Version="1.0.3" />
+		<PackageReference Include="Z.ExtensionMethods" Version="2.1.1" />
+
+		<PackageReference Include="Serilog.Sinks.MSSqlServer" Version="6.3.0" />
+
+		<PackageReference Include="SSH.NET" Version="2020.0.2" />
+		<PackageReference Include="FluentFTP" Version="46.0.2" />
+
+		<PackageReference Include="Microsoft.DependencyValidation.Analyzers" Version="0.11.0" />
+
+
+		<PackageReference Include="UAParser" Version="3.1.47"></PackageReference>
+
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="新文件夹\" />
+	</ItemGroup>
+</Project>

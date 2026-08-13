@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net7.0</TargetFrameworks>
+		<NoWarn>1701;1702;1591</NoWarn>
+		<DocumentationFile>TUI.Web.Core.xml</DocumentationFile>
+		<AssemblyName>TUI.Web.Core</AssemblyName>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="TUI.Web.Core.xml" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="TUI.Web.Core.xml" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\TUI.Application\TUI.Application.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="applicationconfig.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="dbsettings.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+
+
+	<ItemGroup>
+		<PackageReference Include="IGeekFan.AspNetCore.Knife4jUI" Version="0.0.13" />
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="7.0.8" />
+	</ItemGroup>
+
+</Project>

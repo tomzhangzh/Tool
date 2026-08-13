@@ -1,0 +1,1 @@
+import{b as a,f as r}from"./index.js";import{d as p,o as t,c as n,bo as m,bp as i,b9 as c,aX as f}from"./vendor.js";const B=p({props:a,setup(l){const{value:u,getFormItemOptions:s}=r();return(o,b)=>{var e;return t(),n(f((e=o.options)==null?void 0:e.type),m(i(c(s)(o.parentOptions,o.options))),null,16)}}});export{B as default};

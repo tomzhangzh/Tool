@@ -1,0 +1,176 @@
+﻿@model LogEventFilter
+@inherits CustomRazorPage<TModel>
+@{ 
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    var totalCount = 0;
+    if (this.PaginationInfo.SortName.IsNullOrEmpty() == true)
+    {
+        this.PaginationInfo.SortName = "ID";
+        this.PaginationInfo.SortDir = "Desc";
+    }
+    (DateTime? start, DateTime? end) range = (Model.Date_Range[0], Model.Date_Range[1]?.AddDays(1));
+    var query = this.SqlSugarClient.Queryable<LogEvents>()
+   .WhereIF(range.start.HasValue, e => e.TimeStamp >= range.start)
+             .WhereIF(range.end.HasValue, e => e.TimeStamp < range.end)
+.WhereIF(Model.Message.IsNullOrEmpty() == false, e => e.Message.Contains(Model.Message))
+             .WhereIF(Model.Level.IsNullOrEmpty() == false, e => e.Level.Contains(Model.Level))
+.Select(x => x)
+.OrderByIF(this.PaginationInfo.SortName.IsNullOrEmpty() == false, this.PaginationInfo.OrderFields);
+    var list = query.ToPageList(this.PaginationInfo.CurrentPage, this.PaginationInfo.PageSize, ref totalCount);
+
+    if (totalCount < this.PaginationInfo.PageSize * (this.PaginationInfo.CurrentPage - 1))
+    {
+        this.PaginationInfo.TotalCount = totalCount;
+        list = query.ToPageList(this.PaginationInfo.CurrentPage, this.PaginationInfo.PageSize, ref totalCount);
+    }
+    this.PaginationInfo.TotalCount = totalCount;
+}
+
+<div id="@extId"></div>
+
+
+
+
+<div id="panel-2" class="panel" data-panel-fullscreen="" data-panel-close="" data-panel-collapsed="" data-panel-locked="" data-panel-reset="" data-panel-color="" data-panel-custombutton="">
+    <div class="panel-hdr bg-info-500" role="heading">
+        <h2 style="gap:5px;">
+            <i class="fal fa-search"></i>   System Log
+        </h2>
+        <div class="panel-toolbar">
+            <button class="btn btn-panel waves-effect waves-themed" data-action="panel-collapse" data-toggle="tooltip" data-offset="0,10" data-original-title="Collapse"></button>
+        </div>
+    </div>
+    <div class="panel-container show">
+        <div class="loader"><i class="fal fa-spinner-third fa-spin-4x fs-xxl"></i></div>
+        <div class="panel-content app p-2 ">
+            <div class="panel-tag">
+
+
+                <el-form label-width="120px" :model="model" ref="formRef">
+                    <el-row :gutter="20">
+                        <el-col :span="8" :xl="6" :xs="24">
+                            <el-form-item label="Message" style="align-items: center;" prop="Message">
+                                
+                                <el-input v-model="model.Message" name="Message"></el-input>
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="8" :xl="6" :xs="24">
+                            <el-form-item label="Record Date" style="align-items: center;" prop="Date">
+                                <div style="display:none">
+                                    <input name="Date_Range[0]" v-bind:value="fromatDate(model.Date_Range[0])" />
+                                    <input name="Date_Range[1]" v-bind:value="fromatDate(model.Date_Range[1])" />
+                                </div>
+
+
+                                <el-date-picker v-model="model.Date_Range"
+                                                type="daterange"
+                                                unlink-panels
+                                                range-separator="To"
+                                                start-placeholder="Start date"
+                                                end-placeholder="End date"
+                                                :shortcuts="shortcuts" />
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+
+
+                </el-form>
+
+            </div>
+        </div>
+    </div>
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted">
+        <div class="d-flex justify-content-between">
+            <div>
+                <button type="button" class="btn btn-info waves-effect waves-themed" myaction-postback id="Search">
+                    <span class="fal fa-search mr-1"></span>
+                    Search
+                </button>
+                <button type="button" class="btn btn-info waves-effect waves-themed" myaction-postback id="Clear">
+                    <span class="fal fa-recycle mr-1"></span>
+                    Clear
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted">
+
+        <table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+            <thead class="bg-info-500">
+                <tr>
+                    
+                    <th sortname="ID" width="50px">ID</th>
+                    <th sortname="Message" width="200px">Message</th>
+                    <th sortname="Level" width="50px">Level</th>
+                    <th sortname="TimeStamp" width="150px">TimeStamp</th>
+                    <th sortname="Exception">Exception</th>
+       
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in list)
+                {
+                    <tr>
+                        <td>@item.Id</td>
+                        <td>@item.Message</td>
+                        <td>@item.Level</td>
+               
+                        <td>@item.TimeStamp?.ToString("MMM/dd/yyyy HH:mm:ss")</td>
+                        <td>
+                        <pre>@item.Exception</pre>
+                        </td>
+                      
+                        </tr>
+                    }
+
+
+
+</table>
+        @await Html.PartialAsync("~/Views/Shared/Components/Pagination/default.cshtml", this.PaginationInfo)
+    </div>
+</div>
+<script>
+
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+        //$this.find('#dt-basic-example').dataTable(
+        //    {
+        //        responsive: true,
+        //        searching: false,
+        //        bLengthChange: false
+        //    });
+        const App = {
+            data() {
+                return {
+                    model: Vue.reactive( @Html.Raw(Model.ToJSON()))
+                    }
+            },
+            methods: {
+                fromatDate: function (date) {
+                    if (moment(date).isValid()) {
+                        return moment(date).format('YYYY-MM-DD');
+                    }
+                    else {
+                        return "";
+                    }
+
+                }
+
+          
+            }
+        };
+        const app = Vue.createApp(App);
+        app.use(ElementPlus);
+        app.mount($this.find(".app").get(0));
+
+        $this.off("keyup").on("keyup", function (event) {
+            if (event.which == 13) {
+                $this.find("#Search").trigger("click");
+            }
+            else if (event.which == 27) {
+                $this.find("#Clear").trigger("click");
+            }
+        })
+        //setTimeout(() => $this.find("#Search").focus(), 500);
+    })
+</script>

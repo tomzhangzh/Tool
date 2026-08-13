@@ -1,0 +1,54 @@
+﻿@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@inject IService<DICTSETTING> DictsettingService
+@{
+
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.RadioButtonListFromDICTSETTINGInfo;
+}
+<table class="@detailItem.GetValidateClass()">
+    <tbody>
+        <tr>
+            @foreach (var opt in DictsettingService.List(x => x.TABLENAME == extendP.TableName && x.TYPE == extendP.Type))
+            {
+
+
+                <td>
+                    @if (string.Format("{0}", Model) == opt.VALUE)
+                    {
+                        @Html.RadioButtonFor(x => x, opt.VALUE
+                    , new
+                    {
+                        @checked = "checked",
+                        @class = "ace " + detailItem.GetValidateClass()
+                    })
+
+                    }
+                    else
+                    {
+                        @Html.RadioButtonFor(x => x, opt.VALUE
+                             , new
+                             {
+                                 @class = "ace " + detailItem.GetValidateClass()
+                             }
+                   )
+
+                    }
+                    <span class="lbl"> @opt.NAME</span>
+
+                </td>
+
+            }
+        </tr>
+    </tbody>
+</table>

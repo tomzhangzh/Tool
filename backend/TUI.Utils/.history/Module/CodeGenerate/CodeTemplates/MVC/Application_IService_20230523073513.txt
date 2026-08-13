@@ -1,0 +1,100 @@
+// MIT License
+// 开源地址：https://gitee.com/co1024/AbcMvc
+// Copyright (c) 2021-2023 1024
+// Abc.Mvc=Furion+EF+SqlSugar+Pear layui admin.
+
+namespace @(Model.Config.ProjectName).Application.@(@Model.Config.MvcApplicationArea)Services;
+
+/// <summary>
+/// 接口
+/// @((Model.Description+"").Replace("\r","").Replace("\n",""))
+///</summary>
+public interface I@(Model.MvcApplicationEntityName)Service
+{
+    /// <summary>
+    /// 新增或更新一条
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
+    Task InsertOrUpdate(@(Model.MvcApplicationEntityName)Input input);
+
+    /// <summary>
+    /// 新增一条
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
+    Task<long> Insert(@(Model.MvcApplicationEntityName)Input input);
+
+    /// <summary>
+    /// 更新一条
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
+    Task<bool> Update(@(Model.MvcApplicationEntityName)Input input);
+
+    /// <summary>
+    /// 删除一条
+    /// </summary>
+    /// <param name="id"></param>
+    Task<bool> Delete(long id);
+
+    /// <summary>
+    /// 批量删除
+    /// </summary>
+    /// <param name="ids">需要删除的数据，多条以英文逗号隔开</param>
+    Task<bool> BatchDelete(string ids);
+
+   
+
+    /// <summary>
+    /// 查询一条
+    /// </summary>
+    /// <param name="id"></param>
+    Task<@(Model.MvcApplicationEntityName)Out> Get(long id);
+
+    
+
+    /// <summary>
+    /// 分页查询
+    /// </summary>
+    /// <param name="searchQuery"></param>
+    /// <returns></returns>
+    Task<LayuiPagedList<@(Model.MvcApplicationEntityName)Out>> GetAllByPageToLayui(@(Model.MvcApplicationEntityName)Query searchQuery);
+
+   
+
+    /// <summary>
+    /// 设置状态
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="state"></param>
+    /// <param name="field">字段名</param>
+    /// <returns></returns>
+    Task<bool> SetState(long id, bool state, string field);
+
+    #region 冗余方法
+     /// <summary>
+    /// 查询所有
+    /// </summary>
+    /// <returns></returns>
+    Task<List<@(Model.MvcApplicationEntityName)Out>> GetAll();
+   
+    /// <summary>
+    /// 分页查询
+    /// </summary>
+    /// <param name="searchQuery"></param>
+    /// <returns></returns>
+    Task<PagedList<@(Model.MvcApplicationEntityName)Out>> GetAllByPage(@(Model.MvcApplicationEntityName)Query searchQuery);
+    
+    /// <summary>
+    /// 假删除
+    /// </summary>
+    /// <param name="id"></param>
+    Task<bool> FakeDelete(long id);
+    /// <summary>
+    /// 批量假删除
+    /// </summary>
+    /// <param name="ids">需要删除的数据，多条以英文逗号隔开</param>
+    Task<bool> BatchFakeDelete(string ids);
+    #endregion
+}

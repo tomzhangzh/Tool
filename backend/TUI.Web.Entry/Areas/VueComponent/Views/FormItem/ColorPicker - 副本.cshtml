@@ -1,0 +1,17 @@
+﻿<template>
+  <t-label-wrapper :options="options"
+                     :parentoptions="parentoptions"
+                     :modelinfo="modelinfo"
+                     :parentmodelinfo="parentmodelinfo">
+        <el-checkbox ref="current"
+                     v-model="modelinfo"
+                     v-bind="options?.comoptions">
+        </el-checkbox>
+        {{options?.comoptions}}
+        <el-checkbox-group v-model="modelinfo" size="large">
+            <el-checkbox v-for="item in extendinfo.items" :key="item" :label="item">
+                {{ item }}
+            </el-checkbox>
+        </el-checkbox-group>
+    </t-label-wrapper>
+</template>

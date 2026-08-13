@@ -1,0 +1,463 @@
+﻿@{
+    var desginModel =
+                    new
+                    {
+                        showLeft = true,
+                        showRight = true,
+                        showContainerBorder = false,
+                        pageWidth = 800,
+                        pageZoom = 1,
+                        showPadding = true,
+                        isDesign = true,
+                        editModelName=true,
+                        showJsonModel=false,
+                        comTreeTextFilter="",
+
+                    };
+    var model = new
+    {
+        desginModel = desginModel,
+    };
+}
+<style>
+    .demo-tabs > .el-tabs__content {
+        padding: 0px;
+        color: #6b778c;
+        width:100%
+    }
+
+    .demo-tabs .custom-tabs-label .el-icon {
+        vertical-align: middle;
+    }
+
+    .demo-tabs .custom-tabs-label span {
+        vertical-align: middle;
+        margin-left: 4px;
+    }
+
+    .demo-tabs .el-tabs--left .el-tabs__header.is-left {
+        
+         margin-right: 5px; 
+    }
+</style>
+<div class="flex flex-col h-full w-full p-0" t-init-vueinit="@(model.ToJson())"
+     t-init-winStyle="@(new{width="80%",height="700px",autoheight=true}.ToJson())">
+
+   
+    <div class="w-full h-8 px-4 top-0 flex flex-row justify-between items-center z-20 text-sm bg-gray-400 bg-opacity-30 backdrop-blur-2xl shadow transition border-b border-b-gray-300 font-semibold">
+        <div class="flex flex-row items-center space-x-2 w-1/6">
+            <div class="flex items-center gap-2">
+                <span>Left</span>
+                <div class="flex-grow">
+                    <el-switch v-model="model.desginModel.showLeft" />
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span>Right</span>
+                <div class="flex-grow">
+                    <el-switch v-model="model.desginModel.showRight" />
+                </div>
+            </div>
+           
+        </div>
+        <div class="flex-grow gap-5 inline-flex">
+            <div class="w-60 flex items-center gap-2">
+                <span>页面宽度</span>
+                <div class="flex-grow">
+                    <el-slider v-model="model.desginModel.pageWidth" :step="100" :max="2000" :min="100" />
+                </div>
+            </div>
+            <div class="w-60 flex items-center gap-2">
+                <span>Zoom</span>
+                <div class="flex-grow">
+                    <el-slider v-model="model.desginModel.pageZoom" :step="0.1" :max="3" :min="0.3" />
+                </div>
+            </div>
+          
+            <div class="flex items-center gap-2">
+                <span>设计模式</span>
+                <div class="flex-grow">
+                    <el-switch v-model="model.desginModel.isDesign" />
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span>Show Padding</span>
+                <div class="flex-grow">
+                    <el-switch v-model="model.desginModel.showPadding" />
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span>Show Json</span>
+                <div class="flex-grow">
+                    <el-switch v-model="model.desginModel.showJsonModel" />
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div class="flex space-x-1 flex-grow p-1 items-stretch overflow-y-auto">
+        <pv-splitter class="h-full w-full">
+            <pv-splitter-panel class="flex align-items-center justify-content-center" v-show="model.desginModel.showLeft" :size="20">
+
+
+                <el-tabs class="flex w-full h-full items-start  p-0 demo-tabs overflow-auto" tab-position="left" type="border-card">
+                    <el-tab-pane label="组件" class="dddd">
+                        <div ref="comList" class="grid grid-cols-1 place-content-start gap-4 px-2">
+                            <div v-for="item in model.comList"
+                                 :key="item">
+                                <div class="
+transition-opacity duration-1000 hover:-translate-y-1  bg-gradient-to-r from-gray-100 to-gray-200  border
+w-full max-w-64  rounded p-2 flex flex-col content-start gap-2 place-items-center">
+                                    <img :src="item.Icon" class="h-10 w-full max-w-64 com-handle cursor-pointer">
+                                    <div class="text-gray com-name">{{item.Name}}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+                    <el-tab-pane label="组件树">
+                        <el-input v-model="model.desginModel.comTreeTextFilter" class="w-full" placeholder="Filter"></el-input>
+
+                        <el-tree ref="treeRef"
+                                 class="filter-tree"
+                                 :data="[model.configObj]"
+                                 :props="{
+                                 children: 'childrenctrls' ,
+                                 label:(data,node)=>
+                            {
+
+                            return `${data.component} ${data.modelname}`;}
+                            }"
+                            draggable
+                            @@node-click="model.desginModel.handleNodeClick"
+                            default-expand-all>
+                        </el-tree>
+
+                    </el-tab-pane>
+
+                </el-tabs>
+
+            </pv-splitter-panel>
+            <pv-splitter-panel class="flex align-items-center justify-content-center" :size="75">
+                <div class="flex-grow h-full bg-gray-100 border-1 ">
+                   
+                    {{x}},{{y}},{{model.desginModel?.current?.bounding}},{{model.desginModel?.current?.xxx}}
+                 @*   <div :style="boxStyles"
+                         class="fixed"></div>*@
+                    <div class="h-full w-full overflow-hidden relative">
+                        <div ref="rulerWrapper"
+                             class="absolute h-full w-full"
+                             style="z-index: 10"></div>
+                        <div ref="designCenter"
+                             class="absolute h-full w-full overflow-auto m-auto bg-blue-200 bg-stripes bg-stripes-white design-center"
+                             style="z-index: 20; padding: 20px; margin: 20px">
+                            
+                            <div class="m-auto   h-full bg-white overflow-y-auto duration-100 ease-in-out; p-2"
+                                 :style="{ width: model.desginModel.pageWidth + 'px',zoom:model.desginModel.pageZoom }">
+                                <div class="design-page">
+                                    <div class="absolute  p-0 w-full h-full" v-if="model.desginModel?.current?.bounding">
+                                        <svg class="z-[21] overflow-hidden w-full h-full"
+                                             style="pointer-events: none;"
+                                             >
+                                            <line stroke="red" stroke-width="1" stroke-dasharray="10,10" :x1="model.desginModel.current.bounding.left-model.desginModel.current.xxx.left"
+                                                  y1="0" :x2="model.desginModel.current.bounding.left-model.desginModel.current.xxx.left"
+                                                  :y2="model.desginModel.current.xxx.bottom"></line>
+                                            <line stroke="red" stroke-width="1" stroke-dasharray="10,10"
+                                                  :x1="model.desginModel.current.bounding.left-model.desginModel.current.xxx.left+model.desginModel.current.bounding.width"
+                                                  y1="0"
+                                                  :x2="model.desginModel.current.bounding.left-model.desginModel.current.xxx.left+model.desginModel.current.bounding.width"
+                                                  y2="100%"></line>
+                                            <line stroke="red" stroke-width="1" stroke-dasharray="10,10"
+                                                  x1="0"
+                                                  :y1="model.desginModel.current.bounding.top-model.desginModel.current.xxx.top"
+                                                  x2="100%"
+                                                  :y2="model.desginModel.current.bounding.top-model.desginModel.current.xxx.top"></line>
+                                            <line stroke="red" stroke-width="1" stroke-dasharray="10,10"
+                                                  x1="0"
+                                                  :y1="model.desginModel.current.bounding.top-model.desginModel.current.xxx.top+model.desginModel.current.bounding.height"
+                                                  x2="100%"
+                                                  :y2="model.desginModel.current.bounding.top-model.desginModel.current.xxx.top+model.desginModel.current.bounding.height"></line>
+
+                                        </svg>
+                                    </div>
+
+                                    <el-input v-model="model.configJson" v-if="model.desginModel.showJsonModel" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"></el-input>
+                                    <el-input v-model="model.configModelJson" v-if="model.desginModel.showJsonModel" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"></el-input>
+                                    @*    <el-input v-model="jsonstring" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"></el-input>*@
+                                    @*<t-dynamic-com v-bind="model.configObj" :parentmodelinfo="model.configModelObj"></t-dynamic-com>*@
+                                    <t-dynamic-com :jsonconfig="model.configObj" :parentmodelinfo="model.configModelObj"></t-dynamic-com>
+                                    @*    <t-dynamic-com v-bind="model.configObj" :parentmodelinfo="testObject"></t-dynamic-com>*@
+                                </div>
+                                
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </pv-splitter-panel>
+            <pv-splitter-panel class="flex align-items-center justify-content-center" :size="15" v-show="model.desginModel.showRight">
+                <Right></Right>
+            </pv-splitter-panel>
+        </pv-splitter>
+   </div>
+
+  @*  <div class="flex space-x-1 flex-grow p-1 items-stretch overflow-y-auto">
+       
+       
+
+       
+
+       
+    </div>*@
+    <div class="w-full h-6 px-4 top-0 flex flex-row justify-between items-center z-20 text-sm bg-gray-400 bg-opacity-30 backdrop-blur-2xl shadow transition border-t border-t-gray-300 font-semibold">
+        <nav aria-label="breadcrumb">
+            
+            <ol class="flex items-center space-x-1">
+                <li v-for="config in model.desginModel?.current?.comList">
+                    <a href="#" class="text-gray-500  hover:text-sky-300" @@click="model.desginModel.setCurrentCom(config)">
+                        {{config.component  }}<b class="text-blue-500">{{ config.modelname}}</b>
+                    </a>
+                    <span class="text-gray-500">></span>
+                </li>
+               
+            </ol>
+        </nav>
+      
+    </div>
+
+    <script tag='appconfig'>
+        var appConfig = {
+
+            setup(prop) {
+                var obj = {};
+                debugger;
+                var attrName = `${actionHelper.tagAttrName("vueInit", "init")}`.toLowerCase();
+                if ($(element).attr(attrName)) {
+                    obj = JSON.parse($(element).attr(attrName));
+                }
+                else {
+                    obj = dom.getModel(element);
+                }
+                
+                obj.configObj = {};
+                obj.configModelObj = {};
+                obj.xxx = [obj.configObj];
+                var model = Vue.reactive(obj);
+                const { x, y } = VueUse.useMouse({ type: 'client' });
+                const activeElement = VueUse.useElementByPoint({ x: x, y: y }).element;
+                const bounding = Vue.reactive(VueUse.useElementBounding(activeElement));
+                const boxStyles = Vue.computed(() => {
+                    
+                    debugger;
+                    if (activeElement?.value) {
+                        return {
+                            display: 'block',
+                            width: `${bounding.width}px`,
+                            height: `${bounding.height}px`,
+                            left: `${bounding.left}px`,
+                            top: `${bounding.top}px`,
+                            backgroundColor: '#3eaf7c44',
+                            transition: 'all 0.05s linear',
+                            zIndex:50,
+                        } ;
+                    }
+                    return {
+                        display: 'none',
+                    }
+                });
+                // 递归查找父 object 的函数
+                function findRefs(object, level) {
+                    var result = [];
+                    if (_.has(object, 'childrenctrls')) {
+                        _.forEach(object.childrenctrls, function (child) {
+                            result.push({
+                                level: level || 1,
+                                parent: object,
+                                child: child
+                            });
+                            result = result.concat(findRefs(child, (level || 1) + 1));
+                        });
+                    }
+                    return result;
+                }
+                const getAncestors = (comConfig, parentMapping) => {
+                    const ancestors = [];
+                    let node = _.find(parentMapping, (x) => x.child===comConfig);
+
+                    while (node) {
+                        ancestors.unshift(node);
+                        node = _.find(parentMapping, (x) => x.child === node.parent);
+                    }
+
+                    return ancestors;
+                };
+                model.desginModel.handleNodeClick=(data)=>{
+                    model.desginModel.setCurrentCom(data);
+                }
+                model.desginModel.handleDelete = (data) => {
+                    var parentMapping = findRefs(model.configObj);
+                    var mapping = Enumerable.from(parentMapping).where(x => x.child === data).firstOrDefault();
+                    if (mapping && mapping.parent){
+                        mapping.parent.childrenctrls = mapping.parent.childrenctrls.filter(item => item !== data);
+                       // _.remove(mapping.parent.childrenctrls, data);
+                    }
+                }
+                model.desginModel.handleSelectParent = (data) => {
+                    var parentMapping = findRefs(model.configObj);
+                    var mapping = Enumerable.from(parentMapping).where(x => x.child === data).firstOrDefault();
+                    if (mapping && mapping.parent) {
+                        model.desginModel.setCurrentCom(mapping.parent);
+                    }
+                }
+                model.desginModel.handleCopy = (data) => {
+                    var parentMapping = findRefs(model.configObj);
+                    var mapping = Enumerable.from(parentMapping).where(x => x.child === data).firstOrDefault();
+                    if (mapping && mapping.parent) {
+                        var indexOf = _.indexOf(mapping.parent.childrenctrls, data);
+                        if (indexOf>=0){
+                            var newData=JSON.parse(JSON.stringify(data));
+                            mapping.parent.childrenctrls.splice(indexOf, 0, newData);
+                        }
+                    }
+                }
+                model.desginModel.handleKeyboradMove = (data, isUp) => {
+                    var parentMapping = findRefs(model.configObj);
+                    var mapping = Enumerable.from(parentMapping).where(x => x.child === data).firstOrDefault();
+                    if (mapping && mapping.parent) {
+                        var indexOf = _.indexOf(mapping.parent.childrenctrls, data);
+
+                        var newIndex = (isUp ? indexOf - 1 : indexOf + 1);
+                        if (newIndex >= 0 && newIndex < mapping.parent.childrenctrls.length) {
+                            tAPP.utility.move(mapping.parent.childrenctrls, indexOf, newIndex);
+                           
+                        }
+                            
+                       
+                    }
+                }
+                model.desginModel.xxxaddFromMenuConfig = (menuCom) => {
+                    var DefaultOptionsJson = menuCom.DefaultOptionsJson;
+                    var jsonconfig = JSON.parse(DefaultOptionsJson);
+                    setDefaultJsonConfig(jsonconfig);
+                    props.jsonconfig.childrenctrls.splice(event.newIndex, 1, jsonconfig);
+                    desginSharedData.setCurrentCom(props.jsonconfig.childrenctrls[event.newIndex]);
+                }
+                model.desginModel.setCurrentCom = function (comConfig) {
+                    model.desginModel.current = model.desginModel.current||{};
+                    var current = model.desginModel.current;
+                    current.com = comConfig;
+                    
+                    Vue.nextTick(() => {
+                       //var com_currentIsVisible = VueUse.useElementVisibility($('.com_current').get(0));
+                       // if (com_currentIsVisible.value == false) {
+                       //     $('.com_current').get(0).scrollIntoView({ behavior: 'smooth' })
+                       // }
+                       debugger;
+                        current.bounding = VueUse.useElementBounding($('.com_current').get(0));
+                        current.xxx = VueUse.useElementBounding($('.design-page').get(0));
+                    });
+                    
+                    
+                    
+                    var parentMapping = findRefs(model.configObj);
+                    var list = _.map(getAncestors(comConfig, parentMapping), (x)=>x.parent);
+                    list.push(comConfig);
+                    var parent = Enumerable.from(parentMapping).where(x => x.child == comConfig).firstOrDefault()?.parent;
+                    current.container = parent || comConfig;
+
+                    current.comList = list;
+                };
+                Vue.provide('desgin_ShareData', model.desginModel);
+              
+                VueUse.tryOnMounted( async () => {
+                    var $$instance = Vue.getCurrentInstance();
+                    new ruler({
+                        container: $$instance.refs.rulerWrapper,
+                    });
+                   
+                    VueUse.onKeyStroke(['ArrowUp'], (e) => {
+                        //
+                        model.desginModel.handleKeyboradMove(model.desginModel.current.com, true);
+                    })
+                    VueUse.onKeyStroke(['ArrowDown'], (e) => {
+                        //e.preventDefault();
+                        model.desginModel.handleKeyboradMove(model.desginModel.current.com, false);
+                    })
+                    model.comList=await tAPP.utility.postData('/Tools/Design/ListComponents', {})
+                    const draggable = TUI.VueDraggablePlus.useDraggable($$instance.refs.comList, model.comList, {
+                        animation: 250,
+
+                        swapThreshold : 0.1,
+                        group: { name: 'designcontainer', pull: 'clone', put: false },
+                        //onClone(evt) {
+                        //    debugger;
+                        //},
+                        sort: false,
+                        //handle: ".com-handle",
+                        ghostClass: "ghost",
+                        dragClass:"dragClass",
+                        chosenClass: "sortable-chosen",
+                        class: " m-2 com-menu-item",
+                        onStart(evt,dd,ss) {
+                            model.desginModel.current = model.desginModel.current||{};
+                            const currentItem = model.comList[evt.oldIndex];
+                            model.desginModel.current.menuCom = currentItem;
+                        },
+                        onUpdate() {
+                            console.log('update')
+                        }
+                    });
+                    draggable.start();
+                })
+                //let jsonstring = Vue.ref('{"name": "John Doe", "age": 30}')
+                //let testObject = Vue.reactive({});
+                //Vue.watch(testObject,(newVal, oldVal) => {		// 监听
+                //    jsonstring.value = JSON.stringify(testObject)
+                //}, { immediate: true, deep: true });
+                Vue.watch(model.configObj, (newVal, oldVal) => {		// 监听
+                    model.configJson = JSON.stringify(model.configObj);
+                    if (model.parentObj)
+                    model.parentObj.ConfigJson = tAPP.utility.jsonToString(model.configObj,true);
+                }, { immediate: true, deep: true });
+                Vue.watch(model.configModelObj, (newVal, oldVal) => {		// 监听
+                    model.configModelJson = JSON.stringify(model.configModelObj);
+                    if (model.parentObj)
+
+                    model.parentObj.DefaultOptionsJson = tAPP.utility.jsonToString(model.configModelObj,true);
+                }, { immediate: true, deep: true });
+                var setConfigAndModel = (configJson, configModelJson, parentObj) => {
+                    // 遍历属性并删除
+                    model.configJson=configJson;
+                    model.configModelJson = configModelJson;
+                    Object.keys(model.configObj).forEach(key => {
+                        delete model.configObj[key];
+                    });
+                    Object.keys(model.configModelObj).forEach(key => {
+                        delete model.configModelObj[key];
+                    });
+                    Object.assign(model.configObj,JSON.parse(configJson));
+                    Object.assign(model.configModelObj, JSON.parse(configModelJson));
+                  
+                
+                    model.parentObj = parentObj;
+                    ////model.configJson = configJson;
+                    //Vue.watch(model.configModelObj, (newVal, oldVal) => {		// 监听
+                    //    model.configModelJson = JSON.stringify(newVal);
+                    //    if (model.parentObj) {
+                    //        model.parentObj.DefaultOptionsJson = tAPP.utility.jsonToString(model.configModelObj);
+                    //    }
+                    //}, { immediate: true, deep: true })
+                    //Vue.watch(model.configObj, (newVal, oldVal) => {		// 监听
+                    //    model.configJson = JSON.stringify(newVal);
+                    //    if (model.parentObj) {
+                    //        model.parentObj.ConfigJson = tAPP.utility.jsonToString(model.configObj);
+                    //    }
+                    //}, { immediate: true, deep: true })
+                }
+
+        return { model, setConfigAndModel, boxStyles, x, y, bounding,activeElement };
+            }
+        };
+
+    </script>
+</div>
+
+

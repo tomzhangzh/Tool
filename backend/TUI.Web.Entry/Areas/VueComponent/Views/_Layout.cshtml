@@ -1,0 +1,196 @@
+﻿@RenderBody()
+
+
+<script tag='comconfig'>
+    var comConfig = {
+        props: {
+            jsonconfig: {
+                type: Object,
+                required: true,
+            },
+            //modelinfo: {
+            //    type: Object,
+            //    required: false,
+            //},
+            parentmodelinfo: {
+                type: Object,
+                required: false,
+            },
+            extensioninfo: {
+                type: Object,
+                required: false,
+            }
+        },
+        setup(props, context) {
+            var { ref, reactive, getCurrentInstance, computed, inject } = Vue;
+            const instance = getCurrentInstance();
+            const desginSharedData = inject('desgin_ShareData') || {};
+            const parent_Config = inject('parent_jsonconfig') || null;
+            const parent_Com = inject('parent_com') || null;
+            const desgin_ParentData = inject('desgin_ParentData') || {};
+            $.extend(props.extensioninfo, {});
+            //let props = instance.props || {};
+            _.defaultsDeep(props.jsonconfig,
+                {
+                    //component: null,
+                    options: {
+                        comoptions: {},
+                        itemoptions: { style: {}, class: "" },
+                        options: { style: {}, class: "" },
+                        wrapperoptions: {},
+                        labeloptions:{},
+                        comlisteners: {},
+                    },
+                    parentoptions: {
+
+                    },
+                    modelname:null,
+
+                    extendinfo: {
+
+                    },
+                    slots:{},
+                    childrenctrls: [],
+
+                }
+            );
+            const setDefaultJsonConfig=(obj)=>{
+                _.defaultsDeep(obj,
+                    {
+                        //component: null,
+                        options: {
+                            comoptions: {},
+                            labeloptions:{label:null},
+                            itemoptions: { style: {}, class: "" },
+                            options: { style: {}, class: "" },
+                            wrapperoptions: {},
+                            comlisteners: {},
+                        },
+                        parentoptions: {
+
+                        },
+                        modelname: null,
+
+                        extendinfo: {
+
+                        },
+                        slots: {},
+                        childrenctrls: [],
+
+                    }
+                );
+            };
+            setDefaultJsonConfig(props.jsonconfig);
+            var _VALUE = ref(null);
+            var DVALUE = null;
+            const comInnerInfo = reactive({});
+            const extensionInfo = reactive({});
+            const findParentConfigByComponentName = (parent_Com, component) => {
+                var reslut = null;
+                while (parent_Com && parent_Com.parent_Config) {
+                    if (parent_Com.parent_Config.component == component) {
+                        reslut = parent_Com.parent_Config;
+                        break;
+                    }
+                    parent_Com = parent_Com.parent_Com;
+                }
+                return reslut;
+            };
+    @RenderSection("setupScripts", false)
+                const modelinfo = computed({
+                get() {
+                    if (props.parentmodelinfo && props.jsonconfig.modelname) {
+                        var val = _.get(props.parentmodelinfo, props.jsonconfig.modelname);
+                        if (_.isUndefined(val) && DVALUE) {
+                            _VALUE.value = DVALUE;
+                            _.set(props.parentmodelinfo, props.jsonconfig.modelname, _VALUE.value);
+                        }
+                        else {
+                            _VALUE.value = val;
+                        }
+                    }
+                    return _VALUE.value;
+                },
+                set(val) {
+                    (_VALUE.value) = val;
+                    if (props.parentmodelinfo && props.jsonconfig.modelname) {
+                        _.set(props.parentmodelinfo, props.jsonconfig.modelname, val);
+                    }
+                },
+            });
+            //const getItemOptionStyle = (first, second) => {
+            //    return _.merge(
+            //        first?.options?.itemoptions?.style ?? {},
+            //        second?.options?.itemoptions?.style ?? {}
+            //    )
+            //}
+            //const getItemOptionClass = (first, second) => {
+            //    return _.concat(
+            //        (first?.options?.itemoptions?.class || "").split(' '),
+            //        (second?.options?.itemoptions?.class || "").split(' ')
+            //    )
+            //}
+            const getStyle = (first, second) => {
+                return _.merge(
+                    first?.style ?? {},
+                    second?.style ?? {}
+                )
+            }
+            const getClass = (first, second) => {
+                return _.concat(
+                    (first?.class || "").split(' '),
+                    (second?.class || "").split(' ')
+                )
+            }
+
+            const getSlot = (name) => {
+
+               return  props.jsonconfig.slots[name];
+            }
+            //const extensionInfo = reactive(props.extensioninfo);
+   
+            comInnerInfo.testfun = () => { alert(1) };
+
+            const getComlisteners = () => {
+                var jsonObj = props.jsonconfig.options.comlisteners;
+                if (!jsonObj) return {};
+                const keys = Object.keys(jsonObj);
+                var result = {};
+                keys.forEach(key => {
+                    const value = jsonObj[key];
+                    if (_.isFunction(value) == false && _.get(instance.proxy, value)) {
+                        result[key] = _.get(instance.proxy, value)
+                    }
+                });
+                return result;
+            }
+
+            const forceUpdate = () => {
+                return instance?.proxy?.$forceUpdate();
+            };
+            const lodash = _;
+            
+            return {
+                modelinfo,
+                extensionInfo,
+                getComlisteners,
+                comInnerInfo,
+                forceUpdate,
+                getStyle,
+                getClass,
+            
+                props,
+                getSlot
+                , context
+                , desginSharedData
+                , lodash
+                , parent_Config
+                , parent_Com
+                , setDefaultJsonConfig
+                , desgin_ParentData
+                , findParentConfigByComponentName
+            };
+        }
+    };
+
+</script>

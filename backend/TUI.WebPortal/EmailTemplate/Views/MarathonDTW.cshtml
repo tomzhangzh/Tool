@@ -1,0 +1,194 @@
+
+
+<style>
+    .container {
+        max-width: 800px;
+        margin-right: auto;
+        margin-left: auto;
+    }
+
+    .title {
+        font-family: Algerian;
+        font-size: 36px;
+        margin-left: 10px;
+    }
+
+    .subtitle {
+        font-family: Arial;
+        font-style: italic;
+        font-size: 19px;
+        margin-left: 10px;
+    }
+
+    .logo {
+        margin-left: 100px;
+    }
+
+        .logo img {
+            width: 100px;
+        }
+
+    table {
+        width: 100%;
+    }
+
+        table th {
+            font-family: Arial;
+            font-size: 16px;
+            line-height: 40px;
+        }
+
+    .fuelTable {
+        border: 1px solid black;
+        margin: 10px;
+        line-height: 30px;
+    }
+
+        .fuelTable th {
+            border-bottom: 1px solid black;
+        }
+
+    .fuelName {
+        font-family: Arial;
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    .fuelPrice {
+        font-family: Arial;
+        font-size: 20px;
+        font-weight: bold;
+        border-bottom: 1px solid black;
+        text-align: center;
+    }
+
+    .effectiveTable {
+        border: 1px solid black;
+        font-family: Algerian;
+        font-size: 18px;
+        text-align: center;
+        padding: 10px;
+        margin: 10px;
+        width: 100%;
+    }
+
+    .footerText {
+        font-family: Arial;
+        font-size: 20px;
+        font-weight: bold;
+        text-align: center;
+        padding-top: 40px;
+    }
+
+    .fuelPriceMissing {
+        text-indent: -9999px;
+        line-height: 0;
+    }
+
+        .fuelPriceMissing:after {
+            font-family: Arial;
+            font-size: 20px;
+            font-weight: bold;
+            border-bottom: 1px solid black;
+            text-align: center;
+            color: red;
+            display: block;
+            content: 'N/A';
+            text-indent: 0;
+            line-height: initial;
+        }
+
+    .missingPriceMessage {
+        padding-top: 20px;
+        font-weight: bold;
+        color: red;
+    }
+</style>
+
+
+<table>
+    <tr>
+        <td colspan="2">
+            <span><img style="margin-bottom: 50px; width:100%;" src="@Model.LogoRootUrl/SF-pdf-header.png" /></span>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <span class="title">CURRENT PRICES</span>
+            <br />
+            <span class="subtitle">INCLUDES ALL FREIGHT AND TAXES</span>
+        </td>
+        <td>
+            <span class="logo"><img src="@Model.LogoRootUrl/Marathon_logo.png" /></span>
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr>
+        <td>
+            <table class="fuelTable">
+                <tr>
+                    <th colspan="2">RACK PRICE </th>
+                </tr>
+                <tr><td class="fuelName">UNLEADED<br />
+    <span class="effTime">Effective At @Model.GetEffectiveTimeStringByReportVariableName("fUnleaded")</span></td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasUnleadedPrice", "RackPriceUnleaded"))</tr>
+                <tr><td class="fuelName">PLUS<br />
+    <span class="effTime">Effective At @Model.GetEffectiveTimeStringByReportVariableName("fPlus")</span></td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasPlusPrice", "RackPricePlus"))</tr>
+                <tr><td class="fuelName">PREMIUM<br />
+    <span class="effTime">Effective At @Model.GetEffectiveTimeStringByReportVariableName("fPremium")</span></td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasPremiumPrice", "RackPricePremium"))</tr>
+                <tr><td class="fuelName">DIESEL<br />
+    <span class="effTime">Effective At @Model.GetEffectiveTimeStringByReportVariableName("fDiesel")</span></td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasDieselPrice", "RackPriceDiesel"))</tr>
+            </table>
+        </td>
+        <td>
+            <table class="fuelTable">
+                <tr>
+                    <th colspan="2">MIAMI-DADE</th>
+                </tr>
+                <tr><td class="fuelName">UNLEADED</td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasUnleadedPrice", "DadeUnleaded"))</tr>
+                <tr><td class="fuelName">PLUS</td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasPlusPrice", "DadePlus"))</tr>
+                <tr><td class="fuelName">PREMIUM</td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasPremiumPrice", "DadePremium"))</tr>
+                <tr><td class="fuelName">DIESEL</td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasDieselPrice", "DadeDiesel"))</tr>
+            </table>
+        </td>
+        <td>
+            <table class="fuelTable">
+                <tr>
+                    <th colspan="2">BROWARD & PALM BEACH</th>
+                </tr>
+                <tr><td class="fuelName">UNLEADED</td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasUnleadedPrice", "BrowardUnleaded"))</tr>
+                <tr><td class="fuelName">PLUS</td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasPlusPrice", "BrowardPlus"))</tr>
+                <tr><td class="fuelName">PREMIUM</td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasPremiumPrice", "BrowardPremium"))</tr>
+                <tr><td class="fuelName">DIESEL</td>@Raw(TUI.Services.Manager.PriceService.displayPrice(Model,"HasDieselPrice", "BrowardDiesel"))</tr>
+            </table>
+        </td>
+    </tr>
+    <tr>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>
+            <table class="effectiveTable">
+                @*<tr><td>PRICES</td></tr>
+                <tr><td>EFFECTIVE</td></tr>
+                <tr><td>AT @Model.EffectiveTimeString</td></tr>*@
+                <tr><td>E10 GASOLINE</td></tr>
+                <tr><td>DOES NOT INCLUDE</td></tr>
+                <tr><td>FUEL SURCHARGE</td></tr>
+            </table>
+        </td>
+    </tr>
+
+    @if (@Model.IsPriceMissing)
+    {
+    <tr><td class="missingPriceMessage" colspan="3">* Due to communication issues, we are unable to provide current prices. As soon as they become available, we will send out the price notification.</td></tr>
+    @if (CommonCore.AppConfig.Instance.EnableConfig.PopulateDatePricesLastPrice)
+    {
+    <tr><td class="missingPriceMessage" colspan="3">** Please note displayed price is last known product price. We are currently pending price update from @("Marathon") for this specific product.</td></tr>
+    }
+    }
+
+    <tr><td class="footerText" colspan="3">@Model.FooterDate</td></tr>
+    <tr><td colspan="3"><hr /></td></tr>
+    <tr><td colspan="3">Date: @System.DateTime.Now.ToString("MMM/dd/yyyy HH:mm:ss")</td></tr>
+</table>

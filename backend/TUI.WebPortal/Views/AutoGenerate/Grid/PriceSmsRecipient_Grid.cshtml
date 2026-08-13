@@ -1,0 +1,80 @@
+﻿
+
+@model IEnumerable<TUI.Services.DBModel.PriceSmsRecipient>
+
+<table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+    <thead class="bg-info-500">
+        <tr>
+            <th width="70px">
+
+            </th>
+                <th   sortname="ID"
+                                    style="width:100px"
+                    >
+                    I D
+                </th>
+                <th   sortname="PhoneNumber"
+                                    style="width:200px"
+                    >
+                    Phone Number
+                </th>
+                <th   sortname="RecipientName"
+                                    style="width:200px"
+                    >
+                    Recipient Name
+                </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+        <tr>
+            <td>
+                <div class="d-flex justify-content-between">
+                    <a href="javascript: void(0); " myaction-openwindow="
+                    @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Brand/PriceSmsRecipient/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                    "  class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                      <i class="fal fa-edit"></i>   </a>
+                    <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Brand/PriceSmsRecipient/Delete",@params=new{item.ID } }.ToJSON())
+                    "  class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                      <i class="fal fa-trash"></i>   </a>
+                </div>
+
+            </td>
+            <td>
+           @item.ID
+
+        </td>
+            <td>
+           @item.PhoneNumber
+
+        </td>
+            <td>
+           @item.RecipientName
+
+        </td>
+            <td></td>
+        </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+
+<div id="pagea146d5850bc44bfcb287c7477c9b9e64" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#pagea146d5850bc44bfcb287c7477c9b9e64").parent();
+            
+            $("#pagea146d5850bc44bfcb287c7477c9b9e64").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

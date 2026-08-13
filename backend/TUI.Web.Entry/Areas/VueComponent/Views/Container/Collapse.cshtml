@@ -1,0 +1,48 @@
+﻿<template>
+
+    <div :style="getStyle(props.jsonconfig.options?.options)"
+         class="t_container"
+         :class="[getClass(props.jsonconfig.options?.options), desginSharedData?.current?.container === props.jsonconfig ? 'com_container' : '']"
+         ref="comList">
+        <el-collapse v-bind="props.jsonconfig.options.comoptions" v-model="extensionInfo.activeNames"
+                     v-on="props.jsonconfig.options.comlisteners">
+            <el-collapse-item v-for="(element, index) in props.jsonconfig.childrenctrls"
+                              :style="getStyle(props.jsonconfig?.options?.itemoptions,element.jsonconfig?.options?.itemoptions)"
+                              v-bind="element?.options?.comoptions"
+                              class="comitem "
+                              :name="index"
+                              @@click.stop="extensionInfo.setComCurrent(element)"
+                              :class="[getClass(props.jsonconfig.options?.itemoptions,element.jsonconfigoptions?.itemoptions), desginSharedData?.current?.com === element ? 'com_current' : '']">
+                <div class="relative">
+                    <t-dynamic-com :jsonconfig="child" v-for="child in element.childrenctrls" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+                    <div v-if="desginSharedData?.current?.com == element && desginSharedData.isDesign"
+                         class="absolute h-14 w-14 -left-2 -top-2 ">
+                        <div class="absolute flex left-0 mt-2 border border-sky-300 divide-x divide-white-200">
+                            <div class="hover:bg-blue-400/60   bg-blue-400  text-white space-x-1 h-5 px-1 cursor-default  "
+                                 @@click.stop="desginSharedData.handleCopy(element)">
+                                <i class="fa fa-copy "></i>
+                            </div>
+                            <div class="hover:bg-blue-400/60   bg-blue-400  text-white  space-x-1 h-5 px-1 cursor-default  "
+                                 @@click.stop="desginSharedData.handleDelete(element)">
+                                <i class="fa fa-remove "></i>
+                            </div>
+                            <div class="hover:bg-blue-400/60   bg-blue-400  text-white  space-x-1 h-5 px-1 cursor-default  "
+                                 @@click.stop="desginSharedData.handleSelectParent(element)">
+                                <i class="fa fa-arrow-up "></i>
+                            </div>
+
+
+                        </div>
+                    </div>
+                </div>
+                
+           
+            </el-collapse-item>
+        </el-collapse>
+    </div>
+</template>
+@section setupScripts{
+        DVALUE="";
+        extensionInfo.activeNames = ref([])
+    }
+

@@ -1,0 +1,29 @@
+﻿<vue-monaco-editor v-model:value="extensionInfo.JSON_String"
+                   language="json"
+                   :options=" {
+  automaticLayout: true,
+  formatOnType: true,
+  formatOnPaste: true,
+}" class="w-full h-full border border-gray-200" v-bind="props.jsonconfig.options.comoptions"></vue-monaco-editor>
+
+<script>
+    @section setupScripts{
+        //if (props.options)
+        // extensionInfo.options=props.options.options || [];
+        DVALUE=null;
+    extensionInfo.JSON_String = Vue.computed({
+        get: () => {
+            return JSON.stringify(modelinfo.value)
+        },
+        set: (value) => {
+            try{
+                modelinfo.value = JSON.parse(value);
+            }
+            catch{
+
+            }
+        }
+    })
+        
+    }
+</script>

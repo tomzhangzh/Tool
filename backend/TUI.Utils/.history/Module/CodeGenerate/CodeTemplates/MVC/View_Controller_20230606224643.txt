@@ -1,0 +1,147 @@
+// MIT License
+// 开源地址：https://gitee.com/co1024/TUIMvc
+// Copyright (c) 2021-2023 1024
+// TUI.Mvc=Furion+EF+SqlSugar+Pear layui admin.
+using System;
+namespace @(Model.Config.MvcControllerNameSpaceName);
+
+@{
+  
+    var ToCamelApplicationEntityName=(string.IsNullOrWhiteSpace(@Model.MvcApplicationEntityName)||@Model.MvcApplicationEntityName.Length<2)?@Model.MvcApplicationEntityName:(@Model.MvcApplicationEntityName.Substring(0, 1).ToLower() + @Model.MvcApplicationEntityName.Substring(1));
+    var description=(@Model.Description+"").Replace("\r","").Replace("\n","");//处理换行
+}
+/// <summary>
+/// @(description)
+/// </summary>
+//[AuthorizePolicy]
+[MaMvc(controllerDescription: "@(description)", PCode = "@(Model.Config.MvcControllerArea)")]
+public class @(Model.MvcControllerName)Controller : @(Model.Config.MvcControllerBaseName)
+{
+        private readonly ILogger<@(Model.MvcControllerName)Controller> _logger;
+        private readonly I@(Model.MvcApplicationEntityName)Service _@(ToCamelApplicationEntityName)Service;
+        public @(Model.MvcControllerName)Controller(ILogger<@(Model.MvcControllerName)Controller> logger
+        ,I@(Model.MvcApplicationEntityName)Service @(ToCamelApplicationEntityName)Service)
+        {
+            _logger=logger;
+            _@(ToCamelApplicationEntityName)Service = @(ToCamelApplicationEntityName)Service;
+        }
+        /// <summary>
+        /// 列表页面
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet]
+        [MaMenu(name: "@(description)列表",Code="Index",Url="",UrlPar="")]
+        [MaPermission(name: "@(description)列表", actions: "Index,GetList")]
+        public async Task<IActionResult> Index()
+        {
+            return View();
+        }
+        /// <summary>
+        /// 获取列表
+        /// </summary>
+        /// <param name="searchquery">查询条件</param>
+        /// <returns></returns>
+        [UnifyResult(typeof(JsonResult))]
+        [HttpGet,HttpPost]
+        public async Task<JsonResult> GetList(@(Model.MvcApplicationEntityName)Query searchquery)
+        {
+            var pagedlist = await _@(ToCamelApplicationEntityName)Service.GetAllByPageToLayui(searchquery);
+            return Json(pagedlist);
+        }
+        /// <summary>
+        /// 新增
+        /// </summary>
+        /// <param name="id">ID</param>
+        /// <returns></returns>
+        [MaPermission(name: "新增", actions: "Add,Edit")]
+        public async Task<IActionResult> Add(long? id)
+        {
+            return View("Info");
+        }
+   @if(Model.ColumnsInfos.Any(o=>o.ClassProperName=="Id")) {
+        @:/// <summary>
+        @:/// 详情
+        @:/// </summary>
+        @:/// <param name="id">ID</param>
+        @:/// <returns></returns>
+        @:[MaPermission(name: "编辑", actions: "Info,Edit")]
+        @:public async Task<IActionResult> Info(long? id)
+        @:{
+        @:    @(Model.MvcApplicationEntityName)Out entity = null;
+        @:    if (id.HasValue)
+        @:    {
+        @:        entity = await _@(ToCamelApplicationEntityName)Service.Get(id.Value);
+        @:    }
+        @:    return View(entity ?? new @(Model.MvcApplicationEntityName)Out());
+        @:}
+    } else {
+        @:///// <summary>
+        @:///// 详情
+        @:///// </summary>
+        @:///// <param name="id">ID</param>
+        @:///// <returns></returns>
+        @://[MaPermission(name: "编辑", actions: "Info,Edit")]
+        @://public async Task<IActionResult> Info(long? id)
+        @://{
+        @://    @(Model.MvcApplicationEntityName)Out entity = null;
+        @://    if (id.HasValue)
+        @://    {
+        @://        entity = await _@(ToCamelApplicationEntityName)Service.Get(id.Value);
+        @://    }
+        @://    return View(entity ?? new @(Model.MvcApplicationEntityName)Out());
+        @://}
+    }
+    @if(Model.ColumnsInfos.Any(o=>o.ClassProperName=="Id")) {
+        @:/// <summary>
+        @:/// 编辑
+        @:/// </summary>
+        @:/// <param name="input">提交对象</param>
+        @:/// <returns></returns>
+        @:[HttpPost]
+        @:// [ValidateInput(false)]
+        @:public async  Task<JsonResult> Edit(@(Model.MvcApplicationEntityName)Input input)
+        @:{
+        @:    await _@(ToCamelApplicationEntityName)Service.InsertOrUpdate(input);
+        @:    return Json("");
+        @:}
+    } else { 
+        @:///// <summary>
+        @:///// 编辑
+        @:///// </summary>
+        @:///// <param name="input">提交对象</param>
+        @:///// <returns></returns>
+        @://[HttpPost]
+        @://// [ValidateInput(false)]
+        @://public async  Task<JsonResult> Edit(@(Model.MvcApplicationEntityName)Input input)
+        @://{
+        @://    await _@(ToCamelApplicationEntityName)Service.InsertOrUpdate(input);
+        @://    return Json("");
+        @://}
+    }
+        /// <summary>
+        /// 批量删除
+        /// </summary>
+        /// <param name="ids">需要删除数据，多个英文逗号隔开</param>
+        /// <returns></returns>
+        [HttpPost]
+        [MaPermission(name: "批量删除", actions: "BatchDelete")]
+        public async Task<JsonResult> BatchDelete(string ids)
+        {
+            await _@(ToCamelApplicationEntityName)Service.BatchDelete(ids);
+            return Json("");
+        }
+        //[HttpPost]
+        //[MaPermission(name: "设置状态", actions: "SetState")]
+        //public async Task<JsonResult> SetState(long id, bool state, string type)
+        //{
+        //    await _@(ToCamelApplicationEntityName)Service.SetState(id, state, type);
+        //    return Json("");
+        //}
+        //[HttpPost]
+        //[MaPermission(name: "删除", actions: "Delete")]
+        //public async Task<JsonResult> Delete(long id)
+        //{
+        //    await _@(ToCamelApplicationEntityName)Service.Delete(id);
+        //    return Json("");
+        //}
+}

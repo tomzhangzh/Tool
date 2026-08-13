@@ -1,0 +1,151 @@
+﻿
+
+@model IEnumerable<TUI.Services.DBModel.PriceBrandFormula>
+
+<table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+    <thead class="bg-info-500">
+        <tr>
+            <th width="70px">
+
+            </th>
+            <th sortname="StartDate">
+                StartDate
+            </th>
+            <th sortname="GroupName">
+                Group Name
+            </th>
+            <th sortname="Name">
+                Name
+            </th>
+            <th sortname="DisplayName">
+                DisplayName
+            </th>
+            <th sortname="BasePrice">
+                BasePrice
+            </th>
+            <th sortname="FederalStateRate">
+                Federal
+                State
+                Rate
+            </th>
+            <th sortname="CountyRate">
+                County
+                Rate
+            </th>
+            <th sortname="Frt">
+                Frt
+            </th>
+            <th sortname="FrtSurch">
+                FrtSurch
+            </th>
+            <th sortname="Other">
+                Markup
+            </th>
+            <th sortname="Other">
+                Other
+            </th>
+            <th sortname="Formula">
+                Formula
+            </th>
+            <th sortname="IsActive">
+                IsActive
+            </th>
+
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+        <tr>
+            <td>
+                <div class="d-flex justify-content-between">
+                    <a href="javascript: void(0); " myaction-openwindow="
+                    @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Brand/PriceBrandFormula/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                        <i class="fal fa-edit"></i>
+                    </a>
+                    <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Brand/PriceBrandFormula/Delete",@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                        <i class="fal fa-trash"></i>
+                    </a>
+                </div>
+
+            </td>
+            <td>
+                @item.StartDate.Value.ToString("MM/dd/yyyy")
+
+            </td>
+            <td>
+                @item.GroupName
+
+            </td>
+            <td>
+                @item.Name
+
+            </td>
+            <td>
+                @item.DisplayName
+
+            </td>
+            <td>
+                @item.BasePrice
+
+            </td>
+            <td>
+                @item.FederalStateRate
+
+            </td>
+            <td>
+                @item.CountyRate
+
+            </td>
+            <td>
+                @item.Frt
+
+            </td>
+            <td>
+                @item.FrtSurch
+
+            </td>
+            <td>
+                @item.Markup
+
+            </td>
+            <td>
+                @item.Other
+
+            </td>
+            <td>
+                @item.Formula
+
+            </td>
+            <td>
+                @item.IsActive
+
+            </td>
+
+            <td></td>
+        </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+
+<div id="page8f89ecf9a0e844458c9a806894212cfd" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page8f89ecf9a0e844458c9a806894212cfd").parent();
+
+            $("#page8f89ecf9a0e844458c9a806894212cfd").remove();
+
+
+
+        });
+    </script>
+
+</div>

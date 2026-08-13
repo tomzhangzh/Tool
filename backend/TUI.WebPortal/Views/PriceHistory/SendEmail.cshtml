@@ -1,0 +1,108 @@
+﻿@model ResendViewModel
+@{
+    ViewData["Title"] = "Detail";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    TUI.Services.Manager.IPriceService priceService = this.ViewBag.priceService;
+
+}
+
+<div id="@extId"></div>
+
+<div class="card h-100">
+ 
+    <div class="card-header py-1 d-flex justify-content-between w-100">
+        <div>
+                 <button class="btn btn-info btn-sm waves-effect waves-themed" type="button" id="Send"  myaction-postback><i class="fal fa-envelope p-1"></i>Send Email</button>
+      
+        </div>
+        <button class="btn btn-sm btn-outline-secondary btn-sm  waves-effect waves-themed" type="button"  data-dismiss="modal"><i class="fal fa-window-close p-1"></i>Close</button>
+
+
+    </div>
+    <div class="card-body" style="min-height:400px;">
+        <form myaction-initform class="h-100">
+            @Html.HiddenFor(x => x.BrandID)
+            @Html.HiddenFor(x => x.SelectedDate)
+            <div class="d-flex flex-column flex-grow-1 bg-white">
+                <!-- inbox header -->
+                <div class="flex-grow-0">
+                    <!-- inbox title -->
+                    <div class="d-flex align-items-center p-2  border-faded border-top-0 border-left-0 border-right-0 flex-shrink-0">
+
+                        <h2 class="subheader-title">
+                            New message
+                        </h2>
+
+                    </div>
+                    <!-- end inbox title -->
+                </div>
+                <!-- end inbox header -->
+                <!-- inbox message -->
+                <div class="d-flex flex-column">
+                    <div class="d-flex w-100 p-2 align-items-center">
+                        <span class="fw-300 width-sm  text-right p-2">Email From:</span><span>@Model.From</span>
+                    </div>
+                    <div class="d-flex w-100 p-2 align-items-center">
+                        <span class="fw-300 width-sm text-right p-2">Email Reply To:</span><span>@Model.EmailReplyTo</span>
+                    </div>
+                    <div class="d-flex w-100 p-2 align-items-center">
+                        <span class="fw-300 width-sm text-right  p-2">Recipients:</span>
+                        @{
+                            var selectItemList = new List<SelectListItem>();
+
+                            selectItemList = this.SqlSugarClient.Queryable<tblPriceEmailRecipient>().Where(x => x.BrandID == Model.BrandID).Distinct().OrderBy(x => x.RecipientEmail).Select(x => new SelectListItem()
+                            {
+                                Text = x.RecipientEmail,
+                                Value = x.RecipientEmail,
+
+                            }).ToList();
+
+                        }
+                        @Html.ListBoxFor(x => x.EmailList, selectItemList, new { @class = "form-control  w-100 required", myaction_select2 = "", placeholder = "Please enter Email address" })
+                        @*@Html.TextBoxFor(x => x.emailList, new { @class = "form-control  w-100 required", placeholder = "Please enter Email address" })*@
+                    </div>
+                    <div class="d-flex w-100 p-2 align-items-center">
+                        <span class="fw-300 width-sm  text-right  p-2">Subject:</span> @Html.TextBoxFor(x => x.Subject, new { @class = "form-control w-100 required", placeholder = "Please enter Subject" })
+                    </div>
+                    @if (Model.WithAttach)
+                    {
+                        <div class="d-flex w-100 p-2 align-items-center">
+                            <span class="fw-300 width-sm  text-right  p-2">Attach:</span>
+                            <span>
+                                <a href="javascript:void(0);" class="btn btn-icon fs-xl mr-1 waves-effect waves-themed" data-toggle="tooltip" data-original-title="Attach files" data-placement="top"
+                                   myaction-openwindow="@(new  {options=new{ title = "Preview Attachment",icon="<i class=\"fal fa-eye text-info h1 m-0\" ></i>", width="900px",height="600px",center=true},url="/PriceHistory/PreviewAttachment",@params=new{Model.BrandID,Model.SelectedDate }}.ToJSON())">
+                                    <i class="fal fa-paperclip color-fusion-300"></i>
+                                </a>
+                            </span>
+                        </div>
+                    }
+
+                    <div class="d-flex w-100 p-2 align-items-center">
+                        <span class="fw-300 width-sm">Body:</span>
+                    </div>
+                    <div class="d-flex w-100">
+                        @Html.TextAreaFor(x => x.Body, new { @class = "form-control w-100 required", rows = "20", placeholder = "Please enter Body" })
+                    </div>
+                </div>
+                <!-- end inbox message -->
+            </div>
+        </form>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+<script>
+
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+
+    });
+</script>

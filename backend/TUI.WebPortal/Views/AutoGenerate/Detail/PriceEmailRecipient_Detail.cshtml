@@ -1,0 +1,105 @@
+﻿
+@model TUI.Services.DBModel.PriceEmailRecipient
+
+
+@{var itemList = new List<DETAILITEM>();
+    DETAILITEM detailItem= null;
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="ID",
+        AS1COLUMN=false,
+        COLUMNTYPE="Hidden",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=100,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="ID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="PriceBrandID",
+        AS1COLUMN=false,
+        COLUMNTYPE="Lookup",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=200,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Price Brand",
+        EXTENDEDPROPERTIES="{\"TableName\":\"PriceBrand\",\"NameField\":\"BrandName\",\"ValueField\":\"ID\",\"PlusSQL\":null,\"WithEmpty\":true,\"IsMutil\":false}",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="RecipientEmail",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=true,
+        SORTID=300,
+        VALIDATETYPE="email",
+        ISSHOW= true,
+        LABEL="Recipient Email",
+        EXTENDEDPROPERTIES="{\"AddonIconClass\":\"fal fa-envelope\",\"PlaceHolder\":null,\"AddonText\":null}",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "RecipientName",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 400,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Recipient Name",
+        EXTENDEDPROPERTIES = "{\"PlaceHolder\":null,\"AddonText\":null,\"AddonIconClass\":null}",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+}
+
+
+<div class="grid grid-cols-1 place-content-start gap-4 items-center">
+    @foreach (var item in itemList)
+    {
+    if (item.COLUMNTYPE == "Hidden")
+    {
+    @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+    }
+    else
+    {
+    <div class="flex self-start items-center">
+
+        <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 200px;">@item.LABEL</label>
+        <div class="flex-grow inline-flex items-start w-full flex-column myctrl">
+            @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+        </div>
+    </div>
+    }
+    }
+
+</div>
+  
+
+
+
+
+
+<div id="page3bbde2d0e4b74e368fb32ee2f5cd866b" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page3bbde2d0e4b74e368fb32ee2f5cd866b").parent();
+            
+            $("#page3bbde2d0e4b74e368fb32ee2f5cd866b").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

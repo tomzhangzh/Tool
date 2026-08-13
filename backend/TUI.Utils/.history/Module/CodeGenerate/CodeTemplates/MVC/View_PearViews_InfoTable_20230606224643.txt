@@ -1,0 +1,123 @@
+@@using @(@Model.Config.ProjectName).Core;
+@@using @(@Model.Config.ProjectName).Core.Entities;
+@@using @(@Model.Config.ProjectName).Application;
+@@model @(@Model.Config.ProjectName).Application.@(@Model.Config.MvcApplicationArea)Services.@(Model.Config.MvcApplicationDtoPrefix)@(Model.NoPrefixEntity)Out;
+@{
+    var description=(@Model.Description+"").Replace("\r","").Replace("\n","");//处理换行\
+    string GetUrlActionAreaMethod()
+    {
+        if(string.IsNullOrWhiteSpace(@Model.Config.MvcControllerArea))
+        {
+           return "";
+        }
+        else
+        {
+            return $", new {{ area = \"{@Model.Config.MvcControllerArea}\" }}";
+        }
+    }
+    var GetUrlActionArea=@GetUrlActionAreaMethod();
+}
+
+@@@@ {
+    ViewData["Title"] = "@description";
+}
+
+
+
+<section class="panel panel-padding">
+    <div class="layui-tab layui-tab-brief" lay-filter="TabBrief_@(Model.NoPrefixEntity)">
+
+        <form class="layui-form" action="" id="from_@(Model.NoPrefixEntity)">
+          @if(Model.ColumnsInfos.Any(o=>o.ClassProperName=="Id")) 
+          {
+              @: <input type="hidden" asp-for="Id" />
+          } 
+          
+               <table class="layui-table">
+                <tbody>
+                @foreach(var column in Model.ColumnsInfos)
+                {
+                   @if(column.ClassProperName=="Id") continue;
+                   @*排除新增、编辑基本不会用的列*@
+                   @if(column.ClassProperName=="CreatorUserId"||column.ClassProperName=="CreatorUserName"||column.ClassProperName=="CreationTime"||column.ClassProperName=="UpdateUserId"||column.ClassProperName=="UpdateUserName"||column.      ClassProperName=="UpdateTime"||column.ClassProperName=="IsDeleted"||column.ClassProperName=="DeletedUserId"||column.ClassProperName=="DeletedUserName"||column.ClassProperName=="DeletedTime"||column.ClassProperName=="ExtensionData" )
+                   continue;
+                   var desc=(column.Description?.Length??0)>0?column.Description:column.ClassProperName;
+                   var ToCamelClassProperName=(string.IsNullOrWhiteSpace(@column.ClassProperName)||@column.ClassProperName.Length<2)?@column.ClassProperName:(@column.ClassProperName.Substring(0, 1).ToLower() + @column.ClassProperName.Substring(1));
+                   var columntype=column.Type.ToLower();
+
+                    <tr>
+                        <td width="200px;">@(desc)</td>
+                        <td>
+                       
+                        @if(column.ClassProperName=="Remark"||column.ClassProperName=="Content")
+                        {
+                           @: <textarea class="layui-textarea" asp-for="@column.ClassProperName"  lay-verify="@ToCamelClassProperName"></textarea>
+                        } else if(columntype=="string"||columntype=="byte[]"||columntype=="byte"||columntype=="decimal"||columntype=="decimal"||columntype=="double"||columntype=="guid"||columntype=="short"||columntype=="int"||columntype=="long"||columntype=="object"||columntype=="sbyte"||columntype=="float"||columntype=="ushort"||columntype=="uint"||columntype=="ulong")
+                        {
+                           @: <input  asp-for="@column.ClassProperName" lay-verify="@column.ClassProperName" autocomplete="off" placeholder="请输入@(desc)" class="layui-input">
+                        } else if(columntype=="bool")
+                        {
+                         @*<input type="checkbox" asp-for="@column.ClassProperName" lay-skin="primary" title="" checked="">
+                           <input type="checkbox" name="like[read]" title="阅读" checked="">*@
+                           @: <input type="checkbox" asp-for="@column.ClassProperName" lay-skin="switch" title="开|关">
+                        } else if(columntype=="datetime"||columntype=="datetimeoffset"){
+                           @: <input type="text" class="layui-input" asp-for="@column.ClassProperName"  lay-verify="required|@ToCamelClassProperName" placeholder="yyyy-MM-dd HH:mm:ss">
+                        } else {
+                           @: <input  asp-for="@column.ClassProperName"  lay-verify="required|@ToCamelClassProperName" lay-reqText="@(desc)不能为空！" autocomplete="off" placeholder="请输入@(desc)" class="layui-input">
+                        }
+                        </td>
+                    </tr>
+                }
+                    @@*
+                       <textarea placeholder="请输入内容" class="layui-textarea"></textarea>
+                       <input type="radio" name="sex" value="男" title="男" checked="">
+                       <input type="radio" name="sex" value="女" title="女">
+                       <input type="radio" name="sex" value="禁" title="禁用" disabled="">
+                    *@@
+                    <tr>
+                        <td></td>
+                        <td>
+                            <div class="layui-btn submitbtn" lay-submit lay-filter="submit">立即提交</div>
+                            <div class="layui-btn layui-btn-danger closewindow">关闭窗口</div>
+                            <div class="layui-btn layui-btn-danger refreshwindow">重新加载</div>
+                        </td>
+                    </tr>
+
+                </tbody>
+            </table>
+
+
+
+        </form>
+    </div>
+</section>
+
+
+@@section Scripts{
+     <script>
+         layui.define(['element',  'jquery', 'form'], function () {
+             let  $ = layui.jquery;
+             let  form = layui.form;
+             let  element = layui.element;
+             
+             TUI.infoInit();
+             //提交
+             form.on('submit(submit)', function (obj) {
+                 //obj.field.IsEnable=$('#IsEnable').is(':checked');
+                 //obj.field.Remark = Remark.getContent();
+                 TUI.post({ url: '@@(Url.Action("Edit"@(GetUrlActionArea)))', data: obj.field
+                    //,submitbtn:'submitbtn' //提交的按钮
+                    //,isAutoEnableBtn:false //不自动启用按钮
+                    //,IsSuccessCloseWindow:false //不关闭
+                 });
+                
+                 return false;
+             });
+            
+             
+         });
+     </script>
+}
+
+@*分部视图引用*@
+@*@Include("View_PearViews_example")*@

@@ -1,0 +1,16 @@
+﻿<template>
+    <component :is="{
+      template: props.jsonconfig.options?.comoptions?.html,
+    }"
+               ref="current"
+               :jsonconfig="props.jsonconfig"
+               :parentmodelinfo="props?.parentmodelinfo"></component>
+</template>
+
+<script>
+    @section setupScripts{
+
+
+
+        }
+</script>

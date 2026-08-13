@@ -1,0 +1,13 @@
+﻿<template>
+    <t-label-wrapper :options="options"
+                     :parentoptions="parentoptions"
+                     :modelinfo="modelinfo"
+                     :parentmodelinfo="parentmodelinfo">
+        <el-date-picker ref="current"
+                        v-model="modelinfo"
+                        type="daterange"
+                        
+                        v-bind="options?.comoptions">
+        </el-date-picker>
+
+</template>

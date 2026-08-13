@@ -1,0 +1,195 @@
+{
+	"component": "t-div-container",
+	"modelname": "",
+	"options": {
+		"options": {
+			"class": "grid grid-cols-1 place-content-start gap-4 ",
+			"style": {}
+		},
+		"itemoptions": {
+			"class": "flex gap-2 items-center",
+			"size": "small",
+			"style": {}
+		},
+		"labeloptions": {
+			"style": {
+				"width": "100px"
+			},
+			"class": "text-right"
+		},
+		"comoptions": {},
+		"wrapperoptions": {},
+		"comlisteners": {}
+	},
+	"childrenctrls": [
+		{
+			"component": "t-input",
+			"modelname": "component",
+			"options": {
+				"labeloptions": {
+					"label": "component"
+				},
+				"prefixicon": "icon-browser",
+				"comoptions": {},
+				"itemoptions": {
+					"style": {},
+					"class": ""
+				},
+				"options": {
+					"style": {},
+					"class": ""
+				},
+				"wrapperoptions": {},
+				"comlisteners": {}
+			},
+			"parentoptions": {},
+			"extendinfo": {},
+			"slotname": null,
+			"childrenctrls": []
+		},
+		{
+			"component": "t-input",
+			"modelname": "modelname",
+			"options": {
+				"labeloptions": {
+					"label": "model name"
+				},
+				"prefixicon": "icon-browser",
+				"comoptions": {},
+				"itemoptions": {
+					"style": {},
+					"class": ""
+				},
+				"options": {
+					"style": {},
+					"class": ""
+				},
+				"wrapperoptions": {},
+				"comlisteners": {}
+			},
+			"parentoptions": {},
+			"extendinfo": {},
+			"slotname": null,
+			"childrenctrls": []
+		},
+		{
+			"component": "TCascader",
+			"modelname": "options.labeloptions.label1",
+			"options": {
+				"comoptions": {
+					"filterable": true
+				},
+				"ajaxUrl": "/Tools/ComponentSetting/GetComponentSettingNodes",
+				"labeloptions": {
+					"label": "aaaaaa"
+				},
+				"itemoptions": {
+					"style": {},
+					"class": ""
+				},
+				"options": {
+					"style": {},
+					"class": ""
+				},
+				"wrapperoptions": {},
+				"comlisteners": {}
+			},
+			"parentoptions": {},
+			"extendinfo": {},
+			"slotname": null,
+			"childrenctrls": []
+		},
+		{
+			"component": "t-select",
+			"modelname": "options.itemoptions.size",
+			"options": {
+				"comoptions": {
+					"filterable": true
+				},
+				"ajaxUrl": "/share/GetJsonBySql?sql=select Id as Value,Name as Text from [ComponentSetting]",
+				"options": [
+					{
+						"value": "default",
+						"label": "default"
+					},
+					{
+						"value": "medium",
+						"label": "medium"
+					},
+					{
+						"value": "small",
+						"label": "small"
+					},
+					{
+						"value": "mini",
+						"label": "mini"
+					}
+				],
+				"labeloptions": {
+					"label": "item size"
+				},
+				"itemoptions": {
+					"style": {},
+					"class": ""
+				},
+				"wrapperoptions": {},
+				"comlisteners": {}
+			},
+			"parentoptions": {},
+			"extendinfo": {},
+			"slotname": null,
+			"childrenctrls": []
+		},
+		{
+			"component": "t-input",
+			"modelname": "options.itemoptions.class",
+			"options": {
+				"labeloptions": {
+					"label": "class"
+				},
+				"comoptions": {},
+				"itemoptions": {
+					"style": {},
+					"class": ""
+				},
+				"options": {
+					"style": {},
+					"class": ""
+				},
+				"wrapperoptions": {},
+				"comlisteners": {}
+			},
+			"parentoptions": {},
+			"extendinfo": {},
+			"slotname": null,
+			"childrenctrls": []
+		},
+		{
+			"component": "t-input",
+			"modelname": "options.itemoptions.style.width",
+			"options": {
+				"labeloptions": {
+					"label": "width"
+				},
+				"comoptions": {},
+				"itemoptions": {
+					"style": {},
+					"class": ""
+				},
+				"options": {
+					"style": {},
+					"class": ""
+				},
+				"wrapperoptions": {},
+				"comlisteners": {}
+			},
+			"parentoptions": {},
+			"extendinfo": {},
+			"slotname": null,
+			"childrenctrls": []
+		}
+	],
+	"parentoptions": {},
+	"extendinfo": {},
+	"slotname": null
+}

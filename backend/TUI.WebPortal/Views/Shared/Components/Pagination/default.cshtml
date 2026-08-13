@@ -1,0 +1,186 @@
+﻿@model TUI.Services.Models.PaginationInfo
+
+@{
+    var extId = "ctrl_" + Guid.NewGuid().ToString("N");
+}
+<div  class="w-100 p-1" id="@extId">
+
+    <div style="display:none" >
+      
+        <input name="__PageInfo.CurrentPage" v-model="model.CurrentPage" />
+        <input name="__PageInfo.PageSize" v-model="model.PageSize" />
+        <input name="__PageInfo.SortName" v-model="model.SortName" />
+        <input name="__PageInfo.SortDir" v-model="model.SortDir" />
+    </div>
+    <div class="w-100 d-flex align-content-center justify-content-between">
+        <div>
+            Showing @((Model.CurrentPage-1)*Model.PageSize+1) to @(Math.Min(Model.TotalCount, Model.CurrentPage  * Model.PageSize)) of @Model.TotalCount entries
+         
+        </div>
+        <ul class="pagination no-margin " style="margin-bottom: 0px; margin-top: 0px;">
+            <li class="page-item ">
+                <select @@change="reloadPage" class="custom-select form-control" v-model="model.PageSize">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                    <option value="30">30</option>
+                    <option value="50">50</option>
+                </select>
+            </li>
+            <li @@click="selectPage(1,$event)" class="page-item " :class="{active: false, disabled: noPrevious()}">
+                <a class="page-link" href="javascipt:void(0)"><i class="fal fa-step-backward"></i></a>
+            </li>
+            <li @@click="selectPage(model.CurrentPage- 1,$event)" class="page-item " :class="{active: false, disabled: noPrevious()}">
+                <a class="page-link" href="javascipt:void(0)"><i class="fal fa-chevron-left"></i></a>
+            </li>
+            <li v-for="page in pages" @@click="selectPage(page.number,$event)" class="page-item " :class="{'active':page.active, disabled: page.disabled}">
+                <a class="page-link" href="javascipt:void(0)">{{page.text}}</a>
+            </li>
+            <li @@click="selectPage(model.CurrentPage + 1,$event)" class="page-item " :class="{active: false, disabled: noNext()}">
+                <a class="page-link" href="javascipt:void(0)"><i class="fal fa-chevron-right"></i></a>
+            </li>
+            <li @@click="selectPage(model.PageCount,$event)" class="page-item " :class="{active: false, disabled: noNext()}">
+                <a class="page-link" href="javascipt:void(0)"><i class=" fal fa-step-forward"></i></a>
+            </li>
+
+
+        </ul>
+
+    </div>
+   
+
+</div>
+<script>
+    $(()=>{
+        var $this = $("#@extId");
+        const App = {
+            data() {
+                return { model: Vue.reactive( @Html.Raw(Model.ToJSONWithoutNull()))};
+            },
+            computed:{
+                __PageInfo: {
+                    get:function() {
+                        return JSON.stringify(this.model);
+                    }
+                }
+            },
+            //watch: {
+            //    model: function (val) {
+            //        alert(1);
+            //        var info = utility.getPageInfo($this);
+            //        info.$page.myReload();
+            //    },
+            //},
+            methods: {
+                makePage: function(number, text, isActive, isDisabled) {
+                    return {
+                        number: number,
+                        text: text,
+                        active: isActive,
+                        disabled: isDisabled
+                    };
+                },
+                //__PageInfo: function () {
+                //    return JSON.stringify(this.model);
+                //},
+                reloadPage: function () {
+                    setTimeout(function () {
+                        var info = utility.getPageInfo($this);
+                        info.$page.myReload();
+                    }, 0);
+                },
+                noPrevious: function () {
+                    return this.model.CurrentPage === 1;
+                },
+                noNext : function () {
+                    return this.model.CurrentPage === this.model.PageCount;
+                },
+                isActive : function (page) {
+                    return this.model.CurrentPage === page;
+                },
+                selectPage : function (page, $event) {
+                    if (!this.isActive(page) && page > 0 && page <= this.model.PageCount) {
+
+                        this.model.CurrentPage = page;
+                        //this.onSelectPage({ page: page });
+                        //$this.find(".ModelJson").val(JSON.stringify(this.model));
+                        this.reloadPage();
+                    }
+                    $event.preventDefault();
+                    $event.stopPropagation();
+                },
+                init : function () {
+                    this.pages = [];
+                    if (this.model.CurrentPage > this.model.PageCount) {
+                        this.model.CurrentPage = this.model.PageCount;
+                    }
+                    var startPage = 1, endPage = this.model.PageCount;
+
+                    if (this.model.MaxSize && this.model.MaxSize < this.model.PageCount) {
+                        startPage = Math.max(this.model.CurrentPage - Math.floor(this.model.MaxSize / 2), 1);
+                        endPage = startPage + this.model.MaxSize - 1;
+
+                        if (endPage > this.model.PageCount) {
+                            endPage = this.model.PageCount;
+                            startPage = endPage - this.model.MaxSize + 1;
+                        }
+                    }
+
+                    for (var number = startPage; number <= endPage; number++) {
+                        var page = this.makePage(number, number, this.isActive(number), false);
+                        this.pages.push(page);
+                    }
+
+                    if (this.model.CurrentPage > this.model.PageCount) {
+                        this.selectPage(this.model.PageCount);
+                    }
+                    var $Page = utility.getPageInfo($this).$page;
+                    var $sortColumns = $Page.find(".dataTable>thead>tr>th[sortname]");
+                    $sortColumns.addClass("sorting");
+                    var currentSortColumn = $Page.find(String.format(".dataTable>thead>tr>th[sortname='{0}']", this.model.SortName));
+                    currentSortColumn.removeClass("sorting");
+                    if (this.model.SortDir == "DESC") {
+                        currentSortColumn.addClass("sorting_desc");
+                    } else {
+                        currentSortColumn.addClass("sorting_asc");
+                    }
+                    var vm = this;
+                    $sortColumns.on("click", function () {
+                        $sortColumns.removeClass("sorting");
+                        $sortColumns.removeClass("sorting_asc");
+                        $sortColumns.removeClass("sorting_desc");
+                        $sortColumns.addClass("sorting");
+                        $(this).removeClass("sorting");
+                        if (vm.model.SortName == $(this).attr("sortname")) {
+                            if (vm.model.SortDir == "ASC") {
+                                vm.model.SortDir = "DESC";
+                                $(this).addClass("sorting_desc");
+                            } else {
+                                vm.model.SortDir = "ASC";
+                                $(this).addClass("sorting_asc");
+                            }
+                        }
+                        else {
+                            vm.model.SortName = $(this).attr("sortname");
+                            vm.model.SortDir = "ASC";
+                            $(this).addClass("sorting_asc");
+                        }
+                     
+                        vm.reloadPage();
+
+                    });
+                }
+            }
+        };
+        
+        const app = Vue.createApp(App);
+       
+       // app.init();
+        app.use(ElementPlus);
+        var pageInfo = app.mount($this.get(0));
+        pageInfo.init();
+        pageInfo.$forceUpdate();
+    })
+
+</script>

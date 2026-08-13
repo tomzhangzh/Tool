@@ -1,0 +1,78 @@
+﻿
+@model TUI.Services.DBModel.PriceBrandFormula
+
+
+@{var itemList = new List<DETAILITEM>();
+    DETAILITEM detailItem= null;
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="PriceBrandID",
+        AS1COLUMN=false,
+        COLUMNTYPE="Hidden",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=true,
+        SORTID=100,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="PriceBrandID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="StartDate",
+        AS1COLUMN=false,
+        COLUMNTYPE="DatePicker",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=true,
+        SORTID=700,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Start Date",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+
+}
+
+
+<div class="grid grid-cols-1 place-content-start gap-4 items-center">
+    @foreach (var item in itemList)
+    {
+    if (item.COLUMNTYPE == "Hidden")
+    {
+    @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+    }
+    else
+    {
+    <div class="flex self-start items-center">
+
+        <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 200px;">@item.LABEL</label>
+        <div class="flex-grow inline-flex items-start w-full flex-column myctrl">
+            @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+        </div>
+    </div>
+    }
+    }
+
+</div>
+  
+
+
+
+
+
+<div id="pageac1fed03e4b14df2bef08748b7fe861e" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#pageac1fed03e4b14df2bef08748b7fe861e").parent();
+            
+            $("#pageac1fed03e4b14df2bef08748b7fe861e").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

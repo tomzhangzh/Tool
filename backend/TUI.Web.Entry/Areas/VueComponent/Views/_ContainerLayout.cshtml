@@ -1,0 +1,82 @@
+﻿@{
+    Layout = "~/Areas/VueComponent/Views/_Layout.cshtml";
+}
+
+
+@RenderBody()
+
+
+
+<script>
+
+    @section setupScripts{
+        Vue.provide('parent_jsonconfig', props.jsonconfig);
+        Vue.provide('parent_com', Vue.getCurrentInstance().proxy);
+        @RenderSection("setupScripts", false)
+        VueUse.tryOnMounted(async () => {
+            var $$instance = Vue.getCurrentInstance();
+
+            extensionInfo.setComCurrent = (element) => {
+                if (!desginSharedData.isDesign || desgin_ParentData?.editChild === false) return;
+
+                if (!desginSharedData.current) desginSharedData.current = {};
+                desginSharedData.setCurrentCom(element);
+                //desginSharedData.current.com = element;
+                //desginSharedData.current.container = props.jsonconfig;
+                //desginSharedData.current.comList = findParentConfigs($$instance.proxy, element);
+            }
+            function findParentConfigs(parent_Com, item) {
+                let parent_list = [item, parent_Com.props.jsonconfig];
+                while (parent_Com && parent_Com.parent_Config) {
+                    parent_list.push(parent_Com.parent_Config);
+                    parent_Com = parent_Com.parent_Com;
+                }
+                return _.reverse(parent_list);
+            }
+            if (!desginSharedData.isDesign || desgin_ParentData?.editChild === false) return;
+            if (!$$instance.refs.comList) return;
+            const draggable = TUI.VueDraggablePlus.useDraggable(comInnerInfo.vueDraggableTargetContainer|| $$instance.refs.comList, props.jsonconfig.childrenctrls, {
+                animation: 250,
+
+                swapThreshold: 0.1,
+                group: { name: 'designcontainer' },
+                //clone = cloneItem,
+                ghostClass: "ghost",
+                dragClass: "dragClass",
+                class: " m-2 com-menu-item",
+                onStart() {
+                    console.log('start')
+                },
+                onUpdate() {
+                    console.log('update')
+                }
+                ,
+                onAdd(event) {
+                    if ($(event.from).hasClass("t_container"))
+                    {return true;}
+                    var DefaultOptionsJson = desginSharedData.current.menuCom.DefaultOptionsJson;
+                    var jsonconfig = JSON.parse(DefaultOptionsJson);
+                    setDefaultJsonConfig(jsonconfig);
+                    props.jsonconfig.childrenctrls.splice(event.newIndex, 1, jsonconfig);
+                    desginSharedData.setCurrentCom(props.jsonconfig.childrenctrls[event.newIndex]);
+                    console.log('onAdd', props.jsonconfig.childrenctrls)
+                    return false;
+                }
+            });
+            draggable.start();
+            Vue.watch(
+                () => desginSharedData.isDesign,
+                (newVal, oldVal) => {
+                    console.log('start', newVal)
+                    if (newVal) { draggable.start(); }
+                    else {
+                        draggable.pause();
+                    }
+                }
+            );
+
+        })
+
+
+    }
+</script>

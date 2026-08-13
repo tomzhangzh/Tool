@@ -1,0 +1,173 @@
+﻿@model FuelPricingViewModel
+@{
+    ViewData["Title"] = "Detail";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    TUI.Services.Manager.IPriceService priceService = this.ViewBag.priceService;
+}
+
+<div id="@extId"></div>
+
+<div class="card h-100">
+    <!-- panel footer with utility classes -->
+    <div class="panel-hdr">
+        <h2 class="ui-sortable-handle" style="gap:5px">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" style="width: 2em;height: 2em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewBox="0 0 1024 1024" version="1.1" p-id="2178"><path d="M491.8 182.4H309.3c-30.8 0-55.9 25.1-55.9 55.9v100.6c0 30.8 25.1 55.9 55.9 55.9h182.5c30.8 0 55.9-25.1 55.9-55.9V238.3c0-30.8-25.1-55.9-55.9-55.9zM503 338.9c0 6.2-5 11.2-11.2 11.2H309.3c-6.2 0-11.2-5-11.2-11.2V238.3c0-6.2 5-11.2 11.2-11.2h182.5c6.2 0 11.2 5 11.2 11.2v100.6zM920.9 278.6l-68.1-65.4c-8.9-8.5-23-8.3-31.6 0.6-8.5 8.9-8.3 23 0.6 31.6l68.1 65.4c17.5 16.8 27.5 40.3 27.5 64.5v388.2c0 12.3-10 22.4-22.4 22.4h-68c-12.3 0-22.4-10-22.4-22.4V401.8c0-37-30.1-67.1-67.1-67.1h-64.2V178c0-61.6-50.1-111.8-111.8-111.8H239.4c-61.6 0-111.8 50.1-111.8 111.8v735.3H84.5c-12.3 0-22.4 10-22.4 22.4s10 22.4 22.4 22.4h633.2c12.3 0 22.4-10 22.4-22.4s-10-22.4-22.4-22.4h-44.3V379.4h64.2c12.3 0 22.4 10 22.4 22.4v361.8c0 37 30.1 67.1 67.1 67.1h68c37 0 67.1-30.1 67.1-67.1V375.3c-0.1-36.3-15.1-71.5-41.3-96.7zM628.7 913.3H172.4V178c0-37 30.1-67.1 67.1-67.1h322.2c37 0 67.1 30.1 67.1 67.1v735.3z" p-id="2179" /></svg>
+        Price History  </h2>
+    </div>
+    <div class="card-header py-1 d-flex justify-content-between w-100">
+        <div>
+            @if (Model.Data.Count != priceService.GetBrandConfigurations(Model.Brand).Count())
+            {
+                <button class="btn btn-info btn-sm  waves-effect waves-themed" type="button" id="AddMissionProduct" myaction-postback><i class="fal fa-plus p-1"></i>Add Product</button>
+            }
+
+            @if (priceService.PriceBrandService.Get(Model.BrandID.Value).HasAttachment == 1)
+            {
+                <button class="btn btn-info btn-sm  waves-effect waves-themed" type="button" id="Regenerate" myaction-postback><i class="fal fa-file-pdf p-1"></i>Regenerate files</button>
+            }
+        <button class="btn btn-info btn-sm waves-effect waves-themed" type="button" id="BatchGenerator"
+                myaction-openwindow="@(new  {options=new{ title = "Batch Generator", width="800px",center=true},url="/PriceHistory/BatchGenerator"}.ToJSON())">
+            <i class="fal fal fa-box p-1"></i>Batch Generator
+        </button>
+
+            <button class="btn btn-info btn-sm waves-effect waves-themed" type="button" id="SendEmail"
+                    myaction-openwindow="@(new  {options=new{ title = "Send Email", width="80%",center=true},url="/PriceHistory/SendEmail",@params=new{Model.BrandID,Model.SelectedDate }}.ToJSON())">
+                <i class="fal fa-envelope p-1"></i>Send Email
+            </button>
+            @*<button class="btn btn-info  btn-sm waves-effect waves-themed" type="button" id="SendEmail"><i class="fal fa-sync p-1"></i>Sync Data</button>*@
+        </div>
+        <button class="btn btn-info btn-sm waves-effect waves-themed" type="button" id="Save" myaction-postback><i class="fal fa-save p-1"></i>Save</button>
+
+        
+    </div>
+    <div class="card-body" style="min-height:400px;">
+        <form myaction-initform class="h-100" autocomplete="off">
+            @Html.HiddenFor(x => x.BrandID)
+            @Html.HiddenFor(x => x.SelectedDate)
+            @if (ViewData.ModelState.Keys.Any(k => ViewData.ModelState[k].Errors.Count() > 0))
+            {
+                <div class="alert alert-danger">
+                    <button class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                    @Html.ValidationSummary(false)
+                </div>
+            }
+            <div class="form-group  my-1 row  align-items-center">
+                <label class="form-label text-lg-right col-lg-2 col-4">Brand :</label>
+                <div class="myctrl   col-8">
+                    @Model.BrandName
+                </div>
+
+            </div>
+            <div class="form-group  my-1 row  align-items-center">
+                <label class="form-label text-lg-right  col-lg-2 col-4">Date :</label>
+                <div class="myctrl   col-8">
+                    @Model.SelectedDate.Value.ToString("MM/dd/yyyy")
+                </div>
+
+            </div>
+            <table class="table table-bordered table-hover table-striped w-100">
+                <thead class="thead-themed">
+                    <tr>
+                        <th></th>
+                        <th> Product Name</th>
+                        <th> Variable Name</th>
+                        <th>
+                            Rack Price
+                        </th>
+                        <th>Effective Time</th>
+                        <th>Last Update</th>
+
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Data.OrderByDescending(x=>x.LastUpdated))
+                    {
+                        var index = Model.Data.IndexOf(item);
+                    <tr>
+                        <th scope="row"
+                            @*@if (item.LastUpdated== Model.Data.Select(x => x.LastUpdated).Max())
+                {
+                    @:class="bg-info-400 border border-info"
+                }*@>
+                            @Html.HiddenFor(x => x.Data[index].ID)
+                            @Html.HiddenFor(x => x.Data[index].ProductID)
+                            @Html.HiddenFor(x => x.Data[index].BrandID)
+                            @Html.HiddenFor(x => x.Data[index].SupplierID)
+                            @Html.HiddenFor(x => x.Data[index].TerminalID)
+                            @Html.HiddenFor(x => x.Data[index].CityID)
+                            @Html.HiddenFor(x => x.Data[index].EffectiveTime)
+                        </th>
+                        <td>@priceService.PriceProductService.Get(item.ProductID)?.ProductName </td>
+                        <td>
+                            @Model.BrandConfiguration.Where(x =>
+                    x.ProductID == item.ProductID
+                    && (item.TerminalID ?? x.TerminalID) == x.TerminalID
+                    && (item.SupplierID ?? x.SupplierID) == x.SupplierID
+                   ).FirstOrDefault()?.ReportVariableName
+                        </td>
+                        <td class="p-1">
+                            <div class="myctrl" style="width:150px">
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">$</span>
+                                    </div>
+                                    @Html.TextBoxFor(x => x.Data[index].Price, new { @class = "form-control required number", placeholder = "Please input price" })
+                                </div>
+                            </div>
+                        </td>
+                        <td class="p-1">
+                            <div class="myctrl" style="width:150px">
+                                <div class="input-group">
+
+                                    @Html.TextBoxFor(x => x.Data[index].EffectiveTime, new { @class = "form-control digits", range = "[0,2300]", placeholder = "Effective Time" })
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">
+                                            <i class="fal fs-xl fa-alarm-clock"></i>
+                                        </span>
+                                    </div>
+                                </div>
+                               
+                            </div>
+
+
+
+                        </td>
+                        <td>
+                            @if (item.LastUpdated != null)
+                            {
+                                <span class="fw-500">@item.LastUpdated.Value.UtcDateTime.UtcToEasternStandardTime()</span>
+                                <br /> <span class="fw-300">(@item.LastUpdated.Value)</span>
+                            }
+
+                        </td>
+
+                    </tr>
+                      
+                      
+                    }
+                 
+                </tbody>
+            </table>
+           
+            @*@Html.Raw(priceService.GetHtml(Model.BrandID.Value,Model.SelectedDate.Value))*@
+        </form>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+<script>
+
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+
+
+    });
+</script>

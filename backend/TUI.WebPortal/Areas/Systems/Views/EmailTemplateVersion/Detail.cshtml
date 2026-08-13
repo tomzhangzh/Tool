@@ -1,0 +1,80 @@
+﻿@model EmailTemplate
+@{
+    ViewData["Title"] = "Detail";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    var BrandList = this.SqlSugarClient.Queryable<tblPriceBrand>().Where(x => x.IsActive == 1).ToList();
+
+
+}
+@*@{
+        Func<(string Label, Func<object, object> action), Microsoft.AspNetCore.Html.IHtmlContent> renderItem = @<text>
+            <div class="flex self-start items-center">
+
+                <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 120px;">@item.Label</label>
+                <div class="flex-grow inline-flex items-start w-full myctrl">
+                    @item.action(null)
+
+                </div>
+            </div>
+        </text>;
+
+    }*@
+
+<div id="@extId"></div>
+<div id="@extId" myaction-winoptions="@(new{ title = $"{(Model.ID==0?"Add":"Edit")} Template", width="80%",height="700px",center=true}.ToJSON())"></div>
+<div class="p-2">
+    <ul class="nav nav-tabs bg-indigo-50 pt-2 pl-2 border" role="tablist">
+        <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab_direction-1" role="tab" myaction-postback>General</a></li>
+    
+    </ul>
+    <div class="tab-content border border-top-0 p-3" style="min-height:600px">
+        <div class="tab-pane fade show active" id="tab_direction-1" role="tabpanel">
+            <form myaction-initform autocomplete="off">
+    @if (ViewData.ModelState.Keys.Any(k => ViewData.ModelState[k].Errors.Count() > 0))
+    {
+        <div class="alert alert-danger">
+            <button class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+            @Html.ValidationSummary(false)
+        </div>
+    }
+    <div class="card">
+        
+        <!-- panel footer with utility classes -->
+        <div class="card-header py-1">
+            <button class="btn btn-info waves-effect waves-themed" type="button" id="Save" myaction-postback><i class="fal fa-save p-1"></i>Save</button>
+           @* @if (Model.ID != 0)
+            {
+                <button class="btn btn-info waves-effect waves-themed" type="button" id="Copy" myaction-postback><i class="fal fa-copy p-1"></i>Copy</button>
+            }*@
+        </div>
+        <div class="card-body" style="min-height:400px;">
+            @Html.Partial("~/Views/AutoGenerate/Detail/EmailTemplateVersion_Detail.cshtml", Model)
+         
+        </div>
+
+    </div>
+
+
+</form>
+
+        </div>
+        <div class="tab-pane fade" id="tab_direction-2" role="tabpanel">
+            
+        </div>
+    
+    </div>
+</div>
+
+
+
+
+
+
+<script>
+
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+
+
+    });
+</script>

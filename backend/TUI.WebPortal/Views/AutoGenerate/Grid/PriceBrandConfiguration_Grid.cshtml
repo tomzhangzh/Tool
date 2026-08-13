@@ -1,0 +1,125 @@
+﻿
+
+@model IEnumerable<TUI.Services.DBModel.PriceBrandConfiguration>
+
+<table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+    <thead class="bg-info-500">
+        <tr>
+            <th width="70px">
+
+            </th>
+                <th   sortname="SupplierID"
+>
+                    SupplierID
+                </th>
+                <th   sortname="TerminalID"
+>
+                    TerminalID
+                </th>
+                <th   sortname="ProductID"
+>
+                    ProductID
+                </th>
+                <th   sortname="CityID"
+>
+                    CityID
+                </th>
+                <th   sortname="ReportVariableName"
+>
+                    ReportVariableName
+                </th>
+                <th   sortname="LastUpdated"
+>
+                    LastUpdated
+                </th>
+                <th   sortname="SourceApiType"
+>
+                    SourceApiType
+                </th>
+                <th   sortname="MustEffectiveTime"
+>
+                    MustEffectiveTime
+                </th>
+                <th   sortname="IsActive"
+>
+                    IsActive
+                </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+        <tr>
+            <td>
+                <div class="d-flex justify-content-between">
+                    <a href="javascript: void(0); " myaction-openwindow="
+                    @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Brand/PriceBrandConfiguration/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                    "  class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                      <i class="fal fa-edit"></i>   </a>
+                    <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Brand/PriceBrandConfiguration/Delete",@params=new{item.ID } }.ToJSON())
+                    "  class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                      <i class="fal fa-trash"></i>   </a>
+                </div>
+
+            </td>
+            <td>
+           @item.SupplierID
+
+        </td>
+            <td>
+           @item.TerminalID
+
+        </td>
+            <td>
+           @item.ProductID
+
+        </td>
+            <td>
+           @item.CityID
+
+        </td>
+            <td>
+           @item.ReportVariableName
+
+        </td>
+            <td>
+           @item.LastUpdated
+
+        </td>
+            <td>
+           @item.SourceApiType
+
+        </td>
+            <td>
+           @item.MustEffectiveTime
+
+        </td>
+            <td>
+           @item.IsActive
+
+        </td>
+            <td></td>
+        </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+
+<div id="page10d7137e0ab9432d87530a2ef2070343" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page10d7137e0ab9432d87530a2ef2070343").parent();
+            
+            $("#page10d7137e0ab9432d87530a2ef2070343").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

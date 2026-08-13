@@ -1,0 +1,132 @@
+﻿@model ScheduleTask
+@inherits CustomRazorPage<TModel>
+@inject IService<ScheduleTask> service
+@{
+
+    //List<(long, long?, string, string)> List = this.ViewBag.List;
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    if (this.PaginationInfo.SortName.IsNullOrEmpty() == true)
+    {
+        this.PaginationInfo.SortName = "ID";
+        this.PaginationInfo.SortDir = "Asc";
+    }
+    var query = from x in service.Queryable()
+
+                select x;
+    if (string.IsNullOrEmpty(Model.TaskName) == false)
+    {
+        query = query.Where(x => x.TaskName.Contains(Model.TaskName));
+    }
+    if (string.IsNullOrEmpty(Model.GroupName) == false)
+    {
+        query = query.Where(x => x.GroupName.Contains(Model.GroupName));
+    }
+    var list = this.PaginationInfo.GetQuery(query).ToList();
+}
+
+<div id="@extId"></div>
+
+<div id="panel-2" class="panel" data-panel-fullscreen="" data-panel-close="" data-panel-collapsed="" data-panel-locked="" data-panel-reset="" data-panel-color="" data-panel-custombutton="">
+    <div class="panel-hdr bg-info-500" role="heading">
+        <h2 style="gap:5px;">
+            <i class="fal fa-search"></i>   Schedule Task
+        </h2>
+        <div class="panel-toolbar">
+            <button class="btn btn-panel waves-effect waves-themed" data-action="panel-collapse" data-toggle="tooltip" data-offset="0,10" data-original-title="Collapse"></button>
+        </div>
+    </div>
+    <div class="panel-container show">
+        <div class="loader"><i class="fal fa-spinner-third fa-spin-4x fs-xxl"></i></div>
+        <div class="panel-content app p-2 ">
+            <div class="panel-tag">
+
+
+                <el-form label-width="120px" :model="model" ref="formRef">
+                    <el-row :gutter="20">
+                        <el-col :span="8" :xl="6" :xs="24">
+                            <el-form-item label="TaskName" style="align-items: center;" prop="TaskName">
+                                <el-input v-model="model.TaskName" name="TaskName"></el-input>
+                            </el-form-item>
+                           
+                        </el-col>
+                        <el-col :span="8" :xl="6" :xs="24">
+                           
+                            <el-form-item label="GroupName" style="align-items: center;" prop="GroupName">
+                                <el-input v-model="model.GroupName" name="GroupName"></el-input>
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+
+
+                </el-form>
+
+            </div>
+        </div>
+    </div>
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted">
+        <div class="d-flex justify-content-between">
+            <div>
+                <button type="button" class="btn btn-info waves-effect waves-themed" myaction-postback id="Search">
+                    <span class="fal fa-search mr-1"></span>
+                    Search
+                </button>
+                <button type="button" class="btn btn-info waves-effect waves-themed" myaction-postback id="Clear">
+                    <span class="fal fa-recycle mr-1"></span>
+                    Clear
+                </button>
+            </div>
+            <div>
+                <button type="button" class="btn btn-info waves-effect waves-themed" myaction-openwindow="@(new  {options=new{ title = "Add Schedule Task", width="1000px",center=true},url="/Task/ScheduleTask/Detail",refresh=true }.ToJSON())">
+                    <span class="fal fa-file mr-1"></span>
+                    Add
+                </button>
+                <button type="button" class="btn btn-info waves-effect waves-themed" myaction-openwindow="@(new  {options=new{ title = "All Job BriefInfo", width="1000px",center=true},url="/Task/ScheduleTask/GetAllJobBriefInfo",refresh=true }.ToJSON())">
+
+                    Job Info
+                </button>
+            </div>
+
+        </div>
+    </div>
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted">
+        @Html.Partial("~/Views/AutoGenerate/Grid/ScheduleTask_Grid.cshtml", list)
+        @await Html.PartialAsync("~/Views/Shared/Components/Pagination/default.cshtml", this.PaginationInfo)
+    </div>
+    </div>
+    <script>
+
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+        //$this.find('#dt-basic-example').dataTable(
+        //    {
+        //        responsive: true,
+        //        searching: false,
+        //        bLengthChange: false
+        //    });
+        const App = {
+            data() {
+                return {
+                    model: Vue.reactive( @Html.Raw(Model.ToJSON()))
+                    }
+            },
+            methods: {
+                a: function (ex) {
+                    alert(ex);
+                }
+    }
+        };
+        const app = Vue.createApp(App);
+        app.use(ElementPlus);
+        app.mount($this.find(".app").get(0));
+
+        $this.off("keyup").on("keyup", function (event) {
+            if (event.which == 13) {
+                $this.find("#Search").trigger("click");
+            }
+            else if (event.which == 27) {
+                $this.find("#Clear").trigger("click");
+            }
+        })
+
+    })
+    </script>

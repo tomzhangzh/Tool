@@ -1,0 +1,19 @@
+﻿<template>
+    <el-table :data="modelinfo" :style="getStyle(props.jsonconfig.options?.options)"
+              class="t_container"
+              :class="[getClass(props.jsonconfig.options?.options), desginSharedData?.current?.container === props.jsonconfig ? 'com_container' : ''
+, desgin_ParentData?.editChild ===true ? 'can_edit_child' : ''
+
+]"
+              ref="comList">
+        <el-table-column v-bind="element.options.comoptions" class-name="comitem"
+                        v-for="element in props.jsonconfig.childrenctrls" />
+
+    </el-table>
+
+</template>
+
+@section setupScripts{
+       comInnerInfo.vueDraggableTargetContainer=".el-table__header >thead >tr";
+    }
+

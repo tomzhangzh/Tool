@@ -1,0 +1,11 @@
+﻿<template>
+    <t-label-wrapper :options="options"
+                     :parentoptions="parentoptions"
+                     :modelinfo="modelinfo"
+                     :parentmodelinfo="parentmodelinfo">
+        <el-time-picker ref="current"
+                            v-model="modelinfo"
+                            v-bind="options?.comoptions">
+        </el-time-picker>
+
+</template>

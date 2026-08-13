@@ -1,0 +1,23 @@
+﻿@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.TextAreaSettingInfo;
+
+}
+@{
+    var HtmlAttributes = detailItem.GetHTMLATTRIBUTES();
+    HtmlAttributes["class"] = "form-control " + detailItem.GetValidateClass();
+    HtmlAttributes["rows"] = extendP.Rows;
+}
+@Html.TextAreaFor(m => m, HtmlAttributes)

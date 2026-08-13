@@ -1,0 +1,49 @@
+// MIT License
+// 开源地址：https://gitee.com/co1024/TUIMvc
+// Copyright (c) 2021-2023 1024
+// TUI.Mvc=Furion+EF+SqlSugar+Pear layui admin.
+
+using Mapster;
+
+namespace @(Model.Config.ProjectName).Application.@(@Model.Config.MvcApplicationArea)Services;
+
+
+ /// <summary>
+  /// 输入Mapper
+  /// @((Model.Description+"").Replace("\r","").Replace("\n",""))
+  /// </summary>
+  public class @(Model.Config.MvcApplicationDtoPrefix)@(Model.NoPrefixEntity)MapperInput: IRegister
+  {
+       public void Register(TypeAdapterConfig config)
+        {
+            // 示例 
+            //config.ForType<xxxInput,xxx>()
+              //.Map(dest => dest.MigrationId, src => src.MigrationId)// 
+              //.Map(dest => dest.Id, src => src.Id)// 
+          //;
+       
+           
+           // Description @((Model.Description+"").Replace("\r","").Replace("\n",""))
+            //config.ForType<@(Model.Config.MvcApplicationDtoPrefix)@(Model.NoPrefixEntity)Input,@Model.EntityName>()
+          
+        #region 公共字段
+        @foreach (var item in Model.ColumnsInfos)
+        {
+            if(item.ClassProperName=="Id"||item.ClassProperName=="CreatorUserId"||item.ClassProperName=="CreatorUserName"||item.ClassProperName=="CreationTime"||item.ClassProperName=="UpdateUserId"||        item.ClassProperName=="UpdateUserName"||item.ClassProperName=="UpdateTime"||item.ClassProperName=="IsDeleted"||item.ClassProperName=="DeletedUserId"||item.        ClassProperName=="DeletedUserName"||item.ClassProperName=="DeletedTime"||item.ClassProperName=="ExtensionData" )
+            {
+            @://.Map(dest => dest.@item.ClassProperName, src => src.@item.ClassProperName)//  @((@item.Description+"").Replace("\r","").Replace("\n",""))
+            }
+        }
+        #endregion
+        @foreach (var item in Model.ColumnsInfos)
+        {
+            if(item.ClassProperName=="Id"||item.ClassProperName=="CreatorUserId"||item.ClassProperName=="CreatorUserName"||item.ClassProperName=="CreationTime"||item.ClassProperName=="UpdateUserId"||        item.ClassProperName=="UpdateUserName"||item.ClassProperName=="UpdateTime"||item.ClassProperName=="IsDeleted"||item.ClassProperName=="DeletedUserId"||item.        ClassProperName=="DeletedUserName"||item.ClassProperName=="DeletedTime"||item.ClassProperName=="ExtensionData" )
+            continue;
+            @://.Map(dest => dest.@item.ClassProperName, src => src.@item.ClassProperName)//  @((@item.Description+"").Replace("\r","").Replace("\n",""))
+        }
+          //;
+         
+           
+        }
+   
+  }

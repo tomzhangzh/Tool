@@ -1,0 +1,11 @@
+﻿@{
+
+}
+@if (!ViewContext.HttpContext.Request.IsAjaxRequest())
+{
+    Layout = "_EmptyLayout";
+}
+else
+{
+    Layout = "_AjaxLayout";
+}

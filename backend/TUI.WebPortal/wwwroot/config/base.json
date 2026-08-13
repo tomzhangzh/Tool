@@ -1,0 +1,216 @@
+{
+	"component": "TContainer",
+	"keyId": "6zp5bum0bw",
+	"childrenCtrls": [
+		{
+			"component": "TPanel",
+			"keyId": "91nldrauvr",
+			"childrenCtrls": [
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TIconPark",
+							"options": {
+								"type": "icon-setting-config",
+								"size": 16,
+								"strokeWidth": 2,
+								"fill": "#2146ac"
+							}
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "基本设置"
+							}
+						}
+					],
+					"options": {
+						"slotName": "header",
+						"class": "flex justify-items-start items-center space-x-2 pl-2 h-4"
+					}
+				},
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TInput",
+							"keyId": "6zif7ccqmh",
+							"options": {
+								"labelOptions": {
+									"label": "组件"
+								},
+								"maxlength": 0,
+								"prefix-icon": "icon-components"
+							},
+							"modelName": "component"
+						},
+						{
+							"component": "TInput",
+							"keyId": "4k7a8p9xsr",
+							"options": {
+								"labelOptions": {
+									"label": "绑定名称"
+								},
+								"prefix-icon": "icon-column"
+							},
+							"modelName": "modelName"
+						},
+						{
+							"component": "TInput",
+							"keyId": "91hyijzukx",
+							"options": {
+								"labelOptions": {
+									"label": "标签"
+								},
+								"prefix-icon": "icon-label"
+							},
+							"modelName": "options.labelOptions.label"
+						},
+						{
+							"component": "TSwitch",
+							"keyId": "91hyijzuk1",
+							"options": {
+								"labelOptions": {
+									"label": "是否显示标签"
+								},
+								"prefix-icon": "icon-label"
+							},
+							"modelName": "options.labelOptions.show"
+						},
+						{
+							"component": "TTextArea",
+							"keyId": "91hyijzukx",
+							"options": {
+								"labelOptions": {
+									"label": "属性设置后fun"
+								},
+								"autosize":true,
+								"prefix-icon": null
+							},
+							"modelName": "options.afterSet"
+						}
+					],
+					"options": {
+						"slotName": "default",
+						"class": "grid grid-cols- gap-2 ",
+						"itemOptions": {
+							"size": "small",
+							"class": "flex"
+						},
+						"labelOptions": {
+							"style": {
+								"width": "120px"
+							},
+							"class": "text-right pr-3"
+						}
+					},
+					"class": "grid grid-cols-1 place-content-start gap-4 "
+				}
+			]
+		},
+		{
+			"component": "TPanel",
+			"keyId": "414k8rega2",
+			"childrenCtrls": [
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TIconPark",
+							"options": {
+								"type": "icon-html-five",
+								"size": 16,
+								"strokeWidth": 2,
+								"fill": "#2146ac"
+							}
+						},
+						{
+							"component": "TSpan",
+							"options": {
+								"html": "样式"
+							}
+						}
+					],
+					"options": {
+						"slotName": "header",
+						"class": "flex justify-items-start items-center space-x-2 pl-2 h-4"
+					}
+				},
+				{
+					"component": "TContainer",
+					"childrenCtrls": [
+						{
+							"component": "TTextArea",
+							"keyId": "6zif7ccqmh2",
+							"options": {
+								"labelOptions": {
+									"label": "容器 Div class"
+								},
+								"maxlength": 0,
+								"autosize":{"minRows": 2, "maxRows": 6 },
+								"prefix-icon": "icon-add-item"
+							},
+							"modelName": "options.itemOptions.class"
+						},
+						{
+							"component": "TTextArea",
+							"keyId": "6zif7ccqmh",
+							"options": {
+								"labelOptions": {
+									"label": "内部 class"
+								},
+								"autosize":{"minRows": 2, "maxRows": 6 },
+								"prefix-icon": "icon-text-style"
+							},
+							"modelName": "options.class"
+						},
+						
+						{
+							"component": "TJson",
+							"keyId": "4k7a8p9xsr",
+							"options": {
+								"labelOptions": {
+									"label": "style"
+								}
+							},
+							"modelName": "options.style"
+						}
+					],
+					"options": {
+						"slotName": "default",
+						"class": "grid grid-cols-1 place-content-start gap-2 ",
+						"itemOptions": {
+							"size": "small",
+							"class": "flex"
+						},
+						"labelOptions": {
+							"style": {
+								"width": "120px"
+							},
+							"class": "text-right pr-3"
+						}
+					},
+					"class": "grid grid-cols-1 place-content-start gap-4 "
+				}
+			]
+		}
+	],
+	"options": {
+		"slotName": "default",
+		"class": "grid grid-cols-1 place-content-start gap-4 ",
+		"itemOptions": {
+			"size": "small",
+			"class": "flex"
+		},
+		"labelOptions": {
+			"style": {
+				"width": "120px"
+			},
+			"class": "text-right pr-3"
+		},
+		"style": {
+			"width": "100%"
+		}
+	}
+}

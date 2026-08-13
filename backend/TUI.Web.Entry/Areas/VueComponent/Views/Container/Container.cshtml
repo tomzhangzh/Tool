@@ -1,0 +1,37 @@
+﻿<template>
+    <div :style="getStyle(props.jsonconfig.options?.options)"
+         class="t_container"
+         :class="[getClass(props.jsonconfig.options?.options), desginSharedData?.current?.container === props.jsonconfig ? 'com_container' : ''
+, desgin_ParentData?.editChild ===true ? 'can_edit_child' : ''
+
+]"
+         ref="comList">
+
+
+        <t-dynamic-com :jsonconfig="element" :parentmodelinfo="props?.parentmodelinfo" v-for="element in props.jsonconfig.childrenctrls"></t-dynamic-com>
+        @*<div v-if="desgin_ParentData?.editChild ===false && desginSharedData.isDesign"
+        class="absolute h-full w-full left-0 top-0 bg-gray-300 bg-stripes bg-stripes-white opacity-30 pointer-events-none">
+
+        </div>*@
+        <div v-if="desginSharedData?.current?.com === element && desginSharedData.isDesign"
+             class="absolute h-14 w-14 -left-2 -top-2 z-20">
+            <div class="absolute flex left-0 mt-2 border border-sky-300 divide-x divide-white-200">
+                <div class="hover:bg-blue-400/60   bg-blue-400  text-white space-x-1 h-5 px-1 cursor-default  "
+                     @@click.stop="desginSharedData.handleCopy(element)">
+                    <i class="fa fa-copy "></i>
+                </div>
+                <div class="hover:bg-blue-400/60   bg-blue-400  text-white  space-x-1 h-5 px-1 cursor-default  "
+                     @@click.stop="desginSharedData.handleDelete(element)">
+                    <i class="fa fa-remove "></i>
+                </div>
+                <div class="hover:bg-blue-400/60   bg-blue-400  text-white  space-x-1 h-5 px-1 cursor-default  "
+                     @@click.stop="desginSharedData.handleSelectParent(element)">
+                    <i class="fa fa-arrow-up "></i>
+                </div>
+
+
+            </div>
+        </div>
+
+    </div>
+</template>

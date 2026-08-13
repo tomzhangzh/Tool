@@ -1,0 +1,21 @@
+﻿@{
+    var CUSTOM_SCRIPTS = this.Context.Session.GetValue<List<string>>(CommonConst.CUSTOM_SCRIPTS);
+    this.Context.Session.Remove(CommonConst.CUSTOM_SCRIPTS);
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+<div id="@extId" style="display:none;color:red">
+    <script>
+        $(function () {
+            var $this = $("#@extId").parent();
+        @if (CUSTOM_SCRIPTS != null)
+        {
+            foreach (var item in CUSTOM_SCRIPTS)
+            {
+                @Html.Raw( item )
+            }
+        }
+
+        });
+    </script>
+
+</div>

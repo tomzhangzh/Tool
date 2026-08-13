@@ -1,0 +1,265 @@
+@@using @(@Model.Config.ProjectName).Core;
+@@using @(@Model.Config.ProjectName).Core.Entities;
+@{
+    var description=(@Model.Description+"").Replace("\r","").Replace("\n","");//处理换行
+    //var GetUrlActionArea=string.IsNullOrWhiteSpace(@Model.Config.MvcControllerArea)?Model.Config.MvcControllerArea:@(", new { area = '"+@Model.Config.MvcControllerArea+"' }");
+    
+   string GetUrlActionAreaMethod()
+   {
+       if(string.IsNullOrWhiteSpace(@Model.Config.MvcControllerArea))
+       {
+          return "";
+       }
+       else
+       {
+           return $", new {{ area = \"{@Model.Config.MvcControllerArea}\" }}";
+       }
+   }
+   var GetUrlActionArea=@GetUrlActionAreaMethod();
+}
+
+@@@@ { 
+    ViewData["Title"] = "@description";
+}
+<div class="layui-row layui-col-space10">
+    <div class="layui-card" id="headsearch_@(@Model.NoPrefixEntity)">
+        <div class="layui-card-body" style="padding: 0px;">
+            <form class="layui-form" action="javascript:;" id="queryform_@(@Model.NoPrefixEntity)">
+                
+                <div class="layui-inline">
+                    <label class="layui-form-mid">创建日期</label>
+                    <div class="layui-input-inline">
+                        <input class="layui-input" name="StartDate" id="StartDate_@(Model.NoPrefixEntity)" placeholder="开始日期" >
+                    </div>
+                    <div class="layui-form-mid">-</div>
+                    <div class="layui-input-inline">
+                        <input class="layui-input" name="EndDate" id="EndDate_@(Model.NoPrefixEntity)" placeholder="结束日期" >
+                    </div>
+                </div>
+                <div class="layui-inline">
+                    <label class="layui-form-mid">关键词</label>
+                    <div class="layui-input-inline" style="width: 300px;">
+                        <input type="text" id="KeyWords" name="KeyWords" placeholder="输入关键词模糊查询" class="layui-input">
+                    </div>
+                </div>
+                <div class="layui-inline">
+                    <div id="search_@(Model.NoPrefixEntity)"  class="layui-btn submitbtn" lay-submit lay-filter="search_@(Model.NoPrefixEntity)"> <i class="layui-icon layui-icon-search"></i>查找</div>
+                    <button id="reset_@(Model.NoPrefixEntity)" type="reset" class="layui-btn layui-btn-primary"><i class="layui-icon layui-icon-refresh">重置</i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="layui-card">
+        <div class="layui-card-body" style="padding: 0px;">
+            <table id="listData_@(Model.NoPrefixEntity)" class="layui-hide" lay-filter="listData_@(Model.NoPrefixEntity)"></table>
+        </div>
+    </div>
+</div>
+<script type="text/html" id="toolbar_@(@Model.NoPrefixEntity)">
+    <div class="pear-btn pear-btn-primary pear-btn-md" lay-event="add"><i class="layui-icon layui-icon-add-1"></i>新增</div>
+    <div class="pear-btn pear-btn-danger pear-btn-md" lay-event="batchRemove"><i class="layui-icon layui-icon-delete"></i>删除</div>
+</script>
+@*tablebar*@
+<script type="text/html" id="tablebar_@(@Model.NoPrefixEntity)">
+    @@*<a class="pear-btn pear-btn-primary layui-btn-xs" lay-event="edit"><i class="layui-icon layui-icon-edit"></i></a>
+    <a class="pear-btn pear-btn-danger layui-btn-xs" lay-event="delete"><i class="layui-icon layui-icon-delete"></i></a>*@@
+    <a class="layui-btn layui-btn-xs" lay-event="more">更多<i class="layui-icon layui-icon-down"></i></a>
+</script>
+
+@*<script type="text/html" id="tpl_IsEnable_@(@Model.NoPrefixEntity)">
+    <input type="checkbox" name="IsEnable_@(@Model.NoPrefixEntity)" objid="{{d.Id}}" lay-skin="switch" title="启用|禁用" lay-filter="IsEnable_@(@Model.NoPrefixEntity)" {{ d.IsEnable ? 'checked' : '' }}>
+</script>*@
+@@*自动生成开关代码*@@
+@foreach (var item in Model.ColumnsInfos)
+{
+    if(item.Type=="bool")
+    {
+    @: @@* @(item.Description) *@@
+    @: @@*<script type="text/html" id="tpl_@(item.ClassProperName)_@(@Model.NoPrefixEntity)">
+    @:<input type="checkbox" name="@(item.ClassProperName)_@(@Model.NoPrefixEntity)" objid="{{d.Id}}" lay-skin="switch" title="启用|禁用" lay-filter="@(item.ClassProperName)_@(@Model.NoPrefixEntity)" {{ d.@(item.ClassProperName) ? 'checked' : '' }}>
+    @:</script>*@@
+    }
+}
+<script type="text/html" id="tpl_Type_@(@Model.NoPrefixEntity)">
+{{# if(d.Type==1){ }}
+  <span class="layui-badge layui-bg-orange">IPV4</span>
+{{# }else { }}
+  <span class="layui-badge layui-bg-blue">IPV6</span>
+{{# } }}
+</script>
+
+@@section Scripts{
+    <script>
+           layui.use(['table', 'form', 'jquery', 'drawer', 'dropdown',  'layer'], function () {
+            let $ = layui.jquery;
+            let layer = layui.layer;
+            let table = layui.table;
+            let form = layui.form;
+            let drawer = layui.drawer;
+            let dropdown = layui.dropdown;
+           
+            abc.indexInit({reset:'#reset_@(@Model.NoPrefixEntity)',search:'#search_@(@Model.NoPrefixEntity)'});
+            //监听头工具栏事件
+            table.on('toolbar(listData_@(@Model.NoPrefixEntity))',function(obj) {
+                if (obj.event === 'add') {
+                    abc.open({ title:'新增', url:'@@(Url.Action("Add","@(@Model.MvcControllerName)"@(GetUrlActionArea)))', area:['100%', '98%'], end:refresh_@(@Model.NoPrefixEntity) });
+               } else if (obj.event === 'refresh') {
+                   refresh_@(@Model.NoPrefixEntity)();
+               } else if (obj.event === 'batchRemove') {
+                   var ids = abc.getSelectDataIds(table,"listData_@(@Model.NoPrefixEntity)");
+                   if (ids.length === 0) {
+                       layer.msg("未选中数据", { icon: 3,time: 1000});
+                       return false;
+                   }
+                   abc.delete({url: "@@(Url.Action("BatchDelete","@(@Model.MvcControllerName)"@(GetUrlActionArea)))", data: { ids: ids }, success: function () {refresh_@(@Model.NoPrefixEntity)()}});
+               }
+            });
+            table.on('tool(listData_@(@Model.NoPrefixEntity))', function (obj) { //注：tool是工具条事件名，test是table原始容器的属性 lay-filter="对应的值"
+                var data = obj.data; //获得当前行数据
+                var layEvent = obj.event; //获得 lay-event 对应的值（也可以是表头的 event 参数对应的值）
+                var tr = obj.tr; //获得当前行 tr 的DOM对象
+                if (layEvent === 'delete') { //删除
+                    abc.delete({url:"@@(Url.Action("BatchDelete","@(@Model.MvcControllerName)"@(GetUrlActionArea)))",data:{ ids: data.Id },success:function(){obj.del();refresh_@(@Model.NoPrefixEntity)()}});
+                } else if (layEvent === 'edit') { //编辑
+                    edit_@(@Model.NoPrefixEntity)(obj);
+                } else if (obj.event === 'save') {
+                    if (editrowids.indexOf(obj.data.Id) == -1) {
+                        abc.failure("请先修改后再保存")
+                    }
+                    else {
+                        abc.success("保存成功消息")
+                    }
+                } else if (obj.event === 'more') {
+                    //table下拉菜单
+                    dropdown.render({
+                        elem: this, // 触发事件的 DOM 对象
+                        show: true, // 外部事件触发即显示
+                        data: [
+                            { title: '详情', id: 'edit' },
+                            { title: '删除', id: 'delete' }
+                        ]
+                        , click: function (menudata) {
+                            //layer.tips('点击了：' + menudata.title, this.elem, { tips: [1, '#5FB878'] })
+                            //console.log(obj);
+                            if(menudata.id ==='edit'){
+                               edit_@(@Model.NoPrefixEntity)(obj);
+                            }
+                            else if(menudata.id ==='delete'){
+                             //abc.open({ title: '详情', url: '@@(Url.Action("Info","@(@Model.MvcControllerName)"))', area: ['100%', '98%'], end: refresh_@(@Model.NoPrefixEntity) });
+                             abc.delete({ url: "@@(Url.Action("BatchDelete"))", data: { ids: obj.data.Id }, success: function () {refresh_@(@Model.NoPrefixEntity)()}});
+                            }
+                
+                        }
+                    });
+                }
+    
+            });
+            //table 行双击事件
+            table.on('rowDouble(listData_@(@Model.NoPrefixEntity))', function (obj) { edit_@(@Model.NoPrefixEntity)(obj); });
+            //table 行中的事件监听
+            //编辑
+            function edit_@(@Model.NoPrefixEntity)(obj) {
+               abc.open({ title: '编辑', url: '@@(Url.Action("Info","@Model.MvcControllerName"@(GetUrlActionArea)))/' + obj.data.Id, area: ['100%', '98%'], end: refresh_@(@Model.NoPrefixEntity) });
+            }
+            
+                
+            //Table 初始化
+            //, templet: '#tpl_user'
+            var cols= [
+                    [
+                        //, templet: '#tpl_IsEnable_@(@Model.NoPrefixEntity)'
+                        //{ type: 'checkbox', fixed: 'left'},
+                        //{ type: 'numbers', fixed: 'left', rowspan: 1 },
+                        //{ title: '标签', 'toolbar': '#tplable', fixed: 'left', width: 100 },
+                        //{ title: 'ID', field: 'Id', width: 60 },
+                        
+                      
+                      @foreach (var item in Model.ColumnsInfos)
+                      {
+                        if(item.ClassProperName=="ExtensionData") continue;
+                        var desc=(item.Description?.Length??0)>0?item.Description:item.ClassProperName;
+                        if(item.ClassProperName=="Id")
+                        {
+                            @:{ title: '@desc', field: '@(item.ClassProperName)', width: 60, align:'center' },
+                        }
+                        else if(item.Type=="DateTimeOffset"||item.Type=="DateTime")
+                        {
+                            @:{ title: '@desc', field: '@(item.ClassProperName)', width: 130, align:'center',hide:true },
+                        }
+                        else if(item.Type=="bool")
+                        {
+                            @:{ title: '@desc', field: '@(item.ClassProperName)Name', width: 60, align:'center' },// templet: '#tpl_@(item.ClassProperName)_@(@Model.NoPrefixEntity)'
+                        }
+                        else{
+                            @:{ title: '@desc', field: '@(item.ClassProperName)', minWidth: 60, align:'center' },
+                        }
+                      }
+                        
+                        { title: '操作', fixed: 'right', width: 80, align: 'left', toolbar: '#tablebar_@(@Model.NoPrefixEntity)' }
+                    ]
+                ];
+            //表格下拉菜单
+           
+            //初始化table
+            abc.initTable("listData_@(@Model.NoPrefixEntity)", cols, { title: '@(Model.Description)',toolbar:'#toolbar_@(@Model.NoPrefixEntity)' });
+           
+            //提交搜索
+            form.on('submit(search_@(@Model.NoPrefixEntity))', function (obj) {
+                abc.search('listData_@(@Model.NoPrefixEntity)', '@@(Url.Action("GetList","@(@Model.MvcControllerName)"@(GetUrlActionArea)))', obj.field, { method: "post", done: tableDone_@(@Model.NoPrefixEntity) });
+                return false;
+            });
+            $("#search_@(@Model.NoPrefixEntity)").click();//初始化完成后 搜索一次
+            function refresh_@(@Model.NoPrefixEntity)() {
+                //table.reload("listData_@(@Model.NoPrefixEntity)");
+                $("#search_@(@Model.NoPrefixEntity)").click();
+            };
+            //IsEnable 开关事件
+            form.on('switch(IsEnable_@(@Model.NoPrefixEntity))', function (obj) {
+                //console.log(this, obj, { Id: $(this).attr('objid'), isEnable: obj.elem.checked });
+                abc.post({ url: '@@(Url.Action("SetEnable","@(@Model.MvcControllerName)"@(GetUrlActionArea)))', data: { id: $(this).attr('objid'), state:obj.elem.checked,type:'isenable' }});
+            });
+            @@*自动生成开关代码*@@
+            @foreach (var item in Model.ColumnsInfos)
+            {
+                if(item.Type=="bool")
+                {
+            @: // @item.Description 开关事件
+            @: @@*form.on('switch(@(item.ClassProperName)_@(@Model.NoPrefixEntity))', function (obj) {
+            @:   //console.log(this, obj, { Id: $(this).attr('objid'), isEnable: obj.elem.checked });
+            @:   abc.post({ url: '@@(Url.Action("SetEnable","@(@Model.MvcControllerName)"@(GetUrlActionArea)))', data: { id: $(this).attr('objid'), state:obj.elem.checked,type:'@(item.ClassProperName).ToLower())' }});
+            @: });*@@
+                }
+            }
+
+            //事件集合
+            var active = {
+                    example: function () {
+                    },
+                    example1: function () {
+                        }
+                    };
+            
+            //表格下拉菜单
+            //tableDone_@(@Model.NoPrefixEntity)(res, curr, count) {}
+            function tableDone_@(@Model.NoPrefixEntity)(res, curr, count) {
+                
+            }
+            
+
+            //注册layui-btn 事件
+            $('.layui-btn').on('click', function(){
+                var type = $(this).data('type');
+                active[type] ? active[type].call(this) : '';
+            });
+    
+            // 初始化日期选择
+            //abc.initDate('StartDate_@(@Model.NoPrefixEntity),EndDate_@(@Model.NoPrefixEntity)');
+
+            
+        });
+    </script>
+}
+
+
+@*分部视图引用*@
+@*@Include("View_PearViews_example")*@

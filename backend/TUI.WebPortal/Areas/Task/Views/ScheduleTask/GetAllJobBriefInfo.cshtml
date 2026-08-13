@@ -1,0 +1,9 @@
+﻿<div class="w-full h-full border border-info" id="json-renderer" myaction-winoptions="@(new{ title = $"Schedule Task", width="80%",height="700px",center=true}.ToJSON())">
+
+</div>
+<script>
+    $(() => {
+        $('#json-renderer').jsonViewer(@Html.Raw((Model as object).ToJSON()), { collapsed: false, withQuotes: true, withLinks: false });
+
+    })
+</script>

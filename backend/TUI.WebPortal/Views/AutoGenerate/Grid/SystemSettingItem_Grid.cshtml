@@ -1,0 +1,89 @@
+﻿
+
+@model IEnumerable<TUI.Services.DBModel.SystemSettingItem>
+
+<table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+    <thead class="bg-info-500">
+        <tr>
+            <th width="70px">
+
+            </th>
+                <th   sortname="ID"
+                                    style="width:50px"
+                    >
+                    ID
+                </th>
+                <th   sortname="Type"
+                                    style="width:200px"
+                    >
+                    Type
+                </th>
+                <th   sortname="Category"
+                                    style="width:200px"
+                    >
+                    Category
+                </th>
+                <th   sortname="Json"
+                                    style="width:500px"
+                    >
+                    Json
+                </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+        <tr>
+            <td>
+                <div class="d-flex justify-content-between">
+                    <a href="javascript: void(0); " myaction-openwindow="
+                    @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Systems/SystemSettingItem/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                    "  class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                      <i class="fal fa-edit"></i>   </a>
+                    <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Systems/SystemSettingItem/Delete",@params=new{item.ID } }.ToJSON())
+                    "  class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                      <i class="fal fa-trash"></i>   </a>
+                </div>
+
+            </td>
+            <td>
+           @item.ID
+
+        </td>
+            <td>
+           @item.Type
+
+        </td>
+            <td>
+           @item.Category
+
+        </td>
+            <td>
+           @item.Json
+
+        </td>
+            <td></td>
+        </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+
+<div id="page29d68854df8244f9b25f0839977194c0" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page29d68854df8244f9b25f0839977194c0").parent();
+            
+            $("#page29d68854df8244f9b25f0839977194c0").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

@@ -1,0 +1,17 @@
+﻿<vue-monaco-editor v-model:value="modelinfo"
+                   language="html"
+                   :options=" {
+  automaticLayout: true,
+  formatOnType: true,
+  formatOnPaste: true,
+}" class="w-full h-full border border-gray-200" v-bind="props.jsonconfig.options.comoptions"></vue-monaco-editor>
+
+<script>
+    @section setupScripts{
+        //if (props.options)
+        // extensionInfo.options=props.options.options || [];
+        DVALUE=null;
+   
+        
+    }
+</script>

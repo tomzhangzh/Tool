@@ -1,0 +1,70 @@
+﻿@model TUI.Web.Entry.ViewModels.DBTabeInfoViewModel
+@{
+    var items = new List<DbColumnInfo>();
+    if (Model.Table.Name.IsNullOrEmpty()==false)
+    {
+        Model.Columns= this.SqlSugarClient.DbMaintenance.GetColumnInfosByTableName(Model.Table.Name);
+    }
+    
+}
+<div t-init-vueinit="@(Model.ToJson())"
+     t-init-winMax>
+<el-tabs type="border-card">
+    <el-tab-pane label="表属性">
+            <div class="flex justify-between h-10 items-center ">
+                
+                <div class="layui-btn-group">
+                    <span class="layui-btn layui-btn-normal px-2" t-click-postData="@(new{@event="Save"}.ToJson())"><i class="fa fa-save" aria-hidden="true" /></i>
+                        <span class="pl-1"></span>
+                        保存</span>
+                      </div>
+            </div>
+         <el-form :model="model.Table" label-width="120px" class="grid grid-cols-1 gap-1">
+                <el-form-item label="Name">
+                    <el-input v-model="model.Table.Name"></el-input>
+                </el-form-item>
+
+                <el-form-item label="Description" >
+                    <el-input v-model="model.Table.Description"></el-input>
+                </el-form-item>
+            </el-form>
+    </el-tab-pane>
+    <el-tab-pane label="字段属性">
+            <table id="dt-basic-example" class="layui-table table-hover table-striped w-100 m-0">
+                <thead class="bg-blue-500 text-white">
+                    <tr>
+                        <th>DbColumnName</th>
+                        <th>DataType</th>
+                        <th>Length</th>
+                        <th>DefaultValue</th>
+                        <th>IsNullable</th>
+                        <th>IsIdentity</th>
+                        <th>IsPrimarykey</th>
+                        <th>DecimalDigits</th>
+                        <th>Scale</th>
+                        <th>
+
+                        </th></tr>
+                </thead>
+
+                <tbody>
+                    <tr v-for="item in model.Columns">
+                        <th><el-input v-model="item.DbColumnName"></el-input></th>
+                        <th><el-input v-model="item.DataType"></el-input></th>
+                        <th><el-input v-model="item.Length"></el-input></th>
+                        <th><el-input v-model="item.DefaultValue"></el-input></th>
+                        <th><el-input v-model="item.IsNullable"></el-input></th>
+                        <th><el-input v-model="item.IsIdentity"></el-input></th>
+                        <th><el-input v-model="item.IsPrimarykey"></el-input></th>
+                        <th><el-input v-model="item.DecimalDigits"></el-input></th>
+                        <th><el-input v-model="item.Scale"></el-input></th>
+                        <th>
+
+                        </th>
+                    </tr>
+                </tbody>
+            </table>
+    </el-tab-pane>
+
+</el-tabs>
+</div>

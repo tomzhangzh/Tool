@@ -1,0 +1,9 @@
+{
+  "$schema": "https://gitee.com/dotnetchina/Furion/raw/net6/schemas/v3/furion-schema.json",
+
+  "Website": {
+    "SessionTimeOutMinutes": 45,
+    "KeepSessionLiveMinutes": 3,
+    "CookieTimeOutMinutes": 40
+  }
+}

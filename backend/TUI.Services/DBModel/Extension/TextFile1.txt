@@ -1,0 +1,6 @@
+﻿cd "E:\James\Source Code\TUICoreNew\Sunsine.Model"
+https://docs.microsoft.com/en-us/ef/core/cli/dotnet
+dotnet ef dbcontext scaffold "server=.;uid=sa;pwd=black123;database=TUI" Microsoft.EntityFrameworkCore.SqlServer  -v -f --use-database-names -o DBModel --context TUIDbContext 
+
+
+Scaffold-DbContext "Server=.;Database=TUI;Trusted_Connection=True;" Microsoft.EntityFrameworkCore.SqlServer -OutputDir DBModel -StartupProject TUI.Services -Force -Context TUIDbContext -UseDatabaseNames

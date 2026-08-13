@@ -1,0 +1,32 @@
+﻿2022-04-05
+=================================================================
+ClientPortal
+copy dll
+-----------------------------------------------------------------
+PricePullScheduleNew
+copy dll
+添加目录
+Views，Templates，Generate
+-----------------------------------------------------------------
+TUI.WebPortal
+需要做一个完整的build，
+TUI.WebPortal.deps.json
+appsettings.json需要添加配置项
+ "EPPlus": {
+    "ExcelPackage": {
+      "LicenseContext": "Commercial" //The license context used
+    }
+  },
+-----------------------------------------------------------------
+
+2022-04-07
+=================================================================
+  delete [TUI].[dbo].[tblConfiguration]
+  where [Parameter]='EnableConfig'
+
+
+  update [TUI].[dbo].[tblPriceHistory]
+set [EffectiveTime]=1800
+where BrandID=18 and ProductID in (6986,
+858)
+-----------------------------------------------------------------

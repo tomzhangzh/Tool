@@ -1,0 +1,36 @@
+{
+    "Serilog": {
+        "MinimumLevel": {
+            "Default": "Debug",
+            "Override": {
+                "System": "Warning",
+                "Microsoft": "Warning",
+                "Microsoft.Hosting.Lifetime": "Information",
+                "Microsoft.EntityFrameworkCore": "Information"
+            }
+        },
+        "Customer": {
+            "IsMsSql": false,
+            "IsFile": true,
+            "IsConsole": true,
+            "IsLogEventLevelFloder": true, //是否按日志类别分类记录
+            "RollOnFileSizeLimit": true, //如果为true，则在达到文件大小限制时将创建一个新文件。文件名将以_NNN格式附加一个数字，第一个文件名没有数字。
+            "MinLogEventLevel": "Debug", //最低日志等级，默认Debug
+            "RollingInterval": "Hour", //滚动间隔：日志将滚动到新文件的间隔
+            "RetainedFileCountLimit": null, //保留的最大日志文件数，包括当前,默认为null
+            "FlushToDiskInterval": null, //TimeSpan 不为null，将定期在指定的时间执行完整磁盘刷新间隔。
+            "Buffered": false, //指示是否可以缓存到输出文件。默认值 false
+            "Shared": false, //允许多个进程共享日志文件。默认值为false
+            "FileSizeLimitBytes": null, //文件大小限制字节：允许日志文件访问的近似最大大小（以字节为单位）成长。对于不受限制的增长，传递null。默认值为1 GB。避免写作部分事件，限制内的最后一个事件将全部写入偶数如果超过限制
+            "OutputTemplate": "", //日志输出模板、默认使用此配置
+            "MSSQLSERVER": {
+                "ConnectionString": "Data Source=localhost;database=SerilogDB;uid=SerilogDB;pwd=123456;",
+                "TableName": "Logs",
+                "restrictedToMinimumLevel": "Verbose",
+                "batchPostingLimit": 100,
+                "period": "0.00:00:30",
+                "autoCreateSqlTable": true
+            }
+        }
+    }
+}

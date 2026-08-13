@@ -1,0 +1,202 @@
+﻿
+@model TUI.Services.DBModel.ScheduleTask
+
+
+@{var itemList = new List<DETAILITEM>();
+    DETAILITEM detailItem = null;
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "ID",
+        AS1COLUMN = false,
+        COLUMNTYPE = "Hidden",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 100,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "ID",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "GroupName",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = true,
+        SORTID = 200,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Group Name",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "TaskName",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = true,
+        SORTID = 300,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Task Name",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "Interval",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = true,
+        SORTID = 400,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Interval",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "Parameter",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 500,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Parameter",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "Description",
+        AS1COLUMN = true,
+        COLUMNTYPE = "TextArea",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 600,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Description",
+        EXTENDEDPROPERTIES = "{\"Rows\":10}",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "LastRunTime",
+        AS1COLUMN = false,
+        COLUMNTYPE = "DatePicker",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 700,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Last Run Time",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "Status",
+        AS1COLUMN = false,
+        COLUMNTYPE = "DropdownFromDict",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = true,
+        SORTID = 800,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Status",
+        EXTENDEDPROPERTIES = "{\"TableName\":\"ScheduleTask\",\"Type\":\"Status\",\"WithEmpty\":true}",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "ClassName",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = true,
+        SORTID = 900,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Class Name",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    //detailItem = new DETAILITEM()
+    //{
+    //    COLUMNNAME = "Result",
+    //    AS1COLUMN = false,
+    //    COLUMNTYPE = "TextBox",
+    //    HTMLATTRIBUTES = "",
+    //    ISREQUIRED = false,
+    //    SORTID = 1000,
+    //    VALIDATETYPE = "",
+    //    ISSHOW = true,
+    //    LABEL = "Result",
+    //    EXTENDEDPROPERTIES = "",
+    //    Disabled = false
+    //};
+    //itemList.Add(detailItem);
+}
+
+
+<div class="grid grid-cols-1 place-content-start gap-4 items-center">
+    @foreach (var item in itemList)
+    {
+        if (item.COLUMNTYPE == "Hidden")
+        {
+            @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel = Model })
+        }
+        else
+        {
+            <div class="flex self-start items-center">
+
+                <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 200px;">@item.LABEL</label>
+                <div class="flex-grow inline-flex items-start w-full flex-column myctrl">
+                    @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel = Model })
+                </div>
+                @if(item.COLUMNNAME== "Interval")
+                {
+                   <a href="http://codetoolset.com/othertools/cron/index.html"  class="p-2" target="_blank">Help</a> 
+                }
+            </div>
+        }
+    }
+
+</div>
+
+
+
+
+
+
+<div id="page1a14c27e108a4490bc330378a822c1d8" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page1a14c27e108a4490bc330378a822c1d8").parent();
+
+            $("#page1a14c27e108a4490bc330378a822c1d8").remove();
+
+
+
+        });
+    </script>
+
+</div>

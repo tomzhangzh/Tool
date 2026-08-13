@@ -1,0 +1,122 @@
+﻿@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@inject IService<DICTSETTING> DictsettingService
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.DropdownFromDICTSETTINGInfo;
+    var selectItemList = new List<SelectListItem>();
+
+    selectItemList = DictsettingService.List(x => x.TABLENAME == extendP.TableName && x.TYPE == extendP.Type).Select(x => new SelectListItem()
+    {
+        Text = x.NAME,
+        Value = x.VALUE,
+
+    }).ToList();
+
+    if (extendP.WithEmpty)
+    {
+        selectItemList.Insert(0, new SelectListItem()
+        {
+            Text = "All",
+            Value = "",
+        });
+    }
+    foreach (var item in selectItemList)
+    {
+        item.Selected = (Model != null && Model.ToString() == item.Value);
+    }
+    var extId = Guid.NewGuid().ToString("N");
+}
+@{
+    var HtmlAttributes = detailItem.GetHTMLATTRIBUTES();
+    HtmlAttributes["class"] = "col-xs-12 hide " + detailItem.GetValidateClass();
+}
+@Html.DropDownListFor(m => m, selectItemList, HtmlAttributes)
+<style>
+    .sys_spec_text {
+    }
+
+        .sys_spec_text li {
+            float: left;
+            height: 28px;
+            position: relative;
+            margin: 2px 6px 2px 0;
+            outline: none;
+        }
+
+            .sys_spec_text li a {
+                height: 24px;
+                padding: 1px 6px;
+                border: 1px solid #ccc;
+                background: #fff;
+                display: inline-block;
+                line-height: 24px;
+            }
+
+                .sys_spec_text li a:hover {
+                    border: 2px solid #e4393c;
+                    padding: 0 5px;
+                    text-decoration: none;
+                }
+
+            .sys_spec_text li i {
+                position: absolute;
+                width: 10px;
+                height: 10px;
+                font-size: 0;
+                line-height: 0;
+                right: 2px;
+                bottom: 2px;
+                background: url(data:image/gif;base64,R0lGODlhCgAKAJECAP///+Q5PP///wAAACH5BAEAAAIALAAAAAAKAAoAAAIXlH+BGLrSHIsrthlBskDD0IGAwoVWFhUAOw==) no-repeat right bottom;
+                z-index: 99;
+                display: none;
+            }
+
+            .sys_spec_text li.selected a {
+                border: 2px solid #e4393c;
+                padding: 0 5px;
+            }
+
+            .sys_spec_text li.selected i {
+                display: block;
+            }
+</style>
+<dl class="clearfix iteminfo_parameter sys_item_specpara" style="margin:0px">
+
+    <ul class="sys_spec_text">
+        @foreach (var item in selectItemList)
+        {
+            <li style="list-style-type: none;" data-aid="@item.Value" class="@(Model != null && item.Value == Model.ToString() ? "selected" : "")"><a href="javascript:;" title="@item.Text">@item.Text</a><i></i></li>
+        }
+
+    </ul>
+
+</dl>
+<div id="@extId" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#@extId").parent();
+            var $select = $this.find("[name='@(Html.NameForModel())']");
+            if ($select.closest("[disabled]").length > 0) {
+                $select.attr("disabled", "disabled");
+            }
+            $this.find("[data-aid]").on("click", function () {
+                $this.find("[data-aid]").removeClass("selected");
+                $(this).addClass("selected");
+                $select.val($(this).data("aid"));
+            })
+
+            $("#@extId").remove();
+        });
+    </script>
+</div>

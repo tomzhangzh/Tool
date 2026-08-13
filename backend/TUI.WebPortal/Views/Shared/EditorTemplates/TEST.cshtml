@@ -1,0 +1,25 @@
+﻿@model object  
+@using TUI.Services.DBModel;
+@*@{
+    ModelState state = ViewData.ModelState[ViewData.ModelMetadata.PropertyName];
+ @(this.ViewData["Test"])
+    if (state != null && state.Errors.Count > 0)
+    {
+        <div class="control-group error">
+            <label class="control-label" for="@ViewData.ModelMetadata.PropertyName">@ViewData.ModelMetadata.DisplayName</label>
+            <div class="controls">
+                @Html.TextBoxFor(m => m) 
+                <span class="help-inline">@Html.ValidationMessageFor(m => m)</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="control-group">
+            <label class="control-label" for="@ViewData.ModelMetadata.PropertyName">@ViewData.ModelMetadata.DisplayName</label>
+            <div class="controls">
+                @Html.TextBoxFor(m => m) 
+            </div>
+        </div>
+    }
+}*@

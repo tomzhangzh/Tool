@@ -1,0 +1,89 @@
+﻿@model EmailTemplate
+@inherits CustomRazorPage<TModel>
+@inject IService<EmailTemplate> service
+@{
+
+    //List<(long, long?, string, string)> List = this.ViewBag.List;
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    if (this.PaginationInfo.SortName.IsNullOrEmpty() == true)
+    {
+        this.PaginationInfo.SortName = "ID";
+        this.PaginationInfo.SortDir = "Asc";
+    }
+    var query = from x in service.Queryable()
+    where x.ParentID==Model.ParentID
+                select x;
+    if (string.IsNullOrEmpty(Model.TemplateName) == false)
+    {
+        query = query.Where(e => e.TemplateName.Contains(Model.TemplateName)
+    || e.Category.Contains(Model.TemplateName)
+    || e.MailBody.Contains(Model.TemplateName)
+    || e.Description.Contains(Model.TemplateName)
+    || e.Subject.Contains(Model.TemplateName));
+    }
+    var list = this.PaginationInfo.GetQuery(query).ToList();
+}
+
+
+<div id="@extId"></div>
+
+<div id="panel-2" class="panel" data-panel-fullscreen="" data-panel-close="" data-panel-collapsed="" data-panel-locked="" data-panel-reset="" data-panel-color="" data-panel-custombutton="">
+
+            <div class="d-flex justify-content-between align-items-center card-header">
+            @inject IService<EmailTemplate> EmailTemplateService
+            <h5 class="mr-1  text-dark fw-500">
+                Template Name:<span class="fw-300 font-italic">  @EmailTemplateService.Get(Model.ParentID.Value).TemplateName</span>
+
+            </h5>
+            <div>
+           <button type="button" class="btn btn-info waves-effect waves-themed" myaction-openwindow="@(new  {options=new{ title = "Add Email Template", width="1000px",center=true},url=$"/Systems/EmailTemplate/Detail?ParentID={Model.ID}",refresh=true }.ToJSON())">
+                    <span class="fal fa-file mr-1"></span>
+                    Add
+                </button>
+           
+            </div>
+
+        </div>
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted">
+        @Html.Partial("~/Views/AutoGenerate/Grid/EmailTemplate_Version_Grid.cshtml", list)
+        @await Html.PartialAsync("~/Views/Shared/Components/Pagination/default.cshtml", this.PaginationInfo)
+    </div>
+</div>
+<script>
+
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+        //$this.find('#dt-basic-example').dataTable(
+        //    {
+        //        responsive: true,
+        //        searching: false,
+        //        bLengthChange: false
+        //    });
+        const App = {
+            data() {
+                return {
+                    model: Vue.reactive( @Html.Raw(Model.ToJSON()))
+                    }
+            },
+            methods: {
+                a: function (ex) {
+                    alert(ex);
+                }
+    }
+        };
+        const app = Vue.createApp(App);
+        app.use(ElementPlus);
+        app.mount($this.find(".app").get(0));
+
+        $this.off("keyup").on("keyup", function (event) {
+            if (event.which == 13) {
+                alert(1);
+                $this.find("#Search").trigger("click");
+            }
+            else if (event.which == 27) {
+                $this.find("#Clear").trigger("click");
+            }
+        })
+
+    })
+</script>

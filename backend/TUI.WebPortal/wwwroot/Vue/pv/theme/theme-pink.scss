@@ -1,0 +1,13 @@
+$primaryColor: #E83E8C !default;
+$primaryLightColor: scale-color($primaryColor, $lightness: 60%) !default;
+$primaryDarkColor: scale-color($primaryColor, $lightness: -10%) !default;
+$primaryDarkerColor: scale-color($primaryColor, $lightness: -20%) !default;
+$primaryTextColor: #ffffff !default;
+
+$highlightBg: $primaryColor;
+$highlightTextColor: $primaryTextColor;
+
+$tableRowHighlightBg:hsla(332, 79%, 58%, 0.1);
+$tableRowHighlightTextColor: #495057;
+
+@import '../sass/theme/_theme';

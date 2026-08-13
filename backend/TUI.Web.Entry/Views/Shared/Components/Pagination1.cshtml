@@ -1,0 +1,40 @@
+﻿@model TUI.Core.Models.PageInfo
+@{
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+<div id="@(extId)">
+    <div class="demonstration">{{model}}</div>
+    <el-pagination v-model:current-page="model.CurrentPage"
+                   v-model:page-size="model.Limit"
+                   :page-sizes="[100, 200, 300, 400]"
+                   :small="small"
+                   :disabled="disabled"
+                   :background="background"
+                   layout="total, sizes, prev, pager, next, jumper"
+                   :total="400"
+                   />
+</div>
+
+
+<script>
+    $(function () {
+        alert(1);
+        setTimeout(()=>{
+            var $this = $("#@(extId)"); var element=$this.get(0);
+            const app = Vue.createApp({
+
+                setup(prop) {
+                    var model =Vue.ref( {CurrentPage:1,Limit:200});
+
+
+                    return { model }
+                }
+            })
+
+            app.mount($this.get(0));
+        },1000);
+        
+        //$('#desktop').data("app", app);
+
+    });
+</script>

@@ -1,0 +1,204 @@
+﻿
+@{
+    ViewData["Title"] = "_Layout";
+}
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>
+        TUI
+    </title>
+    <meta name="description" content="Page Titile">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=no, minimal-ui">
+    <!-- Call App Mode on ios devices -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- Remove Tap Highlight on Windows Phone IE -->
+    <meta name="msapplication-tap-highlight" content="no">
+    <style type="text/tailwindcss">
+        .com_current {
+            @@apply bg-sky-200 bg-stripes bg-stripes-white border border-red-500 border;
+        }
+
+        .com_container {
+            @@apply border border-sky-500 border-2;
+        }
+
+        .contenteditable {
+            border: 0px solid #ccc;
+            outline: none;
+        }
+
+        .dragClass {
+            border: 1px solid #ccc;
+            outline: none;
+        }
+        .ghost{
+            @@apply bg-orange-100 bg-stripes bg-stripes-white;
+        }        
+      /*  .ghost .com-name{
+            display:none
+        }
+
+        .sortable-chosen .com-name {
+            display: none;
+           
+        }*/
+
+        .t_container .ghost {
+        @@apply relative h-10 overflow-hidden z-0;
+        }
+
+        .t_container > div {
+        @@apply relative;
+        }
+
+        .t_container .ghost::after {
+        @@apply absolute border justify-evenly shadow-2xl shadow-inner font-semibold border-blue-400 text-sm bg-blue-100 w-full h-full z-20 top-0 left-0 flex items-center flex-grow align-middle bg-stripes bg-stripes-white bg-blue-300;
+            content: '请放到这里';
+        }
+
+        .isdesign .t_container:empty:before {
+            @@apply border  w-full h-full z-20 top-0 left-0 flex items-center flex-grow align-middle bg-stripes bg-stripes-white bg-blue-300;
+            content: "没有子组件";
+            color: red;
+        }
+
+        .isdesign .t_container.can_edit_child {
+            @@apply relative z-20 bg-sky-100;
+        }
+
+            .isdesign .t_container.cannot_edit_child:before {
+            @@apply absolute h-full w-full left-0 top-0 bg-gray-300 bg-stripes bg-stripes-white opacity-20 pointer-events-none z-10;
+            content: "";
+     
+        }
+    </style>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.1/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="/lib/tailwindcss.css.js"></script>
+    @*<link href="~/lib/bootstrap5/bootstrap.min.css" rel="stylesheet" />
+    <script src="~/lib/bootstrap5/bootstrap.bundle.min.js"></script>*@
+    <script>
+        const toRgba = (hexCode, opacity = 50) => {
+            let hex = hexCode.replace('#', '');
+
+            if (hex.length === 3) {
+                hex = `${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
+            }
+
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+
+            return `rgba(${r},${g},${b},${opacity / 100})`;
+        };
+        const flattenColorPalette = (obj, sep = '-') => Object.assign(
+            {},
+            ...function _flatten(o, p = '') {
+                return [].concat(...Object.keys(o)
+                    .map(k =>
+                        typeof o[k] === 'object' ?
+                            _flatten(o[k], k + sep) :
+                            ({ [p + k]: o[k] })
+                    )
+                );
+            }(obj)
+        );
+        tailwind.config = {
+            plugins: [
+                function ({ addUtilities, theme }) {
+                    const utilities = {
+                        '.bg-stripes': {
+                            backgroundImage:
+                                'linear-gradient(45deg, var(--stripes-color) 12.50%, transparent 12.50%, transparent 50%, var(--stripes-color) 50%, var(--stripes-color) 62.50%, transparent 62.50%, transparent 100%)',
+                            backgroundSize: '5.66px 5.66px',
+                        },
+                    }
+                   const addColor = (name, color) =>
+                        (utilities[`.bg-stripes-${name}`] = { '--stripes-color': color })
+
+                    const colors = flattenColorPalette(theme('backgroundColor'))
+                    for (let name in colors) {
+                        try {
+                            const [r, g, b, a] = toRgba(colors[name])
+                            if (a !== undefined) {
+                                addColor(name, colors[name])
+                            } else {
+                                addColor(name, `rgba(${r}, ${g}, ${b}, 0.4)`)
+                            }
+                        } catch (_) {
+                            addColor(name, colors[name])
+                        }
+                    }
+
+                    addUtilities(utilities)
+                },
+            ]
+        }
+    </script>
+    <script src="/lib/jquery.js"></script>
+    <!-- 注意，必须引入 Vue 3 及以上版本 -->
+    <script src="/lib/vue@next.js"></script>
+    <script src="/lib/vueuse.shared.js"></script>
+    <script src="/lib/vueuse.core.js"></script>
+ @*   <script src="https://cdn.bootcdn.net/ajax/libs/pinia/2.1.6/pinia.iife.prod.min.js"></script>*@
+@*    <script src="https://unpkg.com/@@vueuse/motion@@2.0.0/dist/index.cjs"></script>*@
+    <!-- 引入 layui.css -->
+    <link href="/lib/layui.css" rel="stylesheet">
+    
+    <script src="/lib/lodash.min.js"></script>
+    <script src="/lib/lodash-contrib.min.js"></script>
+    <script src="/lib/linq-js.js"></script>
+    <script src="/lib/moment.min.js"></script>
+    <!-- Import style -->
+    <link rel="stylesheet" href="/lib/element-plus.css" />
+    
+    <!-- Import component library -->
+    <script src="/lib/element-plus.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/element-plus-icons-vue/2.1.0/index.iife.min.js"></script>
+    <link href="/font-awesome-4.7.0/css/font-awesome.min.css" rel="stylesheet" />
+    <link href="/css/site.css" rel="stylesheet" />
+    <script crossorigin="anonymous" integrity="sha384-UqjXxOjL0hv3oM3ZKPzm1hgY97MJ3Xg7I4lu3LPKMySIuCkWQP0mSgNKS9yoEq+x" src="/lib/anime.js"></script>
+    <!--调试版-->
+    <script src="/lib/datav.umd.js"></script>
+
+    <link rel="stylesheet" href="/lib/ruler.min.css" />
+    <script src="/lib/ruler.min.js"></script>
+   @*  <link rel="stylesheet" href="http://mark-rolich.github.io/RulersGuides.js/index.css" />
+    <script src="http://mark-rolich.github.io/RulersGuides.js/RulersGuides.js"></script> *@
+    <script src="/lib/purl.js"></script>
+ @*   <script src="https://unpkg.com/vue-validator@3.0.0-alpha.2/dist/vue-validator.min.js"></script>*@
+    <script src="/js/tui.umd.js" asp-append-version="true"></script>
+    <script src="~/lib/ruler.js/ruler.js"></script>
+    <link href="~/lib/ruler.js/ruler.min.css" rel="stylesheet" />
+    <script src="/lib/vue-contenteditable.umd.js"></script>
+   
+    <link href="~/lib/primevue/resources/primevue.min.css" rel="stylesheet" />
+    <link href="~/lib/primevue/resources/themes/bootstrap4-light-blue/theme.css" rel="stylesheet" />
+    <link href="~/lib/vxetable/style.css" rel="stylesheet" />
+    <script src="~/lib/vxetable/xe-utils.js"></script>
+    <script src="~/lib/vxetable/vxe-table.js"></script>
+
+</head>
+<body class="flex flex-col h-full w-full p-0">
+    @RenderBody()
+    <script>
+        $(() => {
+            // $.each(ActionHelper, function (key, f) {
+            //     f('myaction-' + key, $("body"));
+            // });
+            setInterval(function () {
+                $.post("/Home/KeepSessionLive");
+            }, 1000 * @(AppEx.WebsiteOptions.KeepSessionLiveMinutes*60));
+        })
+        
+    </script>
+    <!-- 引入 layui.js -->
+    <script src="/lib/layui.js"></script>
+    <script src="/js/common.js" asp-append-version="true"></script>
+    <div id="PublicDiv" style="display:none"></div>
+</body>
+</html>

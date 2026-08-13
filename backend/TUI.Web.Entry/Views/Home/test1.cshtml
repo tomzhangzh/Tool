@@ -1,0 +1,37 @@
+//使用tailwindcss和layui生成一个类似于vscode的菜单html
+ 
+@{
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+@@layer components {
+  .my-new-style {
+    @@apply bg-red-500 text-white font-bold py-2 px-4 rounded;
+  }
+}
+<div class="my-new-style">This element has the new style applied to it.</div>
+<ul class="layui-nav">
+    <li class="layui-nav-item">
+        <a href="javascript:;">文件</a>
+        <dl class="layui-nav-child">
+            <dd><a href="">菜单1</a></dd>
+            <dd><a href="">菜单2</a></dd>
+            <dd><a href="">菜单3</a></dd>
+        </dl>
+    </li>
+    <li class="layui-nav-item">
+        <a href="javascript:;">选项</a>
+        <dl class="layui-nav-child">
+            <dd><a href="">选项1</a></dd>
+            <dd class="layui-this" style="background-color: #1e1e1e;"><a href="">选项2</a></dd>
+            <dd><a href="">选项3</a></dd>
+        </dl>
+    </li>
+    <li class="layui-nav-item"><a href="">演示</a></li>
+</ul>
+
+<script>
+    $(() => {
+        layui.element.render();
+    });
+</script>
+

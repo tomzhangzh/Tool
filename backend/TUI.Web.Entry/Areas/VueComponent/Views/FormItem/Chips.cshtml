@@ -1,0 +1,28 @@
+﻿
+<pv-chips ref="current" class="w-full"
+          v-model="comInnerInfo.ModelValue"
+           v-bind="props.jsonconfig.options.comoptions"
+           v-on="props.jsonconfig.options.comlisteners">
+  
+</pv-chips>
+<script>
+    @section setupScripts{
+      
+     
+    comInnerInfo.ModelValue=[];
+    VueUse.tryOnMounted(async () => {
+        var separator = props.jsonconfig?.options?.comoptions?.separator || ','
+        if (modelinfo && modelinfo.value) {
+            comInnerInfo.ModelValue = modelinfo.value.split(separator);
+        }
+        Vue.watch(
+            comInnerInfo,
+            async () => {
+               modelinfo.value = _.join(comInnerInfo.ModelValue, separator);
+                await Vue.nextTick()
+            }, { immediate: true, deep: true }
+        )
+    });
+
+    }
+</script>

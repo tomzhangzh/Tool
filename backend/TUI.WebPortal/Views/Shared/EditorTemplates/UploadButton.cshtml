@@ -1,0 +1,119 @@
+﻿@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.UploadButtonSettingInfo;
+
+    var extId = Guid.NewGuid().ToString("N");
+    if (string.IsNullOrEmpty(App.HttpContext.Request.Form[extendP.ExtId]) == false)
+    {
+        extId = App.HttpContext.Request.Form[extendP.ExtId];
+    }
+    var buttonId = Html.NameForModel().ToString().Replace(".", "_");
+    var uploadFileName = extendP.uploadFileName;
+    var Params = string.IsNullOrEmpty(extendP.Params) ? "{}" : extendP.Params;
+}
+
+
+<button class="btn btn-sm btn-primary"
+        @if (detailItem.Disabled) { @: disabled="disabled"
+        }
+        id="@buttonId">
+    <i class="icon-upload bigger-120  "></i>
+    @extendP.uploadText
+</button>
+<input name="@extendP.ExtId" type="hidden" value="@extId" />
+<div id="@extId" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#@extId").parent();
+            var btn = $this.find('#@buttonId');
+             @if(detailItem.Disabled)
+                {
+                    @:return;
+                }
+            $(document).off('focusin.bs.modal')
+
+            var uploader = new ss.SimpleUpload({
+                button: btn,
+                url: '@Html.Raw( extendP.UploadUrl )',
+                name: '@extendP.uploadFileName',
+                multipart:true,
+                hoverClass: 'btn-hover',
+                focusClass: 'active',
+                disabledClass: 'disabled',
+                responseType: 'json',
+                onExtError: function (filename, extension) {
+                    alert(filename + ' is not a permitted file type.' + "\n\n" + 'Only PNG, JPG, and GIF files are allowed in the demo.');
+                },
+                onSizeError: function (filename, fileSize) {
+                    alert(filename + ' is too big. (500K max file size)');
+                },
+                onSubmit: function (filename, ext) {
+                    var params = {"@extendP.ExtId":"@extId"};
+
+                    if ('@Html.Raw( extendP.Params )') {
+                        var urlParams = @Html.Raw( extendP.Params );
+                            var $myDataItem=$this.closest(".myDataItem");
+                            if ($myDataItem.length==0)
+                            {
+                                $myDataItem=$this.closest("form");
+                            }
+                            if ($myDataItem.length==0)
+                            {
+                                alert("必须在form 或者 .myDataItem 中");
+                                return;
+                            }
+                            $.each(urlParams, function (i, v) {
+
+                                var json=$myDataItem.serializeJson(true);
+                                if (json[v]){
+                                    params[i]=json[v];
+
+                                }
+                            });
+
+                        }
+                    this.setData(params);
+                },
+
+                onComplete: function (filename, json) {
+                    if (!json) {
+                        alert("Upload Failed");
+                        btn.fireEvent("uploadFailed");
+                        return;
+                    }
+                    if (json.success) {
+                        var path = json.Path;
+                        var attchmentId=json.AttachmentID;
+                        btn.trigger("uploaded");
+
+                            @if( extendP.ReloadPage )
+                            {
+                                @:var info = utility.getPageInfo($this);
+                                                                                    @:info.$page.myReload();
+                            }
+
+                    } else {
+                        alert(json.msg);
+                    }
+                }
+            });
+
+
+            $("#@extId").remove();
+        });
+    </script>
+</div>
+
+

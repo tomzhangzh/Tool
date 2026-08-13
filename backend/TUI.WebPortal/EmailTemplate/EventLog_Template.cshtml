@@ -1,0 +1,28 @@
+﻿<style>
+    table {
+        max-width: 2000px;
+        width:100%;
+        margin: 0 auto;
+        border: 1px solid #000000;
+        border-collapse: collapse;
+    }
+    
+    th,
+    td {
+        border: 1px solid #000000;
+        text-align: center;
+    }
+</style>
+<table>
+    <tr
+    style="
+    background-color: #2196F3;
+    color: #FFFDFE;
+    text-align: center;
+"
+    ><th width="50px">ID</th><th width="250px">Message</th><th width="50px">Level</th><th width="150px" >	TimeStamp</th><th>Exception</th></tr>
+    @foreach (var item in Model)
+    {
+        <tr><td>@item.Id</td><td><pre>@item.Message</pre></td><td>@item.Level</td><td>@item.TimeStamp</td><td><pre>@item.Exception</pre></td></tr>
+    }
+</table>

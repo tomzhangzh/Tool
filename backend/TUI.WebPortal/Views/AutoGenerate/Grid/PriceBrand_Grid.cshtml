@@ -1,0 +1,105 @@
+﻿
+
+@model IEnumerable<TUI.Services.DBModel.PriceBrand>
+
+<table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+    <thead class="bg-info-500">
+        <tr>
+            <th width="70px">
+
+            </th>
+            <th sortname="ID">
+                ID
+            </th>
+            <th sortname="BrandName">
+                BrandName
+            </th>
+            <th sortname="HasAttachment">
+                Has Attachment
+            </th>
+            <th sortname="HasFaxNotification">
+                Has Fax Notification
+            </th>
+            <th sortname="IsActive">
+                IsActive
+            </th>
+            <th sortname="EmailTemplate.TemplateName">
+                Email Template
+            </th>
+            </th>
+            <th sortname="AttachmentEmailTemlate.TemplateName">
+                Attachment EmailTemlate
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+        <tr>
+            <td>
+                <div class="d-flex justify-content-between">
+                    <a href="javascript: void(0); " myaction-openwindow="
+                    @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Brand/PriceBrand/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                        <i class="fal fa-edit"></i>
+                    </a>
+                    <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Brand/PriceBrand/Delete",@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                        <i class="fal fa-trash"></i>
+                    </a>
+                </div>
+
+            </td>
+            <td>
+                @item.ID
+
+            </td>
+            <td>
+                @item.BrandName
+
+            </td>
+            <td>
+                @item.HasAttachment
+
+            </td>
+            <td>
+                @item.HasFaxNotification
+
+            </td>
+            <td>
+                @item.IsActive
+
+            </td>
+            <td>
+                @item.EmailTemplate?.TemplateName
+
+            </td>
+            <td>
+                @item.AttachmentEmailTemlate?.TemplateName
+
+            </td>
+            <td></td>
+        </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+
+<div id="page3a471091df7d42f881ae795088523ea4" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page3a471091df7d42f881ae795088523ea4").parent();
+
+            $("#page3a471091df7d42f881ae795088523ea4").remove();
+
+
+
+        });
+    </script>
+
+</div>

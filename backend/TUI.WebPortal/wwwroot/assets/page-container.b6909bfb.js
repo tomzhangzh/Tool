@@ -1,0 +1,1 @@
+import{a as e,f as o}from"./index.705c9b1f.js";import{d as a,o as r,b5 as t}from"./vendor.6ade671f.js";const f=a({props:e,setup(s){return o(),(n,p)=>(r(),t("div",null," PageContainer "))}});export{f as default};

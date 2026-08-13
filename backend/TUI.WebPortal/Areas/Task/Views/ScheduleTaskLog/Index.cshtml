@@ -1,0 +1,56 @@
+﻿@model ScheduleTaskLog
+@inherits CustomRazorPage<TModel>
+@inject IService<ScheduleTaskLog> service
+@{
+
+    //List<(long, long?, string, string)> List = this.ViewBag.List;
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    if (this.PaginationInfo.SortName.IsNullOrEmpty() == true)
+    {
+        this.PaginationInfo.SortName = "ID";
+        this.PaginationInfo.SortDir = "Desc";
+        this.PaginationInfo.PageSize = 5;
+    }
+    var query = from x in service.Queryable()
+                where x.ScheduleTaskID==Model.ScheduleTaskID
+                select x;
+    if (Model.Result.IsNullOrEmpty()==false)
+    {
+        query = query.Where(x => x.Result.Contains(Model.Result) || x.LogInfo.Contains(Model.Result) || x.ErrorMessage.Contains(Model.Result));
+    }
+    var list = this.PaginationInfo.GetQuery(query).ToList();
+}
+
+<div id="@extId"></div>
+
+<div id="panel-2" class="panel" data-panel-fullscreen="" data-panel-close="" data-panel-collapsed="" data-panel-locked="" data-panel-reset="" data-panel-color="" data-panel-custombutton="">
+    @Html.HiddenFor(x=>x.ScheduleTaskID)
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted">
+
+        
+       
+        <div class="d-flex justify-content-between">
+            <div class="flex self-start items-center">
+
+                <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 100px;">Filter</label>
+                <div class="flex-grow inline-flex items-start w-full flex-column myctrl">
+                    @Html.TextBoxFor(x=>x.Result,new {@class="form-control p-1" })
+                </div>
+            </div>
+            <div>
+                <button type="button" class="btn btn-info waves-effect waves-themed" myaction-postback id="Search">
+                    <span class="fal fa-search mr-1"></span>
+                    Search
+                </button>
+               
+            </div>
+
+
+        </div>
+    </div>
+    <div class="panel-content p-2 rounded-bottom border-faded border-left-0 border-right-0 border-bottom-0 text-muted">
+        @Html.Partial("~/Views/AutoGenerate/Grid/ScheduleTaskLog_Grid.cshtml", list)
+        @await Html.PartialAsync("~/Views/Shared/Components/Pagination/default.cshtml", this.PaginationInfo)
+    </div>
+    </div>
+

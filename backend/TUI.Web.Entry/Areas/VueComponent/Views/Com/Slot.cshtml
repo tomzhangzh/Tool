@@ -1,0 +1,9 @@
+﻿<template>
+    <t-dynamic-com :jsonconfig="props.jsonconfig" v-if="props.jsonconfig?.component" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+</template>
+<script>
+    @section setupScripts{
+        Vue.provide('desgin_ParentData', { editChild: true });
+       
+    }
+</script>

@@ -1,0 +1,44 @@
+﻿
+
+<el-checkbox-group ref="current" v-model="modelinfo"
+                   v-bind="props.jsonconfig.options.comoptions"
+                   v-on="getComlisteners()">
+    <el-checkbox v-for="item in comInnerInfo.options" :key="item.Value"
+                 :label="item.Text">
+        {{
+        item.Value
+        }}
+    </el-checkbox>
+
+</el-checkbox-group>
+
+
+<script>
+    @section setupScripts{
+        DVALUE=[];
+
+    VueUse.tryOnMounted(async () => {
+        comInnerInfo.options = [];
+        const initOptions = async () => {
+            if (props.jsonconfig.options.dictTableName) {
+                comInnerInfo.options = await tAPP.utility.postData('/share/GetDict', props.jsonconfig.options);
+            }
+            else if (props.jsonconfig.options.ajaxUrl) {
+                comInnerInfo.options = await tAPP.utility.postData(props.jsonconfig.options.ajaxUrl, {});
+            }
+            else {
+                comInnerInfo.options = Enumerable.from((props.jsonconfig.options?.optionValues || "").split(',')).select(x => { return { Value: x, Text: x } }).toArray();
+            }
+        }
+        initOptions();
+        Vue.watch(
+            props.jsonconfig.options,
+            async () => {
+                initOptions();
+                await Vue.nextTick()
+            }
+        )
+    });
+
+    }
+</script>

@@ -1,0 +1,86 @@
+@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.ReadOnlyTextBoxSettingInfo;
+    var name = Html.NameFor(x => x).ToString();
+    var currentModel =this.ViewBag.CurrentModel;  //Html.ViewContext.Controller.ViewBag.CurrentModel;
+    if (currentModel == null)
+    {
+        throw new Exception("Current Model can not be empty.");
+    }
+    object value = null;
+    if (string.IsNullOrEmpty(extendP.Display) == true)
+    {
+        value = Model;
+    }
+    else
+    {
+        if (string.IsNullOrEmpty(App.HttpContext.Request.Form[name + "_Name"]) == false)
+        {
+            value = App.HttpContext.Request.Form[name + "_Name"];
+        }
+        else
+        {
+            var display = extendP.Display.Split(',');
+            if (display.Length == 1)
+            {
+                 value =currentModel.GetValueByPath(display[0]);
+
+            }
+            else if (display.Length == 2)
+            {
+                value = string.Format(display[1], currentModel.GetValueByPath(display[0]));
+            }
+            else
+            {
+                throw new Exception("Display只能有一个,");
+            }
+        }
+    }
+    var extId = Guid.NewGuid().ToString("N");
+}
+@Html.Hidden("_Name", value)
+@Html.HiddenFor(x => x)
+@if (extendP.IsTextArea)
+{
+    @Html.TextArea("", value.ToString(),
+new
+           {
+               @class = "form-control " + detailItem.GetValidateClass(),
+               disabled = "disabled",
+               rows = extendP.Rows,
+           })
+}
+else
+{
+    @Html.TextBox("", value,
+new
+           {
+               @class = "form-control " + detailItem.GetValidateClass(),
+               disabled = "disabled",
+
+           })
+}
+<div id="@extId" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#@extId").parent();
+            var $text = $this.find("[name='@(Html.NameForModel())'].form-control");
+            $text.attr("name", "@(Html.NameForModel())._Name");
+
+
+            $("#@extId").remove();
+        });
+    </script>
+</div>

@@ -1,0 +1,95 @@
+﻿@model IEnumerable<TUI.Services.DBModel.EmailTemplate>
+
+<table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+    <thead class="bg-info-500">
+        <tr>
+            <th width="70px">
+
+            </th>
+            <th sortname="ID"
+                style="width:100px">
+                ID
+            </th>
+
+            <th sortname="StartDate"
+                style="width:300px">
+                StartDate
+            </th>
+            <th sortname="Subject"
+                style="width:300px">
+                Subject
+            </th>
+            <th sortname="IsBodyHtml"
+                style="width:100px">
+                Is Body Html
+            </th>
+            <th sortname="BodyFooterTemplate.TemplateName"
+                style="width:300px">
+                Footer Template Name
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>
+                    <div class="d-flex justify-content-between">
+                        <a href="javascript: void(0); " myaction-openwindow="
+                    @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Systems/EmailTemplateVersion/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                            <i class="fal fa-edit"></i>
+                        </a>
+                        <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Systems/EmailTemplateVersion/Delete",@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                            <i class="fal fa-trash"></i>
+                        </a>
+                    </div>
+
+                </td>
+                <td>
+                    @item.ID
+
+                </td>
+
+                <td>
+                    @item.StartDate
+
+                </td>
+                <td>
+                    @item.Subject
+
+                </td>
+                <td>
+                    @item.IsBodyHtml
+
+                </td>
+                <td>
+                    @item.BodyFooterTemplate?.TemplateName
+
+                </td>
+                <td></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+
+<div id="pagedde6a344753744b2bd3387b1d8601729" style="display:none">
+    <script>
+           $(function () {
+               var $this = $("#pagedde6a344753744b2bd3387b1d8601729").parent();
+
+               $("#pagedde6a344753744b2bd3387b1d8601729").remove();
+
+
+
+        });
+    </script>
+
+</div>

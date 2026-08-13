@@ -1,0 +1,58 @@
+获取ElementUI 中el-input 所有的Attributes配置信息，转换为json 例如:[ { "component": "t-input", "modelname": "type"},{ "component": "t-inputnumber", "modelname": "maxlength"}]
+bool类型的component="t-checkbox",enum类型component="t-dropdownlist"
+
+
+
+{ "component": "el-input", "modelname": "type", "type": "string" }, 转换为 { "component": "el-input", "modelname": "type", "options": { "labeloptions": { "label": "这里转换为属性对应的中文描述" }}}
+
+
+
+
+var script = document.createElement('script');
+script.src = 'https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js';
+document.body.appendChild(script);
+var script = document.createElement('script');
+script.src = 'https://cdn.bootcdn.net/ajax/libs/linq.js/3.2.0/linq.min.js';
+document.body.appendChild(script);
+
+    const table = $(".vp-table").get(0);
+    const rows = table.querySelectorAll('tr');
+
+    const attributes = [];
+
+    for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].querySelectorAll('td');
+        const attribute = {
+            name: cells[0].textContent.trim(),
+            label: cells[1].textContent.trim(),
+            type: cells[2].textContent.trim(),
+            dvalue: cells[3].textContent.trim(),
+        };
+        attributes.push(attribute);
+    }
+
+    var result = Enumerable.from(attributes)
+.where(x => x.label.indexOf('原生')<0)
+.select(x => {
+        var item =
+        {
+            "component": "t-input", "modelname": "options.comoptions." + x.name,
+            "options": {
+                "labeloptions": {
+                    "label": x.label
+                }
+            }
+        };
+if (x.name.indexOf('value')>=0){
+item.modelname="modelname";
+}
+        if (x.type.indexOf('boolean')>=0){
+            item.component="t-switch";
+        } else if (x.type.indexOf('enum') >= 0) {
+            item.component = "t-select";
+            item.options.optionValues="";
+        }
+
+        return item;
+    }).toArray();
+    JSON.stringify(result, null, "\t")

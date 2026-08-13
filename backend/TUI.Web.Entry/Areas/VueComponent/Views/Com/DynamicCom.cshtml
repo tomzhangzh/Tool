@@ -1,0 +1,43 @@
+﻿<template>
+    <component v-if="!props.jsonconfig?.options?.wrapperoptions?.component"
+               :is="props.jsonconfig.component"
+               :modelinfo="modelinfo"
+               :parentmodelinfo="parentmodelinfo"
+               :extensioninfo="props.extensioninfo"
+               :jsonconfig="props.jsonconfig"></component>
+    <component v-else
+               :is="props.jsonconfig?.options?.wrapperoptions?.component"
+               :modelinfo="modelinfo"
+               :parentmodelinfo="parentmodelinfo"
+               :extensioninfo="props.extensioninfo"
+               :jsonconfig="props.jsonconfig.options.wrapperoptions">
+        <component :is="props.jsonconfig.component"
+                   :modelinfo="modelinfo"
+                   :parentmodelinfo="parentmodelinfo"
+                   :extensioninfo="props.extensioninfo"
+                   :jsonconfig="props.jsonconfig"></component>
+    </component>
+   
+
+</template>
+<script>
+    @section setupScripts{
+    if (props.jsonconfig?.options?.PARENT_DATA) {
+        Vue.provide('desgin_ParentData', props.jsonconfig?.options?.PARENT_DATA);
+        var findCombine = findParentConfigByComponentName(parent_Com, "t-combine");
+ 
+        if (props.jsonconfig?.options?.REF_SLOT_NAME && findCombine) {
+            var REF_SLOT_NAME = props.jsonconfig?.options?.REF_SLOT_NAME;
+            var refChild = _.get(findCombine, `SLOT_REF.${REF_SLOT_NAME}.childrenctrls`);
+            _.set(findCombine, `SLOT_REF.${REF_SLOT_NAME}.childrenctrls`, refChild || []);
+            refChild = _.get(findCombine, `SLOT_REF.${REF_SLOT_NAME}.childrenctrls`);
+            props.jsonconfig.childrenctrls = refChild;
+        }
+    }
+    if (props.jsonconfig?.options?.DISABLE_DESIGN) {
+        Vue.provide('desgin_ShareData', {});
+    }
+    
+
+    }
+</script>

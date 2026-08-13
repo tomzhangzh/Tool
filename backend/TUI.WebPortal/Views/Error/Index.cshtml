@@ -1,0 +1,30 @@
+﻿@model Exception
+@{
+    var ExtId = string.Format("Ctrl{0:N}", Guid.NewGuid());
+}
+
+
+<div class="apperror">
+    <h2>Application Error</h2>
+    <div id="@ExtId">
+        <p>
+            An Exception occurred while processing your request. Please contact HelpDesk with.
+        </p>
+
+       
+        <p style="display:none">
+            @if (Model != null)
+            {
+                @Html.Raw(new { Model.Message, Model.StackTrace }.ToJSON());
+            }
+        </p>
+    </div>
+</div>
+
+<script>
+    $(function () {
+        var errorObj = @Html.Raw(new {Message= Model.Message}.ToJSON());
+        console.log(errorObj);
+        utility.alert(errorObj.Message, { width: "60%"});
+    });
+</script>

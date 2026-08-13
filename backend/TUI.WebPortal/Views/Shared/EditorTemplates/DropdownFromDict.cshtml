@@ -1,0 +1,61 @@
+﻿@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@inject IService<DICTSETTING> DictsettingService
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.DropdownFromDICTSETTINGInfo;
+    var selectItemList = new List<SelectListItem>();
+
+    selectItemList = DictsettingService.List(x => x.TABLENAME == extendP.TableName && x.TYPE == extendP.Type).Select(x => new SelectListItem()
+    {
+        Text = x.NAME,
+        Value = x.VALUE,
+
+    }).ToList();
+
+    if (extendP.WithEmpty)
+    {
+        selectItemList.Insert(0, new SelectListItem()
+        {
+            Text = "",
+            Value = "",
+        });
+    }
+    foreach (var item in selectItemList)
+    {
+        item.Selected = (Model != null && Model.ToString() == item.Value);
+    }
+    var extId = Guid.NewGuid().ToString("N");
+}
+@{
+    var HtmlAttributes = detailItem.GetHTMLATTRIBUTES();
+    HtmlAttributes["myaction-select2"] = "";
+
+    HtmlAttributes["class"] = "col-xs-12 select2 " + detailItem.GetValidateClass();
+}
+@Html.DropDownListFor(m => m, selectItemList, HtmlAttributes)
+
+<div id="@extId" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#@extId").parent();
+            var $select = $this.find("[name='@(Html.NameForModel())']");
+            if ($select.closest("[disabled]").length > 0) {
+                $select.attr("disabled", "disabled");
+            }
+
+
+            $("#@extId").remove();
+        });
+    </script>
+</div>

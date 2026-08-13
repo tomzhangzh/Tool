@@ -1,0 +1,255 @@
+﻿@model ComponentSetting
+@{
+
+
+}
+<style>
+    .el-icon.avatar-uploader-icon {
+        font-size: 28px;
+        color: #8c939d;
+        width: 178px;
+        height: 178px;
+        text-align: center;
+    }
+</style>
+<div t-init-vueinit="@(Model.ToJson())" class="h-full"
+     t-init-winStyle="@(new{width="70%",height="700px",autoheight=true}.ToJson())"
+@*t-init-winMax*@>
+    <el-tabs type="border-card" class="">
+        <el-tab-pane label="基本设置">
+            <div class="flex justify-between h-10 items-center ">
+
+                <div class="layui-btn-group">
+                    <span class="layui-btn layui-btn-normal px-2" t-click-postData="@(new{@event="Save"}.ToJson())">
+                        <i class="fa fa-save" aria-hidden="true" /></i>
+                        <span class="pl-1"></span>
+                        保存
+                    </span>
+                    <span class="layui-btn layui-btn-normal px-2" t-click-postData="@(new{@event="Copy"}.ToJson())">
+                        <i class="fa fa-copy" aria-hidden="true" /></i>
+                        <span class="pl-1"></span>
+                        Copy
+                    </span>
+                </div>
+            </div>
+            <el-form :model="model" label-width="220px" class="grid grid-cols-1 gap-1">
+                <el-form-item label="Name">
+                    <el-input v-model="model.Name"></el-input>
+                </el-form-item>
+
+                <el-form-item label="Category">
+                    <el-input v-model="model.Category"></el-input>
+                </el-form-item>
+                <el-form-item label="Type">
+                    <el-input v-model="model.Type"></el-input>
+                </el-form-item>
+                <el-form-item label="ComType">
+                    <el-select v-model="model.ComType">
+                        <el-option v-for="item in ComTypeOptions"
+                                   :key="item.value"
+                                   :label="item.label"
+                                   :value="item.value" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="Icon">
+                   
+                    <el-upload class="avatar-uploader border-dashed border-2 border-indigo-600 rounded-md p-2 "
+                               action="/Share/UploadImage"
+                               :show-file-list="false"
+                               :on-success="handleAvatarSuccess"
+                               ref="uploadRef"
+                               :before-upload="beforeAvatarUpload">
+                        <img v-if="model.Icon" :src="model.Icon" class="avatar" />
+                        <el-icon v-else class="avatar-uploader-icon" :style='{"height":" 100px","fontSize":30}'><Plus /></el-icon>
+                    </el-upload>
+                    <el-input style="width: 130px;margin-bottom: 6px;"
+                              type="text"
+                              placeholder="点击 粘贴图片"
+                              @@paste="handlePaste"></el-input>
+                </el-form-item>
+                <el-form-item label="OrderNumer">
+                    <el-input-number v-model="model.OrderNumer" 
+                                     controls-position="right"></el-input-number>
+                </el-form-item>
+                <el-form-item label="Description">
+                    <el-input v-model="model.Description" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }"></el-input>
+                 @*   {{config}}
+                    <t-dynamic-com v-bind="config" :parentmodelinfo="model"></t-dynamic-com>*@
+                </el-form-item>
+            </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="Json">
+           
+            <div class="flex justify-between h-10 items-center ">
+
+                <div class="layui-btn-group">
+                    <span class="layui-btn layui-btn-normal px-2" t-click-postData="@(new{@event="Save"}.ToJson())">
+                        <i class="fa fa-save" aria-hidden="true" /></i>
+                        <span class="pl-1"></span>
+                        保存
+                    </span>
+                    <span class="layui-btn layui-btn-normal px-2"
+                          @@click="handleOpenEditor">
+                        <i class="fa fa-pencil" aria-hidden="true" /></i>
+                        <span class="pl-1"></span>
+                        Design
+                    </span>
+                </div>
+            </div>
+            <div class="flex h-full w-full " :style="{ height: winSize.height.value-160 + 'px' }">
+                <div class="w-2/5">
+                    Default Options Json
+                    <vue-monaco-editor v-model:value="model.DefaultOptionsJson"
+                                       language="json"
+                                       :options=" {
+  automaticLayout: true,
+  formatOnType: true,
+  formatOnPaste: true,
+}" class="w-full h-full border border-gray-200"></vue-monaco-editor>
+                </div>
+                <div class="w-3/5">
+                    Config Json
+                    <vue-monaco-editor v-model:value="model.ConfigJson"
+                                       language="json"
+                                       :options=" {
+  automaticLayout: true,
+  formatOnType: true,
+  formatOnPaste: true,
+}" class="w-full h-full border border-gray-200"
+                                      ></vue-monaco-editor>
+                </div>
+            </div>
+    @*        <pv-splitter style="height: 300px">
+                <pv-splitter-panel class="flex align-items-center justify-content-center" :size="40" :minSize="10">
+                  
+                </pv-splitter-panel>
+                <pv-splitter-panel class="flex align-items-center justify-content-center" :size="60">
+                    <vue-monaco-editor v-model:value="model.ConfigJson"
+                 
+                                       language="json"
+                                       :options=" {
+  automaticLayout: true,
+  formatOnType: true,
+  formatOnPaste: true,
+}"
+                                       class="w-full h-full" />
+                </pv-splitter-panel>
+            </pv-splitter>*@
+            
+        </el-tab-pane>
+        <el-tab-pane label="Code">
+
+            <el-form :model="model" label-width="220px" class="grid grid-cols-1 gap-1">
+
+                <el-form-item label="Url">
+                    <el-input v-model="model.Url"></el-input>
+                </el-form-item>
+
+                <el-form-item label="ViewCode">
+                  
+                    <div :style="{ height: winSize.height.value-200 + 'px' }" class="w-full h-full">
+                        <vue-monaco-editor v-model:value="model.ViewCode"
+                                           language="html"
+                                           :options=" {
+  automaticLayout: true,
+  formatOnType: true,
+  formatOnPaste: true,
+}"
+                                           class="border border-gray-200" />
+                    </div>
+                   
+                </el-form-item>
+            </el-form>
+        </el-tab-pane>
+    </el-tabs>
+    <script tag='appconfig'>
+        var appConfig = {
+
+            setup(prop,context) {
+                var obj = {};
+                var winSize= VueUse.useElementSize($(element).closest(".layui-layer-content").get(0));
+
+                var attrName = `${actionHelper.tagAttrName("vueInit", "init")}`.toLowerCase();
+                if ($(element).attr(attrName)) {
+                    obj = JSON.parse($(element).attr(attrName));
+                }
+                else {
+                    obj = dom.getModel(element);
+                }
+                const ComTypeOptions = [
+                    {
+                        value: 'Component',
+                        label: 'Component',
+                    },
+                    {
+                        value: 'Combination',
+                        label: 'Combination',
+                    }
+                ]
+                var model = Vue.ref(obj);
+                VueUse.tryOnMounted(() => 
+                {
+                 
+
+                })
+                var config = VueUse.reactiveComputed({
+                    get() {
+                        try{
+                            return JSON.parse(model.value.ConfigJson || "{}")
+                        }
+                        catch{
+                            return {};
+                        }
+                    },
+                    set(val) {
+                        model.value.ConfigJson = JSON.stringify(val);
+                    },
+                });
+                VueUse.watchDebounced(
+                    model,
+                    () => { console.log('changed!') },
+                    { debounce: 500, maxWait: 1000 },
+                )
+                const beforeAvatarUpload = (rawFile) => {
+                    //debugger;
+                    //if (rawFile.type !== 'image/jpeg') {
+                    //    ElementPlus.ElMessage.error('Avatar picture must be JPG format!')
+                    //    return false
+                    //} else if (rawFile.size / 1024 / 1024 > 2) {
+                    //    ElementPlus.ElMessage.error('Avatar picture size can not exceed 2MB!')
+                    //    return false
+                    //}
+                    return true
+                }
+                var instance = Vue.getCurrentInstance();
+                const handlePaste = (event) => {
+                    var uploadRef = instance.refs.uploadRef
+                    const files = event.clipboardData.files[0];
+                    if (!files) {
+                        console.info("请复制图片再粘贴！");
+                        return;
+                    }
+                    uploadRef?.handleStart(files); // 将粘贴过来的图片加入预上传队列
+                    uploadRef?.submit(); // 提交图片上传队列
+                }
+                const handleAvatarSuccess = (
+                    response,
+                    uploadFile
+                ) => {
+                    model.value.Icon = response.fileName;
+                }
+                const handleOpenEditor = () => {
+                   var $con= tAPP.dom.openWinUrl('title', null, {}, "/Tools/Design/Index");
+                   setTimeout(()=>{
+                        var instance=tAPP.dom.getVueInstance($con);
+                        instance.model.parentObj=model;
+                        instance.setConfigAndModel(model.value.ConfigJson, model.value.DefaultOptionsJson,model)
+                   },500);
+                    
+               }
+                return { model, beforeAvatarUpload, handleAvatarSuccess, config, handleOpenEditor, ComTypeOptions, handlePaste, winSize }
+            }
+        };
+
+    </script>
+</div>

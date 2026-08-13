@@ -1,0 +1,25 @@
+﻿
+
+<el-cascader v-model="modelinfo"
+             :options="extensionInfo.options"
+             :show-all-levels="false"
+             v-bind="options?.comoptions" />
+
+<script>
+    @section setupScripts{
+        //if (props.options)
+
+        VueUse.tryOnMounted(async () => {
+            var res = [];
+            console.log(modelinfo);
+            if (props.jsonconfig.options.ajaxUrl) {
+                res = await tAPP.utility.postData(props.jsonconfig.options.ajaxUrl, {});
+            }
+            else {
+                res = (props.jsonconfig.options?.optionValues || []);
+            }
+
+            extensionInfo.options = res;
+        })
+    }
+</script>

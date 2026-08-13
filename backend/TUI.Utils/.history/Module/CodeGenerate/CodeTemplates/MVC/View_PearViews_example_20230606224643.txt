@@ -1,0 +1,128 @@
+
+@*lay-verify="required|phone|number|email|url|date|identity"  lay-reqText="描述" *@
+@*<script src="~/lib/ckeditor4/ckeditor.js"></script>*@
+@*  form input 辅助性文字
+<td width="200px;">
+    <div class="layui-form-mid layui-word-aux">
+     <i class="layui-icon layui-icon-about" style="font-size: 30px; color: #dddddd;"></i>
+    </div>
+</td>
+
+<div class="layui-form-mid layui-word-aux">
+  <i class="layui-icon layui-icon-about" style="font-size: 30px; color: #dddddd;"></i>
+</div>
+*@
+@*  //Tab 选项卡
+//<div class="layui-tab layui-tab-brief" lay-filter="docDemoTabBrief">
+//  <ul class="layui-tab-title">
+//    <li class="layui-this">网站设置</li>
+//    <li>用户管理</li>
+//    <li>权限分配</li>
+//    <li>商品管理</li>
+//    <li>订单管理</li>
+//  </ul>
+//  <div class="layui-tab-content" style="height: 100px;">
+//    <div class="layui-tab-item layui-show">内容不一样是要有，因为你可以监听tab事件（阅读下文档就是了）</div>
+//    <div class="layui-tab-item">内容2</div>
+//    <div class="layui-tab-item">内容3</div>
+//    <div class="layui-tab-item">内容4</div>
+//    <div class="layui-tab-item">内容5</div>
+//  </div>
+//</div>
+
+callback 回调函数
+popup.success("成功消息",callback)
+    popup.failure("失败消息",callback)
+    popup.warning("警告消息",callback)*@
+
+@*form.verify({
+  //  account: [reg.account, '账号长度为4~20个字符，由字母数据以及@@_- 符号组成'],
+  //  password: [reg.pwd, '密码必须6到20位，且不能出现空格'],
+  //  verifyCode: [/^[A-Za-z0-9]{4}$/,"验证码输入错误"]
+  //  name: function (value) {
+  //      if (value <= 0) {
+  //          return 'Name不能为空';
+  //      }
+  //  },
+  //  money: [
+  //      /^(([1-9][0-9]*)|(([0]\.\d{1,2}|[1-9][0-9]*\.\d{1,2})))$/
+  //      ,'支付金额错误，最多2位小数，不能以小数点结尾'
+  //  ],
+  <%foreach(ColumnSchema column in this.SourceTable.Columns)%><%{%>
+   //<%=ToCamel(column.Name)%>: [/^正则表达式$/, '验证失败提示消息'],
+  <%}%>
+//});
+*@
+@*
+ //生成时间监听
+ <% var timestr=""; %>
+ <%foreach(ColumnSchema column in this.SourceTable.Columns)%><%{%>
+   <% var columntype=GetCSDataType(column).ToLower(); %>
+   <% if( columntype=="datetime"||columntype=="datetimeoffset"){ 
+        timestr+=column.Name+",";
+    } %>
+ <%}%>
+ <% timestr=timestr.TrimEnd(','); %>
+ //有时间字段才有下面的代码
+ <% if(!string.IsNullOrWhiteSpace(timestr)){ %>
+   // var arrDateEle = '<%=timestr%>';
+    TUI.initDate('<%=timestr%>');
+ <% } %>
+*@
+
+@*
+ <select name="State" id="State">
+     <option value="">--请选择--</option>
+     @foreach (int val in Enum.GetValues(typeof(State)))
+     {
+         <option value="@(val)">@(((State)val).ToString())</option>
+     }
+ </select>
+ 
+ <select lay-filter="ServiceFeeType" asp-for="ServiceFeeType" asp-items="Html.GetEnumSelectList<ServiceFeeType>()"></select>
+*@
+
+
+@*
+<div class="layui-form-item adminj-sort-item">
+				<label class="layui-form-label">上传程序集</label>
+				<div class="layui-input-inline">
+					<input type="hidden" asp-for="Path" />
+					<div class="layui-upload">
+						<button type="button" class="layui-btn" id="btn_Path">上传程序集</button>
+						<div class="layui-upload-list">
+							@if (string.IsNullOrWhiteSpace(@Model?.Path))
+							{
+                <img class="layui-upload-img" id="upload_WebLogo" style="height: auto; width: 100px;">
+								<a id="upload_Path" target="_blank" href=""></a>
+							}
+							else
+							{
+                               <img class="layui-upload-img" id="upload_WebLogo" style="height: auto; width: 100px;" src="@(ViewBag.Domain)@(@Model.WebLogo)">
+								<a id="upload_Path" target="_blank" href="@(ViewBag.Domain)@(@Model.Path)">@(ViewBag.Domain)@(@Model.Path)</a>
+							}
+						</div>
+					</div>
+
+				</div>
+				<div class="layui-form-mid layui-word-aux"></div>
+			</div>
+
+//exts ：上传文件扩展名
+TUI.initFileUpLoad({
+			elem: "btn_Path",auto:true, url: '@(Url.Action("FileUpload"<%=GetUrlActionArea(MvcControllerArea)%>))?type=Excel',exts:'dll'
+			, done: function (res, index, upload) {
+				$('#Path').val(res.Data.src);
+				$('#upload_Path').attr('href', res.Data.httpsrc);
+                //$('#upload_WebLogo').attr('src', res.Data.httpsrc);
+				//$('#upload_WebLogo').html(res.Data.httpsrc);
+				$('#upload_Path').html(res.Data.httpsrc);
+				$('#AssemblyFullName').val(res.Data.AssemblyFullName);
+				console.log(res);
+
+			}
+			, error: function (index, upload) {
+			}
+		});
+*@
+

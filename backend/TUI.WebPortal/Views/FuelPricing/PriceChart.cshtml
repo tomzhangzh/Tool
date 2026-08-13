@@ -1,0 +1,119 @@
+﻿@model FuelPricingViewModel
+@{
+    List<tblPriceBrand> BrandList = this.ViewBag.BrandList;
+
+    List<(long, long?, string, string)> List = this.ViewBag.List;
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    CommonCore.Models.FuelBrandModel PriceModel = this.ViewBag.PriceModel;
+
+    }
+
+<div id="@extId"></div>
+<div class="chartContainer" style="height:100%"></div>
+<script>
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+    var reanderChart = () => {
+        // 基于准备好的dom，初始化echarts实例
+        var myChart = echarts.init($this.find(".chartContainer").get(0));
+
+        // 指定图表的配置项和数据
+        option = {
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: {
+      // Use axis to trigger tooltip
+      type: 'shadow' // 'shadow' as default; can also be 'line' or 'shadow'
+    }
+  },
+  legend: {},
+  grid: {
+    left: '3%',
+    right: '4%',
+    bottom: '3%',
+    containLabel: true
+  },
+  xAxis: {
+    type: 'value'
+  },
+  yAxis: {
+    type: 'category',
+      data: ['RACK PRICE', 'MIAMI-DADE', 'BROWARD', 'MONROE']
+  },
+  series: [
+    {
+          name: 'RackPriceUnleaded',
+      type: 'bar',
+      stack: 'total',
+      label: {
+        show: true
+      },
+      emphasis: {
+        focus: 'series'
+      },
+          data: @(Enumerable.Range(1,4).Select(x=> PriceModel.RackPriceUnleaded).ToJSON())
+    }
+      @foreach(var item in new decimal[] { 0.57M,0.003M, 0.003M, 0.001M, 0.00122M, 0.005M, 0.00407M, 0.00493M, 0.008M })
+      {
+          <text>
+       ,
+    {
+        name: '@item',
+      type: 'bar',
+      stack: 'total',
+      label: {
+        show: true
+      },
+      emphasis: {
+        focus: 'series'
+      },
+        data: @(Enumerable.Range(1,1).Select(x=>0M).Concat( Enumerable.Range(1,3).Select(x=> item)).ToJSON())
+    }
+      </text>
+      }
+     @foreach(var item in new decimal[] { 0.02M })
+      {
+          <text>
+       ,
+    {
+        name: 'Broward-@(item)',
+      type: 'bar',
+      stack: 'total',
+      label: {
+        show: true
+      },
+      emphasis: {
+        focus: 'series'
+      },
+        data: @(Enumerable.Range(1,2).Select(x=>0M).Concat( Enumerable.Range(1,2).Select(x=> item)).ToJSON())
+    }
+      </text>
+      }
+    @foreach(var item in new decimal[] { 0.64789M , 0.008M })
+    {
+          <text>
+       ,
+    {
+        name: 'Monroe-@(item)',
+      type: 'bar',
+      stack: 'total',
+      label: {
+        show: true
+      },
+      emphasis: {
+        focus: 'series'
+      },
+        data: @(Enumerable.Range(1,3).Select(x=>0M).Concat( Enumerable.Range(1,1).Select(x=> item)).ToJSON())
+    }
+      </text>
+      }
+
+  ]
+};
+
+    // 使用刚指定的配置项和数据显示图表。
+    myChart.setOption(option);
+        };
+    reanderChart();
+    });
+</script>

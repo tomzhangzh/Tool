@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+
+
+	<PropertyGroup>
+		<TargetFramework>net7.0</TargetFramework>
+		<NoWarn>1701;1702;1591</NoWarn>
+	</PropertyGroup>
+
+
+
+	<ItemGroup>
+	  <Compile Remove="Cache\RedisCache.cs" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+		<PackageReference Include="Furion.Extras.ObjectMapper.Mapster" Version="4.8.8.23" />
+		<PackageReference Include="Furion.Pure" Version="4.8.8.23" />
+		<PackageReference Include="SqlSugarCore" Version="5.1.4.80" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+	  <ProjectReference Include="..\TUI.Utils\TUI.Utils.csproj" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+	  <None Update="Configs\AppInfo.json">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Configs\dbsettings.json">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Configs\Logging.json">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Configs\Serilog.json">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
+
+	<ItemGroup>
+	  <Folder Include="Extensions\" />
+	</ItemGroup>
+
+</Project>

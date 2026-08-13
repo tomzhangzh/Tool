@@ -1,0 +1,103 @@
+﻿@* <div id="wrapper" class="h-full w-full"></div> *@
+@{
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+<div t-init-vueinit="@(new{a=1,b=2}.ToJson())" class="flex h-full w-full flex-col">
+    {{model}}
+    <button t-click-updateEl="@(new{element=$"#test",url="/Tools/DBManagement/Index"}.ToJson())">
+        load
+    </button>
+    <button t-click-postData="">
+        post
+    </button>
+    <div class="flex h-full">
+        <div class="w-1/10 bg-gray-200 border border-gray-400">左侧内容</div>
+        <div id="test" class="flex-1 border border-gray-400">
+           
+        </div>
+    </div>
+    <div id="pagination"></div>
+    
+</div>
+
+<script>
+    layui.use(['laypage'], function () {
+        var laypage = layui.laypage;
+
+        // 分页配置
+        var options = {
+            elem: 'pagination', // 分页容器的 ID
+            count: 100, // 数据总数
+            limits: [10,20,50,100,200,300, 500],
+            theme: '#1E9FFF',
+            layout: ['prev', 'page', 'next', 'limit'],
+            jump: function (obj, first) { // 分页回调函数
+                if (!first) { // 首次不触发
+                    var currPage = obj.curr; // 获取当前页码
+                    console.log('页码改变为：' + currPage);
+                    // 在这里执行页码改变后的逻辑操作
+                }
+            }
+        };
+
+        // 渲染分页组件
+        laypage.render(options);
+    });
+</script>
+
+@* <style>
+    #wrapper {
+        margin-top: 20px;
+        height: 100%;
+        width: 1200px;
+        border: 1px solid green;
+        position: relative;
+    }
+</style> *@
+
+  @*   <script>
+        $(document).ready(function () {
+            // 创建水平标尺
+        var rul1 = new ruler({ container: document.querySelector('#wrapper') });
+            });
+    </script>
+ *@
+
+@* 
+
+<div id="app1" class="class=" w-full h-64">
+    <div class="w-full h-64 bg-gray-900 bg-opacity-30">
+        <border-box-12 :color="red">test</border-box-12>
+    </div>
+
+</div>
+<style>
+    html, body, #app1 {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        padding: 0px;
+        margin: 0px;
+    }
+
+    #app1 {
+        background-color: #282c34;
+    }
+
+    .dv-border-box-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+</style>
+<script>
+    var { createApp } = Vue;
+    var { BorderBox1, BorderBox13 } = DataV;
+
+    var App = createApp();
+    //App.use(DataV);
+    Enumerable.from(Object.keys(DataV)).where(x => DataV[x].install).select(x => App.component(x, DataV[x])).toArray();
+    //App.component('BorderBox13', BorderBox13);
+    App.mount('#app1');
+</script> *@

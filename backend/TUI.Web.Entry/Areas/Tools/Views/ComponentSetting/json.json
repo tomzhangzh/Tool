@@ -1,0 +1,243 @@
+{
+  "component": "t-div-container",
+  "options": {
+    "options": {
+      "class": "grid grid-cols-1 place-content-start gap-4 "
+    },
+    "itemoptions": {
+      "class": "flex gap-2 items-center",
+      "size": "small"
+    },
+    "labeloptions": {
+      "style": {
+        "width": "100px"
+      },
+      "class": "text-right"
+    }
+  },
+  "childrenctrls": [
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.multiple",
+      "options": {
+        "labeloptions": {
+          "label": "是否多选"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.disabled",
+      "options": {
+        "labeloptions": {
+          "label": "是否禁用"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-input",
+      "modelname": "modelname",
+      "options": {
+        "labeloptions": {
+          "label": "modelname"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-select",
+      "modelname": "options.comoptions.size",
+      "options": {
+        "labeloptions": {
+          "label": "输入框尺寸"
+        },
+        "itemoptions": {},
+        "options": {},
+        "optionValues": ",large,default,small"
+      }
+    },
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.clearable",
+      "options": {
+        "labeloptions": {
+          "label": "是否可以清空"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.collapse-tags",
+      "options": {
+        "labeloptions": {
+          "label": "多选时是否将选中值按文字的形式展示"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-input",
+      "modelname": "options.comoptions.multiple-limit",
+      "options": {
+        "labeloptions": {
+          "label": "最多选项目数"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-select",
+      "modelname": "options.comoptions.effect",
+      "options": {
+        "labeloptions": {
+          "label": "tooltip 主题"
+        },
+        "itemoptions": {},
+        "options": {},
+        "optionValues": ",dark,light"
+      }
+    },
+    {
+      "component": "t-input",
+      "modelname": "options.comoptions.placeholder",
+      "options": {
+        "labeloptions": {
+          "label": "占位符"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.filterable",
+      "options": {
+        "labeloptions": {
+          "label": "是否可筛选"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.allow-create",
+      "options": {
+        "labeloptions": {
+          "label": "是否允许用户创建新条目"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-input",
+      "modelname": "options.comoptions.no-match-text",
+      "options": {
+        "labeloptions": {
+          "label": "无匹配时显示"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-input",
+      "modelname": "options.comoptions.no-data-text",
+      "options": {
+        "labeloptions": {
+          "label": "无选项时文字，"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-input",
+      "modelname": "options.comoptions.popper-class",
+      "options": {
+        "labeloptions": {
+          "label": "选择器下拉菜单的自定义类名"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.teleported",
+      "options": {
+        "labeloptions": {
+          "label": "插入至 body"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-input",
+      "modelname": "options.comoptions.clear-icon",
+      "options": {
+        "labeloptions": {
+          "label": "自定义清除图标"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.fit-input-width",
+      "options": {
+        "labeloptions": {
+          "label": "下拉框的宽度是否与输入框相同"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-input",
+      "modelname": "options.comoptions.suffix-icon",
+      "options": {
+        "labeloptions": {
+          "label": "后缀图标组件"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-switch",
+      "modelname": "options.comoptions.suffix-transition deprecated",
+      "options": {
+        "labeloptions": {
+          "label": "下拉菜单显示"
+        },
+        "itemoptions": {},
+        "options": {}
+      }
+    },
+    {
+      "component": "t-select",
+      "modelname": "options.comoptions.tag-type",
+      "options": {
+        "labeloptions": {
+          "label": "标签类型"
+        },
+        "itemoptions": {},
+        "options": {},
+        "optionValues": ",success,info,warning,danger"
+      }
+    }
+  ]
+}

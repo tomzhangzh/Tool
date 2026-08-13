@@ -1,0 +1,112 @@
+﻿
+
+@model IEnumerable<TUI.Services.DBModel.ScheduleTaskLog>
+
+<table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+    <thead class="bg-info-500">
+        <tr>
+            <th width="70px">
+
+            </th>
+            <th sortname="BeginDate"
+                style="width:150px">
+                Begin Date
+            </th>
+            <th sortname="EndDate"
+                style="width:150px">
+                End Date
+            </th>
+            <th sortname="Status"
+                style="width:100px">
+                Status
+            </th>
+            <th sortname="ErrorMessage"
+                style="width:400px">
+                Error Message
+            </th>
+            <th sortname="LogInfo"
+                style="width:400px">
+                Log Info
+            </th>
+            <th sortname="Result"
+                style="width:400px">
+                Result
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>
+                    <div class="d-flex justify-content-between">
+                        <a href="javascript: void(0); " myaction-openwindow="
+                    @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Task/ScheduleTaskLog/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                            <i class="fal fa-edit"></i>
+                        </a>
+                        <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Task/ScheduleTaskLog/Delete",@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                            <i class="fal fa-trash"></i>
+                        </a>
+                    </div>
+
+                </td>
+                <td>
+                    @item.BeginDate
+
+                </td>
+                <td>
+                    @item.EndDate
+
+                </td>
+                <td>
+                    @item.Status
+
+                </td>
+                <td>
+                    <pre style="max-width:500px;" class="truncate ">
+ @item.ErrorMessage
+</pre>
+
+
+                </td>
+                <td>
+                    <pre style="max-width:500px;" class="truncate ">
+ @item.LogInfo
+</pre>
+
+
+                </td>
+                <td>
+                    <pre style="max-width:500px;" class="truncate ">
+ @item.Result
+</pre>
+
+
+                </td>
+                <td></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+
+<div id="pageb18d0fde7fd84469971c16e723dea881" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#pageb18d0fde7fd84469971c16e723dea881").parent();
+
+            $("#pageb18d0fde7fd84469971c16e723dea881").remove();
+
+
+
+        });
+    </script>
+
+</div>

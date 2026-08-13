@@ -1,0 +1,78 @@
+// MIT License
+// 开源地址：https://gitee.com/co1024/AbcMvc
+// Copyright (c) 2021-2023 1024
+// Abc.Mvc=Furion+EF+SqlSugar+Pear layui admin.
+
+using Mapster;
+
+namespace @(Model.Config.ProjectName).Application.@(@Model.Config.ApiArea)Services;
+
+
+  /// <summary>
+  /// 输入Mapper
+  /// @((Model.Description+"").Replace("\r","").Replace("\n",""))
+  /// </summary>
+  public class @(Model.Config.ApiDtoEntityPrefix)@(Model.NoPrefixEntity)MapperOut: IRegister
+  {
+       public void Register(TypeAdapterConfig config)
+        {
+            // 示例 
+            //config.ForType<xxxx,xxxOut>()
+              //.Map(dest => dest.MigrationId, src => src.MigrationId)// 
+              //.Map(dest => dest.Id, src => src.Id)// 
+          //;
+       
+           
+           // Description @((Model.Description+"").Replace("\r","").Replace("\n",""))
+            //config.ForType<@Model.EntityName,@(Model.Config.ApiDtoEntityPrefix)@(Model.NoPrefixEntity)Out>()
+        
+        #region 公共字段
+        @foreach (var item in Model.ColumnsInfos)
+        {
+            if(item.ClassProperName=="Id"||item.ClassProperName=="CreatorUserId"||item.ClassProperName=="CreatorUserName"||item.ClassProperName=="CreationTime"||item.ClassProperName=="UpdateUserId"||        item.ClassProperName=="UpdateUserName"||item.ClassProperName=="UpdateTime"||item.ClassProperName=="IsDeleted"||item.ClassProperName=="DeletedUserId"||item.        ClassProperName=="DeletedUserName"||item.ClassProperName=="DeletedTime"||item.ClassProperName=="ExtensionData" )
+            {
+                if(item.Type=="DateTime" || item.Type=="DateTimeOffset")
+                {
+            @://.Map(dest => dest.@item.ClassProperName, src => src.@(item.ClassProperName).ToStringLongDate())// @((@item.Description+"").Replace("\r","").Replace("\n",""))
+                }
+                else{
+            @://.Map(dest => dest.@item.ClassProperName, src => src.@item.ClassProperName)//  @((@item.Description+"").Replace("\r","").Replace("\n",""))
+                 if(item.Type=="bool")
+                 {
+            @://.Map(dest => dest.@(item.ClassProperName)Name, src => src.@(@item.ClassProperName)?"是":"否")//  @((@item.Description+"").Replace("\r","").Replace("\n",""))
+                 }
+                }
+            
+            }
+        }
+        #endregion
+        @foreach (var item in Model.ColumnsInfos)
+        {
+            if(item.ClassProperName=="Id"||item.ClassProperName=="CreatorUserId"||item.ClassProperName=="CreatorUserName"||item.ClassProperName=="CreationTime"||item.ClassProperName=="UpdateUserId"||        item.ClassProperName=="UpdateUserName"||item.ClassProperName=="UpdateTime"||item.ClassProperName=="IsDeleted"||item.ClassProperName=="DeletedUserId"||item.        ClassProperName=="DeletedUserName"||item.ClassProperName=="DeletedTime"||item.ClassProperName=="ExtensionData" )
+            continue;
+            if(item.Type=="DateTime" || item.Type=="DateTimeOffset") continue;
+          
+            @://.Map(dest => dest.@item.ClassProperName, src => src.@item.ClassProperName)//  @((@item.Description+"").Replace("\r","").Replace("\n",""))
+        }
+        #region 自定义
+        @foreach (var item in Model.ColumnsInfos)
+        {
+           if(item.ClassProperName=="CreatorUserId"||item.ClassProperName=="CreatorUserName"||item.ClassProperName=="CreationTime"||item.ClassProperName=="UpdateUserId"||        item.ClassProperName=="UpdateUserName"||item.ClassProperName=="UpdateTime"||item.ClassProperName=="IsDeleted"||item.ClassProperName=="DeletedUserId"||item.        ClassProperName=="DeletedUserName"||item.ClassProperName=="DeletedTime"||item.ClassProperName=="ExtensionData" )
+            continue;
+            if(item.Type=="DateTime" || item.Type=="DateTimeOffset")
+                {
+            @://.Map(dest => dest.@item.ClassProperName, src => src.@(item.ClassProperName).ToStringLongDate())//  @((@item.Description+"").Replace("\r","").Replace("\n",""))
+                }
+                else if(item.Type=="bool"){
+            @://.Map(dest => dest.@(item.ClassProperName)Name, src => src.@(@item.ClassProperName)?"是":"否")//  @((@item.Description+"").Replace("\r","").Replace("\n",""))
+                }
+        }
+        #endregion
+          //;
+         
+           
+        }
+
+        
+   
+  }

@@ -1,0 +1,54 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="DBModel\Extension\AppConfig.cs" />
+    <Compile Remove="Manager\PriceService.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+   
+    <PackageReference Include="CsvHelper" Version="15.0.5" />
+   
+    <PackageReference Include="DynamicExpresso.Core" Version="2.3.1" />
+   
+    <PackageReference Include="EPPlus" Version="5.8.8" />
+   
+    <PackageReference Include="ExcelDataReader" Version="3.6.0" />
+   
+    <PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.2.0" />
+   
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="3.1.3" />
+   
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="3.1.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+   
+    <PackageReference Include="Microsoft.EntityFrameworkCore.DynamicLinq" Version="3.2.0" />
+   
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="3.1.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="3.1.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="3.1.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Caching.SqlServer" Version="3.1.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="Pather.CSharp" Version="2.1.0" />
+    <PackageReference Include="Quartz" Version="3.4.0" />
+    <PackageReference Include="RazorLight.NetCore3" Version="3.0.2" />
+    <PackageReference Include="RestSharp" Version="106.10.1" />
+    <PackageReference Include="SqlSugarCore" Version="5.0.5.2" />
+    <PackageReference Include="System.IO.Compression.ZipFile" Version="4.3.0" />
+    <PackageReference Include="Twilio" Version="5.37.5" />
+   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="DeltaScripts\" />
+  </ItemGroup>
+
+</Project>

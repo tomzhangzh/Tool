@@ -1,0 +1,112 @@
+﻿@model BatchGeneratorViewModel
+@{
+    ViewData["Title"] = "Detail";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    TUI.Services.Manager.IPriceService priceService = this.ViewBag.priceService;
+
+}
+
+<div id="@extId"></div>
+
+<div class="card h-100">
+
+    <div class="card-header py-1 d-flex justify-content-between w-100">
+        <div>
+            <button class="btn btn-info btn-sm waves-effect waves-themed" type="button" id="Save" myaction-postback><i class="fal fa-box p-1"></i>Generate</button>
+
+        </div>
+
+    </div>
+    <div class="card-body" style="min-height:400px;">
+        <form myaction-initform class="h-100">
+            <div class="form-group row">
+                <label class="col-form-label col-12 col-lg-3 form-label text-lg-right">Date Range</label>
+                <div class="col-12 col-lg-6">
+                    <input type="text" class="form-control" name="DateRange" id="custom-range">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-form-label col-12 col-lg-3 form-label text-lg-right">Brand</label>
+                <div class="col-12 col-lg-9">
+                    @{
+                        var selectItemList = new List<SelectListItem>();
+
+                        selectItemList = priceService.ListActivePriceBrand().Select(x => new SelectListItem()
+                        {
+                            Text = x.BrandName,
+                            Value = x.ID.ToString(),
+
+                        }).ToList();
+
+                    }
+                    @Html.ListBoxFor(x => x.BrandList, selectItemList, new { @class = "form-control  w-100 required", myaction_select2 = "" })
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-form-label col-12 col-lg-3 form-label text-lg-right"></label>
+                <div class="col-12 col-lg-6">
+                    <div class="custom-control custom-checkbox">
+                        @Html.CheckBoxFor(x => x.OnlyZipFile, new { @class = "custom-control-input" })
+
+                        <label class="custom-control-label" for="OnlyZipFile">Only Zip File</label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-form-label col-12 col-lg-3 form-label text-lg-right"></label>
+                <div class="col-12 col-lg-6">
+                    <div class="custom-control custom-checkbox">
+                        @Html.CheckBoxFor(x => x.ZipByDate, new { @class = "custom-control-input" })
+
+                        <label class="custom-control-label" for="ZipByDate">Zip By Date</label>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+<script>
+
+    $(function () {
+        var $this = $("#@(extId)").closest("[data-url]");
+        $('#custom-range').daterangepicker(
+            {
+                "showDropdowns": true,
+                "showWeekNumbers": true,
+                "showISOWeekNumbers": true,
+                "timePicker": false,
+                "autoApply": true,
+                //"maxSpan":
+                //{
+                //    "days": 7
+                //},
+                ranges:
+                {
+                    'Today': [moment(), moment()],
+                    'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                    'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+                    'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+                    'This Month': [moment().startOf('month'), moment().endOf('month')],
+                    'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                },
+                "alwaysShowCalendars": true,
+                "startDate": "@Model.Start.ToString("MM/dd/yyyy")",
+                "endDate": "@Model.End.ToString("MM/dd/yyyy")",
+                "applyButtonClasses": "btn-default shadow-0",
+                "cancelClass": "btn-success shadow-0"
+            }, function (start, end, label) {
+            console.log('New date range selected: ' + start.format('YYYY-MM-DD') + ' to ' + end.format('YYYY-MM-DD') + ' (predefined range: ' + label + ')');
+        });
+
+    });
+</script>

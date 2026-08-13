@@ -1,0 +1,134 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+<PreserveCompilationContext>true</PreserveCompilationContext>
+  <PreserveCompilationReferences>true</PreserveCompilationReferences>
+	  <MvcRazorCompileOnPublish>false</MvcRazorCompileOnPublish>
+	  <MvcRazorExcludeRefAssembliesFromPublish>false</MvcRazorExcludeRefAssembliesFromPublish>
+    <CopyRefAssembliesToPublishDirectory>false</CopyRefAssembliesToPublishDirectory>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="bin\Test\**" />
+    <Compile Remove="EmailTemplate\Views\**" />
+    <Compile Remove="Pages\**" />
+    <Compile Remove="Views\FuelPricing\**" />
+    <Compile Remove="Views\PriceHistory\**" />
+    <Content Remove="bin\Test\**" />
+    <Content Remove="EmailTemplate\Views\**" />
+    <Content Remove="Pages\**" />
+    <Content Remove="Views\FuelPricing\**" />
+    <Content Remove="Views\PriceHistory\**" />
+    <EmbeddedResource Remove="bin\Test\**" />
+    <EmbeddedResource Remove="EmailTemplate\Views\**" />
+    <EmbeddedResource Remove="Pages\**" />
+    <EmbeddedResource Remove="Views\FuelPricing\**" />
+    <EmbeddedResource Remove="Views\PriceHistory\**" />
+    <None Remove="bin\Test\**" />
+    <None Remove="EmailTemplate\Views\**" />
+    <None Remove="Pages\**" />
+    <None Remove="Views\FuelPricing\**" />
+    <None Remove="Views\PriceHistory\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Areas\Api\AwsSnsController.cs" />
+    <Compile Remove="Areas\Api\CarrierApiController.cs" />
+    <Compile Remove="Areas\Api\SendGridController.cs" />
+    <Compile Remove="Controllers\FuelPricingController.cs" />
+    <Compile Remove="Controllers\PriceHistoryController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Views\AutoGenerate\Detail\TEST.cshtml" />
+    <None Include="Views\AutoGenerate\Grid\Client_Grid.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\Checkbox.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\DatePicker.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\DropdownAjax.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\DropdownFromDict.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\Editor.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\Hidden.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\Label.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\Lookup.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\LookupSelector.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\Password.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\Prompt.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\RadioButtonListFromDict.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\ReadOnlyTextBox.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\Selector.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\SwitchButton.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\TEST.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\TextArea.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\TextBox.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\UploadButton.cshtml" />
+    <None Include="Views\Shared\EditorTemplates\UploadImage.cshtml" />
+    <None Include="wwwroot\css\app.bundle.css.map" />
+    <None Include="wwwroot\css\fa-brands.css.map" />
+    <None Include="wwwroot\css\fa-regular.css.map" />
+    <None Include="wwwroot\css\fa-solid.css.map" />
+    <None Include="wwwroot\css\theme-demo.css.map" />
+    <None Include="wwwroot\css\vendors.bundle.css.map" />
+    <None Include="wwwroot\img\favicon\safari-pinned-tab.svg" />
+    <None Include="wwwroot\img\favicon\site.webmanifest" />
+    <None Include="wwwroot\img\logo-flat.svg" />
+    <None Include="wwwroot\img\logo-gradient.svg" />
+    <None Include="wwwroot\img\logo.svg" />
+    <None Include="wwwroot\img\svg\pattern-1.svg" />
+    <None Include="wwwroot\img\svg\pattern-2.svg" />
+    <None Include="wwwroot\img\svg\pattern-3.svg" />
+    <None Include="wwwroot\img\svg\pattern-4.svg" />
+    <None Include="wwwroot\js\app.bundle.js" />
+    <None Include="wwwroot\js\json-viewer\jquery.json-viewer.js" />
+    <None Include="wwwroot\js\site.js" />
+    <None Include="wwwroot\js\vendors.bundle.js" />
+    <None Include="wwwroot\media\sound\bigbox.ogg" />
+    <None Include="wwwroot\media\sound\messagebox.ogg" />
+    <None Include="wwwroot\media\sound\smallbox.ogg" />
+    <None Include="wwwroot\media\sound\voice_alert.ogg" />
+    <None Include="wwwroot\media\sound\voice_off.ogg" />
+    <None Include="wwwroot\media\sound\voice_on.ogg" />
+    <None Include="wwwroot\Templates\EmailRecipient.xlsx" />
+    <None Include="wwwroot\webfonts\fa-brands-400.svg" />
+    <None Include="wwwroot\webfonts\fa-brands-400.woff2" />
+    <None Include="wwwroot\webfonts\fa-light-300.svg" />
+    <None Include="wwwroot\webfonts\fa-light-300.woff2" />
+    <None Include="wwwroot\webfonts\fa-regular-400.svg" />
+    <None Include="wwwroot\webfonts\fa-regular-400.woff2" />
+    <None Include="wwwroot\webfonts\fa-solid-900.svg" />
+    <None Include="wwwroot\webfonts\fa-solid-900.woff2" />
+    <None Include="wwwroot\webfonts\nextgen-icons.svg" />
+    <None Include="wwwroot\webfonts\nextgen-icons.woff2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="3.1.22" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="3.1.5" />
+    <PackageReference Include="Serilog.AspNetCore" Version="4.1.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+    <PackageReference Include="Serilog.Sinks.MSSqlServer" Version="5.7.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TUI.Services\TUI.Services.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Areas\Api\" />
+    <Folder Include="Areas\Logs\Data\" />
+    <Folder Include="Areas\Systems\Data\" />
+    <Folder Include="bin\" />
+    <Folder Include="Views\AutoGenerate\Template\" />
+  </ItemGroup>
+
+  <ItemGroup>
+ 
+    <None Update="wkhtmltopdf.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,67 @@
+@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.DatePickerSettingInfo;
+
+    var extId = Guid.NewGuid().ToString("N");
+    DateTime? value = null;
+    if (Model != null)
+    {
+        if (Model is DateTime)
+        {
+            if ((DateTime)Model != DateTime.MinValue)
+            {
+                value = (DateTime)Model;
+            }
+        }
+        else
+        {
+            value = (DateTime?)Model;
+        }
+    }
+
+}
+<div class="input-group">
+    <input @detailItem.HTMLATTRIBUTES
+           @if (detailItem.Disabled) { @: disabled="disabled"
+           }
+           class="form-control  @detailItem.GetValidateClass()" id="@Html.IdFor( x => x )"
+           name="@Html.NameFor( x => x )"
+           value="@(string.Format( "{0:"+extendP.Format+"}",value ))"
+           type="text" />
+    <span class="input-group-addon">
+        <i class="icon-calendar "></i>
+    </span>
+</div>
+<div id="@extId" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#@extId").parent();
+            var $datePicker = $this.find("[name='@(Html.NameForModel())']");
+            $datePicker.datepicker({
+                format: "yyyy-mm-dd",
+                //showMeridian: true,
+                autoclose: true,
+                todayBtn: true
+            });
+            $datePicker.next().on("click", function () {
+                $(this).prev().focus();
+            });
+            $("#@extId").remove();
+            $datePicker.on("change", function () { $(this).trigger("keyup") });
+     });
+    </script>
+
+</div>
+

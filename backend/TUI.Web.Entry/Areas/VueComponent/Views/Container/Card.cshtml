@@ -1,0 +1,24 @@
+﻿<template>
+    <el-card class="box-card t_container" 
+    :style="getStyle(props.jsonconfig.options?.options)"
+             :class="[getClass(props.jsonconfig.options?.options), desginSharedData?.current?.container === props.jsonconfig ? 'com_container' : ''
+, desgin_ParentData?.editChild ===true ? 'can_edit_child' : ''
+
+]" >
+
+        <template #header v-if="getSlot('header')">
+            <div class="card-header">
+                <t-dynamic-com :jsonconfig="getSlot('header')" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+            </div>
+        </template>
+        <template #default v-if="getSlot('default')">
+            <t-dynamic-com :jsonconfig="getSlot('default')" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+        </template>
+        <template #footer v-if="getSlot('footer')">
+            <t-dynamic-com :jsonconfig="getSlot('footer')" :parentmodelinfo="props?.parentmodelinfo"></t-dynamic-com>
+        </template>
+    </el-card>
+</template>
+@section setupScripts{
+
+} 

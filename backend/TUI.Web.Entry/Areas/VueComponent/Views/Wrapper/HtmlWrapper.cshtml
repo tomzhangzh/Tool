@@ -1,0 +1,31 @@
+﻿<template>
+    <div ref="current" class="w-full"></div>
+    @* <component :is="{
+    props.jsonconfig.options.comoptions.html,
+    }"
+    ref="current"
+    v-bind="props.jsonconfig.options.comoptions"
+    ></component>*@
+</template>
+
+<script>
+    @section setupScripts{
+
+            DVALUE="";
+        VueUse.tryOnMounted(async () => {
+            var $$instance = Vue.getCurrentInstance();
+            var elCurrent = $$instance.refs.current;
+            if (props.parentmodelinfo && props.jsonconfig.modelname) {
+                $$instance.refs.current.model = modelinfo;
+            }
+            else {
+                $$instance.refs.current.model = modelinfo || {};
+            }
+            elCurrent.innerHTML = `<div  t-init-vueinit class='w-full'>${props.jsonconfig.options?.comoptions?.html}</div>`;
+
+        var app = tAPP.dom.init(elCurrent);
+
+    });
+
+    }
+</script>

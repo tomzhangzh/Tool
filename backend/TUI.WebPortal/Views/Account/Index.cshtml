@@ -1,0 +1,15 @@
+﻿<div style="background: url(img/backgrounds/wallpaper-day.jpg) center center / cover no-repeat; height: 100%; display: flex; justify-content: center; align-items: center;" id="loginDiv">
+
+</div>
+@section scripts{
+
+    <script>
+
+        $(function () {
+            var $this = $("#loginDiv");
+            $this.myLoad("/Account/Login", "Load", { hideMask:true});
+
+        });
+    </script>
+
+}

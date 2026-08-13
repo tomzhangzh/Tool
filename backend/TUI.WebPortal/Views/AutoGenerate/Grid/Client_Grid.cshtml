@@ -1,0 +1,100 @@
+﻿
+
+@model IEnumerable<EmailTemplate>
+
+<table class="table table-condensed table-bordered table-hover dataTable">
+    <thead>
+        <tr>
+            <th style="width:100px">
+            </th>
+                <th                           sortname="ID"
+ >
+                   ID
+                </th>
+                <th                           sortname="客户名称"
+ >
+                   客户名称
+                </th>
+                <th                           sortname="合同号"
+ >
+                   合同号
+                </th>
+                <th                           sortname="电话"
+ >
+                   电话
+                </th>
+                <th                           sortname="地址"
+ >
+                   地址
+                </th>
+                <th                           sortname="设计师"
+ >
+                   设计师
+                </th>
+                <th                           sortname="客户经理"
+ >
+                   客户经理
+                </th>
+                <th                           sortname="家居顾问"
+ >
+                   家居顾问
+                </th>
+                <th                           sortname="配饰设计师"
+ >
+                   配饰设计师
+                </th>
+                <th                           sortname="公司名称"
+ >
+                   公司名称
+                </th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+        <tr>
+         <td class="center">
+                    <div class="visible-md visible-lg hidden-sm hidden-xs btn-group">
+                        <button class="btn btn-xs btn-info openwindow reload">
+                            <div class="url hide">Client/Detail?ID=@item.ID</div>
+                            <i class="icon-edit"></i>
+                        </button>
+                         <button class="btn btn-xs btn-danger deleteaction reload">
+                            <div class="hide url">Client/Delete?ID=@item.ID</div>
+                            <i class="icon-trash"></i>
+                        </button>
+                    </div>
+                </td>
+                <td>
+                  @item.GetValueByPath("ID")
+                    
+                </td>
+                <td>
+                    @item.GetValueByPath("ID")
+
+                </td>
+                <td>
+                    @item.GetValueByPath("ID")
+                </td>
+               
+        </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+<div id="page0d956f66206c48958622a64aa9383827" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page0d956f66206c48958622a64aa9383827").parent();
+            
+            $("#page0d956f66206c48958622a64aa9383827").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

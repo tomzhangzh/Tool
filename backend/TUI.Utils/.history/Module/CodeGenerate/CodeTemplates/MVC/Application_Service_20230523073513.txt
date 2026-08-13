@@ -1,0 +1,319 @@
+// MIT License
+// 开源地址：https://gitee.com/co1024/AbcMvc
+// Copyright (c) 2021-2023 1024
+// Abc.Mvc=Furion+EF+SqlSugar+Pear layui admin.
+
+using Furion.DynamicApiController;
+
+namespace @(Model.Config.ProjectName).Application.@(@Model.Config.MvcApplicationArea)Services;
+
+/// <summary>
+/// @((Model.Description+"").Replace("\r","").Replace("\n",""))
+/// </summary>
+public class @(Model.MvcApplicationEntityName)Service : I@(Model.MvcApplicationEntityName)Service, ITransient, IDynamicApiController
+{
+    private readonly ILogger<@(Model.MvcApplicationEntityName)Service> _logger;
+    private readonly ISqlSugarClient _db;
+
+    public @(Model.MvcApplicationEntityName)Service(ILogger<@(Model.MvcApplicationEntityName)Service> logger
+     , ISqlSugarClient db = null)
+    {
+        _logger = logger;
+        _db = db;
+    }
+
+    /// <summary>
+    /// 新增或更新一条
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
+    public async Task InsertOrUpdate(@(Model.MvcApplicationEntityName)Input input)
+    {
+       if(input.Id.HasValue &&  input.Id>0)
+       {
+          await Update(input);
+       }
+       else
+       {
+          await Insert(input);
+       }
+    }
+
+    /// <summary>
+    /// 新增一条
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
+    public async Task<long> Insert(@(Model.MvcApplicationEntityName)Input input)
+    {
+        ////验证 父级下 唯一 Key是否存在
+        //var isexit = await _db.Queryable<@Model.EntityName>().AnyAsync(o => o.PKey == input.PKey && o.Key == input.Key);
+        //if (isexit)
+        //{
+        //    throw Oops.Bah("唯一标识Key不能重复");
+        //}
+        var addentity = input.Adapt<@Model.EntityName>();
+        return await _db.InsertRsIdAsync(addentity);
+        
+    }
+
+    /// <summary>
+    /// 更新一条
+    /// </summary>
+    /// <param name="input"></param>
+    /// <returns></returns>
+    public async Task<bool> Update(@(Model.MvcApplicationEntityName)Input input)
+    {
+        ////验证 父级下 唯一 Key是否存在
+        //var isexit = await _db.Queryable<@Model.EntityName>().AnyAsync(o => o.PKey == input.PKey && o.Key == input.Key && o.Id != input.Id);
+        //if (isexit)
+        //{
+        //    throw Oops.Bah("唯一标识Key不能重复");
+        //}
+        var dbentity = await _db.Queryable<@Model.EntityName>().FirstAsync(o => o.Id == input.Id.Value);
+        input.Adapt(dbentity);
+        return await _db.UpdateAsync(dbentity);
+        
+    }
+
+
+    /// <summary>
+    /// 删除一条
+    /// </summary>
+    /// <param name="id"></param>
+    public async Task<bool> Delete(long id)
+    {
+        if (id <= 0) throw Oops.Bah("id不能为0");
+        return  await _db.DeleteByIdAsync<@Model.EntityName>(id);
+    }
+
+    /// <summary>
+    /// 批量删除
+    /// </summary>
+    /// <param name="ids">需要删除的数据，多条以英文逗号隔开</param>
+    public async Task<bool> BatchDelete(string ids)
+    {
+        return await _db.DeleteByIdsAsync<@Model.EntityName>(ids);
+    }
+
+
+    /// <summary>
+    /// 查询一条
+    /// </summary>
+    /// <param name="id"></param>
+    public async Task<@(Model.MvcApplicationEntityName)Out> Get(long id)
+    {
+         /* 多表关联的一个写法，当然也可以用导航写法
+         var query5 = await _db.Queryable<@Model.EntityName>()
+           //.LeftJoin<Custom>   ((o, cus ) => o.CustomId == cus.Id)//多个条件用&&
+           //.LeftJoin<OrderDetail> ((o, cus, oritem) => o.Id == oritem.OrderId)
+           .Where(o => o.Id == id)  
+           .Select((o) => new @(Model.ApiApplicationEntityName)Out {
+                Id = o.Id.SelectAll(), //Id是o任意一个属性
+                //CustomName = cus.Name,
+            })
+           .FirstAsync();
+        */
+
+         return await _db.GetByIdAsync<@Model.EntityName, @(Model.MvcApplicationEntityName)Out>(id);
+    }
+
+    
+    /// <summary>
+    /// 分页查询
+    /// </summary>
+    /// <param name="searchQuery"></param>
+    /// <returns></returns>
+    public async Task<LayuiPagedList<@(Model.MvcApplicationEntityName)Out>> GetAllByPageToLayui(@(Model.MvcApplicationEntityName)Query searchQuery)
+    {
+        var queryable = _db.Queryable<@Model.EntityName>();
+        #region 筛选条件
+        ////开始日期
+        //if (searchQuery.StartDate.HasValue)
+        //{
+        //    queryable = queryable.Where(o => o.CreationTime >= searchQuery.StartDate.Value);
+        //}
+        ////结束日期
+        //if (searchQuery.EndDate.HasValue)
+        //{
+        //    var endtime = Convert.ToDateTime($"{searchQuery.EndDate.Value:yyyy-MM-dd} 23:59:59");
+        //    queryable = queryable.Where(o => o.CreationTime <= endtime);
+        //}
+        ////关键词
+        //if (!string.IsNullOrWhiteSpace(searchQuery.KeyWords))
+        //{
+        //    var kw = searchQuery.KeyWords?.Trim()?.ToLower()??"";
+        //    queryable = queryable.Where(o=>o.Title.Contains(kw));
+        //}
+        #endregion
+        //queryable = queryable.OrderByDescending(o => o.Id);
+        var pagelist = await queryable.Select(a => new @(Model.MvcApplicationEntityName)Out()
+        {
+            Id=o.Id.SelectAll(),
+    #region 自定义
+    @foreach (var item in Model.ColumnsInfos)
+    {
+        var isPrimaryKey = item.IsPrimaryKey ? ",IsPrimaryKey = true" : "";
+        var isIdentity = item.IsIdentity ? ",IsIdentity = true" : "";
+        var isNull=(item.IsNullable&&item.Type!="string"&&item.IsSpecialType==false&&item.Type!="byte[]")?"?":"";
+        var isIgnore=(item.IsIgnore?",IsIgnore = true":"");
+        var isJson=(item.CodeType.StartsWith("json")?",IsJson= true":"");
+    
+        // var newPropertyName=item.PropertyName; //这里可以用C#处理 实体属性的显式格式
+        // //想和数据库一样就用 newPropertyName=item.DbColumnName
+        // if(System.Text.RegularExpressions.Regex.IsMatch(newPropertyName.Substring(0,1), "[0-9]"))
+        // {
+        //     newPropertyName="_"+newPropertyName;//处理属性名开头为数字情况
+        // }
+        // if(newPropertyName==Model.EntityName)
+        // {
+        //     newPropertyName="_"+newPropertyName;//处理属性名不能等于类名
+        // }
+    
+    
+        var desc=(item.Description+"").Replace("\r","").Replace("\n","");//处理换行
+    
+        if(isIgnore!="")
+        {
+           isPrimaryKey =isIdentity =isNull="";
+        }
+       
+    
+        if(item.Type=="bool")
+        {
+       @: //@(item.ClassProperName)Name =  o.@(@item.ClassProperName)?"是":"否"  ,//@(desc) 
+        }
+    }
+    #endregion
+        })
+        .Mapper(src =>
+        {
+        })
+        .ToLayuiPagedListAsync(searchQuery.Page, searchQuery.Limit);
+
+        //pagelist= await pageResult.ToLayuiPagedListAsync<@Model.EntityName, @(Model.MvcApplicationEntityName)Out>(searchQuery.Page, searchQuery.Limit);
+        return pagelist;
+    }
+
+    
+    /// <summary>
+    /// 设置状态
+    /// </summary>
+    /// <param name="id"></param>
+    /// <param name="state"></param>
+    /// <param name="field">字段名</param>
+    /// <returns></returns>
+    public async Task<bool> SetState(long id, bool state, string field)
+    {
+        return await _db.SetStateByIdAsync<@Model.EntityName>(id, state, field);
+    }
+
+    #region 冗余方法
+    /// <summary>
+    /// 查询所有
+    /// </summary>
+    /// <returns></returns>
+    public async Task<List<@(Model.MvcApplicationEntityName)Out>> GetAll()
+    {
+        return await _db.GetListAsync<@Model.EntityName, @(Model.MvcApplicationEntityName)Out>();
+    }
+    /// <summary>
+    /// 分页查询
+    /// </summary>
+    /// <param name="searchQuery"></param>
+    /// <returns></returns>
+    public async Task<PagedList<@(Model.MvcApplicationEntityName)Out>> GetAllByPage(@(Model.MvcApplicationEntityName)Query searchQuery)
+    {
+        var queryable = _db.Queryable<@Model.EntityName>();
+        #region 筛选条件
+        ////开始日期
+        //if (searchQuery.StartDate.HasValue)
+        //{
+        //    queryable = queryable.Where(o => o.CreationTime >= searchQuery.StartDate.Value);
+        //}
+        ////结束日期
+        //if (searchQuery.EndDate.HasValue)
+        //{
+        //    var endtime = Convert.ToDateTime($"{searchQuery.EndDate.Value:yyyy-MM-dd} 23:59:59");
+        //    queryable = queryable.Where(o => o.CreationTime <= endtime);
+        //}
+        ////关键词
+        //if (!string.IsNullOrWhiteSpace(searchQuery.KeyWords))
+        //{
+        //    var kw = searchQuery.KeyWords?.Trim()?.ToLower() ?? "";
+        //    queryable = queryable.Where(o => o.Title.Contains(kw));
+        //}
+        #endregion
+
+        queryable = queryable.OrderByDescending(o => o.Id);
+        var pagelist = await queryable.Select(a => new @(Model.MvcApplicationEntityName)Out()
+        {
+            Id=o.Id.SelectAll(),
+    #region 自定义
+    @foreach (var item in Model.ColumnsInfos)
+    {
+        var isPrimaryKey = item.IsPrimaryKey ? ",IsPrimaryKey = true" : "";
+        var isIdentity = item.IsIdentity ? ",IsIdentity = true" : "";
+        var isNull=(item.IsNullable&&item.Type!="string"&&item.IsSpecialType==false&&item.Type!="byte[]")?"?":"";
+        var isIgnore=(item.IsIgnore?",IsIgnore = true":"");
+        var isJson=(item.CodeType.StartsWith("json")?",IsJson= true":"");
+    
+        // var newPropertyName=item.PropertyName; //这里可以用C#处理 实体属性的显式格式
+        // //想和数据库一样就用 newPropertyName=item.DbColumnName
+        // if(System.Text.RegularExpressions.Regex.IsMatch(newPropertyName.Substring(0,1), "[0-9]"))
+        // {
+        //     newPropertyName="_"+newPropertyName;//处理属性名开头为数字情况
+        // }
+        // if(newPropertyName==Model.EntityName)
+        // {
+        //     newPropertyName="_"+newPropertyName;//处理属性名不能等于类名
+        // }
+    
+    
+        var desc=(item.Description+"").Replace("\r","").Replace("\n","");//处理换行
+    
+        if(isIgnore!="")
+        {
+           isPrimaryKey =isIdentity =isNull="";
+        }
+       
+    
+        if(item.Type=="bool")
+        {
+       @: //@(item.ClassProperName)Name = o.@(@item.ClassProperName)?"是":"否"  ,//@(desc) 
+        }
+    }
+    #endregion
+        })
+        .Mapper(src =>
+        {
+        })
+        .ToPagedListAsync(searchQuery.Page, searchQuery.Limit);
+
+
+
+        //var pagelist= await pageResult.ToPagedListAsync<@Model.EntityName, @(Model.MvcApplicationEntityName)Out>(searchQuery.Page, searchQuery.Limit);
+
+        return pagelist;
+    }
+    
+
+    /// <summary>
+    /// 假删除
+    /// </summary>
+    /// <param name="id"></param>
+    public async Task<bool> FakeDelete(long id)
+    {
+        return await _db.FakeDeleteAsync<@Model.EntityName>($"{id}");
+    }
+    /// <summary>
+    /// 批量假删除
+    /// </summary>
+    /// <param name="ids">需要删除的数据，多条以英文逗号隔开</param>
+    public async Task<bool> BatchFakeDelete(string ids)
+    {
+        return await _db.FakeDeleteAsync<@Model.EntityName>(ids);
+    }
+    #endregion 
+
+}

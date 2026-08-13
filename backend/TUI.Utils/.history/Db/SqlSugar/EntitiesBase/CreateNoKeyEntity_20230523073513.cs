@@ -1,0 +1,31 @@
+// MIT License
+// 开源地址：https://gitee.com/co1024/AbcMvc
+// Copyright (c) 2021-2023 1024
+// Abc.Mvc=Furion+EF+SqlSugar+Pear layui admin.
+
+namespace Abc.Utils;
+
+/// <summary>
+/// 创建实体
+/// </summary>
+[SuppressSniffer]
+public abstract class CreateNoKeyEntity : ICreate
+{
+    /// <summary>
+    /// 创建用户ID
+    /// </summary>
+    [SugarColumn(ColumnDescription = "创建用户ID", IsOnlyIgnoreUpdate = true)]
+    public long? CreatorUserId { get; set; }
+
+    /// <summary>
+    /// 创建用户
+    /// </summary>
+    [SugarColumn(ColumnDescription = "创建用户", IsNullable = true, IsOnlyIgnoreUpdate = true)]
+    public string CreatorUserName { get; set; }
+
+    /// <summary>
+    /// 创建时间
+    /// </summary>
+    [SugarColumn(ColumnDescription = "创建时间", IsOnlyIgnoreUpdate = true)]
+    public DateTimeOffset CreationTime { get; set; } = DateTimeOffset.Now;
+}

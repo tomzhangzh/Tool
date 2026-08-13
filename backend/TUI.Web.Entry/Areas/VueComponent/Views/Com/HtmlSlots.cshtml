@@ -1,0 +1,39 @@
+﻿<template>
+    <div ref="current" class="w-full"></div>
+    @*<div v-for="slot in props.jsonconfig?.slots.asEnumerable().toArray()">{{slot.value}}</div>*@
+    <t-dynamic-com :jsonconfig="slot.value" :ref="slot.key" :parentmodelinfo="props?.parentmodelinfo" v-for="slot in props.jsonconfig?.slots?.asEnumerable().toArray()"></t-dynamic-com>
+</template>
+
+<script>
+    @section setupScripts{
+
+            DVALUE="";
+        
+
+        VueUse.tryOnMounted(async () => {
+            var $$instance = Vue.getCurrentInstance();
+            var elCurrent = $$instance.refs.current;
+            if (props.parentmodelinfo && props.jsonconfig.modelname) {
+                $$instance.refs.current.model = modelinfo;
+            }
+            else {
+                $$instance.refs.current.model = modelinfo || {};
+            }
+            elCurrent.innerHTML = `<div  t-init-vueinit class='w-full'>${props.jsonconfig.options?.comoptions?.html}</div>`;
+
+            tAPP.dom.init(elCurrent);
+        var app = $(elCurrent).find("[data-v-app]").data().app;
+        props.jsonconfig?.slots?.asEnumerable().toArray().forEach(x => {
+           
+            var find=$(elCurrent).find(`#slot_${x.key}`);
+            if (find.length>0){
+                $(find.get(0)).replaceWith($$instance.refs[x.key][0].$el);
+                //Vue.Teleport.move($$instance.refs[x.key][0], find.get(0));
+            }
+          
+        });
+           
+    });
+
+    }
+</script>

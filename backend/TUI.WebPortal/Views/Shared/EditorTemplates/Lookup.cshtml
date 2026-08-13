@@ -1,0 +1,74 @@
+﻿@model object
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@inject TUI.Services.Manager.ILookupService LookupService
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var currentModel = this.ViewBag.CurrentModel;  //Html.ViewContext.Controller.ViewBag.CurrentModel;
+    if (currentModel == null)
+    {
+        throw new Exception("Current Model can not be empty.");
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.LookupSettingInfo;
+
+    var selectItemList = LookupService.List(extendP, currentModel as object).Select(x => new SelectListItem()
+    {
+        Text = x.Name,
+        Value = x.Value,
+
+    }).ToList();
+    if (extendP.WithEmpty)
+    {
+        selectItemList.Insert(0, new SelectListItem()
+        {
+            Text = "",
+            Value = "",
+        });
+    }
+    if (Model != null && Model is System.Collections.IList)
+    {
+        System.Collections.IList selected = Model as System.Collections.IList;
+        foreach (var item in selectItemList)
+        {
+            foreach (var c in selected)
+            {
+                if (string.Format("{0}", c) == item.Value)
+                {
+                    item.Selected = true;
+                    break;
+                }
+            }
+
+        }
+    }
+    else
+    {
+        foreach (var item in selectItemList)
+        {
+            item.Selected = (Model != null && Model.ToString() == item.Value);
+        }
+    }
+}
+@{
+    var HtmlAttributes = detailItem.GetHTMLATTRIBUTES();
+    HtmlAttributes["myaction-select2"] = "";
+    HtmlAttributes["class"] = "col-xs-12 select2 " + detailItem.GetValidateClass();
+}
+@if (extendP.IsMutil)
+{
+    @Html.ListBoxFor(m => m, selectItemList, HtmlAttributes
+     )
+}
+else
+{
+    @Html.DropDownListFor(m => m, selectItemList, HtmlAttributes)
+}

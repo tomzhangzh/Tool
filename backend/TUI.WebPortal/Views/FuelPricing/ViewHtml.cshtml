@@ -1,0 +1,25 @@
+﻿@model FuelPricingViewModel
+@{
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+
+    TUI.Services.Manager.IPriceService priceService = this.ViewBag.priceService;
+    var brand = priceService.PriceBrandService.Get(Model.BrandID.Value);
+
+}
+@if (brand.HasAttachment == 1)
+{
+    var html = priceService.GetHtml(Model.BrandID.Value,true, Model.SelectedDate);
+    <div style="max-width:800px;min-width:800px;" class="p-2">
+        @Html.Raw(html)
+    </div>
+}
+else
+{
+    var mailMessage=priceService.GetMailMessage(brand, Model.SelectedDate.Value);
+<div style="max-width:800px;" class="p-2">
+    <div class="panel-tag">
+        <strong>Email body</strong>
+    </div>
+    <pre>@mailMessage?.Body</pre>
+</div>
+}

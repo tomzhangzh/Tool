@@ -1,0 +1,348 @@
+﻿
+@model TUI.Services.DBModel.PriceBrandConfiguration
+
+
+@{var itemList = new List<DETAILITEM>();
+    DETAILITEM detailItem= null;
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="ID",
+        AS1COLUMN=false,
+        COLUMNTYPE="Hidden",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=100,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="ID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="PriceBrandID",
+        AS1COLUMN=false,
+        COLUMNTYPE="Hidden",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=true,
+        SORTID=200,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="PriceBrandID",
+        EXTENDEDPROPERTIES="{}",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    //  detailItem = new DETAILITEM()
+    //{
+    //    COLUMNNAME = "PriceBrandID",
+    //    AS1COLUMN = true,
+    //    COLUMNTYPE = "Lookup",
+    //    HTMLATTRIBUTES = "",
+    //    ISREQUIRED = false,
+    //    SORTID = 200,
+    //    VALIDATETYPE = "",
+
+    //    ISSHOW = true,
+    //    LABEL = "Price Brand",
+    //    EXTENDEDPROPERTIES = "{\"TableName\":\"PriceBrand\",\"NameField\":\"BrandName\",\"ValueField\":\"ID\",\"PlusSQL\":null,\"WithEmpty\":true,\"IsMutil\":false}",
+    //    Disabled = true
+    //};
+    //itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="SupplierID",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=true,
+        SORTID=300,
+        VALIDATETYPE="digits",
+        ISSHOW= true,
+        LABEL="SupplierID",
+        EXTENDEDPROPERTIES="{\"PlaceHolder\":null,\"AddonText\":null,\"AddonIconClass\":null}",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "AlternativeSupplierID",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 300,
+        VALIDATETYPE = "digits",
+        ISSHOW = true,
+        LABEL = "Alternative SupplierID",
+        EXTENDEDPROPERTIES = "{\"PlaceHolder\":null,\"AddonText\":null,\"AddonIconClass\":null}",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem =new DETAILITEM(){
+        COLUMNNAME="TerminalID",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=true,
+        SORTID=400,
+        VALIDATETYPE="digits",
+        ISSHOW= true,
+        LABEL="TerminalID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "AlternativeTerminalID",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 400,
+        VALIDATETYPE = "digits",
+        ISSHOW = true,
+        LABEL = "Alternative TerminalID",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem =new DETAILITEM(){
+        COLUMNNAME="ProductID",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=true,
+        SORTID=500,
+        VALIDATETYPE="digits",
+        ISSHOW= true,
+        LABEL="ProductID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    ////////////////
+
+
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "AlternativeProductID",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 500,
+        VALIDATETYPE = "digits",
+        ISSHOW = true,
+        LABEL = "Alternative ProductID",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    ////////////////////
+    detailItem =new DETAILITEM(){
+        COLUMNNAME="CityID",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=600,
+        VALIDATETYPE="digits",
+        ISSHOW= true,
+        LABEL="CityID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "MustEffectiveTime",
+        AS1COLUMN = false,
+        COLUMNTYPE = "TextBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 1300,
+        VALIDATETYPE = "digits",
+        ISSHOW = true,
+        LABEL = "Must Effective Time",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="ReportVariableName",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=true,
+        SORTID=700,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Report Variable Name",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "SourceApiType",
+        AS1COLUMN = false,
+        COLUMNTYPE = "DropdownFromDict",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = true,
+        SORTID = 1200,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Source Api Type",
+        EXTENDEDPROPERTIES = "{\"TableName\":\"SourceApiType\",\"Type\":\"SourceApiType\",\"WithEmpty\":true}",
+        Disabled = false
+    };
+
+    itemList.Add(detailItem);
+
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "IsActive",
+        AS1COLUMN = false,
+        COLUMNTYPE = "CheckBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 1400,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "IsActive",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "HasSms",
+        AS1COLUMN = false,
+        COLUMNTYPE = "CheckBox",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 500,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Has Sms",
+        EXTENDEDPROPERTIES = "{}",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+    detailItem = new DETAILITEM()
+    {
+        COLUMNNAME = "StartDate",
+        AS1COLUMN = false,
+        COLUMNTYPE = "DatePicker",
+        HTMLATTRIBUTES = "",
+        ISREQUIRED = false,
+        SORTID = 1400,
+        VALIDATETYPE = "",
+        ISSHOW = true,
+        LABEL = "Start Date",
+        EXTENDEDPROPERTIES = "",
+        Disabled = false
+    };
+    itemList.Add(detailItem);
+
+    detailItem =new DETAILITEM(){
+        COLUMNNAME="LastUpdated",
+        AS1COLUMN=false,
+        COLUMNTYPE="DatePicker",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=800,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Last Updated",
+        EXTENDEDPROPERTIES="{\"Format\":\"yyyy-MM-dd\"}",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="LastUpdatedUtc",
+        AS1COLUMN=false,
+        COLUMNTYPE="DatePicker",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=900,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Last Updated Utc",
+        EXTENDEDPROPERTIES="",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="LastUpdatedPrice",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=1000,
+        VALIDATETYPE="number",
+        ISSHOW= true,
+        LABEL="Last Updated Price",
+        EXTENDEDPROPERTIES="",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="LastSentPrice",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=1100,
+        VALIDATETYPE="number",
+        ISSHOW= true,
+        LABEL="Last Sent Price",
+        EXTENDEDPROPERTIES="",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+
+
+}
+
+
+<div class="grid grid-cols-2 place-content-start gap-4 items-center">
+    @foreach (var item in itemList)
+    {
+    if (item.COLUMNTYPE == "Hidden")
+    {
+    @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+    }
+    else
+    {
+    <div class="flex self-start items-center">
+
+        <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 200px;">@item.LABEL</label>
+        <div class="flex-grow inline-flex items-start w-full flex-column myctrl">
+            @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+        </div>
+    </div>
+    }
+    }
+
+</div>
+  
+
+
+
+
+
+<div id="page003959964b9d48b3bde495f4d6f340fa" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page003959964b9d48b3bde495f4d6f340fa").parent();
+            
+            $("#page003959964b9d48b3bde495f4d6f340fa").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

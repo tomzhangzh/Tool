@@ -1,0 +1,124 @@
+﻿
+
+    @RenderBody()
+
+
+<script tag='comconfig'>
+    var comConfig = {
+        props: {
+            modelinfo: {
+                type: Object,
+                required: false,
+            },
+            options: {
+                type: Object,
+                default: {},
+            },
+            modelname: {
+                type: String,
+                default: "",
+            },
+            extendinfo: {
+                type: Object,
+                default: {},
+            },
+            parentmodelinfo: {
+                type: Object,
+                required: false,
+            },
+            parentoptions: {
+                type: Object,
+                default: {},
+            },
+            wrapperoptions: {
+                type: Object,
+                default: () => {
+                    return {};
+                },
+            },
+            itemoptions: {
+                type: Object,
+                default: () => {
+                    return {};
+                },
+            },
+            childrenctrls:{
+                type: Array,
+                default:[],
+            },
+            slots:{
+                type: Object,
+                default: {},
+            },
+            slotname: {
+                type: String,
+                default: "",
+            },
+        },
+        setup(prop) {
+            var { ref, reactive, getCurrentInstance, computed } = Vue;
+            const instance = getCurrentInstance();
+            let props = instance.props || {};
+            let _value = ref("");
+            const modelinfo = computed({
+                get() {
+                    if (props.parentmodelinfo && props.modelname) {
+                        _value.value = _.get(props.parentmodelinfo, props.modelname);
+                        if (_.isUndefined(_value.value)) {
+                            _.set(props.parentmodelinfo, props.modelname, {});
+                            _value.value = _.get(props.parentmodelinfo, props.modelname);
+                        }
+                    } else if (props.modelinfo) {
+                        _value.value = props.modelinfo
+
+                    }
+                    if (_.isUndefined(_value.value)) {
+                        _value.value = "";
+                    }
+                    return _value.value;
+                },
+                set(val) {
+                    (_value.value) = val;
+                    if (props.parentmodelinfo && props.modelname) {
+                        _.set(props.parentmodelinfo, props.modelname, val);
+                    } else if (props.modelinfo) {
+                        _.merge(props.modelinfo, val);
+
+                    }
+                },
+            });
+            const getItemOptionStyle =(element)=>{
+                return _.merge(
+                    props.itemoptions?.style ?? {},
+                    element?.itemoptions?.style ?? {}
+                )
+            }
+            const getItemOptionClass = (element) => {
+                return _.merge(
+                    props.itemoptions?.class ?? {},
+                    element?.itemoptions?.class ?? {}
+                )
+            }
+            //const getSlot = (name) => {
+                
+            //   var find= Enumerable.from(props.slots)
+            //        .where((x) => x.slotname == name)
+            //        .firstOrDefault();
+            //    if (find && !find.parentmodelinfo){
+            //        find.parentmodelinfo = props.parentmodelinfo;
+            //    }
+            //        return find;
+            //}
+            const extensionInfo = reactive({});
+            var options= reactive( props.options||{});
+            options.comoptions = options.comoptions||{};
+            const forceUpdate = () => {
+                return instance?.proxy?.$forceUpdate();
+            };
+            const lodash=_;
+    @RenderSection("setupScripts", false)
+                                return { modelinfo, extensionInfo, forceUpdate, options, getItemOptionStyle, getItemOptionClass, getSlot, props, lodash };
+        }
+    };
+
+</script>

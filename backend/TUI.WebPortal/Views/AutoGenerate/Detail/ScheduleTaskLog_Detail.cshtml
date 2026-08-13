@@ -1,0 +1,160 @@
+﻿
+@model TUI.Services.DBModel.ScheduleTaskLog
+
+
+@{var itemList = new List<DETAILITEM>();
+    DETAILITEM detailItem= null;
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="ID",
+        AS1COLUMN=false,
+        COLUMNTYPE="Hidden",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=100,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="ID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="ScheduleTaskID",
+        AS1COLUMN=false,
+        COLUMNTYPE="Hidden",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=200,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Schedule Task I D",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="BeginDate",
+        AS1COLUMN=false,
+        COLUMNTYPE="DatePicker",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=400,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Begin Date",
+        EXTENDEDPROPERTIES="{\"Format\":\"MMM/dd/yyyy HH:mm:ss\"}",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="EndDate",
+        AS1COLUMN=false,
+        COLUMNTYPE="DatePicker",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=500,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="End Date",
+        EXTENDEDPROPERTIES="{\"Format\":\"MMM/dd/yyyy HH:mm:ss\"}",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="Status",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=600,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Status",
+        EXTENDEDPROPERTIES="",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="ErrorMessage",
+        AS1COLUMN=true,
+        COLUMNTYPE="TextArea",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=700,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Error Message",
+        EXTENDEDPROPERTIES= "{\"Rows\":8}",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="LogInfo",
+        AS1COLUMN=false,
+        COLUMNTYPE= "TextArea",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=800,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Log Info",
+        EXTENDEDPROPERTIES = "{\"Rows\":8}",
+        Disabled =true
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="Result",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextArea",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=900,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Result",
+        EXTENDEDPROPERTIES="{\"Rows\":8}",
+        Disabled=true
+    };
+    itemList.Add(detailItem);
+}
+
+
+<div class="grid grid-cols-1 place-content-start gap-4 items-center">
+    @foreach (var item in itemList)
+    {
+    if (item.COLUMNTYPE == "Hidden")
+    {
+    @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+    }
+    else
+    {
+    <div class="flex self-start items-center">
+
+        <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 200px;">@item.LABEL</label>
+        <div class="flex-grow inline-flex items-start w-full flex-column myctrl">
+            @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+        </div>
+    </div>
+    }
+    }
+
+</div>
+  
+
+
+
+
+
+<div id="pagee034d5cd41cf418980d8e1cdee238faa" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#pagee034d5cd41cf418980d8e1cdee238faa").parent();
+            
+            $("#pagee034d5cd41cf418980d8e1cdee238faa").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

@@ -1,0 +1,11 @@
+﻿<template>
+    <t-label-wrapper :options="options"
+                     :parentoptions="parentoptions"
+                     :modelinfo="modelinfo"
+                     :parentmodelinfo="parentmodelinfo">
+        <el-upload ref="current"
+                            v-model="modelinfo"
+                            v-bind="options?.comoptions">
+        </el-upload>
+
+</template>

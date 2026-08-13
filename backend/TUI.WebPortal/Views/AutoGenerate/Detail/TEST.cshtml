@@ -1,0 +1,184 @@
+﻿
+@model EmailTemplate
+
+
+@{var itemList = new List<DETAILITEM>();
+    DETAILITEM detailItem= null;
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="工程造价",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=100,
+        VALIDATETYPE="number",
+        ISSHOW= true,
+        LABEL="工程造价", 
+    EXTENDEDPROPERTIES= "{\"AddonText\":\"￥\",\"AddonIconClass\":\"fal fa-undo\"}",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="管理费",
+        AS1COLUMN=false,
+        COLUMNTYPE="DropdownFromDict",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=200,
+        VALIDATETYPE="number",
+        ISSHOW= true,
+        LABEL="管理费",
+        EXTENDEDPROPERTIES="{\"TableName\":\"DetailItem\",\"Type\":\"ColumnType\",\"WithEmpty\":true}",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="税金",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=300,
+        VALIDATETYPE="number",
+        ISSHOW= true,
+        LABEL="税金",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="总额",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=400,
+        VALIDATETYPE="number",
+        ISSHOW= true,
+        LABEL="总额",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="ID",
+        AS1COLUMN=false,
+        COLUMNTYPE="Hidden",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=500,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="ID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="ClientID",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=600,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="ClientID",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="创建时间",
+        AS1COLUMN=false,
+        COLUMNTYPE="DatePicker",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=700,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="创建时间",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="项目名称",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=800,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="项目名称",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="备注",
+        AS1COLUMN=true,
+        COLUMNTYPE="TextArea",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=900,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="备注",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+    detailItem=new DETAILITEM(){
+        COLUMNNAME="Client",
+        AS1COLUMN=false,
+        COLUMNTYPE="TextBox",
+        HTMLATTRIBUTES="",
+        ISREQUIRED=false,
+        SORTID=1000,
+        VALIDATETYPE="",
+        ISSHOW= true,
+        LABEL="Client",
+        EXTENDEDPROPERTIES="",
+        Disabled=false
+    };
+    itemList.Add(detailItem);
+}
+<div class="grid grid-cols-1 place-content-start gap-4 items-center">
+    @foreach (var item in itemList)
+    {
+        if (item.COLUMNTYPE == "Hidden")
+        {
+            @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item })
+        }
+        else
+        {
+            <div class="flex self-start items-center" >
+               
+                <label class="itemLabel flex-shrink-0 text-right pr-3"  style="width: 120px;">@item.LABEL</label>
+                <div class="flex-grow inline-flex items-start w-full">
+                    @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item })
+                </div>
+          </div>
+        }
+    }
+
+</div>
+
+
+
+
+<div id="pagef29f613acc7c411fab9cd17002a15c16" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#pagef29f613acc7c411fab9cd17002a15c16").parent();
+            
+            $("#pagef29f613acc7c411fab9cd17002a15c16").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

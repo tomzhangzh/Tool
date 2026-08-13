@@ -1,0 +1,174 @@
+﻿
+@model TUI.Services.DBModel.PriceBrand
+
+
+@{var itemList = new List<DETAILITEM>();
+DETAILITEM detailItem= null;
+detailItem=new DETAILITEM(){   
+COLUMNNAME="ID", 
+AS1COLUMN=false, 
+COLUMNTYPE="Hidden", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=100, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="ID", 
+EXTENDEDPROPERTIES="",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="BrandName", 
+AS1COLUMN=false, 
+COLUMNTYPE="TextBox", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=true, 
+SORTID=200, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="Brand Name", 
+EXTENDEDPROPERTIES="{\"PlaceHolder\":null,\"AddonText\":null,\"AddonIconClass\":null}",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="BrandCode", 
+AS1COLUMN=false, 
+COLUMNTYPE="TextBox", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=300, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="Brand Code", 
+EXTENDEDPROPERTIES="",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="EmailSubject", 
+AS1COLUMN=false, 
+COLUMNTYPE="TextBox", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=350, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="EmailSubject", 
+EXTENDEDPROPERTIES="{\"PlaceHolder\":null,\"AddonText\":null,\"AddonIconClass\":null}",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="HasAttachment", 
+AS1COLUMN=false, 
+COLUMNTYPE="CheckBox", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=400, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="Has Attachment", 
+EXTENDEDPROPERTIES="{}",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="HasFaxNotification", 
+AS1COLUMN=false, 
+COLUMNTYPE="CheckBox", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=500, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="Has Fax Notification", 
+EXTENDEDPROPERTIES="{}",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="IsActive", 
+AS1COLUMN=false, 
+COLUMNTYPE="CheckBox", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=600, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="Is Active", 
+EXTENDEDPROPERTIES="{}",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="EmailTemplateID", 
+AS1COLUMN=false, 
+COLUMNTYPE="Lookup", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=800, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="Email Template", 
+EXTENDEDPROPERTIES="{\"TableName\":\"EmailTemplate\",\"NameField\":\"TemplateName\",\"ValueField\":\"ID\",\"PlusSQL\":\" where ParentID is null \",\"WithEmpty\":true,\"IsMutil\":false}",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+detailItem=new DETAILITEM(){   
+COLUMNNAME="AttachmentEmailTemlateID", 
+AS1COLUMN=false, 
+COLUMNTYPE="Lookup", 
+HTMLATTRIBUTES="", 
+ISREQUIRED=false, 
+SORTID=2000, 
+VALIDATETYPE="", 
+ISSHOW= true,
+LABEL="Attachment Email Temlate", 
+EXTENDEDPROPERTIES="{\"TableName\":\"EmailTemplate\",\"NameField\":\"TemplateName\",\"ValueField\":\"ID\",\"PlusSQL\":\" where ParentID is null \",\"WithEmpty\":true,\"IsMutil\":false}",  
+Disabled=false  
+}; 
+    itemList.Add(detailItem);
+}
+
+
+<div class="grid grid-cols-1 place-content-start gap-4 items-center">
+    @foreach (var item in itemList)
+    {
+    if (item.COLUMNTYPE == "Hidden")
+    {
+    @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+    }
+    else
+    {
+    <div class="flex self-start items-center">
+
+        <label class="itemLabel flex-shrink-0 text-right pr-3" style="width: 200px;">@item.LABEL</label>
+        <div class="flex-grow inline-flex items-start w-full flex-column myctrl">
+            @Html.Editor(item.COLUMNNAME, item.COLUMNTYPE, new { detailItem = item, CurrentModel=Model  })
+        </div>
+    </div>
+    }
+    }
+
+</div>
+  
+
+
+
+
+
+<div id="page716348fc6d424731aa375a202ace77a9" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page716348fc6d424731aa375a202ace77a9").parent();
+            
+            $("#page716348fc6d424731aa375a202ace77a9").remove();
+            
+            
+
+     });
+    </script>
+   
+</div>

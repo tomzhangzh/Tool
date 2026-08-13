@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 17 16">
+    <defs>
+     <style>
+         .cls-1{
+         fill-opacity:0.35;
+         stroke:#fff;
+         stroke-miterlimit:10;
+         }
+         .cls-2{
+         font-size:8px;
+         fill:#fff;
+         font-family:ArialMT, Arial;
+         }
+     </style>
+    </defs>
+    <title>CC协议</title>
+    <g id="图层_2" data-name="图层 2">
+        <g id="图层_1-2" data-name="图层 1">
+            <ellipse class="cls-1" cx="8.5" cy="8" rx="8" ry="7.5"/>
+            <text class="cls-2" transform="translate(2.72 11.13)">CC</text>
+        </g>
+    </g>
+</svg>

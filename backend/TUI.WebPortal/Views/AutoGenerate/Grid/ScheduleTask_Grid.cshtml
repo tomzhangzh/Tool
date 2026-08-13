@@ -1,0 +1,159 @@
+﻿
+
+@model IEnumerable<TUI.Services.DBModel.ScheduleTask>
+@inject TUI.Services.TaskLib.IQuartzHandleService QuartzHandleService
+@inject IService<DICTSETTING> DICTSETTINGService
+<table id="dt-basic-example" class="dataTable table table-bordered table-hover table-striped w-100">
+    <thead class="bg-info-500">
+        <tr>
+            <th width="220px">
+
+            </th>
+            <th sortname="GroupName"
+                style="width:100px">
+                Group Name
+            </th>
+            <th sortname="TaskName"
+                style="width:300px">
+                Task Name
+            </th>
+            <th sortname="Interval"
+                style="width:100px">
+                Interval
+            </th>
+            <th sortname="Parameter"
+                style="width:100px">
+                Parameter
+            </th>
+
+            <th sortname="LastRunTime"
+                style="width:150px">
+                Last Run Time
+            </th>
+            <th sortname="Status"
+                style="width:100px">
+                Status
+            </th>
+            @*<th   sortname="ClassName"
+                                    style="width:100px"
+                    >
+                    Class Name
+                </th>*@
+            <th style="width:100px">
+                Trigger State
+            </th>
+            <th style="width:150px">
+                Next FireTime
+            </th>
+            <th style="width:150px">
+                Previous FireTime
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            var jobInfo = QuartzHandleService.GetJobInfo(item).Result;
+            <tr>
+                <td>
+                    <div class="d-flex justify-content-between">
+                        <a href="javascript: void(0); " myaction-openwindow="
+                    @(new  {options=new{ title = "Edit", width="1000px",center=true},url="/Task/ScheduleTask/Detail",refresh=true,@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-info  btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                            <i class="fal fa-edit"></i>
+                        </a>
+                        <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Task/ScheduleTask/Delete",@params=new{item.ID } }.ToJSON())
+                    " class="btn btn-outline-danger btn-sm btn-icon rounded-circle waves-effect waves-themed">
+                            <i class="fal fa-trash"></i>
+                        </a>
+                        @if (jobInfo.TriggerState == Quartz.TriggerState.Normal)
+                        {
+                            <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Task/ScheduleTask/DoAction",@params=new{item.ID ,Action="Pause"},msg="Are you sure Pause this task?" }.ToJSON())
+                    " class="btn btn-outline-danger btn-sm  p-1 w-16  waves-effect waves-themed">
+                                Pause
+                            </a>
+                        }
+                        @if (jobInfo.TriggerState == Quartz.TriggerState.Paused)
+                        {
+                            <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Task/ScheduleTask/DoAction",@params=new{item.ID ,Action="Resume"},msg="Are you sure Resume this task?" }.ToJSON())
+                    " class="btn btn-outline-info btn-sm p-1 w-16 waves-effect waves-themed">
+                                Resume
+                            </a>
+                        }
+
+                        <a href="javascript: void(0); " myaction-delete="
+                    @(new  {url="/Task/ScheduleTask/DoAction",@params=new{item.ID ,Action="Trigger"},msg="Are you sure Trigger this task?" }.ToJSON())
+                    " class="btn btn-outline-info btn-sm p-1 w-16 waves-effect waves-themed">
+                            Trigger
+                        </a>
+                    </div>
+
+                </td>
+                <td>
+                    @item.GroupName
+
+                </td>
+                <td>
+                    @item.TaskName
+
+                </td>
+                <td>
+                    @item.Interval
+
+                </td>
+                <td>
+                    @item.Parameter
+
+                </td>
+                @*<td>
+                       @item.Description
+
+                    </td>*@
+                <td>
+                    @item.LastRunTime
+
+                </td>
+                <td>
+                    @DICTSETTINGService.List(x=>x.TABLENAME==nameof(ScheduleTask) && x.TYPE==nameof(ScheduleTask.Status) && x.VALUE==item.Status.ToString()).FirstOrDefault()?.NAME
+                    @*@item.Status*@
+
+                </td>
+                <td>
+                    @jobInfo.TriggerState
+
+                </td>
+                <td>
+                    @jobInfo.NextFireTime
+
+                </td>
+                <td>
+                    @jobInfo.PreviousFireTime
+
+                </td>
+                <td></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+
+
+
+
+<div id="page75664283f01d4368a9f14379fb953314" style="display:none">
+    <script>
+        $(function () {
+            var $this = $("#page75664283f01d4368a9f14379fb953314").parent();
+
+            $("#page75664283f01d4368a9f14379fb953314").remove();
+
+
+
+        });
+    </script>
+
+</div>

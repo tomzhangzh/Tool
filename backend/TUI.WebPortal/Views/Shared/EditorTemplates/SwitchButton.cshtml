@@ -1,0 +1,28 @@
+﻿@model bool
+@using TUI.Services.DBModel;
+@using TUI.Services.Model;
+@{
+    DETAILITEM detailItem = null;
+    if (ViewBag.detailItem != null)
+    {
+        detailItem = ViewBag.detailItem;
+    }
+    else
+    {
+        TUI.Services.DBModel.DETAILPAGE dPage = this.ViewBag.DetailPage;
+        detailItem = dPage.DETAILITEM.First(x => x.COLUMNNAME == ViewData.ModelMetadata.PropertyName);
+    }
+    var extendP = detailItem.GetExtendProperty() as TUI.Services.Model.SwitchButtonSettingInfo;
+    var name = Html.NameFor(x => x).ToString();
+}
+
+<label>
+    <input @if (Model) { @: checked="checked"
+           }
+           @if (detailItem.Disabled) { @: disabled="disabled"
+           }
+           class="ace ace-checkbox-2"
+           name="@name" type="checkbox" value="true">
+    <span class="lbl"></span>
+    <input name="@name" type="hidden" value="false">
+</label>

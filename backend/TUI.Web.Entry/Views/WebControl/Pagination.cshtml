@@ -1,0 +1,35 @@
+﻿@{
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    string ModelName = this.ViewBag.ModelName;
+}
+<div id="@(extId)" t-init-vueinit="" class="flex  w-full justify-between h-10 items-center ">
+    <div class="demonstration">共{{model.Count}}条数据</div>
+    <el-pagination v-model:current-page="model.CurrentPage"
+                   v-model:page-size="model.Limit"
+                   :page-sizes="[10, 20, 50, 100]"
+                   small="small"
+                   layout="sizes, prev, pager, next, jumper"
+                   :total="model.Count" />
+</div>
+
+
+<script>
+    /// <reference path="~/js/common.js" />
+    (() => {
+        var modelName="@ModelName";
+        
+        var el = document.getElementById("@(extId)");
+        el.setup = function (prop) {
+            var model = Vue.ref(tAPP.dom.getModel(el)[modelName]);
+            VueUse.watchDeep(
+                model,
+                () => {
+                    var $parent = $(el).parents("[data-url]")[1];
+                    tAPP.dom.postData($parent);
+                }
+            )
+            return { model }
+        };
+    })();
+
+</script>
