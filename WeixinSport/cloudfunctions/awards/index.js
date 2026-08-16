@@ -482,7 +482,14 @@ exports.main = async (event, context) => {
 
       const aQ = await db.collection('awards').where({ classId, periodKey: weekKey, periodType: 'weekly' }).get();
       const awardsMap = {};
-      aQ.data.forEach(a => { awardsMap[a.awardType] = a; });
+      // 只取含 winners 字段的汇总记录，避免个人获奖记录（同 awardType 但无 winners）覆盖
+      aQ.data.forEach(a => { if (a.winners) awardsMap[a.awardType] = a; });
+
+      const normalizeWinners = (w) => {
+        if (Array.isArray(w)) return w;
+        if (w && typeof w === 'object') return Object.values(w);
+        return [];
+      };
 
       const awards = WEEKLY_AWARD_TYPES.map(t => {
         const a = awardsMap[t.id];
@@ -492,7 +499,7 @@ exports.main = async (event, context) => {
           awardIcon: t.icon,
           desc: t.desc,
           weekKey,
-          winners: a ? a.winners : []
+          winners: a ? normalizeWinners(a.winners) : []
         };
       });
 
