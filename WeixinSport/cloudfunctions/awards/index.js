@@ -127,6 +127,7 @@ const generateWeeklyForClass = async (classId, offset = 0) => {
     return Object.entries(stat)
       .filter(([_, s]) => {
         if (field === 'diversity') return s.diversity.size > 0;
+        if (field === 'frequency') return s.frequency.size > 0;
         if (field === 'early') return s.earliestTime !== null;
         return (s[field] || 0) > 0;
       })
