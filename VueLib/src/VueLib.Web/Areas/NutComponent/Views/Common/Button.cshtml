@@ -1,0 +1,18 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-button :type="props.jsonconfig.options.comoptions.type || 'primary'"
+                :block="props.jsonconfig.options.comoptions.block"
+                :plain="props.jsonconfig.options.comoptions.plain"
+                :disabled="props.jsonconfig.options.comoptions.disabled"
+                :loading="props.jsonconfig.options.comoptions.loading"
+                v-bind="props.jsonconfig.options.comoptions"
+                v-on="getComlisteners()"
+                :style="getStyle(props.jsonconfig.options.itemoptions)">
+        {{ props.jsonconfig.options.comoptions.text || '按钮' }}
+    </nut-button>
+</template>
+
+@section setupScripts{ }

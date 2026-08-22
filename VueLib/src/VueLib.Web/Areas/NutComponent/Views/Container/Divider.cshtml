@@ -1,0 +1,13 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-divider :content="props.jsonconfig.options.comoptions.content"
+                 v-bind="props.jsonconfig.options.comoptions">
+    </nut-divider>
+</template>
+
+@section setupScripts{
+    // 分割线
+}

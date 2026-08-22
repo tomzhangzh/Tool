@@ -1,0 +1,12 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_FormItemLayout.cshtml";
+}
+
+<nut-uploader v-model="modelinfo"
+              v-bind="props.jsonconfig.options.comoptions"
+              v-on="getComlisteners()">
+</nut-uploader>
+
+@section setupScripts{
+    DVALUE = [];
+}

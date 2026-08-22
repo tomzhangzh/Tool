@@ -1,0 +1,18 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_FormItemLayout.cshtml";
+}
+
+<nut-checkbox-group v-model="modelinfo"
+                    v-bind="props.jsonconfig.options.comoptions"
+                    v-on="getComlisteners()"
+                    @@change="comInnerInfo.validation.touched = true; validate()">
+    <nut-checkbox v-for="item in comInnerInfo.options"
+                  :key="item.value"
+                  :label="item.value">
+        {{ item.label }}
+    </nut-checkbox>
+</nut-checkbox-group>
+
+@section setupScripts{
+    DVALUE = [];
+}

@@ -1,0 +1,32 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_FormItemLayout.cshtml";
+}
+
+<div class="nut-picker-trigger" @@click="comInnerInfo.showPicker = true">
+    <nut-input :model-value="modelinfo ? (comInnerInfo.options.find(o => o.value === modelinfo)?.label || modelinfo) : ''"
+               :placeholder="props.jsonconfig.options.comoptions.placeholder || '请选择'"
+               readonly
+               v-bind="props.jsonconfig.options.comoptions">
+    </nut-input>
+</div>
+
+<nut-popup v-model:visible="comInnerInfo.showPicker" position="bottom" round>
+    <nut-picker v-model="comInnerInfo.pickerValue"
+                :columns="comInnerInfo.options.map(o => ({ text: o.label, value: o.value }))"
+                title="请选择"
+                @@confirm="onPickerConfirm"
+                @@cancel="comInnerInfo.showPicker = false">
+    </nut-picker>
+</nut-popup>
+
+@section setupScripts{
+    DVALUE = '';
+    function onPickerConfirm(values) {
+        if (values && values.length > 0) {
+            modelinfo.value = values[0].value;
+        }
+        comInnerInfo.showPicker = false;
+        comInnerInfo.validation.touched = true;
+        validate();
+    }
+}

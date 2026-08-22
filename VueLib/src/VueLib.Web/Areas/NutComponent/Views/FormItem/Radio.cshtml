@@ -1,0 +1,18 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_FormItemLayout.cshtml";
+}
+
+<nut-radio-group v-model="modelinfo"
+                 v-bind="props.jsonconfig.options.comoptions"
+                 v-on="getComlisteners()"
+                 @@change="comInnerInfo.validation.touched = true; validate()">
+    <nut-radio v-for="item in comInnerInfo.options"
+               :key="item.value"
+               :label="item.value">
+        {{ item.label }}
+    </nut-radio>
+</nut-radio-group>
+
+@section setupScripts{
+    DVALUE = '';
+}

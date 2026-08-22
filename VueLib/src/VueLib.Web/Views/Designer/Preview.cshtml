@@ -1,0 +1,26 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>手机预览</title>
+    <link rel="stylesheet" href="~/css/nutui.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/preview.css" asp-append-version="true" />
+</head>
+<body>
+    <div id="preview-app">
+        <div class="preview-loading">
+            <div class="nut-spinner"></div>
+            <p>等待设计器配置...</p>
+        </div>
+    </div>
+
+    <script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
+    <script src="~/js/nutui.umd.min.js" asp-append-version="true"></script>
+    <script src="~/js/nut-runtime.js" asp-append-version="true"></script>
+    <script src="~/js/preview.js" asp-append-version="true"></script>
+</body>
+</html>

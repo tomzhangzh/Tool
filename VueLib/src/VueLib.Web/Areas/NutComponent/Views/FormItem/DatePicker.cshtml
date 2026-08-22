@@ -1,0 +1,30 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_FormItemLayout.cshtml";
+}
+
+<div class="nut-datepicker-trigger" @@click="comInnerInfo.showPicker = true">
+    <nut-input :model-value="modelinfo || ''"
+               :placeholder="props.jsonconfig.options.comoptions.placeholder || '请选择日期'"
+               readonly
+               v-bind="props.jsonconfig.options.comoptions">
+    </nut-input>
+</div>
+
+<nut-popup v-model:visible="comInnerInfo.showPicker" position="bottom" round>
+    <nut-datepicker v-model="comInnerInfo.pickerValue"
+                    :type="props.jsonconfig.options.comoptions.type || 'date'"
+                    title="选择日期"
+                    @@confirm="onDateConfirm"
+                    @@cancel="comInnerInfo.showPicker = false">
+    </nut-datepicker>
+</nut-popup>
+
+@section setupScripts{
+    DVALUE = '';
+    function onDateConfirm(values) {
+        modelinfo.value = Array.isArray(values) ? values.join('-') : values;
+        comInnerInfo.showPicker = false;
+        comInnerInfo.validation.touched = true;
+        validate();
+    }
+}

@@ -1,0 +1,24 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="nut-form-item" :class="{ 'has-error': !comInnerInfo.validation.valid && comInnerInfo.validation.touched }">
+        <label v-if="props.jsonconfig.options.labeloptions.show !== false"
+               class="nut-form-item__label"
+               :class="{ 'is-required': props.jsonconfig.options.labeloptions.required }">
+            {{ props.jsonconfig.options.labeloptions.label }}
+        </label>
+        <div class="nut-form-item__content">
+            @RenderBody()
+            <div v-if="!comInnerInfo.validation.valid && comInnerInfo.validation.touched && comInnerInfo.validation.errors.length"
+                 class="nut-form-item__error">
+                {{ comInnerInfo.validation.errors[0] }}
+            </div>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    @RenderSection("setupScripts", false)
+}

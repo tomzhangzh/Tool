@@ -1,0 +1,18 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div :style="getStyle(props.jsonconfig.options.itemoptions)"
+         :class="getClass(props.jsonconfig.options.itemoptions)">
+        <n-dynamic-com v-for="(child, idx) in props.jsonconfig.childrenctrls"
+                       :key="child.component + '_' + idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo">
+        </n-dynamic-com>
+    </div>
+</template>
+
+@section setupScripts{
+    // 通用 DIV 容器
+}

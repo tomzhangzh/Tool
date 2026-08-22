@@ -1,0 +1,12 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-noticebar :text="props.jsonconfig.options.comoptions.text || ''"
+                   :type="props.jsonconfig.options.comoptions.type || 'warning'"
+                   v-bind="props.jsonconfig.options.comoptions">
+    </nut-noticebar>
+</template>
+
+@section setupScripts{ }

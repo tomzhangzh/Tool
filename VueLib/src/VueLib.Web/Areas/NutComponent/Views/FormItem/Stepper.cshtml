@@ -1,0 +1,12 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_FormItemLayout.cshtml";
+}
+
+<nut-stepper v-model="modelinfo"
+             v-bind="props.jsonconfig.options.comoptions"
+             v-on="getComlisteners()">
+</nut-stepper>
+
+@section setupScripts{
+    DVALUE = 0;
+}

@@ -1,0 +1,13 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-progress :percentage="Number(modelinfo) || props.jsonconfig.options.comoptions.percentage || 0"
+                  v-bind="props.jsonconfig.options.comoptions">
+    </nut-progress>
+</template>
+
+@section setupScripts{
+    DVALUE = 0;
+}

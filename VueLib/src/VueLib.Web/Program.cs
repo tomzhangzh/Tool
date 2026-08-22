@@ -15,6 +15,10 @@ builder.Services.AddSingleton<RazorComponentRenderer>();
 // 组件服务（数据库优先 + Razor 回退）
 builder.Services.AddScoped<ComponentService>();
 
+// 低代码服务
+builder.Services.AddScoped<PageSettingService>();
+builder.Services.AddScoped<ComponentMetaService>();
+
 // 跨域（开发环境前端调试用）
 builder.Services.AddCors(options =>
 {
@@ -48,5 +52,10 @@ app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// Area 路由（NutUI 组件加载）
+app.MapControllerRoute(
+    name: "areas",
+    pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 
 app.Run();

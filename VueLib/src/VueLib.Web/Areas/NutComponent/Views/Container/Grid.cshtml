@@ -1,0 +1,19 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-grid :column-num="props.jsonconfig.options.comoptions.columnNum || 2"
+              v-bind="props.jsonconfig.options.comoptions">
+        <nut-grid-item v-for="(child, idx) in props.jsonconfig.childrenctrls"
+                       :key="child.component + '_' + idx">
+            <n-dynamic-com :jsonconfig="child"
+                           :parentmodelinfo="props.parentmodelinfo">
+            </n-dynamic-com>
+        </nut-grid-item>
+    </nut-grid>
+</template>
+
+@section setupScripts{
+    // 网格布局
+}

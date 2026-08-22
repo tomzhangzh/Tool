@@ -1,0 +1,18 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-cell-group :title="props.jsonconfig.options.comoptions.title"
+                    :desc="props.jsonconfig.options.comoptions.desc">
+        <n-dynamic-com v-for="(child, idx) in props.jsonconfig.childrenctrls"
+                       :key="child.component + '_' + idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo">
+        </n-dynamic-com>
+    </nut-cell-group>
+</template>
+
+@section setupScripts{
+    // CellGroup 无需额外逻辑
+}

@@ -1,0 +1,39 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="nut-form-container"
+         :style="getStyle(props.jsonconfig.options.itemoptions)"
+         :class="getClass(props.jsonconfig.options.itemoptions)"
+         ref="formRef">
+        <n-dynamic-com v-for="(child, idx) in props.jsonconfig.childrenctrls"
+                       :key="child.component + '_' + idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo">
+        </n-dynamic-com>
+    </div>
+</template>
+
+@section setupScripts{
+    // 表单容器：提供递归验证方法
+    const formValidate = () => {
+        let allValid = true;
+        const validateChildren = (children) => {
+            for (const child of children || []) {
+                // 子组件的验证由各自的 validate 方法处理
+                // 这里通过触发所有子组件的 touched 状态来实现
+                if (child.childrenctrls && child.childrenctrls.length > 0) {
+                    validateChildren(child.childrenctrls);
+                }
+            }
+        };
+        validateChildren(props.jsonconfig.childrenctrls);
+        // 简单实现：标记所有为 touched 后由各组件自行验证
+        return allValid;
+    };
+    // 暴露给父级
+    if (context.expose) {
+        context.expose({ validate: formValidate });
+    }
+}

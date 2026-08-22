@@ -1,0 +1,166 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>低代码设计器 - VueLib</title>
+    <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/designer.css" asp-append-version="true" />
+</head>
+<body>
+    <div id="designer-app">
+        <!-- 顶部工具栏 -->
+        <div class="designer-toolbar">
+            <div class="toolbar-left">
+                <span class="toolbar-title">🎨 低代码设计器</span>
+                <el-select v-model="currentPageCode" placeholder="选择页面" size="small" style="width:200px;margin-left:16px;" @@change="loadPage">
+                    <el-option v-for="p in pageList" :key="p.pageCode" :label="p.pageName" :value="p.pageCode"></el-option>
+                </el-select>
+                <el-button size="small" type="primary" @@click="newPage">新建</el-button>
+                <el-button size="small" type="success" @@click="savePage" :loading="saving">保存</el-button>
+            </div>
+            <div class="toolbar-right">
+                <el-button size="small" @@click="validateForm">验证表单</el-button>
+                <el-switch v-model="showJson" active-text="JSON" inactive-text="" size="small" style="margin:0 12px;"></el-switch>
+                <el-button size="small" type="warning" @@click="openPreview">新窗口预览</el-button>
+            </div>
+        </div>
+
+        <!-- 主体三栏 -->
+        <div class="designer-body">
+            <!-- 左侧组件面板 -->
+            <div class="panel panel-left">
+                <div class="panel-header">组件库</div>
+                <el-tabs v-model="activeCategory" tab-position="top" class="component-tabs">
+                    <el-tab-pane v-for="cat in categories" :key="cat.key" :label="cat.label" :name="cat.key">
+                        <div class="component-grid">
+                            <div v-for="comp in getComponentsByCategory(cat.key)"
+                                 :key="comp.componentName"
+                                 class="component-item"
+                                 @@click="addComponent(comp)"
+                                 :title="comp.description">
+                                <span class="comp-icon">{{ comp.icon }}</span>
+                                <span class="comp-label">{{ comp.displayName || comp.label || comp.componentName }}</span>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+                </el-tabs>
+            </div>
+
+            <!-- 中间手机模拟器 -->
+            <div class="panel panel-center">
+                <div class="phone-wrapper">
+                    <div class="phone-notch"></div>
+                    <div class="phone-screen">
+                        <iframe ref="previewFrame" src="@Url.Content("~/Designer/Preview")" class="preview-iframe"></iframe>
+                    </div>
+                    <div class="phone-home-indicator"></div>
+                </div>
+                <div class="canvas-info">
+                    <span>画布: 375 × 667 (iPhone SE)</span>
+                    <span v-if="selectedPath">选中: {{ selectedPath }}</span>
+                </div>
+            </div>
+
+            <!-- 右侧属性面板 -->
+            <div class="panel panel-right">
+                <div class="panel-header">属性配置</div>
+                <div v-if="!selectedNode" class="empty-tip">
+                    <el-empty description="在左侧点击组件添加，或在画布中选中组件" :image-size="80"></el-empty>
+                </div>
+                <div v-else class="property-form">
+                    <el-form label-width="90px" size="small">
+                        <el-form-item label="组件类型">
+                            <el-tag>{{ selectedNode.component }}</el-tag>
+                        </el-form-item>
+                        <el-form-item label="绑定字段">
+                            <el-input v-model="selectedNode.modelname" placeholder="如: user.name" clearable></el-input>
+                        </el-form-item>
+                        <el-form-item label="标签文字">
+                            <el-input v-model="selectedNode.options.labeloptions.label" placeholder="标签名称" clearable></el-input>
+                        </el-form-item>
+                        <el-form-item label="显示标签">
+                            <el-switch v-model="selectedNode.options.labeloptions.show"></el-switch>
+                        </el-form-item>
+                        <el-form-item label="必填">
+                            <el-switch v-model="selectedNode.options.labeloptions.required" @@change="toggleRequired"></el-switch>
+                        </el-form-item>
+                        <el-form-item label="占位符">
+                            <el-input v-model="selectedNode.options.comoptions.placeholder" placeholder="placeholder" clearable></el-input>
+                        </el-form-item>
+                        <el-form-item label="选项值">
+                            <el-input v-model="selectedNode.options.optionValues" placeholder="逗号分隔，如: 男,女,保密" clearable
+                                      v-if="hasOptionField"></el-input>
+                            <span v-else class="text-muted">—</span>
+                        </el-form-item>
+
+                        <el-divider content-position="left">验证器</el-divider>
+                        <div class="validator-list">
+                            <div v-for="(v, idx) in selectedNode.validators" :key="idx" class="validator-item">
+                                <el-select v-model="v.type" size="small" style="width:120px;">
+                                    <el-option label="必填" value="required"></el-option>
+                                    <el-option label="必须为真" value="requiredTrue"></el-option>
+                                    <el-option label="最小长度" value="minLength"></el-option>
+                                    <el-option label="最大长度" value="maxLength"></el-option>
+                                    <el-option label="最小值" value="min"></el-option>
+                                    <el-option label="最大值" value="max"></el-option>
+                                    <el-option label="正则" value="pattern"></el-option>
+                                    <el-option label="邮箱" value="email"></el-option>
+                                    <el-option label="手机号" value="phone"></el-option>
+                                    <el-option label="URL" value="url"></el-option>
+                                    <el-option label="数字" value="number"></el-option>
+                                </el-select>
+                                <el-input v-if="needsValue(v.type)" v-model="v.value" size="small" placeholder="值" style="width:80px;margin:0 6px;"></el-input>
+                                <el-input v-model="v.message" size="small" placeholder="错误提示" style="flex:1;margin-right:6px;"></el-input>
+                                <el-button size="small" type="danger" icon="Delete" @@click="removeValidator(idx)" circle></el-button>
+                            </div>
+                            <el-button size="small" type="primary" plain icon="Plus" @@click="addValidator">添加验证规则</el-button>
+                        </div>
+
+                        <el-divider content-position="left">操作</el-divider>
+                        <el-form-item>
+                            <el-button size="small" @@click="moveUp" :disabled="!canMoveUp">上移</el-button>
+                            <el-button size="small" @@click="moveDown" :disabled="!canMoveDown">下移</el-button>
+                            <el-button size="small" type="danger" @@click="deleteNode">删除</el-button>
+                        </el-form-item>
+                    </el-form>
+                </div>
+            </div>
+        </div>
+
+        <!-- JSON 编辑器弹窗 -->
+        <el-dialog v-model="showJson" title="页面配置 JSON" width="700px" top="5vh">
+            <el-input v-model="configJsonText" type="textarea" :rows="24" font-size="12px"
+                      placeholder="页面配置 JSON"></el-input>
+            <template #footer>
+                <el-button @@click="applyJson">应用 JSON</el-button>
+                <el-button type="primary" @@click="showJson=false">关闭</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 新建页面弹窗 -->
+        <el-dialog v-model="showNewPage" title="新建页面" width="400px">
+            <el-form label-width="80px">
+                <el-form-item label="页面名称">
+                    <el-input v-model="newPageForm.pageName"></el-input>
+                </el-form-item>
+                <el-form-item label="页面编码">
+                    <el-input v-model="newPageForm.pageCode" placeholder="英文，如 user-form"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @@click="showNewPage=false">取消</el-button>
+                <el-button type="primary" @@click="confirmNewPage">创建</el-button>
+            </template>
+        </el-dialog>
+    </div>
+
+    <script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
+    <script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
+    <script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
+    <script src="~/js/designer.js" asp-append-version="true"></script>
+</body>
+</html>

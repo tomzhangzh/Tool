@@ -1,0 +1,13 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-tag :type="props.jsonconfig.options.comoptions.type || 'primary'"
+             :round="props.jsonconfig.options.comoptions.round"
+             :plain="props.jsonconfig.options.comoptions.plain">
+        {{ props.jsonconfig.options.comoptions.text || '标签' }}
+    </nut-tag>
+</template>
+
+@section setupScripts{ }

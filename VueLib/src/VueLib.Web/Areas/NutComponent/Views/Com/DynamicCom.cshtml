@@ -1,0 +1,15 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <component :is="props.jsonconfig.component"
+               :jsonconfig="props.jsonconfig"
+               :parentmodelinfo="props.parentmodelinfo"
+               :extensioninfo="props.extensioninfo">
+    </component>
+</template>
+
+@section setupScripts{
+    // DynamicCom 无需额外逻辑
+}

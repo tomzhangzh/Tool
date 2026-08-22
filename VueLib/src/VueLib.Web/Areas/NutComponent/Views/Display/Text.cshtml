@@ -1,0 +1,14 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-text :size="props.jsonconfig.options.comoptions.size"
+              :color="props.jsonconfig.options.comoptions.color"
+              :bold="props.jsonconfig.options.comoptions.bold"
+              :style="getStyle(props.jsonconfig.options.itemoptions)">
+        {{ props.jsonconfig.options.comoptions.text || '' }}
+    </nut-text>
+</template>
+
+@section setupScripts{ }

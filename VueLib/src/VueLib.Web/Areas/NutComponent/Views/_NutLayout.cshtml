@@ -1,0 +1,193 @@
+@* NutUI 组件公共布局 - 提供 setup 逻辑（jsonconfig / modelinfo / validators / 设计器注入）*@
+@RenderBody()
+
+<script tag='comconfig'>
+var comConfig = {
+    props: {
+        jsonconfig: { type: Object, required: true },
+        parentmodelinfo: { type: Object, required: false },
+        extensioninfo: { type: Object, required: false }
+    },
+    setup(props, context) {
+        const { ref, reactive, computed, inject, provide, watch, nextTick } = Vue;
+
+        // 设计器共享数据注入
+        const designShared = inject('design_ShareData', null);
+        const parentConfig = inject('parent_jsonconfig', null);
+        const parentCom = inject('parent_com', null);
+
+        // 合并默认配置
+        const defaults = {
+            component: null,
+            modelname: null,
+            options: {
+                comoptions: {},
+                comlisteners: {},
+                labeloptions: { label: '', required: false, show: true },
+                itemoptions: { style: {}, class: '' },
+                wrapperoptions: {}
+            },
+            validators: [],
+            childrenctrls: [],
+            slots: {},
+            extendinfo: {}
+        };
+        function deepMerge(target, source) {
+            for (const key in source) {
+                if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+                    target[key] = target[key] || {};
+                    deepMerge(target[key], source[key]);
+                } else if (target[key] === undefined) {
+                    target[key] = source[key];
+                }
+            }
+            return target;
+        }
+        deepMerge(props.jsonconfig, JSON.parse(JSON.stringify(defaults)));
+
+        // 内部状态
+        const comInnerInfo = reactive({
+            options: [],       // 选择器选项
+            validation: { valid: true, errors: [], touched: false },
+            showPicker: false,
+            pickerValue: null
+        });
+
+        // 默认值（组件可在 setupScripts 中设置 DVALUE）
+        let DVALUE = null;
+
+        @RenderSection("setupScripts", false)
+
+        // ===== 模型绑定（支持嵌套路径 a.b.c）=====
+        function getByPath(obj, path) {
+            if (!obj || !path) return undefined;
+            return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+        }
+        function setByPath(obj, path, value) {
+            if (!obj || !path) return;
+            const keys = path.split('.');
+            const last = keys.pop();
+            const target = keys.reduce((o, k) => {
+                if (o[k] == null || typeof o[k] !== 'object') o[k] = {};
+                return o[k];
+            }, obj);
+            target[last] = value;
+        }
+
+        const modelinfo = computed({
+            get() {
+                if (props.parentmodelinfo && props.jsonconfig.modelname) {
+                    const val = getByPath(props.parentmodelinfo, props.jsonconfig.modelname);
+                    return val === undefined ? DVALUE : val;
+                }
+                return null;
+            },
+            set(val) {
+                if (props.parentmodelinfo && props.jsonconfig.modelname) {
+                    setByPath(props.parentmodelinfo, props.jsonconfig.modelname, val);
+                }
+                // 触发验证
+                if (comInnerInfo.validation.touched) {
+                    validate();
+                }
+            }
+        });
+
+        // ===== 验证器系统 =====
+        const validators = {
+            required: (v) => v !== null && v !== undefined && v !== '',
+            requiredTrue: (v) => v === true,
+            minLength: (v, m) => typeof v === 'string' && v.length >= m,
+            maxLength: (v, m) => typeof v === 'string' && v.length <= m,
+            min: (v, m) => Number(v) >= m,
+            max: (v, m) => Number(v) <= m,
+            pattern: (v, p) => new RegExp(p).test(String(v || '')),
+            email: (v) => /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(String(v || '')),
+            phone: (v) => /^1[3-9]\d{9}$/.test(String(v || '')),
+            url: (v) => /^https?:\/\/.+/.test(String(v || '')),
+            number: (v) => !isNaN(Number(v))
+        };
+
+        function validate() {
+            const rules = props.jsonconfig.validators || [];
+            const val = modelinfo.value;
+            const errors = [];
+            for (const rule of rules) {
+                const fn = validators[rule.type];
+                if (!fn) continue;
+                const valid = fn(val, rule.value);
+                if (!valid) {
+                    errors.push(rule.message || `验证失败: ${rule.type}`);
+                }
+            }
+            comInnerInfo.validation.valid = errors.length === 0;
+            comInnerInfo.validation.errors = errors;
+            comInnerInfo.validation.touched = true;
+            return comInnerInfo.validation.valid;
+        }
+
+        function resetValidation() {
+            comInnerInfo.validation.valid = true;
+            comInnerInfo.validation.errors = [];
+            comInnerInfo.validation.touched = false;
+        }
+
+        // 提供给父级表单的验证方法
+        provide('component_validate', validate);
+        provide('component_resetValidation', resetValidation);
+
+        // ===== 工具方法 =====
+        function getStyle(...opts) {
+            return Object.assign({}, ...opts.map(o => o?.style || {}));
+        }
+        function getClass(...opts) {
+            return opts.flatMap(o => (o?.class || '').split(' ')).filter(Boolean);
+        }
+
+        // 解析事件监听器（支持字符串函数名引用）
+        function getComlisteners() {
+            const listeners = props.jsonconfig.options?.comlisteners || {};
+            const result = {};
+            for (const key in listeners) {
+                const val = listeners[key];
+                if (typeof val === 'function') {
+                    result[key] = val;
+                } else if (typeof val === 'string' && val && context.attrs[val]) {
+                    result[key] = context.attrs[val];
+                }
+            }
+            return result;
+        }
+
+        // 初始化选项（从 optionValues 逗号分隔字符串解析）
+        function initOptionsFromConfig() {
+            const optStr = props.jsonconfig.options?.optionValues;
+            if (optStr && typeof optStr === 'string') {
+                comInnerInfo.options = optStr.split(',').map(v => ({ label: v.trim(), value: v.trim() }));
+            }
+        }
+        initOptionsFromConfig();
+        watch(() => props.jsonconfig.options?.optionValues, initOptionsFromConfig);
+
+        // 提供父组件链（设计器用）
+        provide('parent_jsonconfig', props.jsonconfig);
+        provide('parent_com', { parent_Config: parentConfig, parent_Com: parentCom });
+
+        return {
+            modelinfo,
+            comInnerInfo,
+            validate,
+            resetValidation,
+            getStyle,
+            getClass,
+            getComlisteners,
+            props,
+            context,
+            designShared,
+            parentConfig,
+            parentCom,
+            DVALUE
+        };
+    }
+};
+</script>

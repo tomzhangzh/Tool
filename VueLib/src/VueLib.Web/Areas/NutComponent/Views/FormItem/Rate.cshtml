@@ -1,0 +1,13 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_FormItemLayout.cshtml";
+}
+
+<nut-rate v-model="modelinfo"
+          v-bind="props.jsonconfig.options.comoptions"
+          v-on="getComlisteners()"
+          @@change="comInnerInfo.validation.touched = true; validate()">
+</nut-rate>
+
+@section setupScripts{
+    DVALUE = 0;
+}

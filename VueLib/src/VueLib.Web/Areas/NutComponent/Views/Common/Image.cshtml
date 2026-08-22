@@ -1,0 +1,14 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <nut-image :src="props.jsonconfig.options.comoptions.src"
+               :width="props.jsonconfig.options.comoptions.width"
+               :height="props.jsonconfig.options.comoptions.height"
+               :fit="props.jsonconfig.options.comoptions.fit || 'cover'"
+               v-bind="props.jsonconfig.options.comoptions">
+    </nut-image>
+</template>
+
+@section setupScripts{ }
