@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 发布时保留 .cshtml 文件，供 RazorComponentRenderer 扫描 -->
+    <CopyRazorGenerateFilesToPublishDirectory>true</CopyRazorGenerateFilesToPublishDirectory>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.217" />
+  </ItemGroup>
+
+  <!-- 构建时将 Views/Shared/Components 复制到输出目录，供运行时扫描 -->
+  <Target Name="CopyComponentViews" AfterTargets="Build">
+    <ItemGroup>
+      <ComponentViews Include="Views\Shared\Components\**\*.cshtml" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ComponentViews)"
+          DestinationFiles="@(ComponentViews->'$(OutDir)\Views\Shared\Components\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

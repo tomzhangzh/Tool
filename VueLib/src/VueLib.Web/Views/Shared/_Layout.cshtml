@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - VueLib 动态组件库</title>
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body>
+    <!-- Vue SPA 挂载点 -->
+    <div id="app">
+        <!-- 加载中占位，app.js 启动后会替换 -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:#606266;">
+            <div style="width:40px;height:40px;border:3px solid #dcdfe6;border-top-color:#409eff;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+            <p style="margin-top:16px;">正在初始化应用...</p>
+            <style>@@keyframes spin{to{transform:rotate(360deg)}}</style>
+        </div>
+    </div>
+
+    <!-- Vue 3 UMD 全局构建 -->
+    <script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
+    <!-- Vue Router 4 UMD 全局构建 -->
+    <script src="~/js/vue-router.global.prod.js" asp-append-version="true"></script>
+    <!-- 核心：vueLoadCom 动态组件加载器 -->
+    <script src="~/js/vue-loader.js" asp-append-version="true"></script>
+    <!-- 应用入口 -->
+    <script src="~/js/app.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
