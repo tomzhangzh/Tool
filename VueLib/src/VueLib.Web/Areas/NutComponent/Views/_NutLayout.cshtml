@@ -6,15 +6,17 @@ var comConfig = {
     props: {
         jsonconfig: { type: Object, required: true },
         parentmodelinfo: { type: Object, required: false },
-        extensioninfo: { type: Object, required: false }
+        extensioninfo: { type: Object, required: false },
+        nodePath: { type: String, default: 'root' }
     },
     setup(props, context) {
-        const { ref, reactive, computed, inject, provide, watch, nextTick } = Vue;
+        const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted } = Vue;
 
         // 设计器共享数据注入
         const designShared = inject('design_ShareData', null);
         const parentConfig = inject('parent_jsonconfig', null);
         const parentCom = inject('parent_com', null);
+        const lcDesigner = inject('lcDesigner', null);
 
         // 合并默认配置
         const defaults = {
@@ -173,6 +175,30 @@ var comConfig = {
         provide('parent_jsonconfig', props.jsonconfig);
         provide('parent_com', { parent_Config: parentConfig, parent_Com: parentCom });
 
+        // ===== 容器拖拽配置（v-draggable 指令用）=====
+        const dragOptions = {
+            animation: 250,
+            swapThreshold: 0.1,
+            group: { name: 'lc-designer-group' },
+            ghostClass: 'lc-ghost',
+            dragClass: 'lc-drag',
+            chosenClass: 'lc-chosen',
+            onAdd(event) {
+                console.log('[Nut] onAdd:', event.newIndex, event.from?.className);
+                // 容器间移动则默认处理
+                if (event.from && event.from.classList && event.from.classList.contains('lc-container')) {
+                    return true;
+                }
+                // 从左侧菜单拖入
+                if (lcDesigner?.onContainerDragAdd) {
+                    lcDesigner.onContainerDragAdd(event, props.jsonconfig);
+                }
+                return false;
+            },
+            onStart() { console.log('[Nut] container drag start'); },
+            onUpdate() { console.log('[Nut] container update'); }
+        };
+
         return {
             modelinfo,
             comInnerInfo,
@@ -186,7 +212,16 @@ var comConfig = {
             designShared,
             parentConfig,
             parentCom,
-            DVALUE
+            DVALUE,
+            dragOptions,
+            // 拖拽相关
+            dragGroup: 'lc-designer-group',
+            onDragEnd(evt) {
+                if (lcDesigner?.onContainerDragEnd) lcDesigner.onContainerDragEnd(evt);
+            },
+            onDragAdd(evt) {
+                if (lcDesigner?.onContainerDragAdd) lcDesigner.onContainerDragAdd(evt, props.jsonconfig);
+            }
         };
     }
 };

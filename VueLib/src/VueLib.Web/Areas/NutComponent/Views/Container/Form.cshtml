@@ -3,14 +3,15 @@
 }
 
 <template>
-    <div class="nut-form-container"
+    <div class="nut-form-container lc-container t_container"
+         v-draggable="[props.jsonconfig.childrenctrls, dragOptions]"
          :style="getStyle(props.jsonconfig.options.itemoptions)"
-         :class="getClass(props.jsonconfig.options.itemoptions)"
-         ref="formRef">
+         :class="getClass(props.jsonconfig.options.itemoptions)">
         <n-dynamic-com v-for="(child, idx) in props.jsonconfig.childrenctrls"
                        :key="child.component + '_' + idx"
                        :jsonconfig="child"
-                       :parentmodelinfo="props.parentmodelinfo">
+                       :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
         </n-dynamic-com>
     </div>
 </template>

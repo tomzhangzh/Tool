@@ -8,6 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>低代码设计器 - VueLib</title>
     <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/nutui.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/designer.css" asp-append-version="true" />
 </head>
 <body>
@@ -23,7 +24,10 @@
                 <el-button size="small" type="success" @@click="savePage" :loading="saving">保存</el-button>
             </div>
             <div class="toolbar-right">
-                <el-button size="small" @@click="validateForm">验证表单</el-button>
+                <el-radio-group v-model="designMode" size="small" style="margin-right:12px;">
+                    <el-radio-button label="design">设计</el-radio-button>
+                    <el-radio-button label="preview">预览</el-radio-button>
+                </el-radio-group>
                 <el-switch v-model="showJson" active-text="JSON" inactive-text="" size="small" style="margin:0 12px;"></el-switch>
                 <el-button size="small" type="warning" @@click="openPreview">新窗口预览</el-button>
             </div>
@@ -33,73 +37,89 @@
         <div class="designer-body">
             <!-- 左侧组件面板 -->
             <div class="panel panel-left">
-                <div class="panel-header">组件库</div>
-                <el-tabs v-model="activeCategory" tab-position="top" class="component-tabs">
-                    <el-tab-pane v-for="cat in categories" :key="cat.key" :label="cat.label" :name="cat.key">
-                        <div class="component-grid">
-                            <div v-for="comp in getComponentsByCategory(cat.key)"
-                                 :key="comp.componentName"
-                                 class="component-item"
-                                 @@click="addComponent(comp)"
-                                 :title="comp.description">
-                                <span class="comp-icon">{{ comp.icon }}</span>
-                                <span class="comp-label">{{ comp.displayName || comp.label || comp.componentName }}</span>
+                <el-tabs v-model="leftTab" tab-position="top" class="component-tabs">
+                    <el-tab-pane label="组件库" name="palette">
+                        <div class="palette-inner">
+                            <el-radio-group v-model="activeCategory" size="small" style="margin-bottom:8px;">
+                                <el-radio-button v-for="cat in categories" :key="cat.key" :label="cat.key">{{ cat.label }}</el-radio-button>
+                            </el-radio-group>
+                            <div class="component-grid" v-draggable="[filteredComponents, paletteDragOptions]">
+                                <div v-for="comp in filteredComponents"
+                                     :key="comp.componentName"
+                                     class="component-item"
+                                     :title="comp.description">
+                                    <span class="comp-icon">{{ comp.icon }}</span>
+                                    <span class="comp-label">{{ comp.displayName || comp.label || comp.componentName }}</span>
+                                </div>
                             </div>
+                        </div>
+                    </el-tab-pane>
+                    <el-tab-pane label="组件树" name="tree">
+                        <div class="tree-inner">
+                            <el-input v-model="treeFilter" placeholder="过滤组件" size="small" clearable style="margin-bottom:8px;"></el-input>
+                            <el-tree ref="treeRef"
+                                     :data="[configObj]"
+                                     :props="{ children: 'childrenctrls', label: 'component' }"
+                                     draggable
+                                     default-expand-all
+                                     :filter-node-method="(value, data) => !value || data.component.includes(value)"
+                                     @@node-click="selectFromTree">
+                            </el-tree>
                         </div>
                     </el-tab-pane>
                 </el-tabs>
             </div>
 
-            <!-- 中间手机模拟器 -->
+            <!-- 中间手机模拟器（直接渲染） -->
             <div class="panel panel-center">
                 <div class="phone-wrapper">
                     <div class="phone-notch"></div>
-                    <div class="phone-screen">
-                        <iframe ref="previewFrame" src="@Url.Content("~/Designer/Preview")" class="preview-iframe"></iframe>
+                    <div class="phone-screen designer-canvas" :class="{ 'preview-mode': designMode === 'preview' }">
+                        <n-dynamic-com :jsonconfig="configObj" :parentmodelinfo="modelObj" node-path="root"></n-dynamic-com>
                     </div>
                     <div class="phone-home-indicator"></div>
                 </div>
                 <div class="canvas-info">
                     <span>画布: 375 × 667 (iPhone SE)</span>
-                    <span v-if="selectedPath">选中: {{ selectedPath }}</span>
+                    <span v-if="currentPath">选中: {{ currentPath }}</span>
                 </div>
             </div>
 
             <!-- 右侧属性面板 -->
             <div class="panel panel-right">
                 <div class="panel-header">属性配置</div>
-                <div v-if="!selectedNode" class="empty-tip">
+                <div v-if="!currentCom" class="empty-tip">
                     <el-empty description="在左侧点击组件添加，或在画布中选中组件" :image-size="80"></el-empty>
                 </div>
                 <div v-else class="property-form">
                     <el-form label-width="90px" size="small">
                         <el-form-item label="组件类型">
-                            <el-tag>{{ selectedNode.component }}</el-tag>
+                            <el-tag>{{ currentCom.component }}</el-tag>
                         </el-form-item>
                         <el-form-item label="绑定字段">
-                            <el-input v-model="selectedNode.modelname" placeholder="如: user.name" clearable></el-input>
+                            <el-input v-model="currentCom.modelname" placeholder="如: user.name" clearable></el-input>
                         </el-form-item>
                         <el-form-item label="标签文字">
-                            <el-input v-model="selectedNode.options.labeloptions.label" placeholder="标签名称" clearable></el-input>
+                            <el-input v-model="currentCom.options.labeloptions.label" placeholder="标签名称" clearable></el-input>
                         </el-form-item>
                         <el-form-item label="显示标签">
-                            <el-switch v-model="selectedNode.options.labeloptions.show"></el-switch>
+                            <el-switch v-model="currentCom.options.labeloptions.show"></el-switch>
                         </el-form-item>
                         <el-form-item label="必填">
-                            <el-switch v-model="selectedNode.options.labeloptions.required" @@change="toggleRequired"></el-switch>
+                            <el-switch v-model="currentCom.options.labeloptions.required" @@change="toggleRequired"></el-switch>
                         </el-form-item>
                         <el-form-item label="占位符">
-                            <el-input v-model="selectedNode.options.comoptions.placeholder" placeholder="placeholder" clearable></el-input>
+                            <el-input v-model="currentCom.options.comoptions.placeholder" placeholder="placeholder" clearable></el-input>
                         </el-form-item>
                         <el-form-item label="选项值">
-                            <el-input v-model="selectedNode.options.optionValues" placeholder="逗号分隔，如: 男,女,保密" clearable
+                            <el-input v-model="currentCom.options.optionValues" placeholder="逗号分隔，如: 男,女,保密" clearable
                                       v-if="hasOptionField"></el-input>
                             <span v-else class="text-muted">—</span>
                         </el-form-item>
 
                         <el-divider content-position="left">验证器</el-divider>
                         <div class="validator-list">
-                            <div v-for="(v, idx) in selectedNode.validators" :key="idx" class="validator-item">
+                            <div v-for="(v, idx) in currentCom.validators" :key="idx" class="validator-item">
                                 <el-select v-model="v.type" size="small" style="width:120px;">
                                     <el-option label="必填" value="required"></el-option>
                                     <el-option label="必须为真" value="requiredTrue"></el-option>
@@ -124,11 +144,22 @@
                         <el-form-item>
                             <el-button size="small" @@click="moveUp" :disabled="!canMoveUp">上移</el-button>
                             <el-button size="small" @@click="moveDown" :disabled="!canMoveDown">下移</el-button>
-                            <el-button size="small" type="danger" @@click="deleteNode">删除</el-button>
+                            <el-button size="small" type="primary" plain @@click="copyCurrent">复制</el-button>
+                            <el-button size="small" type="danger" @@click="deleteCurrent">删除</el-button>
                         </el-form-item>
                     </el-form>
                 </div>
             </div>
+        </div>
+
+        <!-- 底部面包屑 -->
+        <div class="breadcrumb-bar">
+            <span class="breadcrumb-label">路径:</span>
+            <template v-for="(item, idx) in breadcrumbList" :key="idx">
+                <a href="#" class="breadcrumb-link" @@click.prevent="setCurrentCom(item)">{{ item.component }}<b v-if="item.modelname"> ({{ item.modelname }})</b></a>
+                <span v-if="idx < breadcrumbList.length - 1" class="breadcrumb-sep">›</span>
+            </template>
+            <span v-if="!currentCom" class="breadcrumb-empty">未选中组件</span>
         </div>
 
         <!-- JSON 编辑器弹窗 -->
@@ -161,6 +192,9 @@
     <script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
     <script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
     <script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
+    <script src="~/js/nutui.umd.min.js" asp-append-version="true"></script>
+    <script src="~/js/nut-runtime.js" asp-append-version="true"></script>
+    <script src="~/js/vue-draggable-plus.umd.min.js" asp-append-version="true"></script>
     <script src="~/js/designer.js" asp-append-version="true"></script>
 </body>
 </html>

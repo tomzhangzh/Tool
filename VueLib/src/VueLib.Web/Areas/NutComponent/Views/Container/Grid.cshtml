@@ -8,7 +8,8 @@
         <nut-grid-item v-for="(child, idx) in props.jsonconfig.childrenctrls"
                        :key="child.component + '_' + idx">
             <n-dynamic-com :jsonconfig="child"
-                           :parentmodelinfo="props.parentmodelinfo">
+                           :parentmodelinfo="props.parentmodelinfo"
+                           :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
             </n-dynamic-com>
         </nut-grid-item>
     </nut-grid>

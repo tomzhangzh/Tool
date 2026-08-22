@@ -92,3 +92,61 @@ body {
     background: #f5f5f5;
     color: #333;
 }
+
+/* 拖拽时预览区域高亮 */
+.preview-page.drag-over {
+    outline: 2px dashed #ee0a24;
+    outline-offset: -8px;
+    background: rgba(238, 10, 36, 0.03);
+}
+
+/* 设计模式：节点选中样式 */
+.lc-node {
+    position: relative;
+    display: block;
+    cursor: pointer;
+    transition: outline 0.15s;
+    outline: 1px solid transparent;
+    outline-offset: 2px;
+    min-height: 20px;
+}
+.lc-node:hover {
+    outline-color: #a0cfff;
+}
+.lc-node.lc-selected {
+    outline: 2px solid #409eff;
+    background: rgba(64, 158, 255, 0.05);
+}
+.lc-node.lc-dragging {
+    opacity: 0.4;
+}
+.lc-node.lc-drop-target {
+    outline: 2px dashed #67c23a;
+    background: rgba(103, 194, 58, 0.08);
+}
+.lc-node.lc-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: #909399;
+    color: #fff;
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 0 0 0 4px;
+    pointer-events: none;
+}
+
+/* 插入位置指示器 */
+.lc-insert-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #409eff;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 100;
+}
+.lc-insert-before { top: -2px; }
+.lc-insert-after { bottom: -2px; }

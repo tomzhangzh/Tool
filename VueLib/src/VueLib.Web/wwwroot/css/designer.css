@@ -98,6 +98,10 @@ body {
     transform: translateY(-2px);
     box-shadow: 0 2px 8px rgba(64,158,255,0.15);
 }
+.component-item:active {
+    cursor: grabbing;
+    opacity: 0.7;
+}
 .comp-icon { font-size: 24px; margin-bottom: 4px; }
 .comp-label { font-size: 12px; color: #606266; }
 
@@ -174,3 +178,165 @@ body {
 /* Element Plus 覆盖 */
 .el-form--small .el-form-item { margin-bottom: 12px; }
 .el-divider { margin: 12px 0; }
+
+/* 设计器画布 - 直接渲染模式 */
+.designer-canvas {
+    overflow-y: auto;
+    background: #fff;
+}
+.designer-canvas.preview-mode .lc-node {
+    cursor: default;
+    outline: none !important;
+}
+.designer-canvas.preview-mode .lc-node:hover {
+    outline: none !important;
+}
+
+/* 低代码节点样式 */
+.lc-node {
+    position: relative;
+    display: block;
+    cursor: pointer;
+    outline: 1px solid transparent;
+    outline-offset: 2px;
+    transition: outline-color 0.15s;
+    min-height: 24px;
+}
+.lc-node:hover {
+    outline-color: #a0cfff;
+}
+.lc-node.lc-selected {
+    outline: 2px solid #409eff;
+    background: rgba(64, 158, 255, 0.04);
+}
+.lc-node.lc-container {
+    padding: 4px;
+    margin: 2px 0;
+}
+.lc-node.lc-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: #909399;
+    color: #fff;
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 0 0 0 4px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* vue-draggable-plus 拖拽占位 */
+.sortable-ghost {
+    opacity: 0.4;
+    background: #ecf5ff !important;
+}
+.sortable-chosen {
+    cursor: grabbing;
+}
+.sortable-drag {
+    opacity: 0.8;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+/* 新的拖拽样式（参考 TUI.Web.Entry） */
+.lc-ghost {
+    opacity: 0.3;
+    background: #d9ecff !important;
+    border: 2px dashed #409eff !important;
+    border-radius: 4px;
+    min-height: 40px;
+}
+.lc-drag {
+    opacity: 0.85;
+    box-shadow: 0 6px 20px rgba(64, 158, 255, 0.4);
+    transform: rotate(2deg);
+}
+.lc-chosen {
+    cursor: grabbing !important;
+}
+
+/* 容器拖拽区域 */
+.lc-container.t_container {
+    min-height: 30px;
+    position: relative;
+    transition: background 0.2s;
+}
+.lc-container.t_container:hover {
+    background: rgba(64, 158, 255, 0.03);
+}
+.lc-container.t_container:empty::after {
+    content: '拖拽组件到此处';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60px;
+    color: #c0c4cc;
+    font-size: 12px;
+    border: 2px dashed #dcdfe6;
+    border-radius: 4px;
+    margin: 4px;
+}
+
+/* 左侧面板内部 */
+.palette-inner, .tree-inner {
+    padding: 8px;
+    height: 100%;
+    overflow-y: auto;
+}
+.component-tabs .el-tabs__content {
+    height: calc(100% - 40px);
+    overflow: hidden;
+}
+
+/* 底部面包屑 */
+.breadcrumb-bar {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    background: #f5f7fa;
+    border-top: 1px solid #e4e7ed;
+    font-size: 12px;
+    gap: 4px;
+}
+.breadcrumb-label { color: #909399; }
+.breadcrumb-link {
+    color: #409eff;
+    text-decoration: none;
+    cursor: pointer;
+}
+.breadcrumb-link:hover { text-decoration: underline; }
+.breadcrumb-link b { color: #67c23a; font-weight: normal; }
+.breadcrumb-sep { color: #c0c4cc; }
+.breadcrumb-empty { color: #c0c4cc; }
+
+/* 组件树 */
+.tree-inner .el-tree {
+    background: transparent;
+    font-size: 12px;
+}
+.tree-inner .el-tree-node__content {
+    height: 28px;
+}
+
+/* 设计模式下容器高亮 */
+.lc-design.lc-container {
+    outline: 1px dashed #a0cfff;
+    outline-offset: 2px;
+    margin: 2px 0;
+}
+.lc-design.lc-container:hover {
+    outline-color: #409eff;
+}
+
+/* 预览模式隐藏设计样式 */
+.preview-mode .lc-node {
+    cursor: default;
+    outline: none !important;
+}
+.preview-mode .lc-design.lc-container {
+    outline: none !important;
+    margin: 0;
+}
