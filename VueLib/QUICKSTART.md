@@ -1,4 +1,4 @@
-# VueLib 快速上手指南
+﻿# VueLib 快速上手指南
 
 ## 环境要求
 
@@ -85,7 +85,7 @@ dotnet run
 
 | 字段 | 说明 | 示例 |
 |------|------|------|
-| `component` | 组件注册名 | `ElInput` / `NInput` |
+| `component` | 组件注册名 | `DynElInput` / `DynNInput` |
 | `modelname` | 数据绑定路径 | `user.name`（支持嵌套） |
 | `options.comoptions` | 组件 props | `{ "placeholder": "请输入" }` |
 | `options.labeloptions` | 标签配置 | `{ "label": "用户名", "required": true }` |

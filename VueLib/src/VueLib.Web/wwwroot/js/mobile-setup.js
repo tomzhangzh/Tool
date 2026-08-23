@@ -1,11 +1,11 @@
-/* ============================================================
+﻿/* ============================================================
  * VueLib 移动端业务组件 - Setup 逻辑
  * 避免 Razor section 中复杂 JS 导致的解析错误
  * ============================================================ */
 (function () {
     'use strict';
 
-    // ===== NDataTable =====
+    // ===== DynNDataTable =====
     window.__nutDataTableSetup = function (props, comInnerInfo, context) {
         const { ref, computed, onMounted } = Vue;
         const columns = props.jsonconfig.options.comoptions.columns || [];
@@ -93,7 +93,7 @@
         return null;
     };
 
-    // ===== NEChart =====
+    // ===== DynNEChart =====
     window.__nutEChartSetup = function (props, comInnerInfo, context) {
         const { ref, onMounted, onUnmounted, nextTick } = Vue;
         const chartRef = ref(null);
@@ -181,7 +181,7 @@
         return null;
     };
 
-    // ===== NReportFilter =====
+    // ===== DynNReportFilter =====
     window.__nutReportFilterSetup = function (props, comInnerInfo, context) {
         const { ref, computed, onMounted } = Vue;
         comInnerInfo.stations = ref([]);
@@ -268,7 +268,7 @@
         return null;
     };
 
-    // ===== NLoginCard =====
+    // ===== DynNLoginCard =====
     window.__nutLoginCardSetup = function (props, comInnerInfo, context) {
         const { ref } = Vue;
         comInnerInfo.username = ref('');

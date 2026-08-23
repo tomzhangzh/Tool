@@ -1,4 +1,4 @@
-/**
+﻿/**
  * designer.js - 低代码设计器核心逻辑
  * 参考 TUI.Web.Entry 架构：useDraggable + el-tree + provide/inject
  */
@@ -8,7 +8,7 @@
     const { createApp, reactive, ref, computed, watch, nextTick, onMounted, provide } = Vue;
     const { ElMessage, ElMessageBox } = ElementPlus;
 
-    const CONTAINER_COMPONENTS = ['NForm', 'NCellGroup', 'NDivContainer', 'NGrid'];
+    const CONTAINER_COMPONENTS = ['DynNForm', 'DynNCellGroup', 'DynNDivContainer', 'DynNGrid', 'DynElDivContainer', 'DynElCard', 'DynElRow', 'DynElCol', 'DynElTabs'];
     const isContainerComp = (name) => CONTAINER_COMPONENTS.includes(name);
     const DRAG_GROUP = 'lc-designer-group';
 
@@ -61,7 +61,7 @@
 
             // 页面配置根节点
             const configObj = reactive({
-                component: 'NDivContainer', modelname: '',
+                component: 'DynNDivContainer', modelname: '',
                 options: {
                     comoptions: {}, comlisteners: {}, labeloptions: {},
                     itemoptions: { style: { padding: '12px', background: '#fff' }, class: '' }
@@ -95,7 +95,7 @@
 
             const hasOptionField = computed(() => {
                 if (!currentCom.value) return false;
-                return ['NRadio', 'NCheckbox', 'NPicker'].includes(currentCom.value.component);
+                return ['DynNRadio', 'DynNCheckbox', 'DynNPicker'].includes(currentCom.value.component);
             });
 
             // 当前选中组件的属性面板配置
@@ -391,7 +391,7 @@
                 }
                 Object.keys(configObj).forEach(k => delete configObj[k]);
                 Object.assign(configObj, {
-                    component: 'NDivContainer', modelname: '',
+                    component: 'DynNDivContainer', modelname: '',
                     options: { comoptions: {}, comlisteners: {}, labeloptions: {}, itemoptions: { style: { padding: '12px' }, class: '' } },
                     validators: [], childrenctrls: [], slots: {}, extendinfo: {}
                 });
@@ -612,7 +612,7 @@
                                    :jsonconfig="compositeTree"
                                    :parentmodelinfo="parentmodelinfo"
                                    :node-path="nodePath + '.composite'"></n-dynamic-com>
-                    <component v-else :is="resolvedComponent"
+                    <component v-else :is="jsonconfig.component"
                                :jsonconfig="jsonconfig"
                                :parentmodelinfo="parentmodelinfo"
                                :node-path="nodePath"></component>
@@ -623,7 +623,7 @@
                                    :jsonconfig="compositeTree"
                                    :parentmodelinfo="parentmodelinfo"
                                    :node-path="nodePath + '.composite'"></n-dynamic-com>
-                    <component v-else :is="resolvedComponent"
+                    <component v-else :is="jsonconfig.component"
                                :jsonconfig="jsonconfig"
                                :parentmodelinfo="parentmodelinfo"
                                :node-path="nodePath"></component>
@@ -637,24 +637,12 @@
                 return m ? m.length : 0;
             },
             depthExceeded() { return this.depth > 15; },
-            // ElementUI 组件注册时加了 Dyn 前缀，避免与 ElementPlus 全局组件冲突
-            resolvedComponent() {
-                const name = this.jsonconfig.component;
-                if (!name) return null;
-                if (name.startsWith('El') || name.startsWith('el-')) return 'Dyn' + name;
-                return name;
-            },
             isSelected() { return this.lcDesigner?.currentCom?.value === this.jsonconfig; },
             isContainer() { return isContainerComp(this.jsonconfig.component); },
             isDesign() { return this.lcDesigner?.designMode?.value === 'design'; },
             isComposite() { return !!compositeComponents[this.jsonconfig.component]; },
             hasWrapper() { return !!(this.jsonconfig.options?.wrapperoptions?.component); },
-            wrapperComponent() {
-                const wc = this.jsonconfig.options?.wrapperoptions?.component;
-                if (!wc) return null;
-                if (wc.startsWith('El') || wc.startsWith('el-')) return 'Dyn' + wc;
-                return wc;
-            },
+            wrapperComponent() { return this.jsonconfig.options?.wrapperoptions?.component; },
             compositeTree() {
                 if (!this.isComposite) return null;
                 const config = compositeComponents[this.jsonconfig.component];
@@ -699,9 +687,8 @@
                         }
                     }
                     if (name && url) {
-                        // ElementUI 组件加 Dyn 前缀，避免与 ElementPlus 全局组件名冲突导致无限递归
-                        const regName = (name.startsWith('El') || name.startsWith('el-')) ? 'Dyn' + name : name;
-                        app.component(regName, window.nutLoadCom(regName, url));
+                        // 组件名已在数据库中统一为 Dyn 前缀（DynElInput / DynNInput），避免与 UI 库全局组件冲突
+                        app.component(name, window.nutLoadCom(name, url));
                         count++;
                     }
                 }

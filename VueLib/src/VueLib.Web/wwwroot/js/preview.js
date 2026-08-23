@@ -1,4 +1,4 @@
-/**
+﻿/**
  * preview.js - 手机预览页面逻辑
  * 支持设计模式拖拽：拖到指定容器、容器内排序、从左侧添加新组件
  */
@@ -15,7 +15,7 @@
     let appReady = false;
 
     const state = reactive({
-        config: { component: 'NDivContainer', childrenctrls: [] },
+        config: { component: 'DynNDivContainer', childrenctrls: [] },
         model: {}
     });
 
@@ -34,7 +34,7 @@
         dropPosition: null // 'before' | 'after' | 'inside'
     });
 
-    const CONTAINER_COMPONENTS = ['NForm', 'NCellGroup', 'NDivContainer', 'NGrid'];
+    const CONTAINER_COMPONENTS = ['DynNForm', 'DynNCellGroup', 'DynNDivContainer', 'DynNGrid', 'DynElDivContainer', 'DynElCard', 'DynElRow', 'DynElCol', 'DynElTabs'];
 
     function isContainer(compName) {
         return CONTAINER_COMPONENTS.includes(compName);
@@ -118,7 +118,7 @@
                                        :jsonconfig="compositeTree"
                                        :parentmodelinfo="parentmodelinfo"
                                        :node-path="nodePath + '.composite'"></n-dynamic-com>
-                        <component v-else :is="resolvedComponent"
+                        <component v-else :is="jsonconfig.component"
                                    :jsonconfig="jsonconfig"
                                    :parentmodelinfo="parentmodelinfo"
                                    :node-path="nodePath"></component>
@@ -129,7 +129,7 @@
                                        :jsonconfig="compositeTree"
                                        :parentmodelinfo="parentmodelinfo"
                                        :node-path="nodePath + '.composite'"></n-dynamic-com>
-                        <component v-else :is="resolvedComponent"
+                        <component v-else :is="jsonconfig.component"
                                    :jsonconfig="jsonconfig"
                                    :parentmodelinfo="parentmodelinfo"
                                    :node-path="nodePath"></component>
@@ -147,7 +147,7 @@
                                    :jsonconfig="compositeTree"
                                    :parentmodelinfo="parentmodelinfo"
                                    :node-path="nodePath + '.composite'"></n-dynamic-com>
-                    <component v-else :is="resolvedComponent"
+                    <component v-else :is="jsonconfig.component"
                                :jsonconfig="jsonconfig"
                                :parentmodelinfo="parentmodelinfo"
                                :node-path="nodePath"></component>
@@ -156,7 +156,7 @@
                                :jsonconfig="compositeTree"
                                :parentmodelinfo="parentmodelinfo"
                                :node-path="nodePath + '.composite'"></n-dynamic-com>
-                <component v-else-if="!isDesign" :is="resolvedComponent"
+                <component v-else-if="!isDesign" :is="jsonconfig.component"
                            :jsonconfig="jsonconfig"
                            :parentmodelinfo="parentmodelinfo"
                            :node-path="nodePath"></component>
@@ -169,23 +169,12 @@
                     return m ? m.length : 0;
                 },
                 depthExceeded() { return this.depth > 15; },
-                resolvedComponent() {
-                    const name = this.jsonconfig.component;
-                    if (!name) return null;
-                    if (name.startsWith('El') || name.startsWith('el-')) return 'Dyn' + name;
-                    return name;
-                },
                 isDesign() { return designState.mode === 'design'; },
                 isSelected() { return designState.selectedPath === this.nodePath; },
                 isContainerComp() { return isContainer(this.jsonconfig.component); },
                 isComposite() { return !!compositeComponents[this.jsonconfig.component]; },
                 hasWrapper() { return !!(this.jsonconfig.options?.wrapperoptions?.component); },
-                wrapperComponent() {
-                    const wc = this.jsonconfig.options?.wrapperoptions?.component;
-                    if (!wc) return null;
-                    if (wc.startsWith('El') || wc.startsWith('el-')) return 'Dyn' + wc;
-                    return wc;
-                },
+                wrapperComponent() { return this.jsonconfig.options?.wrapperoptions?.component; },
                 compositeTree() {
                     if (!this.isComposite) return null;
                     const config = compositeComponents[this.jsonconfig.component];
@@ -345,9 +334,8 @@
                         }
                     }
                     if (name && url) {
-                        // ElementUI 组件加 Dyn 前缀，避免与 ElementPlus 全局组件名冲突导致无限递归
-                        const regName = (name.startsWith('El') || name.startsWith('el-')) ? 'Dyn' + name : name;
-                        app.component(regName, window.nutLoadCom(regName, url));
+                        // 组件名已在数据库中统一为 Dyn 前缀（DynElInput / DynNInput），避免与 UI 库全局组件冲突
+                        app.component(name, window.nutLoadCom(name, url));
                         registered++;
                     }
                 }

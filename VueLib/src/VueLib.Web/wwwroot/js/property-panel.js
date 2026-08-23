@@ -1,6 +1,6 @@
-/* ============================================================
+﻿/* ============================================================
  * VueLib 低代码平台 - 动态属性面板
- * 根据 PropertyConfigJson 动态生成 Element Plus 表单
+ * 根据 PropertyConfigJson 动态生成 DynElement Plus 表单
  * 支持: input/number/switch/select/textarea/color/slider/radio/checkbox/icon
  * ============================================================ */
 (function () {

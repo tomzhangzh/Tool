@@ -1,4 +1,4 @@
-/**
+﻿/**
  * app.js
  * 应用入口：
  *   1. 从 /api/component/list 获取已启用组件清单

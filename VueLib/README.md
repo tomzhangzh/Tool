@@ -1,4 +1,4 @@
-# VueLib - ASP.NET Core MVC + Vue3 UMD 动态组件加载系统
+﻿# VueLib - ASP.NET Core MVC + Vue3 UMD 动态组件加载系统
 
 基于 .NET 8.0 MVC + Vue 3 UMD + SqlSugar 的动态组件加载框架。组件定义存储在 SQL Server 数据库中，前端通过 `vueLoadCom()` 动态加载并转换为 Vue 3 异步组件；同时支持以 Razor View (.cshtml) 作为组件定义载体，数据库不存在时自动回退到 Razor。
 
@@ -343,7 +343,7 @@ h3 { color: red; }
 
 ```json
 {
-  "component": "NInput",
+  "component": "DynNInput",
   "modelname": "user.name",
   "options": {
     "comoptions": { "placeholder": "请输入", "clearable": true },
@@ -367,7 +367,7 @@ h3 { color: red; }
 
 | 字段 | 说明 |
 |------|------|
-| `component` | 组件注册名（如 NInput、NSelect） |
+| `component` | 组件注册名（如 DynNInput、NSelect） |
 | `modelname` | 数据绑定路径，支持嵌套（a.b.c），从 parentmodelinfo 取值/赋值 |
 | `options.comoptions` | 传递给 NutUI 组件的 props |
 | `options.comlisteners` | 事件监听器（函数名字符串） |
@@ -418,16 +418,16 @@ h3 { color: red; }
 ## 已实现的 NutUI 组件
 
 ### 表单项（11个）
-`NInput` `NTextarea` `NSwitch` `NRadio` `NCheckbox` `NStepper` `NRate` `NSlider` `NPicker` `NDatePicker` `NUploader`
+`DynNInput` `DynNTextarea` `DynNSwitch` `DynNRadio` `DynNCheckbox` `DynNStepper` `DynNRate` `DynNSlider` `DynNPicker` `DynNDatePicker` `DynNUploader`
 
 ### 容器（5个）
-`NForm` `NCellGroup` `NDivContainer` `NDivider` `NGrid`
+`DynNForm` `DynNCellGroup` `DynNDivContainer` `DynNDivider` `DynNGrid`
 
 ### 展示（4个）
-`NTag` `NText` `NNoticeBar` `NProgress`
+`DynNTag` `DynNText` `DynNNoticeBar` `DynNProgress`
 
 ### 通用（2个）
-`NButton` `NImage`
+`DynNButton` `DynNImage`
 
 ## 新增 NutUI 组件步骤
 
@@ -480,13 +480,13 @@ h3 { color: red; }
 ## 已实现的 ElementUI 组件（24个）
 
 ### 表单项（11个）
-`ElInput` `ElInputNumber` `ElSelect` `ElSwitch` `ElRadio` `ElCheckbox` `ElDatePicker` `ElTimePicker` `ElSlider` `ElRate` `ElColorPicker`
+`DynElInput` `DynElInputNumber` `elselect` `DynElSwitch` `DynElRadio` `DynElCheckbox` `DynElDatePicker` `DynElTimePicker` `DynElSlider` `DynElRate` `DynElColorPicker`
 
 ### 通用/展示（8个）
-`ElButton` `ElTag` `ElBadge` `ElAvatar` `ElProgress` `ElAlert` `ElDivider` `ElImage`
+`DynElButton` `DynElTag` `DynElBadge` `DynElAvatar` `DynElProgress` `DynElAlert` `DynElDivider` `DynElImage`
 
 ### 布局容器（5个）
-`ElDivContainer` `ElCard` `ElRow` `ElCol` `ElTabs`
+`DynElDivContainer` `DynElCard` `DynElRow` `DynElCol` `DynElTabs`
 
 ## 组件目录结构
 
@@ -594,7 +594,7 @@ Areas/ElementComponent/
 ## 常见问题
 
 ### Q: 设计器中组件拖不动？
-A: 确保组件在容器内（NForm/NCellGroup/ElDivContainer 等），容器组件支持拖拽排序。
+A: 确保组件在容器内（DynNForm/DynNCellGroup/DynElDivContainer 等），容器组件支持拖拽排序。
 
 ### Q: 预览页面组件不显示？
 A: 检查浏览器控制台是否有组件加载失败（404），确认 Controller Action 和 View 文件存在。

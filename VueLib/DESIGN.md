@@ -1,4 +1,4 @@
-# VueLib 系统设计文档
+﻿# VueLib 系统设计文档
 
 ## 1. 系统概述
 
@@ -119,14 +119,14 @@ NDynamicCom (jsonconfig)
 
 ```json
 {
-  "component": "ElInput",
+  "component": "DynElInput",
   "modelname": "user.name",
   "options": {
     "comoptions": { "placeholder": "请输入" },
     "comlisteners": { "blur": "handleBlur" },
     "labeloptions": { "label": "用户名", "required": true },
     "itemoptions": { "style": {}, "class": "" },
-    "wrapperoptions": { "component": "ElCard" },
+    "wrapperoptions": { "component": "DynElCard" },
     "optionValues": "选项1,选项2"
   },
   "validators": [{ "type": "required", "message": "必填" }],
