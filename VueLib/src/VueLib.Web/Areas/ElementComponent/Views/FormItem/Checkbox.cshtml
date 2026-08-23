@@ -1,0 +1,7 @@
+﻿@{ Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml"; }
+<template>
+    <el-checkbox-group v-model="modelinfo" v-bind="jc.options.comoptions" v-on="getComlisteners()">
+        <el-checkbox v-for="item in comInnerInfo.options" :key="item.value" :label="item.value">{{ item.label }}</el-checkbox>
+    </el-checkbox-group>
+</template>
+@section setupScripts{ DVALUE = []; }

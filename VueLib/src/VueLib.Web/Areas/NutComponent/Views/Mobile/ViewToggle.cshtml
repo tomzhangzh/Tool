@@ -1,0 +1,17 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-view-toggle" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <nut-button :type="comInnerInfo.viewMode === 'chart' ? 'primary' : 'default'" block @@click="switchView('chart')">Chart</nut-button>
+        <nut-button :type="comInnerInfo.viewMode === 'data' ? 'primary' : 'default'" block @@click="switchView('data')">Data</nut-button>
+    </div>
+</template>
+
+@section setupScripts{
+    comInnerInfo.viewMode = ref(props.jsonconfig.options.comoptions.defaultMode || 'chart');
+    function switchView(mode) {
+        comInnerInfo.viewMode.value = mode;
+    }
+}

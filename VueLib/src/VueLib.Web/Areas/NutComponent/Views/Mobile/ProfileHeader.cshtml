@@ -1,0 +1,26 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-profile-header" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div class="n-ph-bg"></div>
+        <div class="n-profile-card">
+            <div class="n-profile-avatar">
+                <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: props.jsonconfig.options.comoptions.avatarIcon || 'my', size: '36px', color: '#fff' } } }"></n-icon>
+            </div>
+            <div class="n-profile-info">
+                <div class="n-profile-name">{{ props.jsonconfig.options.comoptions.userName || 'User' }}</div>
+                <div class="n-profile-role">
+                    <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'check-checked', size: '12px', color: '#4A90D9' } } }"></n-icon>
+                    <span>{{ props.jsonconfig.options.comoptions.role || 'Verified User' }}</span>
+                </div>
+            </div>
+            <div class="n-profile-id">ID: {{ props.jsonconfig.options.comoptions.userId || '-' }}</div>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    // 个人中心头部
+}

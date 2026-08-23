@@ -12,6 +12,24 @@
     const isContainerComp = (name) => CONTAINER_COMPONENTS.includes(name);
     const DRAG_GROUP = 'lc-designer-group';
 
+    // 组合组件配置 map（运行时渲染用）
+    const compositeComponents = {};
+
+    // 应用组合组件的外部属性到内部树
+    function applyCompositeProps(innerTree, compositeConfig, externalProps) {
+        if (!compositeConfig?.exposedProps || !externalProps) return innerTree;
+        const tree = JSON.parse(JSON.stringify(innerTree));
+        for (const prop of compositeConfig.exposedProps) {
+            if (externalProps[prop.key] !== undefined && prop.target) {
+                // 用 lodash 设置值（如果可用），否则手动解析
+                if (window._) {
+                    window._.set(tree, prop.target, externalProps[prop.key]);
+                }
+            }
+        }
+        return tree;
+    }
+
     // 当前从左侧菜单拖拽的组件元数据
     let currentMenuCom = null;
 
@@ -25,7 +43,9 @@
             const saving = ref(false);
             const showJson = ref(false);
             const showNewPage = ref(false);
+            const showModelModal = ref(false);
             const activeCategory = ref('表单');
+            const activeUiLibrary = ref('all');
             const leftTab = ref('palette');
             const configJsonText = ref('');
             const designMode = ref('design');
@@ -65,13 +85,98 @@
 
             // ===== 计算属性 =====
             const filteredComponents = computed(() => {
-                return componentMetaList.value.filter(c => (c.category || c.Category) === activeCategory.value);
+                return componentMetaList.value.filter(c => {
+                    const catMatch = (c.category || c.Category) === activeCategory.value;
+                    const lib = c.uiLibrary || c.UiLibrary || 'nutui';
+                    const libMatch = activeUiLibrary.value === 'all' || lib === activeUiLibrary.value;
+                    return catMatch && libMatch;
+                });
             });
 
             const hasOptionField = computed(() => {
                 if (!currentCom.value) return false;
                 return ['NRadio', 'NCheckbox', 'NPicker'].includes(currentCom.value.component);
             });
+
+            // 当前选中组件的属性面板配置
+            const currentPropertyConfig = computed(() => {
+                if (!currentCom.value) return null;
+                const compName = currentCom.value.component;
+
+                // 组合组件：根据开放属性动态生成属性配置
+                if (compositeComponents[compName]) {
+                    const config = compositeComponents[compName];
+                    if (config.exposedProps && config.exposedProps.length) {
+                        const fields = config.exposedProps.map(p => ({
+                            key: 'options.comoptions.' + p.key,
+                            label: p.label || p.key,
+                            type: p.type || 'input',
+                            default: p.default,
+                            options: p.options
+                        }));
+                        return { groups: [{ title: '开放属性', fields }] };
+                    }
+                    return { groups: [] };
+                }
+
+                const meta = componentMetaList.value.find(c =>
+                    (c.componentName || c.ComponentName) === compName
+                );
+                if (!meta) {
+                    console.log('[Designer] 未找到组件元数据:', compName);
+                    return null;
+                }
+                const propConfig = meta.propertyConfigJson || meta.PropertyConfigJson;
+                if (!propConfig) {
+                    console.log('[Designer] 组件无属性配置:', compName, 'meta keys:', Object.keys(meta));
+                    return null;
+                }
+                try {
+                    const parsed = typeof propConfig === 'string' ? JSON.parse(propConfig) : propConfig;
+                    console.log('[Designer] 属性配置加载成功:', compName, 'groups:', parsed.groups?.length);
+                    return parsed;
+                } catch (e) {
+                    console.error('[Designer] 解析属性配置失败:', e, propConfig);
+                    return null;
+                }
+            });
+
+            // 当前页面 Model JSON
+            const modelJsonText = computed(() => JSON.stringify(modelObj, null, 2));
+
+            // 打开 Model 数据查看
+            function showModelData() {
+                showModelModal.value = true;
+            }
+
+            // 复制 Model JSON
+            function copyModelJson() {
+                navigator.clipboard.writeText(modelJsonText.value).then(() => {
+                    alert('已复制到剪贴板');
+                }).catch(() => {
+                    alert('复制失败，请手动选择复制');
+                });
+            }
+
+            // 属性更新回调
+            function onPropertyUpdate(key, value, localModel) {
+                if (!currentCom.value) return;
+                // 直接修改 currentCom（响应式）
+                // localModel 是 DynamicPropertyPanel 内部的模型，已被修改
+                // 需要同步回 currentCom
+                if (window.ppSetByPath) {
+                    window.ppSetByPath(currentCom.value, key, value);
+                }
+                console.log('[Designer] 属性更新:', key, '=', value);
+            }
+
+            // 打开 JSON 编辑器
+            function showJsonEditor() {
+                if (currentCom.value) {
+                    configJsonText.value = JSON.stringify(currentCom.value, null, 2);
+                }
+                showJson.value = true;
+            }
 
             const canMoveUp = computed(() => {
                 if (!currentContainer.value || !currentCom.value) return false;
@@ -86,7 +191,12 @@
 
             // ===== 工具方法 =====
             function getComponentsByCategory(cat) {
-                return componentMetaList.value.filter(c => (c.category || c.Category) === cat);
+                return componentMetaList.value.filter(c => {
+                    const catMatch = (c.category || c.Category) === cat;
+                    const lib = c.uiLibrary || c.UiLibrary || 'nutui';
+                    const libMatch = activeUiLibrary.value === 'all' || lib === activeUiLibrary.value;
+                    return catMatch && libMatch;
+                });
             }
 
             function deepClone(obj) {
@@ -414,11 +524,12 @@
             });
 
             return {
-                componentMetaList, pageList, currentPageCode, saving, showJson, showNewPage,
-                activeCategory, leftTab, configJsonText, newPageForm, designMode, treeFilter,
+                componentMetaList, pageList, currentPageCode, saving, showJson, showNewPage, showModelModal,
+                activeCategory, activeUiLibrary, leftTab, configJsonText, newPageForm, designMode, treeFilter,
                 currentCom, currentContainer, currentPath, breadcrumbList,
                 configObj, modelObj, comListRef, treeRef,
                 categories, hasOptionField, canMoveUp, canMoveDown,
+                currentPropertyConfig, modelJsonText, onPropertyUpdate, showJsonEditor, showModelData, copyModelJson,
                 filteredComponents, paletteDragOptions, selectFromTree, setCurrentCom,
                 onPaletteDragStart, onPaletteDragEnd,
                 deleteCurrent, moveUp, moveDown, copyCurrent,
@@ -464,7 +575,15 @@
         console.error('[Designer] VueDraggablePlus not loaded!');
     }
 
-    // NDynamicCom（递归渲染配置树）
+    // 动态属性面板
+    if (window.DynamicPropertyPanel) {
+        app.component('DynamicPropertyPanel', window.DynamicPropertyPanel);
+        console.log('[Designer] DynamicPropertyPanel registered');
+    } else {
+        console.warn('[Designer] DynamicPropertyPanel not loaded');
+    }
+
+    // NDynamicCom（递归渲染配置树，支持组合组件）
     app.component('NDynamicCom', {
         name: 'NDynamicCom',
         props: {
@@ -474,19 +593,75 @@
         },
         inject: { lcDesigner: { default: null } },
         template: `
-            <div class="lc-node"
-                 :class="{ 'lc-selected': isSelected, 'lc-container': isContainer, 'lc-design': isDesign }"
-                 @@click.stop="onClick">
-                <component :is="jsonconfig.component"
-                           :jsonconfig="jsonconfig"
+            <div v-if="!validConfig" class="lc-node lc-error" style="padding:8px;color:#f56c6c;font-size:12px;">
+                [NDynamicCom] 无效配置: {{ nodePath }}
+            </div>
+            <div v-else-if="depthExceeded" class="lc-node lc-error" style="padding:8px;color:#f56c6c;font-size:12px;">
+                [NDynamicCom] 递归深度超限: {{ nodePath }}
+            </div>
+            <div v-else class="lc-node"
+                 :class="{ 'lc-selected': isSelected, 'lc-container': isContainer, 'lc-design': isDesign, 'lc-composite': isComposite, 'lc-wrapper': hasWrapper }"
+                 @click.stop="onClick">
+                <!-- 有 Wrapper：用包装器包裹 -->
+                <component v-if="hasWrapper" :is="wrapperComponent"
+                           :jsonconfig="jsonconfig.options.wrapperoptions"
                            :parentmodelinfo="parentmodelinfo"
-                           :node-path="nodePath"></component>
+                           :node-path="nodePath + '.wrapper'">
+                    <!-- Wrapper 插槽内容 -->
+                    <n-dynamic-com v-if="isComposite && compositeTree"
+                                   :jsonconfig="compositeTree"
+                                   :parentmodelinfo="parentmodelinfo"
+                                   :node-path="nodePath + '.composite'"></n-dynamic-com>
+                    <component v-else :is="resolvedComponent"
+                               :jsonconfig="jsonconfig"
+                               :parentmodelinfo="parentmodelinfo"
+                               :node-path="nodePath"></component>
+                </component>
+                <!-- 无 Wrapper -->
+                <template v-else>
+                    <n-dynamic-com v-if="isComposite && compositeTree"
+                                   :jsonconfig="compositeTree"
+                                   :parentmodelinfo="parentmodelinfo"
+                                   :node-path="nodePath + '.composite'"></n-dynamic-com>
+                    <component v-else :is="resolvedComponent"
+                               :jsonconfig="jsonconfig"
+                               :parentmodelinfo="parentmodelinfo"
+                               :node-path="nodePath"></component>
+                </template>
             </div>
         `,
         computed: {
+            validConfig() { return this.jsonconfig && typeof this.jsonconfig === 'object' && this.jsonconfig.component; },
+            depth() {
+                const m = this.nodePath.match(/\.(childrenctrls\[|composite|wrapper)/g);
+                return m ? m.length : 0;
+            },
+            depthExceeded() { return this.depth > 15; },
+            // ElementUI 组件注册时加了 Dyn 前缀，避免与 ElementPlus 全局组件冲突
+            resolvedComponent() {
+                const name = this.jsonconfig.component;
+                if (!name) return null;
+                if (name.startsWith('El') || name.startsWith('el-')) return 'Dyn' + name;
+                return name;
+            },
             isSelected() { return this.lcDesigner?.currentCom?.value === this.jsonconfig; },
             isContainer() { return isContainerComp(this.jsonconfig.component); },
-            isDesign() { return this.lcDesigner?.designMode?.value === 'design'; }
+            isDesign() { return this.lcDesigner?.designMode?.value === 'design'; },
+            isComposite() { return !!compositeComponents[this.jsonconfig.component]; },
+            hasWrapper() { return !!(this.jsonconfig.options?.wrapperoptions?.component); },
+            wrapperComponent() {
+                const wc = this.jsonconfig.options?.wrapperoptions?.component;
+                if (!wc) return null;
+                if (wc.startsWith('El') || wc.startsWith('el-')) return 'Dyn' + wc;
+                return wc;
+            },
+            compositeTree() {
+                if (!this.isComposite) return null;
+                const config = compositeComponents[this.jsonconfig.component];
+                if (!config?.tree) return null;
+                const externalProps = this.jsonconfig.options?.comoptions || {};
+                return applyCompositeProps(config.tree, config, externalProps);
+            }
         },
         methods: {
             onClick() {
@@ -507,12 +682,30 @@
                 for (const meta of result.data) {
                     const name = meta.componentName || meta.ComponentName;
                     const url = meta.loadUrl || meta.LoadUrl;
+                    // 保存组合组件配置
+                    if (meta.isComposite && meta.compositeConfigJson) {
+                        try {
+                            compositeComponents[name] = JSON.parse(meta.compositeConfigJson);
+                        } catch (e) {
+                            console.error('[Designer] 解析组合组件配置失败:', name, e);
+                        }
+                    }
+                    // 注册自定义脚本
+                    if (meta.customScriptJson && window.nutRegisterCustomScript) {
+                        try {
+                            window.nutRegisterCustomScript(name, meta.customScriptJson);
+                        } catch (e) {
+                            console.error('[Designer] 注册自定义脚本失败:', name, e);
+                        }
+                    }
                     if (name && url) {
-                        app.component(name, window.nutLoadCom(name, url));
+                        // ElementUI 组件加 Dyn 前缀，避免与 ElementPlus 全局组件名冲突导致无限递归
+                        const regName = (name.startsWith('El') || name.startsWith('el-')) ? 'Dyn' + name : name;
+                        app.component(regName, window.nutLoadCom(regName, url));
                         count++;
                     }
                 }
-                console.log(`[Designer] 注册了 ${count} 个自定义组件`);
+                console.log(`[Designer] 注册了 ${count} 个自定义组件, 其中组合组件: ${Object.keys(compositeComponents).length}`);
             }
         } catch (e) { console.error('[Designer] 加载组件元数据失败:', e); }
         app.mount('#designer-app');

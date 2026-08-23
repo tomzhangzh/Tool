@@ -40,6 +40,21 @@
         return CONTAINER_COMPONENTS.includes(compName);
     }
 
+    // 组合组件配置 map
+    const compositeComponents = {};
+
+    // 应用组合组件的外部属性到内部树
+    function applyCompositeProps(innerTree, compositeConfig, externalProps) {
+        if (!compositeConfig?.exposedProps || !externalProps) return innerTree;
+        const tree = JSON.parse(JSON.stringify(innerTree));
+        for (const prop of compositeConfig.exposedProps) {
+            if (externalProps[prop.key] !== undefined && prop.target && window._) {
+                window._.set(tree, prop.target, externalProps[prop.key]);
+            }
+        }
+        return tree;
+    }
+
     function getUrlParam(name) {
         const match = window.location.search.match(new RegExp('[?&]' + name + '=([^&]+)'));
         return match ? decodeURIComponent(match[1]) : null;
@@ -72,12 +87,21 @@
                 nodePath: { type: String, default: 'root' }
             },
             template: `
+                <div v-if="!validConfig" style="padding:8px;color:#f56c6c;font-size:12px;">
+                    [NDynamicCom] 无效配置: {{ nodePath }}
+                </div>
+                <div v-else-if="depthExceeded" style="padding:8px;color:#f56c6c;font-size:12px;">
+                    [NDynamicCom] 递归深度超限: {{ nodePath }}
+                </div>
+                <template v-else>
                 <div v-if="isDesign" class="lc-node"
                      :class="{
                         'lc-selected': isSelected,
                         'lc-dragging': isDraggingSelf,
                         'lc-drop-target': isDropTarget,
-                        'lc-container': isContainerComp
+                        'lc-container': isContainerComp,
+                        'lc-composite': isComposite,
+                        'lc-wrapper': hasWrapper
                      }"
                      :draggable="true"
                      @@dragstart.stop="onDragStart"
@@ -85,23 +109,90 @@
                      @@dragleave="onDragLeave"
                      @@drop.stop.prevent="onDrop"
                      @@click.stop="onClick">
-                    <component :is="jsonconfig.component"
-                               :jsonconfig="jsonconfig"
+                    <!-- 有 Wrapper -->
+                    <component v-if="hasWrapper" :is="wrapperComponent"
+                               :jsonconfig="jsonconfig.options.wrapperoptions"
                                :parentmodelinfo="parentmodelinfo"
-                               :node-path="nodePath"></component>
+                               :node-path="nodePath + '.wrapper'">
+                        <n-dynamic-com v-if="isComposite && compositeTree"
+                                       :jsonconfig="compositeTree"
+                                       :parentmodelinfo="parentmodelinfo"
+                                       :node-path="nodePath + '.composite'"></n-dynamic-com>
+                        <component v-else :is="resolvedComponent"
+                                   :jsonconfig="jsonconfig"
+                                   :parentmodelinfo="parentmodelinfo"
+                                   :node-path="nodePath"></component>
+                    </component>
+                    <!-- 无 Wrapper -->
+                    <template v-else>
+                        <n-dynamic-com v-if="isComposite && compositeTree"
+                                       :jsonconfig="compositeTree"
+                                       :parentmodelinfo="parentmodelinfo"
+                                       :node-path="nodePath + '.composite'"></n-dynamic-com>
+                        <component v-else :is="resolvedComponent"
+                                   :jsonconfig="jsonconfig"
+                                   :parentmodelinfo="parentmodelinfo"
+                                   :node-path="nodePath"></component>
+                    </template>
                     <!-- 插入位置指示器 -->
                     <div v-if="showInsertBefore" class="lc-insert-indicator lc-insert-before"></div>
                     <div v-if="showInsertAfter" class="lc-insert-indicator lc-insert-after"></div>
                 </div>
-                <component v-else :is="jsonconfig.component"
+                <!-- 非设计模式 -->
+                <component v-if="!isDesign && hasWrapper" :is="wrapperComponent"
+                           :jsonconfig="jsonconfig.options.wrapperoptions"
+                           :parentmodelinfo="parentmodelinfo"
+                           :node-path="nodePath + '.wrapper'">
+                    <n-dynamic-com v-if="isComposite && compositeTree"
+                                   :jsonconfig="compositeTree"
+                                   :parentmodelinfo="parentmodelinfo"
+                                   :node-path="nodePath + '.composite'"></n-dynamic-com>
+                    <component v-else :is="resolvedComponent"
+                               :jsonconfig="jsonconfig"
+                               :parentmodelinfo="parentmodelinfo"
+                               :node-path="nodePath"></component>
+                </component>
+                <n-dynamic-com v-else-if="!isDesign && isComposite && compositeTree"
+                               :jsonconfig="compositeTree"
+                               :parentmodelinfo="parentmodelinfo"
+                               :node-path="nodePath + '.composite'"></n-dynamic-com>
+                <component v-else-if="!isDesign" :is="resolvedComponent"
                            :jsonconfig="jsonconfig"
                            :parentmodelinfo="parentmodelinfo"
                            :node-path="nodePath"></component>
+                </template>
             `,
             computed: {
+                validConfig() { return this.jsonconfig && typeof this.jsonconfig === 'object' && this.jsonconfig.component; },
+                depth() {
+                    const m = this.nodePath.match(/\.(childrenctrls\[|composite|wrapper)/g);
+                    return m ? m.length : 0;
+                },
+                depthExceeded() { return this.depth > 15; },
+                resolvedComponent() {
+                    const name = this.jsonconfig.component;
+                    if (!name) return null;
+                    if (name.startsWith('El') || name.startsWith('el-')) return 'Dyn' + name;
+                    return name;
+                },
                 isDesign() { return designState.mode === 'design'; },
                 isSelected() { return designState.selectedPath === this.nodePath; },
                 isContainerComp() { return isContainer(this.jsonconfig.component); },
+                isComposite() { return !!compositeComponents[this.jsonconfig.component]; },
+                hasWrapper() { return !!(this.jsonconfig.options?.wrapperoptions?.component); },
+                wrapperComponent() {
+                    const wc = this.jsonconfig.options?.wrapperoptions?.component;
+                    if (!wc) return null;
+                    if (wc.startsWith('El') || wc.startsWith('el-')) return 'Dyn' + wc;
+                    return wc;
+                },
+                compositeTree() {
+                    if (!this.isComposite) return null;
+                    const config = compositeComponents[this.jsonconfig.component];
+                    if (!config?.tree) return null;
+                    const externalProps = this.jsonconfig.options?.comoptions || {};
+                    return applyCompositeProps(config.tree, config, externalProps);
+                },
                 isDraggingSelf() {
                     return designState.isDragging && designState.dragType === 'move' && designState.sourcePath === this.nodePath;
                 },
@@ -237,12 +328,30 @@
                 for (const meta of result.data) {
                     const name = meta.componentName || meta.ComponentName;
                     const url = meta.loadUrl || meta.LoadUrl;
+                    // 保存组合组件配置
+                    if (meta.isComposite && meta.compositeConfigJson) {
+                        try {
+                            compositeComponents[name] = JSON.parse(meta.compositeConfigJson);
+                        } catch (e) {
+                            console.error('[Preview] 解析组合组件配置失败:', name, e);
+                        }
+                    }
+                    // 注册自定义脚本
+                    if (meta.customScriptJson && window.nutRegisterCustomScript) {
+                        try {
+                            window.nutRegisterCustomScript(name, meta.customScriptJson);
+                        } catch (e) {
+                            console.error('[Preview] 注册自定义脚本失败:', name, e);
+                        }
+                    }
                     if (name && url) {
-                        app.component(name, window.nutLoadCom(name, url));
+                        // ElementUI 组件加 Dyn 前缀，避免与 ElementPlus 全局组件名冲突导致无限递归
+                        const regName = (name.startsWith('El') || name.startsWith('el-')) ? 'Dyn' + name : name;
+                        app.component(regName, window.nutLoadCom(regName, url));
                         registered++;
                     }
                 }
-                console.log(`[Preview] 注册了 ${registered} 个组件`);
+                console.log(`[Preview] 注册了 ${registered} 个组件, 其中组合组件: ${Object.keys(compositeComponents).length}`);
                 componentsLoaded = true;
             }
         } catch (err) {
@@ -256,7 +365,12 @@
         if (!container) return;
 
         const app = createApp({
-            data() { return { state, designState }; },
+            data() { return { state, designState, showModelModal: false }; },
+            computed: {
+                modelJsonText() {
+                    return JSON.stringify(state.model, null, 2);
+                }
+            },
             template: `<div class="preview-page" :class="{ 'design-mode': designState.mode === 'design' }"
                           @@dragover.prevent="onRootDragOver"
                           @@drop.prevent="onRootDrop">
@@ -264,6 +378,23 @@
                 <div v-if="isStandalone" class="standalone-actions">
                     <button class="btn-primary" @@click="handleSubmit">提交</button>
                     <button class="btn-default" @@click="handleReset">重置</button>
+                    <button class="btn-default" @@click="showModelData">查看数据</button>
+                </div>
+                <!-- Model JSON 弹窗 -->
+                <div v-if="showModelModal" class="model-modal-overlay" @@click.self="showModelModal = false">
+                    <div class="model-modal">
+                        <div class="model-modal-header">
+                            <span>页面数据模型 (Model JSON)</span>
+                            <button class="model-modal-close" @@click="showModelModal = false">×</button>
+                        </div>
+                        <div class="model-modal-body">
+                            <textarea class="model-json-textarea" readonly>{{ modelJsonText }}</textarea>
+                        </div>
+                        <div class="model-modal-footer">
+                            <button class="btn-primary" @@click="copyModelJson">复制</button>
+                            <button class="btn-default" @@click="showModelModal = false">关闭</button>
+                        </div>
+                    </div>
                 </div>
             </div>`,
             methods: {
@@ -277,6 +408,14 @@
                     }
                 },
                 handleReset() { Object.keys(state.model).forEach(k => delete state.model[k]); },
+                showModelData() { this.showModelModal = true; },
+                copyModelJson() {
+                    navigator.clipboard.writeText(this.modelJsonText).then(() => {
+                        alert('已复制到剪贴板');
+                    }).catch(() => {
+                        alert('复制失败，请手动选择复制');
+                    });
+                },
                 onRootDragOver(e) {
                     if (designState.mode !== 'design') return;
                     e.preventDefault();
@@ -391,7 +530,9 @@
 
     // ========== 启动 ==========
     initApp();
-    if (isStandalone) loadPageByCode(pageCode);
-    else { try { parent.postMessage({ type: 'preview-loaded' }, '*'); } catch (e) {} }
+    if (isStandalone) {
+        designState.mode = 'preview';  // 独立预览页使用非设计模式
+        loadPageByCode(pageCode);
+    } else { try { parent.postMessage({ type: 'preview-loaded' }, '*'); } catch (e) {} }
 
 })();

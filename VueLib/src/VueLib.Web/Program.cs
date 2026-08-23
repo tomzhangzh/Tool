@@ -48,14 +48,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
+// Area 路由（NutUI/ElementUI 组件加载）- 必须在 default 前面
+app.MapControllerRoute(
+    name: "areas",
+    pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
+
 // 默认路由
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
-
-// Area 路由（NutUI 组件加载）
-app.MapControllerRoute(
-    name: "areas",
-    pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 
 app.Run();

@@ -1,0 +1,35 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-login-card" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div class="n-login-form-title">{{ props.jsonconfig.options.comoptions.title || 'Sign In' }}</div>
+        <div class="n-input-group">
+            <div class="n-input-icon">
+                <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'my', size: '18px', color: '#4A90D9' } } }"></n-icon>
+            </div>
+            <input v-model="comInnerInfo.username" class="n-login-input" type="text" :placeholder="props.jsonconfig.options.comoptions.usernamePlaceholder || 'Username'" />
+        </div>
+        <div class="n-input-group">
+            <div class="n-input-icon">
+                <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'lock', size: '18px', color: '#4A90D9' } } }"></n-icon>
+            </div>
+            <input v-model="comInnerInfo.password" class="n-login-input" :type="comInnerInfo.showPassword ? 'text' : 'password'" :placeholder="props.jsonconfig.options.comoptions.passwordPlaceholder || 'Password'" @@keyup.enter="comInnerInfo.onLogin" />
+            <div class="n-input-suffix" @@click="comInnerInfo.showPassword = !comInnerInfo.showPassword">
+                <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'eye', size: '18px', color: '#969799' } } }"></n-icon>
+            </div>
+        </div>
+        <div class="n-remember-row" v-if="props.jsonconfig.options.comoptions.showRemember !== false">
+            <nut-checkbox v-model="comInnerInfo.rememberMe">{{ props.jsonconfig.options.comoptions.rememberText || 'Remember me' }}</nut-checkbox>
+        </div>
+        <button class="n-login-btn" :disabled="comInnerInfo.loading" @@click="comInnerInfo.onLogin">
+            <span v-if="!comInnerInfo.loading">{{ props.jsonconfig.options.comoptions.buttonText || 'Sign In' }}</span>
+            <span v-else>{{ props.jsonconfig.options.comoptions.loadingText || 'Signing in...' }}</span>
+        </button>
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = window.__nutLoginCardSetup(props, comInnerInfo, context);
+}

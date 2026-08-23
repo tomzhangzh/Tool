@@ -17,6 +17,8 @@ var comConfig = {
         const parentConfig = inject('parent_jsonconfig', null);
         const parentCom = inject('parent_com', null);
         const lcDesigner = inject('lcDesigner', null);
+        // 父组件的 modelname 前缀（用于相对路径绑定，响应式 computed）
+        const parentModelPrefix = inject('parentModelPrefix', computed(() => ''));
 
         // 合并默认配置
         const defaults = {
@@ -60,33 +62,54 @@ var comConfig = {
 
         @RenderSection("setupScripts", false)
 
-        // ===== 模型绑定（支持嵌套路径 a.b.c）=====
+        // ===== 父子组件 modelname 相对路径绑定（响应式）=====
+        // 规则：
+        //   - 当前组件 modelname 为空：继承父组件的前缀（跳过空 modelname 的中间层）
+        //   - 子组件 modelname 以 '~' 开头：绝对路径，去掉 '~' 后直接使用
+        //   - 否则：拼接到父前缀后面（如父: xx[0], 子: name => xx[0].name）
+        //   - 子组件 modelname 以 '[' 开头：直接拼接，不加 '.'（如父: xx, 子: [0] => xx[0]）
+        const fullModelName = computed(() => {
+            const raw = props.jsonconfig.modelname || '';
+            const prefix = parentModelPrefix.value;
+            // modelname 为空，继承父组件前缀（向上查找跳过空层）
+            if (!raw) return prefix;
+            if (raw.startsWith('~')) return raw.slice(1);
+            if (prefix) {
+                if (raw.startsWith('[')) return prefix + raw;
+                return prefix + '.' + raw;
+            }
+            return raw;
+        });
+        // 提供给子组件的前缀（响应式 computed）
+        provide('parentModelPrefix', fullModelName);
+
+        // ===== 模型绑定（使用 lodash 支持 a.b.c 和 a[0].b）=====
+        const _ = window._; // lodash 全局
         function getByPath(obj, path) {
             if (!obj || !path) return undefined;
-            return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+            return _.get(obj, path);
         }
         function setByPath(obj, path, value) {
             if (!obj || !path) return;
-            const keys = path.split('.');
-            const last = keys.pop();
-            const target = keys.reduce((o, k) => {
-                if (o[k] == null || typeof o[k] !== 'object') o[k] = {};
-                return o[k];
-            }, obj);
-            target[last] = value;
+            _.set(obj, path, value);
         }
+
+        // 内部值（设计器中无 modelname 时使用，保证组件可交互）
+        const innerValue = ref(DVALUE);
 
         const modelinfo = computed({
             get() {
-                if (props.parentmodelinfo && props.jsonconfig.modelname) {
-                    const val = getByPath(props.parentmodelinfo, props.jsonconfig.modelname);
+                if (props.parentmodelinfo && fullModelName.value) {
+                    const val = getByPath(props.parentmodelinfo, fullModelName.value);
                     return val === undefined ? DVALUE : val;
                 }
-                return null;
+                return innerValue.value;
             },
             set(val) {
-                if (props.parentmodelinfo && props.jsonconfig.modelname) {
-                    setByPath(props.parentmodelinfo, props.jsonconfig.modelname, val);
+                if (props.parentmodelinfo && fullModelName.value) {
+                    setByPath(props.parentmodelinfo, fullModelName.value, val);
+                } else {
+                    innerValue.value = val;
                 }
                 // 触发验证
                 if (comInnerInfo.validation.touched) {
@@ -213,6 +236,7 @@ var comConfig = {
             parentConfig,
             parentCom,
             DVALUE,
+            fullModelName,
             dragOptions,
             // 拖拽相关
             dragGroup: 'lc-designer-group',

@@ -2,10 +2,10 @@
     Layout = "~/Areas/NutComponent/Views/_FormItemLayout.cshtml";
 }
 
-<nut-slider v-model="modelinfo"
-            v-bind="props.jsonconfig.options.comoptions"
-            v-on="getComlisteners()">
-</nut-slider>
+<nut-range v-model="modelinfo"
+           v-bind="props.jsonconfig.options.comoptions"
+           v-on="getComlisteners()">
+</nut-range>
 
 @section setupScripts{
     DVALUE = 0;

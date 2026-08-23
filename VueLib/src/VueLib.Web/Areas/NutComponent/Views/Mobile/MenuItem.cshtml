@@ -1,0 +1,37 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-menu-item"
+         :style="getStyle(props.jsonconfig.options.itemoptions)"
+         @@click="onClick">
+        <div class="n-menu-left">
+            <div class="n-menu-icon" :class="props.jsonconfig.options.comoptions.iconClass || 'mi-blue'">
+                <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: props.jsonconfig.options.comoptions.icon || 'my', size: '18px', color: '#fff' } } }"></n-icon>
+            </div>
+            <span class="n-menu-label">{{ props.jsonconfig.options.comoptions.label || '' }}</span>
+        </div>
+        <template v-if="props.jsonconfig.options.comoptions.switch">
+            <nut-switch v-model="comInnerInfo.switchValue" @@change="onSwitchChange"></nut-switch>
+        </template>
+        <template v-else-if="props.jsonconfig.options.comoptions.value !== undefined">
+            <span class="n-menu-value">{{ props.jsonconfig.options.comoptions.value }}</span>
+        </template>
+        <template v-else-if="props.jsonconfig.options.comoptions.link">
+            <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'right', size: '14px', color: '#c8c9cc' } } }"></n-icon>
+        </template>
+    </div>
+</template>
+
+@section setupScripts{
+    comInnerInfo.switchValue = props.jsonconfig.options.comoptions.switchValue || false;
+    function onClick() {
+        if (props.jsonconfig.options.comoptions.link) {
+            // 路由跳转由父级处理
+        }
+    }
+    function onSwitchChange(val) {
+        comInnerInfo.switchValue = val;
+    }
+}

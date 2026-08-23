@@ -1,0 +1,113 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快捷方式管理</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/css/layui.css">
+    <style>
+        body { padding: 16px; background: #f5f7fa; }
+        .toolbar { margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
+        .layui-table-cell { height: auto; line-height: 28px; }
+    </style>
+</head>
+<body>
+<div class="toolbar">
+    <button class="layui-btn layui-btn-sm" onclick="openEdit()">+ 新增快捷方式</button>
+    <button class="layui-btn layui-btn-sm layui-btn-primary" onclick="loadData()">刷新</button>
+</div>
+<table id="shortcutTable" lay-filter="shortcutTable"></table>
+
+<script type="text/html" id="barTpl">
+    <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+    <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="del">删除</a>
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/layui.js"></script>
+<script>
+let table, form, layer;
+let solutions = [];
+
+layui.use(['table', 'form', 'layer'], function(){
+    table = layui.table;
+    form = layui.form;
+    layer = layui.layer;
+    loadSolutions();
+    loadData();
+});
+
+async function loadSolutions() {
+    const resp = await fetch('/api/desktop/solutions');
+    const result = await resp.json();
+    solutions = result.data || [];
+}
+
+function loadData() {
+    table.render({
+        elem: '#shortcutTable',
+        url: '/api/desktop/shortcuts',
+        parseData: function(res){ return { code: res.success ? 0 : 1, msg: '', count: res.data.length, data: res.data }; },
+        cols: [[
+            { field: 'id', title: 'ID', width: 60 },
+            { field: 'icon', title: '图标', width: 70, templet: d => `<span style="font-size:20px;">${d.icon || '📄'}</span>` },
+            { field: 'name', title: '名称' },
+            { field: 'url', title: '地址' },
+            { field: 'openType', title: '打开方式', width: 100, templet: d => d.openType === 'newtab' ? '新标签' : '窗口' },
+            { field: 'solutionId', title: '解决方案', width: 120, templet: d => { const s = solutions.find(x => x.id === d.solutionId); return s ? s.name : '未分组'; } },
+            { field: 'sortOrder', title: '排序', width: 70 },
+            { title: '操作', width: 140, toolbar: '#barTpl' }
+        ]],
+        page: false
+    });
+
+    table.on('tool(shortcutTable)', function(obj){
+        if (obj.event === 'edit') openEdit(obj.data);
+        if (obj.event === 'del') {
+            layer.confirm('确定删除该快捷方式？', { icon: 3 }, function(idx){
+                fetch('/api/desktop/shortcut/' + obj.data.id, { method: 'DELETE' }).then(() => {
+                    layer.close(idx); loadData(); layer.msg('已删除');
+                });
+            });
+        }
+    });
+}
+
+function openEdit(data) {
+    const isEdit = !!data;
+    const d = data || { id: 0, name: '', icon: '📄', url: '', openType: 'iframe', solutionId: null, sortOrder: 0 };
+    const solOptions = '<option value="">未分组</option>' + solutions.map(s => `<option value="${s.id}" ${d.solutionId == s.id ? 'selected' : ''}>${s.name}</option>`).join('');
+    const html = `
+        <form class="layui-form" style="padding:20px;">
+            <div class="layui-form-item"><label class="layui-form-label">名称</label><div class="layui-input-block"><input id="f_name" class="layui-input" value="${d.name}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">图标</label><div class="layui-input-block"><input id="f_icon" class="layui-input" value="${d.icon}" placeholder="emoji或图片URL"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">地址</label><div class="layui-input-block"><input id="f_url" class="layui-input" value="${d.url}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">打开方式</label><div class="layui-input-block">
+                <select id="f_openType"><option value="iframe" ${d.openType==='iframe'?'selected':''}>窗口内打开</option><option value="newtab" ${d.openType==='newtab'?'selected':''}>新标签页</option></select>
+            </div></div>
+            <div class="layui-form-item"><label class="layui-form-label">解决方案</label><div class="layui-input-block"><select id="f_solutionId">${solOptions}</select></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">排序</label><div class="layui-input-block"><input id="f_sortOrder" type="number" class="layui-input" value="${d.sortOrder}"></div></div>
+        </form>`;
+    layer.open({
+        type: 1, title: isEdit ? '编辑快捷方式' : '新增快捷方式', area: ['480px', '420px'], content: html,
+        btn: ['保存', '取消'],
+        yes: function(idx){
+            const payload = {
+                id: d.id, name: document.getElementById('f_name').value,
+                icon: document.getElementById('f_icon').value, url: document.getElementById('f_url').value,
+                openType: document.getElementById('f_openType').value,
+                solutionId: document.getElementById('f_solutionId').value || null,
+                sortOrder: parseInt(document.getElementById('f_sortOrder').value) || 0, isEnabled: true
+            };
+            if (!payload.name || !payload.url) { layer.msg('名称和地址不能为空'); return; }
+            fetch('/api/desktop/shortcut', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            }).then(() => { layer.close(idx); loadData(); layer.msg('保存成功'); });
+        }
+    });
+}
+</script>
+</body>
+</html>

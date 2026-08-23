@@ -35,6 +35,14 @@ public class PageSetting
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Description { get; set; }
 
+    /// <summary>平台: mobile / desktop</summary>
+    [SugarColumn(Length = 20, IsNullable = true)]
+    public string? Platform { get; set; }
+
+    /// <summary>页面级自定义脚本</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? CustomScriptJson { get; set; }
+
     public bool IsEnabled { get; set; } = true;
     public int SortOrder { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -71,6 +79,35 @@ public class ComponentMeta
 
     [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
     public string? DefaultOptionsJson { get; set; }
+
+    /// <summary>属性面板配置 JSON - 定义右侧属性面板的动态表单结构（Element Plus）</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? PropertyConfigJson { get; set; }
+
+    /// <summary>是否为组合组件（由基础组件组合而成）</summary>
+    public bool IsComposite { get; set; } = false;
+
+    /// <summary>组合组件配置 JSON - 包含内部组件树和开放属性映射</summary>
+    /// <example>
+    /// {
+    ///   "tree": { "component": "NDivContainer", "childrenctrls": [...] },
+    ///   "exposedProps": [
+    ///     { "key": "usernameLabel", "label": "用户名标签", "type": "input", "target": "childrenctrls[0].options.labeloptions.label", "default": "用户名" },
+    ///     { "key": "usernameModel", "label": "用户名绑定", "type": "input", "target": "childrenctrls[0].modelname", "default": "username" },
+    ///     { "key": "registerLink", "label": "注册链接", "type": "input", "target": "childrenctrls[4].options.comoptions.link", "default": "/register" }
+    ///   ]
+    /// }
+    /// </example>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? CompositeConfigJson { get; set; }
+
+    /// <summary>UI 库标识: nutui / elementui / custom</summary>
+    [SugarColumn(Length = 50, IsNullable = true)]
+    public string? UiLibrary { get; set; }
+
+    /// <summary>自定义脚本 - 组件级别的事件绑定、方法、生命周期等</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? CustomScriptJson { get; set; }
 
     [SugarColumn(Length = 500, IsNullable = false)]
     public string LoadUrl { get; set; } = string.Empty;

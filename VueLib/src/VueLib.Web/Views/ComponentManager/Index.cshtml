@@ -1,0 +1,317 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>组件管理 - VueLib</title>
+    <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/component-manager.css" asp-append-version="true" />
+</head>
+<body>
+    <div id="app">
+        <div class="cm-layout">
+            <!-- 左侧组件列表 -->
+            <div class="cm-sidebar">
+                <div class="cm-sidebar-header">
+                    <span class="cm-title">组件管理</span>
+                    <el-button type="primary" size="small" icon="Plus" @@click="addComponent">新增</el-button>
+                </div>
+                <el-input v-model="searchKeyword" placeholder="搜索组件..." size="small" clearable style="margin:8px 12px;"></el-input>
+                <div class="cm-list">
+                    <div v-for="item in filteredList" :key="item.id"
+                         class="cm-list-item"
+                         :class="{ active: current?.id === item.id }"
+                         @@click="selectComponent(item)">
+                        <div class="cm-item-icon">{{ item.icon || '📦' }}</div>
+                        <div class="cm-item-info">
+                            <div class="cm-item-name">{{ item.componentName }}</div>
+                            <div class="cm-item-meta">
+                                <el-tag size="small" :type="categoryType(item.category)">{{ item.category }}</el-tag>
+                                <span v-if="!item.isEnabled" class="cm-disabled">已禁用</span>
+                            </div>
+                        </div>
+                    </div>
+                    <el-empty v-if="!filteredList.length" description="暂无组件" :image-size="60"></el-empty>
+                </div>
+            </div>
+
+            <!-- 右侧编辑区 -->
+            <div class="cm-main">
+                <div v-if="!current" class="cm-empty-state">
+                    <el-empty description="请从左侧选择或新增组件" :image-size="100"></el-empty>
+                </div>
+                <div v-else class="cm-editor">
+                    <!-- 顶部工具栏 -->
+                    <div class="cm-toolbar">
+                        <h2>{{ current.id ? '编辑' : '新增' }}组件 - {{ current.componentName || '未命名' }}</h2>
+                        <div>
+                            <el-button @@click="resetCurrent">取消</el-button>
+                            <el-button type="primary" :loading="saving" @@click="saveComponent">保存</el-button>
+                        </div>
+                    </div>
+
+                    <el-tabs v-model="activeTab" class="cm-tabs">
+                        <!-- 基本信息 -->
+                        <el-tab-pane label="基本信息" name="basic">
+                            <el-form :model="current" label-width="100px" size="default" class="cm-form">
+                                <el-form-item label="组件名" required>
+                                    <el-input v-model="current.componentName" placeholder="如 NInput" :disabled="current.id > 0"></el-input>
+                                </el-form-item>
+                                <el-form-item label="分类" required>
+                                    <el-select v-model="current.category" placeholder="选择分类">
+                                        <el-option label="表单" value="表单"></el-option>
+                                        <el-option label="布局" value="布局"></el-option>
+                                        <el-option label="展示" value="展示"></el-option>
+                                        <el-option label="通用" value="通用"></el-option>
+                                        <el-option label="移动端" value="移动端"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="组件类型">
+                                    <el-select v-model="current.componentType">
+                                        <el-option label="表单项" :value="1"></el-option>
+                                        <el-option label="容器" :value="2"></el-option>
+                                        <el-option label="展示" :value="3"></el-option>
+                                        <el-option label="通用" :value="4"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="显示名称">
+                                    <el-input v-model="current.label" placeholder="如 输入框"></el-input>
+                                </el-form-item>
+                                <el-form-item label="图标">
+                                    <el-input v-model="current.icon" placeholder="emoji 或图标名"></el-input>
+                                </el-form-item>
+                                <el-form-item label="加载URL" required>
+                                    <el-input v-model="current.loadUrl" placeholder="/NutComponent/FormItem/Input"></el-input>
+                                </el-form-item>
+                                <el-form-item label="排序">
+                                    <el-input-number v-model="current.sortOrder" :min="0"></el-input-number>
+                                </el-form-item>
+                                <el-form-item label="启用">
+                                    <el-switch v-model="current.isEnabled"></el-switch>
+                                </el-form-item>
+                                <el-form-item label="组合组件">
+                                    <el-switch v-model="current.isComposite"></el-switch>
+                                    <div style="font-size:12px;color:#909399;margin-top:4px;">开启后可在"组合配置"Tab 中设计内部组件树和开放属性</div>
+                                </el-form-item>
+                                <el-form-item label="UI库">
+                                    <el-select v-model="current.uiLibrary" placeholder="选择UI库" clearable>
+                                        <el-option label="NutUI(移动端)" value="nutui"></el-option>
+                                        <el-option label="ElementUI(电脑端)" value="elementui"></el-option>
+                                        <el-option label="自定义" value="custom"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                                <el-form-item label="描述">
+                                    <el-input v-model="current.description" type="textarea" :rows="2"></el-input>
+                                </el-form-item>
+                            </el-form>
+                        </el-tab-pane>
+
+                        <!-- 属性配置可视化编辑器 -->
+                        <el-tab-pane label="属性配置" name="property">
+                            <div class="pp-editor">
+                                <div class="pp-editor-toolbar">
+                                    <span>属性配置（PropertyConfigJson）</span>
+                                    <div>
+                                        <el-button size="small" @@click="addPropertyGroup">添加分组</el-button>
+                                        <el-button size="small" type="info" @@click="showPropertyJson = !showPropertyJson">
+                                            {{ showPropertyJson ? '隐藏JSON' : '查看JSON' }}
+                                        </el-button>
+                                    </div>
+                                </div>
+
+                                <el-input v-if="showPropertyJson"
+                                          v-model="propertyConfigText"
+                                          type="textarea"
+                                          :rows="8"
+                                          font-size="12px"
+                                          readonly
+                                          style="margin-bottom:12px;"></el-input>
+
+                                <div v-for="(group, gi) in propertyConfig.groups" :key="gi" class="pp-group">
+                                    <div class="pp-group-header">
+                                        <el-input v-model="group.title" size="small" placeholder="分组名称" style="width:200px;"></el-input>
+                                        <div class="pp-group-actions">
+                                            <el-button size="small" type="primary" plain @@click="addPropertyField(gi)">添加字段</el-button>
+                                            <el-button size="small" type="danger" plain @@click="removePropertyGroup(gi)">删除分组</el-button>
+                                        </div>
+                                    </div>
+                                    <div class="pp-fields">
+                                        <div v-for="(field, fi) in group.fields" :key="fi" class="pp-field-editor">
+                                            <div class="pp-field-row">
+                                                <el-input v-model="field.key" size="small" placeholder="字段路径 如 options.comoptions.placeholder" style="flex:2;"></el-input>
+                                                <el-input v-model="field.label" size="small" placeholder="显示名" style="flex:1;"></el-input>
+                                                <el-select v-model="field.type" size="small" style="width:120px;" @@change="onFieldTypeChange(field)">
+                                                    <el-option label="文本输入" value="input"></el-option>
+                                                    <el-option label="数字" value="number"></el-option>
+                                                    <el-option label="开关" value="switch"></el-option>
+                                                    <el-option label="下拉选择" value="select"></el-option>
+                                                    <el-option label="多行文本" value="textarea"></el-option>
+                                                    <el-option label="颜色" value="color"></el-option>
+                                                    <el-option label="滑块" value="slider"></el-option>
+                                                    <el-option label="单选" value="radio"></el-option>
+                                                    <el-option label="多选" value="checkbox"></el-option>
+                                                </el-select>
+                                                <el-button size="small" type="danger" text @@click="removePropertyField(gi, fi)">删除</el-button>
+                                            </div>
+                                            <div class="pp-field-row">
+                                                <label class="pp-field-label">默认值:</label>
+                                                <el-input v-if="['input','textarea','select','radio'].includes(field.type)"
+                                                          v-model="field.default" size="small" placeholder="默认值" style="flex:1;"></el-input>
+                                                <el-input-number v-else-if="field.type === 'number' || field.type === 'slider'"
+                                                                 v-model="field.default" size="small" style="width:120px;"></el-input-number>
+                                                <el-switch v-else-if="field.type === 'switch'" v-model="field.default"></el-switch>
+                                                <el-color-picker v-else-if="field.type === 'color'" v-model="field.default"></el-color-picker>
+                                                <span v-else class="pp-field-hint">该类型无默认值配置</span>
+                                            </div>
+                                            <div v-if="['select','radio','checkbox'].includes(field.type)" class="pp-field-row">
+                                                <label class="pp-field-label">选项:</label>
+                                                <div class="pp-options-editor" style="flex:1;">
+                                                    <div v-for="(opt, oi) in (field.options || [])" :key="oi" class="pp-option-row">
+                                                        <el-input v-model="opt.label" size="small" placeholder="显示名" style="flex:1;"></el-input>
+                                                        <el-input v-model="opt.value" size="small" placeholder="值" style="flex:1;"></el-input>
+                                                        <el-button size="small" type="danger" text @@click="field.options.splice(oi,1)">×</el-button>
+                                                    </div>
+                                                    <el-button size="small" plain @@click="addOption(field)">添加选项</el-button>
+                                                </div>
+                                            </div>
+                                            <div v-if="['number','slider'].includes(field.type)" class="pp-field-row">
+                                                <label class="pp-field-label">范围:</label>
+                                                <el-input-number v-model="field.min" size="small" placeholder="最小" style="width:100px;"></el-input-number>
+                                                <el-input-number v-model="field.max" size="small" placeholder="最大" style="width:100px;"></el-input-number>
+                                                <el-input-number v-model="field.step" size="small" placeholder="步长" :min="1" style="width:100px;"></el-input-number>
+                                            </div>
+                                        </div>
+                                        <el-empty v-if="!group.fields?.length" description="暂无字段，点击上方添加" :image-size="40"></el-empty>
+                                    </div>
+                                    <el-empty v-if="!propertyConfig.groups?.length" description="暂无分组，点击添加分组" :image-size="60"></el-empty>
+                                </div>
+                            </div>
+                        </el-tab-pane>
+
+                        <!-- 组合配置 -->
+                        <el-tab-pane label="组合配置" name="composite" v-if="current.isComposite">
+                            <div class="composite-editor">
+                                <el-alert type="info" :closable="false" style="margin-bottom:16px;">
+                                    组合组件由基础组件组合而成。先在"内部组件树"中定义组件结构，然后在"开放属性"中将子组件的属性暴露给外部使用。
+                                </el-alert>
+
+                                <el-tabs v-model="compositeTab" type="border-card">
+                                    <!-- 内部组件树 -->
+                                    <el-tab-pane label="内部组件树" name="tree">
+                                        <div class="composite-tree-toolbar">
+                                            <el-button size="small" @@click="loadFromDesigner">从设计器导入</el-button>
+                                            <el-button size="small" type="primary" plain @@click="formatCompositeTree">格式化</el-button>
+                                            <span style="margin-left:8px;font-size:12px;color:#909399;">可从 /designer 页面复制配置 JSON 粘贴到此处</span>
+                                        </div>
+                                        <el-input v-model="compositeTreeText"
+                                                  type="textarea"
+                                                  :rows="18"
+                                                  font-size="12px"
+                                                  placeholder='{"component":"NDivContainer","childrenctrls":[{"component":"NInput","modelname":"username","options":{"labeloptions":{"label":"用户名"}}},...]}'
+                                                  @@blur="parseCompositeTree"></el-input>
+                                        <div v-if="compositeTreeError" style="color:#f56c6c;font-size:12px;margin-top:4px;">
+                                            {{ compositeTreeError }}
+                                        </div>
+                                    </el-tab-pane>
+
+                                    <!-- 开放属性 -->
+                                    <el-tab-pane label="开放属性" name="exposed">
+                                        <div class="exposed-toolbar">
+                                            <span>开放属性列表（使用组合组件时可配置这些属性）</span>
+                                            <el-button size="small" type="primary" @@click="addExposedProp">添加开放属性</el-button>
+                                        </div>
+                                        <div class="exposed-list">
+                                            <div v-for="(prop, pi) in exposedProps" :key="pi" class="exposed-item">
+                                                <div class="exposed-row">
+                                                    <el-input v-model="prop.key" size="small" placeholder="外部属性名 如 usernameLabel" style="flex:1;"></el-input>
+                                                    <el-input v-model="prop.label" size="small" placeholder="显示名" style="flex:1;"></el-input>
+                                                    <el-select v-model="prop.type" size="small" style="width:100px;">
+                                                        <el-option label="文本" value="input"></el-option>
+                                                        <el-option label="数字" value="number"></el-option>
+                                                        <el-option label="开关" value="switch"></el-option>
+                                                        <el-option label="下拉" value="select"></el-option>
+                                                    </el-select>
+                                                    <el-button size="small" type="danger" text @@click="exposedProps.splice(pi,1)">删除</el-button>
+                                                </div>
+                                                <div class="exposed-row">
+                                                    <label class="exposed-label">目标路径:</label>
+                                                    <el-input v-model="prop.target" size="small"
+                                                              placeholder="如 childrenctrls[0].options.labeloptions.label"
+                                                              style="flex:1;"></el-input>
+                                                </div>
+                                                <div class="exposed-row">
+                                                    <label class="exposed-label">默认值:</label>
+                                                    <el-input v-if="prop.type === 'input' || prop.type === 'select'"
+                                                              v-model="prop.default" size="small" placeholder="默认值" style="flex:1;"></el-input>
+                                                    <el-input-number v-else-if="prop.type === 'number'"
+                                                                     v-model="prop.default" size="small" style="width:120px;"></el-input-number>
+                                                    <el-switch v-else-if="prop.type === 'switch'" v-model="prop.default"></el-switch>
+                                                </div>
+                                                <div v-if="prop.type === 'select'" class="exposed-row">
+                                                    <label class="exposed-label">选项:</label>
+                                                    <div style="flex:1;">
+                                                        <div v-for="(opt, oi) in (prop.options || [])" :key="oi" style="display:flex;gap:6px;margin-bottom:4px;">
+                                                            <el-input v-model="opt.label" size="small" placeholder="显示名" style="flex:1;"></el-input>
+                                                            <el-input v-model="opt.value" size="small" placeholder="值" style="flex:1;"></el-input>
+                                                            <el-button size="small" type="danger" text @@click="prop.options.splice(oi,1)">×</el-button>
+                                                        </div>
+                                                        <el-button size="small" plain @@click="addExposedOption(prop)">添加选项</el-button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <el-empty v-if="!exposedProps.length" description="暂无开放属性，点击上方添加" :image-size="60"></el-empty>
+                                        </div>
+                                    </el-tab-pane>
+
+                                    <!-- 预览 -->
+                                    <el-tab-pane label="预览" name="preview">
+                                        <div class="composite-preview">
+                                            <div class="composite-preview-info">
+                                                <span>组合组件预览（使用默认开放属性值渲染）</span>
+                                            </div>
+                                            <div class="composite-preview-area" ref="compositePreviewRef">
+                                                <div v-if="!compositeConfig.tree" style="color:#909399;text-align:center;padding:40px;">
+                                                    请先在"内部组件树"中定义组件结构
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </el-tab-pane>
+                                </el-tabs>
+                            </div>
+                        </el-tab-pane>
+
+                        <!-- 默认配置 -->
+                        <el-tab-pane label="默认配置" name="default">
+                            <el-form label-width="120px" class="cm-form">
+                                <el-form-item label="DefaultConfigJson">
+                                    <el-input v-model="current.defaultConfigJson" type="textarea" :rows="8" font-size="12px"
+                                              placeholder='{"component":"NInput","modelname":"","options":{...}}'></el-input>
+                                </el-form-item>
+                                <el-form-item label="DefaultOptionsJson">
+                                    <el-input v-model="current.defaultOptionsJson" type="textarea" :rows="4" font-size="12px"
+                                              placeholder='{"comoptions":{...},"labeloptions":{...}}'></el-input>
+                                </el-form-item>
+                                <el-form-item label="自定义脚本">
+                                    <el-input v-model="current.customScriptJson" type="textarea" :rows="10" font-size="12px"
+                                              placeholder='{"methods":{"onClick":"console.log(123)"},"onMounted":"console.log(123)","watch":{"modelinfo":"val => console.log(val)"}}'></el-input>
+                                    <div style="font-size:12px;color:#909399;margin-top:4px;">
+                                        支持 methods(方法)、onMounted(挂载时)、watch(监听)，方法体内可使用 props, modelinfo, comInnerInfo, context
+                                    </div>
+                                </el-form-item>
+                            </el-form>
+                        </el-tab-pane>
+                    </el-tabs>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
+    <script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
+    <script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
+    <script src="~/js/component-manager.js" asp-append-version="true"></script>
+</body>
+</html>

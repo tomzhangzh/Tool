@@ -1,0 +1,16 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-empty" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div class="n-empty-icon">
+            <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: props.jsonconfig.options.comoptions.icon || 'image', size: '48px', color: '#c8c9cc' } } }"></n-icon>
+        </div>
+        <div class="n-empty-text">{{ props.jsonconfig.options.comoptions.text || '暂无数据' }}</div>
+    </div>
+</template>
+
+@section setupScripts{
+    // 纯展示组件
+}

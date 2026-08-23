@@ -1,0 +1,18 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-echart-container" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div v-if="comInnerInfo.loading && !comInnerInfo.hasData" class="n-echart-loading">Loading chart...</div>
+        <div ref="comInnerInfo.chartRef" class="n-echart-box" :style="{ display: comInnerInfo.loading && !comInnerInfo.hasData ? 'none' : 'block', height: props.jsonconfig.options.comoptions.height || '300px' }"></div>
+        <div v-if="!comInnerInfo.hasData && !comInnerInfo.loading" class="n-echart-empty">
+            <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'image', size: '48px', color: '#c8c9cc' } } }"></n-icon>
+            <p>No chart data</p>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = window.__nutEChartSetup(props, comInnerInfo, context);
+}

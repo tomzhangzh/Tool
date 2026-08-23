@@ -1,0 +1,20 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <div class="el-div-container"
+         :style="getStyle(jc.options.itemoptions)"
+         :class="getClass(jc.options.itemoptions)">
+        <n-dynamic-com v-for="(child, idx) in safeChildren"
+                       :key="child.component + '_' + idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
+        </n-dynamic-com>
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+}

@@ -1,0 +1,26 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-report-card"
+         :style="getStyle(props.jsonconfig.options.itemoptions)"
+         @@click="onClick">
+        <div class="n-rc-icon" :style="{ background: props.jsonconfig.options.comoptions.gradient || 'linear-gradient(135deg,#4A90D9,#6BA3E0)' }">
+            <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: props.jsonconfig.options.comoptions.icon || 'find', size: '24px', color: '#fff' } } }"></n-icon>
+        </div>
+        <div class="n-rc-info">
+            <div class="n-rc-title">{{ props.jsonconfig.options.comoptions.title || '' }}</div>
+            <div class="n-rc-desc">{{ props.jsonconfig.options.comoptions.desc || '' }}</div>
+        </div>
+        <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'right', size: '16px', color: '#c8c9cc' } } }"></n-icon>
+    </div>
+</template>
+
+@section setupScripts{
+    function onClick() {
+        if (props.jsonconfig.options.comoptions.path) {
+            // 路由跳转
+        }
+    }
+}

@@ -1,0 +1,31 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-bottom-nav" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div v-for="(tab, idx) in tabs"
+             :key="idx"
+             class="n-bn-item"
+             :class="{ active: isActive(tab) }"
+             @@click="onTabClick(tab)">
+            <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: tab.icon, size: '20px', color: isActive(tab) ? '#4A90D9' : '#969799' } } }"></n-icon>
+            <span class="n-bn-label">{{ tab.label }}</span>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    const tabs = props.jsonconfig.options.comoptions.tabs || [];
+    const activePath = props.jsonconfig.options.comoptions.activePath || '';
+    function isActive(tab) {
+        if (tab.path === '/') return activePath === '/';
+        return activePath === tab.path || activePath.indexOf(tab.path) === 0;
+    }
+    function onTabClick(tab) {
+        // 路由跳转由父级处理，这里触发事件
+        if (props.jsonconfig.options.comlisteners?.tabClick) {
+            // 通过事件系统处理
+        }
+    }
+}

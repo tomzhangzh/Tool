@@ -470,3 +470,171 @@ h3 { color: red; }
 2. **商品评价** (`product-review`) — 评分/评价内容/图片上传
 
 访问 `/designer/preview?code=user-register` 查看手机端效果。
+
+---
+
+# ElementUI PC端组件库
+
+在 NutUI 移动端组件基础上，新增了 24 个 Element Plus PC 端组件，支持在设计器中混合使用两套组件库。
+
+## 已实现的 ElementUI 组件（24个）
+
+### 表单项（11个）
+`ElInput` `ElInputNumber` `ElSelect` `ElSwitch` `ElRadio` `ElCheckbox` `ElDatePicker` `ElTimePicker` `ElSlider` `ElRate` `ElColorPicker`
+
+### 通用/展示（8个）
+`ElButton` `ElTag` `ElBadge` `ElAvatar` `ElProgress` `ElAlert` `ElDivider` `ElImage`
+
+### 布局容器（5个）
+`ElDivContainer` `ElCard` `ElRow` `ElCol` `ElTabs`
+
+## 组件目录结构
+
+```
+Areas/ElementComponent/
+├── Controllers/
+│   ├── FormItemController.cs    # 11个表单项 Action
+│   ├── CommonController.cs       # 8个通用/展示 Action
+│   └── ContainerController.cs    # 5个布局容器 Action
+└── Views/
+    ├── _ElementLayout.cshtml     # 公共布局（setup 逻辑、默认配置合并）
+    ├── FormItem/                  # 11个表单项视图
+    ├── Common/                    # 8个通用/展示视图
+    └── Container/                 # 5个布局容器视图
+```
+
+## 公共布局核心机制 (`_ElementLayout.cshtml`)
+
+- **默认配置合并**：setup 开头通过 `deepMerge(props.jsonconfig, defaults)` 直接填充默认值（不通过 reactive 代理，避免响应式循环）
+- **本地兜底对象**：`props.jsonconfig` 为 undefined 时用本地 `jc` 对象兜底
+- **modelinfo computed**：支持嵌套路径（a.b.c）的双向绑定，通过 lodash `_.get/_.set` 操作 `parentmodelinfo`
+- **父子 modelname 相对路径**：支持 `~` 绝对路径、`[` 直接拼接、空 modelname 继承父前缀
+- **验证器系统**：required/min/max/pattern/email/number 等内置验证器
+- **safeChildren computed**：过滤 `childrenctrls` 中的 null/undefined 元素，防止递归渲染崩溃
+- **事件监听器**：`getComlisteners()` 支持函数引用和字符串函数名（从 context.attrs 查找）
+
+## 新增 ElementUI 组件步骤
+
+1. 在对应分类 Controller（FormItem/Common/Container）添加 Action
+2. 在对应 Views 子目录创建同名 `.cshtml`，Layout 设为 `_ElementLayout.cshtml`
+3. 模板中使用 `jc.options.comoptions` 传递 props，`v-on="getComlisteners()"` 绑定事件
+4. 在 `ComponentMeta` 表插入元数据记录（UiLibrary = 'ElementUI'）
+
+组件 View 示例：
+```cshtml
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<template>
+    <el-button v-bind="jc.options.comoptions" v-on="getComlisteners()">
+        {{ jc.options.comoptions.text || '按钮' }}
+    </el-button>
+</template>
+@section setupScripts{
+    DVALUE = null;
+}
+```
+
+---
+
+# Windows 风格桌面系统
+
+新增 Windows 风格桌面，支持多窗口管理、快捷方式、解决方案管理。
+
+## 访问地址
+
+| 页面 | 地址 | 说明 |
+|------|------|------|
+| 桌面 | `/` 或 `/Desktop` | Windows 风格桌面主页 |
+| 快捷方式管理 | `/Desktop/ShortcutManage` | 桌面快捷方式 CRUD |
+| 解决方案管理 | `/Desktop/SolutionManage` | 解决方案（应用集合）管理 |
+| 页面管理 | `/Desktop/PageManage` | 低代码页面管理 |
+
+## 核心功能
+
+- **多窗口管理**：可同时打开多个设计器/预览窗口，支持最小化/最大化/关闭/拖拽
+- **快捷方式**：桌面图标双击打开对应应用（设计器/预览/自定义页面）
+- **解决方案**：将多个页面组合为一个解决方案，一键打开
+- **任务栏**：底部任务栏显示已打开窗口，点击切换/最小化
+
+## 数据库表
+
+执行 `sql/13_DesktopTables.sql`：
+
+- **DesktopShortcut** — 桌面快捷方式（名称、图标、URL、排序）
+- **DesktopSolution** — 解决方案（名称、图标、页面列表 JSON）
+
+---
+
+# 设计器使用指南
+
+## 快速开始
+
+1. 访问 `/designer` 打开设计器
+2. 顶部下拉选择页面（或新建页面）
+3. 左侧组件面板选择 UI 库（NutUI 移动端 / ElementUI PC端）
+4. 点击组件添加到画布，或拖拽到容器中
+5. 右侧属性面板编辑组件配置（字段绑定、标签、验证规则等）
+6. 顶部"保存"按钮保存到数据库
+7. 顶部"预览"按钮在新窗口打开独立预览
+
+## UI 库切换
+
+设计器顶部左侧组件面板支持 UI 库筛选下拉：
+- **全部**：显示所有组件
+- **NutUI**：仅显示移动端组件（N 前缀）
+- **ElementUI**：仅显示 PC 端组件（El 前缀）
+
+同一页面可混合使用两套组件库，NDynamicCom 根据 `jsonconfig.component` 自动路由到对应组件。
+
+## 组件配置 Schema
+
+详见上方"组件配置 Schema (jsonconfig)"章节。两套组件库共用同一套配置结构，仅 `component` 字段不同。
+
+## 常见问题
+
+### Q: 设计器中组件拖不动？
+A: 确保组件在容器内（NForm/NCellGroup/ElDivContainer 等），容器组件支持拖拽排序。
+
+### Q: 预览页面组件不显示？
+A: 检查浏览器控制台是否有组件加载失败（404），确认 Controller Action 和 View 文件存在。
+
+### Q: Maximum call stack size exceeded？
+A: 检查页面配置 JSON 是否有循环引用（容器的 childrenctrls 中包含自身）。NDynamicCom 已添加深度限制（20层）和 null 检查。
+
+---
+
+# 技术架构说明
+
+## 前后端分离模式
+
+- **后端**：ASP.NET Core MVC 提供 Razor View 渲染（组件定义载体）和 REST API（组件元数据、页面配置）
+- **前端**：Vue 3 UMD 全局构建，运行时编译模板，无需 Node.js 构建流程
+- **组件加载**：`nutLoadCom(name, url)` 返回 `defineAsyncComponent`，首次渲染时 fetch Razor View，解析 template + script，缓存到 `componentCache`
+
+## 响应式设计注意事项
+
+- **不要用 `reactive(props.jsonconfig)`**：会创建响应式代理，修改时触发父组件重渲染 → 子组件重新 setup → 再次修改 → 无限循环
+- **直接修改 props 对象属性是安全的**：`props.jsonconfig` 只是普通对象引用，不是响应式代理
+- **模板中避免每次渲染创建新对象**：`v-bind`/`v-on` 绑定新对象引用会触发重渲染，用 computed 缓存
+- **NDynamicCom 递归防护**：null 检查 + 深度限制（20层）+ safeChildren 过滤空洞元素
+
+## 数据库连接
+
+```
+Server=.;Database=VueLib;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True
+```
+
+SqlSugar 注入方式：项目用 `AppDbContext.Create()` 工厂方式，**不直接注册 ISqlSugarClient 到 DI**。
+
+## Area 路由
+
+Area 路由必须在 default 路由前面注册（见 `Program.cs`）：
+```csharp
+app.MapControllerRoute(
+    name: "areas",
+    pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+```

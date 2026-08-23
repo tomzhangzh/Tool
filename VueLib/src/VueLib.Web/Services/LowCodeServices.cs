@@ -90,4 +90,39 @@ public class ComponentMetaService
             .Where(c => c.ComponentName == componentName && c.IsEnabled)
             .FirstAsync();
     }
+
+    /// <summary>获取所有组件（含禁用，管理后台用）</summary>
+    public async Task<List<ComponentMeta>> GetAllAsync()
+    {
+        using var db = _dbContext.Create();
+        return await db.Queryable<ComponentMeta>()
+            .OrderBy(c => c.ComponentType).OrderBy(c => c.SortOrder).OrderBy(c => c.Id)
+            .ToListAsync();
+    }
+
+    /// <summary>根据 ID 获取组件</summary>
+    public async Task<ComponentMeta?> GetByIdAsync(int id)
+    {
+        using var db = _dbContext.Create();
+        return await db.Queryable<ComponentMeta>().InSingleAsync(id);
+    }
+
+    /// <summary>保存组件（新增或更新）</summary>
+    public async Task<int> SaveAsync(ComponentMeta meta)
+    {
+        using var db = _dbContext.Create();
+        if (meta.Id > 0)
+        {
+            await db.Updateable(meta).ExecuteCommandAsync();
+            return meta.Id;
+        }
+        return await db.Insertable(meta).ExecuteReturnIdentityAsync();
+    }
+
+    /// <summary>删除组件</summary>
+    public async Task<bool> DeleteAsync(int id)
+    {
+        using var db = _dbContext.Create();
+        return await db.Deleteable<ComponentMeta>().In(id).ExecuteCommandAsync() > 0;
+    }
 }

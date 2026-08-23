@@ -19,6 +19,86 @@
     // ========== 组件缓存 ==========
     const componentCache = new Map();
     const loadingPromises = new Map();
+    // 自定义脚本缓存（组件名 -> 自定义脚本配置）
+    const customScriptCache = new Map();
+
+    /**
+     * 注册组件的自定义脚本
+     * @param {string} componentName - 组件名
+     * @param {object|string} customScript - 自定义脚本配置 { methods, onMounted, watch }
+     */
+    function registerCustomScript(componentName, customScript) {
+        if (!customScript) return;
+        const config = typeof customScript === 'string' ? JSON.parse(customScript) : customScript;
+        customScriptCache.set(componentName, config);
+    }
+
+    /**
+     * 将自定义脚本合并到组件配置中
+     */
+    function applyCustomScript(comConfig, componentName) {
+        const custom = customScriptCache.get(componentName);
+        if (!custom) return comConfig;
+
+        const originalSetup = comConfig.setup;
+        if (!originalSetup) return comConfig;
+
+        comConfig.setup = function (props, context) {
+            const result = originalSetup(props, context) || {};
+            const { onMounted, watch } = Vue;
+
+            // 合并自定义 methods
+            if (custom.methods) {
+                for (const name in custom.methods) {
+                    const fnBody = custom.methods[name];
+                    if (typeof fnBody === 'string') {
+                        try {
+                            result[name] = new Function('props', 'modelinfo', 'comInnerInfo', 'context', fnBody).bind(result, props, result.modelinfo, result.comInnerInfo, context);
+                        } catch (e) {
+                            console.error(`[CustomScript] 解析方法 ${name} 失败:`, e);
+                        }
+                    } else if (typeof fnBody === 'function') {
+                        result[name] = fnBody;
+                    }
+                }
+            }
+
+            // 自定义 onMounted
+            if (custom.onMounted && typeof custom.onMounted === 'string') {
+                onMounted(() => {
+                    try {
+                        new Function('props', 'modelinfo', 'comInnerInfo', custom.onMounted).call(result, props, result.modelinfo, result.comInnerInfo);
+                    } catch (e) {
+                        console.error('[CustomScript] onMounted 执行失败:', e);
+                    }
+                });
+            }
+
+            // 自定义 watch
+            if (custom.watch) {
+                for (const target in custom.watch) {
+                    const handler = custom.watch[target];
+                    if (typeof handler === 'string') {
+                        watch(() => {
+                            // 支持 modelinfo 或 props.xxx
+                            if (target === 'modelinfo') return result.modelinfo?.value;
+                            return Vue.getByPath ? Vue.getByPath(props, target) : undefined;
+                        }, (val) => {
+                            try {
+                                new Function('val', 'props', 'modelinfo', handler).call(result, val, props, result.modelinfo);
+                            } catch (e) {
+                                console.error(`[CustomScript] watch ${target} 执行失败:`, e);
+                            }
+                        });
+                    }
+                }
+            }
+
+            return result;
+        };
+
+        return comConfig;
+    }
 
     /**
      * 从 Razor View 加载组件定义
@@ -75,7 +155,9 @@
 
             const promise = (async () => {
                 try {
-                    const comp = await fetchComponentFromRazor(url);
+                    let comp = await fetchComponentFromRazor(url);
+                    // 应用自定义脚本
+                    comp = applyCustomScript(comp, componentName);
                     componentCache.set(componentName, comp);
                     console.log(`[nutLoadCom] 组件加载成功: ${componentName}`);
                     return comp;
@@ -318,5 +400,6 @@
     global.nutRenderPage = renderPageInto;
     global.nutBuiltinValidators = builtinValidators;
     global.nutComponentCache = componentCache;
+    global.nutRegisterCustomScript = registerCustomScript;
 
 })(window);

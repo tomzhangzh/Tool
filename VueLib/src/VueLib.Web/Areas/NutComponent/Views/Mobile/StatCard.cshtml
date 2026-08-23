@@ -1,0 +1,19 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-stat-card" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div class="n-stat-icon" :class="props.jsonconfig.options.comoptions.iconClass || 'si-blue'">
+            <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: props.jsonconfig.options.comoptions.icon || 'find', size: '20px', color: '#fff' } } }"></n-icon>
+        </div>
+        <div class="n-stat-text">
+            <div class="n-stat-num">{{ props.jsonconfig.options.comoptions.value || '0' }}</div>
+            <div class="n-stat-lbl">{{ props.jsonconfig.options.comoptions.label || '' }}</div>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    // 统计卡片
+}

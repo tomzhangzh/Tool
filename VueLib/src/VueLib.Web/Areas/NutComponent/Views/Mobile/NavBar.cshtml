@@ -1,0 +1,27 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-navbar" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div class="n-navbar-left" v-if="props.jsonconfig.options.comoptions.showBack" @@click="onBack">
+            <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'left', size: '20px', color: '#333' } } }"></n-icon>
+        </div>
+        <div class="n-navbar-title">{{ props.jsonconfig.options.comoptions.title || '' }}</div>
+        <div class="n-navbar-subtitle" v-if="props.jsonconfig.options.comoptions.subtitle">{{ props.jsonconfig.options.comoptions.subtitle }}</div>
+        <div class="n-navbar-right">
+            <n-dynamic-com v-for="(child, idx) in props.jsonconfig.childrenctrls"
+                           :key="idx"
+                           :jsonconfig="child"
+                           :parentmodelinfo="props.parentmodelinfo"
+                           :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
+            </n-dynamic-com>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    function onBack() {
+        if (window.history.length > 1) window.history.back();
+    }
+}

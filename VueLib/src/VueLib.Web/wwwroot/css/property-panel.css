@@ -1,0 +1,105 @@
+/* ============================================================
+ * 动态属性面板样式
+ * ============================================================ */
+.dynamic-property-panel {
+    padding: 8px 0;
+}
+
+.dynamic-property-panel .el-collapse {
+    border: none;
+    --el-collapse-border-color: transparent;
+}
+
+.dynamic-property-panel .el-collapse-item__header {
+    background: #f5f7fa;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #303133;
+    border-bottom: 1px solid #e4e7ed;
+}
+
+.dynamic-property-panel .el-collapse-item__wrap {
+    border-bottom: none;
+}
+
+.dynamic-property-panel .el-collapse-item__content {
+    padding: 8px 0;
+}
+
+.pp-fields {
+    padding: 0 12px;
+}
+
+.pp-field {
+    margin-bottom: 12px;
+}
+
+.pp-field:last-child {
+    margin-bottom: 0;
+}
+
+.pp-label {
+    display: block;
+    font-size: 12px;
+    color: #606266;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.pp-control {
+    width: 100%;
+}
+
+.pp-empty {
+    padding: 24px 12px;
+    text-align: center;
+}
+
+.pp-empty .el-empty__description p {
+    font-size: 12px;
+    color: #909399;
+}
+
+/* 设计器右侧面板标题 */
+.pp-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #f5f7fa;
+    border-bottom: 1px solid #e4e7ed;
+}
+
+.pp-panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #303133;
+}
+
+.pp-panel-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* JSON 编辑模式 */
+.pp-json-editor {
+    padding: 8px 12px;
+}
+
+.pp-json-editor textarea {
+    width: 100%;
+    min-height: 300px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    padding: 8px;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+.pp-json-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}

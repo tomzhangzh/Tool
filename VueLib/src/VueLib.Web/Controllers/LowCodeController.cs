@@ -103,4 +103,78 @@ public class LowCodeController : ControllerBase
             return ApiResponse<bool>.Fail(ex.Message);
         }
     }
+
+    #region 组件管理 API
+
+    /// <summary>获取所有组件（管理后台用，含禁用）</summary>
+    [HttpGet("components/all")]
+    public async Task<ApiResponse<List<ComponentMeta>>> GetAllComponents()
+    {
+        try
+        {
+            var list = await _metaService.GetAllAsync();
+            return ApiResponse<List<ComponentMeta>>.Ok(list);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取所有组件失败");
+            return ApiResponse<List<ComponentMeta>>.Fail(ex.Message);
+        }
+    }
+
+    /// <summary>根据 ID 获取组件详情</summary>
+    [HttpGet("component/{id}")]
+    public async Task<ApiResponse<ComponentMeta>> GetComponent(int id)
+    {
+        try
+        {
+            var meta = await _metaService.GetByIdAsync(id);
+            if (meta == null) return ApiResponse<ComponentMeta>.Fail($"组件 ID={id} 不存在");
+            return ApiResponse<ComponentMeta>.Ok(meta);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取组件详情失败");
+            return ApiResponse<ComponentMeta>.Fail(ex.Message);
+        }
+    }
+
+    /// <summary>保存组件（新增或更新）</summary>
+    [HttpPost("component")]
+    public async Task<ApiResponse<int>> SaveComponent([FromBody] ComponentMeta meta)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(meta.ComponentName))
+                return ApiResponse<int>.Fail("组件名称不能为空");
+            if (string.IsNullOrWhiteSpace(meta.LoadUrl))
+                return ApiResponse<int>.Fail("加载地址不能为空");
+
+            var id = await _metaService.SaveAsync(meta);
+            return ApiResponse<int>.Ok(id, "保存成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存组件失败");
+            return ApiResponse<int>.Fail(ex.Message);
+        }
+    }
+
+    /// <summary>删除组件</summary>
+    [HttpDelete("component/{id}")]
+    public async Task<ApiResponse<bool>> DeleteComponent(int id)
+    {
+        try
+        {
+            var ok = await _metaService.DeleteAsync(id);
+            return ApiResponse<bool>.Ok(ok);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除组件失败");
+            return ApiResponse<bool>.Fail(ex.Message);
+        }
+    }
+
+    #endregion
 }

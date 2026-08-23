@@ -1,0 +1,16 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <i class="nutui-iconfont nut-icon"
+       :class="'nut-icon-' + (props.jsonconfig.options.comoptions.name || 'home')"
+       :style="{
+           fontSize: props.jsonconfig.options.comoptions.size || '20px',
+           color: props.jsonconfig.options.comoptions.color || ''
+       }"></i>
+</template>
+
+@section setupScripts{
+    // 纯展示组件，无需额外逻辑
+}

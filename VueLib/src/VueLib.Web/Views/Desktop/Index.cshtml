@@ -1,0 +1,415 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VueLib Desktop</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/css/layui.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; user-select: none; }
+
+        /* 桌面背景 */
+        .desktop {
+            width: 100%; height: 100%; position: relative;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #6a11cb 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+        @@keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 快捷方式区域 */
+        .desktop-icons {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 48px;
+            padding: 16px; display: flex; flex-direction: column; flex-wrap: wrap;
+            align-content: flex-start; gap: 8px;
+        }
+        .desktop-icon {
+            width: 80px; height: 90px; display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-start; padding: 8px 4px;
+            border-radius: 6px; cursor: pointer; transition: background 0.15s;
+        }
+        .desktop-icon:hover { background: rgba(255,255,255,0.15); }
+        .desktop-icon.selected { background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4); }
+        .desktop-icon .icon { font-size: 36px; line-height: 1; margin-bottom: 6px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+        .desktop-icon .label { color: #fff; font-size: 12px; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,0.8); word-break: break-all; line-height: 1.3; max-height: 32px; overflow: hidden; }
+
+        /* 任务栏 */
+        .taskbar {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 48px;
+            background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px);
+            display: flex; align-items: center; padding: 0 8px; z-index: 1000;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .start-btn {
+            width: 44px; height: 36px; display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; cursor: pointer; transition: background 0.15s; color: #fff;
+        }
+        .start-btn:hover { background: rgba(255,255,255,0.15); }
+        .start-btn svg { width: 22px; height: 22px; }
+
+        .taskbar-windows { flex: 1; display: flex; gap: 4px; padding: 0 8px; overflow-x: auto; height: 100%; align-items: center; }
+        .taskbar-windows::-webkit-scrollbar { display: none; }
+        .win-task-item {
+            height: 36px; min-width: 160px; max-width: 200px; padding: 0 10px;
+            display: flex; align-items: center; gap: 8px; border-radius: 6px;
+            cursor: pointer; transition: background 0.15s; color: #fff; font-size: 13px;
+            background: rgba(255,255,255,0.08);
+        }
+        .win-task-item:hover { background: rgba(255,255,255,0.18); }
+        .win-task-item.active { background: rgba(255,255,255,0.25); border-bottom: 2px solid #4fc3f7; }
+        .win-task-item .icon { font-size: 16px; }
+        .win-task-item .title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .system-tray { display: flex; align-items: center; gap: 12px; color: #fff; font-size: 12px; padding: 0 12px; }
+        .system-tray .clock { text-align: right; line-height: 1.3; }
+
+        /* 开始菜单 */
+        .start-menu {
+            position: absolute; bottom: 56px; left: 8px; width: 360px; height: 520px;
+            background: rgba(40, 40, 40, 0.92); backdrop-filter: blur(30px);
+            border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            display: flex; flex-direction: column; z-index: 999; overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            animation: menuIn 0.2s ease;
+        }
+        @@keyframes menuIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .start-menu-header { padding: 16px; color: #fff; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .start-menu-body { flex: 1; overflow-y: auto; padding: 8px; }
+        .start-menu-body::-webkit-scrollbar { width: 6px; }
+        .start-menu-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        .solution-group { margin-bottom: 12px; }
+        .solution-title { color: rgba(255,255,255,0.6); font-size: 11px; padding: 4px 8px; text-transform: uppercase; }
+        .menu-item {
+            display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px;
+            cursor: pointer; color: #fff; transition: background 0.15s;
+        }
+        .menu-item:hover { background: rgba(255,255,255,0.12); }
+        .menu-item .icon { font-size: 20px; width: 28px; text-align: center; }
+        .menu-item .name { font-size: 13px; }
+        .start-menu-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; }
+        .start-menu-footer button { background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; font-size: 12px; padding: 6px 12px; border-radius: 4px; }
+        .start-menu-footer button:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+        /* 窗口 */
+        .window {
+            position: absolute; background: #fff; border-radius: 8px; overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4); display: flex; flex-direction: column;
+            min-width: 400px; min-height: 300px;
+        }
+        .window.minimized { display: none; }
+        .window.maximized { top: 0 !important; left: 0 !important; width: 100% !important; height: calc(100% - 48px) !important; border-radius: 0; }
+        .window-header {
+            height: 36px; background: linear-gradient(to bottom, #f5f5f5, #e8e8e8);
+            display: flex; align-items: center; padding: 0 8px; cursor: move;
+            border-bottom: 1px solid #ddd; flex-shrink: 0;
+        }
+        .window-header .icon { font-size: 16px; margin-right: 8px; }
+        .window-header .title { flex: 1; font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .window-controls { display: flex; gap: 4px; }
+        .win-btn {
+            width: 28px; height: 24px; border: none; background: none; cursor: pointer;
+            border-radius: 4px; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; color: #666; transition: background 0.15s;
+        }
+        .win-btn:hover { background: rgba(0,0,0,0.08); }
+        .win-btn.close:hover { background: #e81123; color: #fff; }
+        .window-body { flex: 1; overflow: hidden; position: relative; }
+        .window-body iframe { width: 100%; height: 100%; border: none; }
+
+        /* 右键菜单 */
+        .context-menu {
+            position: absolute; background: rgba(50,50,50,0.95); backdrop-filter: blur(10px);
+            border-radius: 8px; padding: 6px; min-width: 160px; z-index: 2000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+        }
+        .context-menu-item {
+            padding: 8px 14px; color: #fff; font-size: 13px; border-radius: 4px;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .context-menu-item:hover { background: rgba(255,255,255,0.15); }
+        .context-menu-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 4px 0; }
+    </style>
+</head>
+<body>
+<div id="app" class="desktop" @@contextmenu.prevent="showContextMenu($event)">
+    <!-- 桌面快捷方式 -->
+    <div class="desktop-icons">
+        <div v-for="sc in shortcuts" :key="sc.id"
+             class="desktop-icon"
+             :class="{ selected: selectedId === sc.id }"
+             @@click.stop="selectedId = sc.id"
+             @@dblclick="openApp(sc)">
+            <div class="icon">{{ sc.icon || '📄' }}</div>
+            <div class="label">{{ sc.name }}</div>
+        </div>
+    </div>
+
+    <!-- 窗口 -->
+    <div v-for="win in windows" :key="win.id"
+         class="window"
+         :class="{ minimized: win.minimized, maximized: win.maximized }"
+         :style="{ left: win.x + 'px', top: win.y + 'px', width: win.width + 'px', height: win.height + 'px', zIndex: win.zIndex }"
+         @@mousedown="focusWindow(win.id)">
+        <div class="window-header" @@mousedown="startDrag($event, win)" @@dblclick="toggleMaximize(win)">
+            <span class="icon">{{ win.icon }}</span>
+            <span class="title">{{ win.title }}</span>
+            <div class="window-controls">
+                <button class="win-btn" @@click.stop="minimizeWindow(win)" title="最小化">─</button>
+                <button class="win-btn" @@click.stop="toggleMaximize(win)" title="最大化">{{ win.maximized ? '❐' : '☐' }}</button>
+                <button class="win-btn close" @@click.stop="closeWindow(win.id)" title="关闭">✕</button>
+            </div>
+        </div>
+        <div class="window-body">
+            <iframe :src="win.url" :ref="el => { if(el) win.iframeEl = el; }"></iframe>
+        </div>
+    </div>
+
+    <!-- 开始菜单 -->
+    <div v-if="showStartMenu" class="start-menu" @@click.stop>
+        <div class="start-menu-header">
+            <strong>VueLib Desktop</strong>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;">所有应用</div>
+        </div>
+        <div class="start-menu-body">
+            <div v-for="sol in solutions" :key="sol.id" class="solution-group">
+                <div class="solution-title">{{ sol.icon }} {{ sol.name }}</div>
+                <div v-for="sc in shortcutsBySolution(sol.id)" :key="sc.id" class="menu-item" @@click="openApp(sc); showStartMenu = false;">
+                    <span class="icon">{{ sc.icon || '📄' }}</span>
+                    <span class="name">{{ sc.name }}</span>
+                </div>
+            </div>
+            <div v-if="shortcutsBySolution(null).length > 0" class="solution-group">
+                <div class="solution-title">未分组</div>
+                <div v-for="sc in shortcutsBySolution(null)" :key="sc.id" class="menu-item" @@click="openApp(sc); showStartMenu = false;">
+                    <span class="icon">{{ sc.icon || '📄' }}</span>
+                    <span class="name">{{ sc.name }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="start-menu-footer">
+            <button @@click="openManage('shortcut')">快捷方式管理</button>
+            <button @@click="openManage('solution')">解决方案管理</button>
+        </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div v-if="contextMenu.show" class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
+        <div class="context-menu-item" @@click="refreshDesktop">🔄 刷新</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" @@click="openManage('shortcut')">🖥️ 快捷方式管理</div>
+        <div class="context-menu-item" @@click="openManage('solution')">📁 解决方案管理</div>
+        <div class="context-menu-item" @@click="openManage('page')">📄 页面管理</div>
+    </div>
+
+    <!-- 任务栏 -->
+    <div class="taskbar">
+        <div class="start-btn" @@click.stop="showStartMenu = !showStartMenu" title="开始">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+        </div>
+        <div class="taskbar-windows">
+            <div v-for="win in windows" :key="win.id"
+                 class="win-task-item"
+                 :class="{ active: activeWinId === win.id && !win.minimized }"
+                 @@click="taskbarClick(win)">
+                <span class="icon">{{ win.icon }}</span>
+                <span class="title">{{ win.title }}</span>
+            </div>
+        </div>
+        <div class="system-tray">
+            <div class="clock">
+                <div>{{ currentTime }}</div>
+                <div style="font-size:11px;opacity:0.7;">{{ currentDate }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+<script>
+const { createApp, ref, reactive, computed, onMounted, onUnmounted } = Vue;
+
+createApp({
+    setup() {
+        const shortcuts = ref([]);
+        const solutions = ref([]);
+        const windows = reactive([]);
+        const showStartMenu = ref(false);
+        const selectedId = ref(null);
+        const activeWinId = ref(null);
+        const currentTime = ref('');
+        const currentDate = ref('');
+        const contextMenu = reactive({ show: false, x: 0, y: 0 });
+        let winIdCounter = 0;
+        let zIndexCounter = 100;
+        let timer = null;
+
+        // 加载数据
+        async function loadData() {
+            try {
+                const [sResp, solResp] = await Promise.all([
+                    fetch('/api/desktop/shortcuts').then(r => r.json()),
+                    fetch('/api/desktop/solutions').then(r => r.json())
+                ]);
+                shortcuts.value = sResp.data || [];
+                solutions.value = solResp.data || [];
+            } catch (e) { console.error('加载桌面数据失败:', e); }
+        }
+
+        function shortcutsBySolution(solId) {
+            return shortcuts.value.filter(s => (s.solutionId || null) === solId);
+        }
+
+        // 打开应用
+        function openApp(sc) {
+            if (sc.openType === 'newtab') {
+                window.open(sc.url, '_blank');
+                return;
+            }
+            // 检查是否已打开
+            const existing = windows.find(w => w.url === sc.url);
+            if (existing) {
+                existing.minimized = false;
+                focusWindow(existing.id);
+                return;
+            }
+            const win = {
+                id: ++winIdCounter,
+                title: sc.name,
+                icon: sc.icon || '📄',
+                url: sc.url,
+                x: 80 + (windows.length * 30) % 200,
+                y: 60 + (windows.length * 30) % 150,
+                width: 900,
+                height: 600,
+                minimized: false,
+                maximized: false,
+                zIndex: ++zIndexCounter,
+                iframeEl: null
+            };
+            windows.push(win);
+            activeWinId.value = win.id;
+        }
+
+        function focusWindow(id) {
+            const win = windows.find(w => w.id === id);
+            if (win) {
+                win.zIndex = ++zIndexCounter;
+                activeWinId.value = id;
+            }
+        }
+
+        function minimizeWindow(win) {
+            win.minimized = true;
+        }
+
+        function toggleMaximize(win) {
+            win.maximized = !win.maximized;
+        }
+
+        function closeWindow(id) {
+            const idx = windows.findIndex(w => w.id === id);
+            if (idx >= 0) windows.splice(idx, 1);
+        }
+
+        function taskbarClick(win) {
+            if (win.minimized) {
+                win.minimized = false;
+                focusWindow(win.id);
+            } else if (activeWinId.value === win.id) {
+                win.minimized = true;
+            } else {
+                focusWindow(win.id);
+            }
+        }
+
+        // 窗口拖拽
+        let dragState = null;
+        function startDrag(e, win) {
+            if (win.maximized) return;
+            focusWindow(win.id);
+            dragState = {
+                win, startX: e.clientX, startY: e.clientY,
+                origX: win.x, origY: win.y
+            };
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+        function onDrag(e) {
+            if (!dragState) return;
+            dragState.win.x = dragState.origX + (e.clientX - dragState.startX);
+            dragState.win.y = Math.max(0, dragState.origY + (e.clientY - dragState.startY));
+        }
+        function stopDrag() {
+            dragState = null;
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        // 右键菜单
+        function showContextMenu(e) {
+            contextMenu.show = true;
+            contextMenu.x = e.clientX;
+            contextMenu.y = e.clientY;
+        }
+        function hideContextMenu() { contextMenu.show = false; }
+
+        function refreshDesktop() {
+            hideContextMenu();
+            loadData();
+        }
+
+        function openManage(type) {
+            hideContextMenu();
+            showStartMenu.value = false;
+            const urls = {
+                shortcut: '/Desktop/ShortcutManage',
+                solution: '/Desktop/SolutionManage',
+                page: '/Desktop/PageManage'
+            };
+            openApp({ name: type === 'shortcut' ? '快捷方式管理' : type === 'solution' ? '解决方案管理' : '页面管理', icon: type === 'shortcut' ? '🖥️' : type === 'solution' ? '📁' : '📄', url: urls[type], openType: 'iframe' });
+        }
+
+        // 时钟
+        function updateClock() {
+            const now = new Date();
+            currentTime.value = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            currentDate.value = now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+        }
+
+        // 点击空白关闭菜单
+        function onGlobalClick() {
+            showStartMenu.value = false;
+            hideContextMenu();
+            selectedId.value = null;
+        }
+
+        onMounted(() => {
+            loadData();
+            updateClock();
+            timer = setInterval(updateClock, 1000);
+            document.addEventListener('click', onGlobalClick);
+        });
+        onUnmounted(() => {
+            clearInterval(timer);
+            document.removeEventListener('click', onGlobalClick);
+        });
+
+        return {
+            shortcuts, solutions, windows, showStartMenu, selectedId, activeWinId,
+            currentTime, currentDate, contextMenu,
+            shortcutsBySolution, openApp, focusWindow, minimizeWindow, toggleMaximize,
+            closeWindow, taskbarClick, startDrag, showContextMenu, refreshDesktop, openManage
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

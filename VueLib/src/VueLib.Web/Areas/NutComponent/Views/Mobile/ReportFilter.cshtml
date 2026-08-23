@@ -1,0 +1,25 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-report-filter" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <nut-cell title="Station" :desc="comInnerInfo.selectedStationName" is-link @@click="comInnerInfo.showStationPicker = true"></nut-cell>
+        <nut-cell title="Period" :desc="comInnerInfo.dateRangeText" is-link @@click="comInnerInfo.showDatePicker = true"></nut-cell>
+        <nut-cell title="Top" :desc="comInnerInfo.topText" is-link @@click="comInnerInfo.showTopPicker = true"></nut-cell>
+        <div class="n-search-btn-wrap">
+            <nut-button type="primary" size="small" block @@click="comInnerInfo.onSearch">Search</nut-button>
+        </div>
+        <nut-popup v-model:visible="comInnerInfo.showStationPicker" position="bottom" round>
+            <nut-picker :columns="comInnerInfo.stationColumns" title="Select Station" :show-toolbar="true" @@confirm="comInnerInfo.onStationConfirm" @@cancel="comInnerInfo.showStationPicker = false"></nut-picker>
+        </nut-popup>
+        <nut-popup v-model:visible="comInnerInfo.showTopPicker" position="bottom" round>
+            <nut-picker :columns="comInnerInfo.topOptions" title="Select Top N" :show-toolbar="true" @@confirm="comInnerInfo.onTopConfirm" @@cancel="comInnerInfo.showTopPicker = false"></nut-picker>
+        </nut-popup>
+        <nut-calendar v-model:visible="comInnerInfo.showDatePicker" type="range" :default-value="comInnerInfo.defaultDates" start-date="1970-01-01" end-date="2100-12-31" @@choose="comInnerInfo.onDateConfirm"></nut-calendar>
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = window.__nutReportFilterSetup(props, comInnerInfo, context);
+}

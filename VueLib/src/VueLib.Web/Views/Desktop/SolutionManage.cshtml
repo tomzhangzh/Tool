@@ -1,0 +1,92 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>解决方案管理</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/css/layui.css">
+    <style>
+        body { padding: 16px; background: #f5f7fa; }
+        .toolbar { margin-bottom: 12px; display: flex; gap: 8px; }
+    </style>
+</head>
+<body>
+<div class="toolbar">
+    <button class="layui-btn layui-btn-sm" onclick="openEdit()">+ 新增解决方案</button>
+    <button class="layui-btn layui-btn-sm layui-btn-primary" onclick="loadData()">刷新</button>
+</div>
+<table id="solTable" lay-filter="solTable"></table>
+
+<script type="text/html" id="barTpl">
+    <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+    <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="del">删除</a>
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/layui.js"></script>
+<script>
+let table, layer;
+layui.use(['table', 'layer'], function(){
+    table = layui.table;
+    layer = layui.layer;
+    loadData();
+});
+
+function loadData() {
+    table.render({
+        elem: '#solTable',
+        url: '/api/desktop/solutions',
+        parseData: function(res){ return { code: res.success ? 0 : 1, msg: '', count: res.data.length, data: res.data }; },
+        cols: [[
+            { field: 'id', title: 'ID', width: 60 },
+            { field: 'icon', title: '图标', width: 70, templet: d => `<span style="font-size:20px;">${d.icon || '📁'}</span>` },
+            { field: 'name', title: '名称' },
+            { field: 'description', title: '描述' },
+            { field: 'sortOrder', title: '排序', width: 70 },
+            { title: '操作', width: 140, toolbar: '#barTpl' }
+        ]],
+        page: false
+    });
+    table.on('tool(solTable)', function(obj){
+        if (obj.event === 'edit') openEdit(obj.data);
+        if (obj.event === 'del') {
+            layer.confirm('确定删除该解决方案？关联的快捷方式将变为未分组。', { icon: 3 }, function(idx){
+                fetch('/api/desktop/solution/' + obj.data.id, { method: 'DELETE' }).then(() => {
+                    layer.close(idx); loadData(); layer.msg('已删除');
+                });
+            });
+        }
+    });
+}
+
+function openEdit(data) {
+    const isEdit = !!data;
+    const d = data || { id: 0, name: '', icon: '📁', description: '', sortOrder: 0 };
+    const html = `
+        <form class="layui-form" style="padding:20px;">
+            <div class="layui-form-item"><label class="layui-form-label">名称</label><div class="layui-input-block"><input id="f_name" class="layui-input" value="${d.name}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">图标</label><div class="layui-input-block"><input id="f_icon" class="layui-input" value="${d.icon}" placeholder="emoji或图片URL"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">描述</label><div class="layui-input-block"><input id="f_desc" class="layui-input" value="${d.description || ''}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">排序</label><div class="layui-input-block"><input id="f_sortOrder" type="number" class="layui-input" value="${d.sortOrder}"></div></div>
+        </form>`;
+    layer.open({
+        type: 1, title: isEdit ? '编辑解决方案' : '新增解决方案', area: ['440px', '320px'], content: html,
+        btn: ['保存', '取消'],
+        yes: function(idx){
+            const payload = {
+                id: d.id, name: document.getElementById('f_name').value,
+                icon: document.getElementById('f_icon').value, description: document.getElementById('f_desc').value,
+                sortOrder: parseInt(document.getElementById('f_sortOrder').value) || 0, isEnabled: true
+            };
+            if (!payload.name) { layer.msg('名称不能为空'); return; }
+            fetch('/api/desktop/solution', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            }).then(() => { layer.close(idx); loadData(); layer.msg('保存成功'); });
+        }
+    });
+}
+</script>
+</body>
+</html>

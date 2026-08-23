@@ -1,0 +1,35 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-data-table" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div v-if="comInnerInfo.loading" class="n-dt-loading">Loading...</div>
+        <div v-else-if="!comInnerInfo.items.length" class="n-dt-empty">No data available</div>
+        <div v-else>
+            <div class="n-dt-table-wrap">
+                <table class="n-dt-table">
+                    <thead>
+                        <tr>
+                            <th v-for="col in columns" :key="col.key">{{ col.label }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(row, i) in comInnerInfo.items" :key="i">
+                            <td v-for="col in columns" :key="col.key">{{ fmtVal(col, row[col.key]) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="n-dt-pager">
+                <nut-button size="small" :disabled="comInnerInfo.page <= 1" @@click="prev">Prev</nut-button>
+                <span class="n-dt-page-info">Page {{ comInnerInfo.page }} / {{ totalPages }} ({{ comInnerInfo.total }} records)</span>
+                <nut-button size="small" :disabled="comInnerInfo.page >= totalPages" @@click="next">Next</nut-button>
+            </div>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = window.__nutDataTableSetup(props, comInnerInfo, context);
+}

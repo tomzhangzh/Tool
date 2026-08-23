@@ -1,0 +1,385 @@
+{
+  "pages": [
+    {
+      "pageCode": "mobile-login",
+      "pageName": "移动端登录页",
+      "config": {
+        "component": "NDivContainer",
+        "modelname": "",
+        "options": {
+          "comoptions": {},
+          "comlisteners": {},
+          "labeloptions": {},
+          "itemoptions": { "style": { "minHeight": "100vh", "background": "linear-gradient(135deg,#667eea 0%,#764ba2 100%)" }, "class": "mobile-login-page" }
+        },
+        "validators": [],
+        "childrenctrls": [
+          {
+            "component": "NDivContainer",
+            "modelname": "",
+            "options": {
+              "comoptions": {},
+              "itemoptions": { "style": { "padding": "60px 24px 24px", "textAlign": "center" }, "class": "" }
+            },
+            "childrenctrls": [
+              {
+                "component": "NIcon",
+                "options": { "comoptions": { "name": "shop", "size": "44px", "color": "#fff" } }
+              },
+              {
+                "component": "NText",
+                "options": { "comoptions": { "text": "Sunshine Mobile", "style": { "fontSize": "24px", "fontWeight": "bold", "color": "#fff", "marginTop": "12px" } } }
+              },
+              {
+                "component": "NText",
+                "options": { "comoptions": { "text": "Your business insights, anywhere", "style": { "fontSize": "14px", "color": "rgba(255,255,255,0.8)", "marginTop": "4px" } } }
+              }
+            ]
+          },
+          {
+            "component": "NLoginCard",
+            "options": {
+              "comoptions": {
+                "title": "Sign In",
+                "usernamePlaceholder": "Username",
+                "passwordPlaceholder": "Password",
+                "buttonText": "Sign In",
+                "loadingText": "Signing in...",
+                "rememberText": "Remember me",
+                "showRemember": true
+              },
+              "itemoptions": { "style": { "margin": "0 16px" }, "class": "" }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "pageCode": "mobile-home",
+      "pageName": "移动端首页",
+      "config": {
+        "component": "NDivContainer",
+        "modelname": "",
+        "options": {
+          "comoptions": {},
+          "itemoptions": { "style": { "minHeight": "100vh", "paddingBottom": "60px", "background": "#f5f6fa" }, "class": "mobile-home-page" }
+        },
+        "childrenctrls": [
+          {
+            "component": "NHeroBanner",
+            "options": {
+              "comoptions": {
+                "greeting": "Good morning",
+                "userName": "Tom",
+                "avatarIcon": "my",
+                "showBell": true,
+                "stats": [
+                  { "value": "4", "label": "Reports" },
+                  { "value": "1", "label": "Price Tool" },
+                  { "value": "24/7", "label": "Access" }
+                ]
+              }
+            }
+          },
+          {
+            "component": "NDivContainer",
+            "options": {
+              "itemoptions": { "style": { "padding": "12px 16px" }, "class": "" }
+            },
+            "childrenctrls": [
+              {
+                "component": "NDivContainer",
+                "options": {
+                  "itemoptions": { "style": { "background": "#fff", "borderRadius": "12px", "padding": "16px", "marginBottom": "12px" }, "class": "section-card" }
+                },
+                "childrenctrls": [
+                  {
+                    "component": "NText",
+                    "options": { "comoptions": { "text": "Quick Access", "style": { "fontSize": "16px", "fontWeight": "600", "marginBottom": "12px" } } }
+                  },
+                  {
+                    "component": "NGridMenu",
+                    "options": {
+                      "comoptions": {
+                        "items": [
+                          { "label": "Price Brand", "icon": "cart", "iconClass": "gi-blue", "path": "/price-brand" },
+                          { "label": "Category", "icon": "find", "iconClass": "gi-cyan", "path": "/report/category" },
+                          { "label": "Hourly", "icon": "clock", "iconClass": "gi-orange", "path": "/report/hourly" },
+                          { "label": "Reports", "icon": "checklist", "iconClass": "gi-indigo", "path": "/reports" },
+                          { "label": "Profile", "icon": "my", "iconClass": "gi-teal", "path": "/profile" },
+                          { "label": "More", "icon": "more", "iconClass": "gi-gray", "placeholder": true }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "component": "NDivContainer",
+                "options": {
+                  "itemoptions": { "style": { "background": "#fff", "borderRadius": "12px", "padding": "16px", "marginBottom": "12px" }, "class": "section-card" }
+                },
+                "childrenctrls": [
+                  {
+                    "component": "NText",
+                    "options": { "comoptions": { "text": "Recent Reports", "style": { "fontSize": "16px", "fontWeight": "600", "marginBottom": "12px" } } }
+                  },
+                  {
+                    "component": "NReportCard",
+                    "options": { "comoptions": { "title": "Category Report", "desc": "Sales by category", "icon": "find", "gradient": "linear-gradient(135deg,#4A90D9,#6BA3E0)", "path": "/report/category" } }
+                  },
+                  {
+                    "component": "NReportCard",
+                    "options": { "comoptions": { "title": "Hourly Report", "desc": "Sales by hour", "icon": "clock", "gradient": "linear-gradient(135deg,#FA8C16,#FFA940)", "path": "/report/hourly" } }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "component": "NBottomNav",
+            "options": {
+              "comoptions": {
+                "activePath": "/",
+                "tabs": [
+                  { "path": "/", "label": "Home", "icon": "home" },
+                  { "path": "/reports", "label": "Reports", "icon": "find" },
+                  { "path": "/price-brand", "label": "Price", "icon": "cart" },
+                  { "path": "/profile", "label": "Profile", "icon": "my" }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "pageCode": "mobile-reports",
+      "pageName": "移动端报表列表",
+      "config": {
+        "component": "NDivContainer",
+        "options": {
+          "itemoptions": { "style": { "minHeight": "100vh", "paddingBottom": "60px", "background": "#f5f6fa" }, "class": "" }
+        },
+        "childrenctrls": [
+          {
+            "component": "NNavBar",
+            "options": { "comoptions": { "title": "Reports", "subtitle": "Select a report to view details", "showBack": false } }
+          },
+          {
+            "component": "NDivContainer",
+            "options": { "itemoptions": { "style": { "padding": "16px" }, "class": "" } },
+            "childrenctrls": [
+              {
+                "component": "NReportCard",
+                "options": { "comoptions": { "title": "Category Report", "desc": "Sales distribution by category", "icon": "find", "gradient": "linear-gradient(135deg,#4A90D9,#6BA3E0)", "path": "/report/category" } }
+              },
+              {
+                "component": "NReportCard",
+                "options": { "comoptions": { "title": "Hourly Report", "desc": "Sales breakdown by hour", "icon": "clock", "gradient": "linear-gradient(135deg,#FA8C16,#FFA940)", "path": "/report/hourly" } }
+              }
+            ]
+          },
+          {
+            "component": "NBottomNav",
+            "options": {
+              "comoptions": {
+                "activePath": "/reports",
+                "tabs": [
+                  { "path": "/", "label": "Home", "icon": "home" },
+                  { "path": "/reports", "label": "Reports", "icon": "find" },
+                  { "path": "/price-brand", "label": "Price", "icon": "cart" },
+                  { "path": "/profile", "label": "Profile", "icon": "my" }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "pageCode": "mobile-report-category",
+      "pageName": "分类报表页",
+      "config": {
+        "component": "NDivContainer",
+        "options": {
+          "itemoptions": { "style": { "minHeight": "100vh", "paddingBottom": "60px", "background": "#f5f6fa" }, "class": "" }
+        },
+        "childrenctrls": [
+          {
+            "component": "NNavBar",
+            "options": { "comoptions": { "title": "Category Report", "subtitle": "Sales by category", "showBack": true } }
+          },
+          {
+            "component": "NReportFilter",
+            "options": { "comoptions": { "stationId": 0, "topN": 10, "startDate": "", "endDate": "" } }
+          },
+          {
+            "component": "NViewToggle",
+            "options": { "comoptions": { "defaultMode": "chart" } }
+          },
+          {
+            "component": "NDivContainer",
+            "options": { "itemoptions": { "style": { "padding": "16px" }, "class": "" } },
+            "childrenctrls": [
+              {
+                "component": "NEChart",
+                "options": {
+                  "comoptions": {
+                    "height": "300px",
+                    "chartType": "bar",
+                    "color": "#4A90D9",
+                    "chartField": "CategoryName",
+                    "valueField": "SalesAmount",
+                    "apiUrl": "/api/MobileApi/CategoryReport",
+                    "autoLoad": false
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "component": "NBottomNav",
+            "options": {
+              "comoptions": {
+                "activePath": "/reports",
+                "tabs": [
+                  { "path": "/", "label": "Home", "icon": "home" },
+                  { "path": "/reports", "label": "Reports", "icon": "find" },
+                  { "path": "/price-brand", "label": "Price", "icon": "cart" },
+                  { "path": "/profile", "label": "Profile", "icon": "my" }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "pageCode": "mobile-price-brand",
+      "pageName": "价格品牌邮件页",
+      "config": {
+        "component": "NDivContainer",
+        "options": {
+          "itemoptions": { "style": { "minHeight": "100vh", "paddingBottom": "60px", "background": "#f5f6fa" }, "class": "" }
+        },
+        "childrenctrls": [
+          {
+            "component": "NNavBar",
+            "options": { "comoptions": { "title": "Price Brand Email", "subtitle": "Select brand & date to view email", "showBack": true } }
+          },
+          {
+            "component": "NDivContainer",
+            "options": { "itemoptions": { "style": { "padding": "16px" }, "class": "" } },
+            "childrenctrls": [
+              {
+                "component": "NDivContainer",
+                "options": { "itemoptions": { "style": { "background": "#fff", "borderRadius": "12px", "padding": "12px", "marginBottom": "12px" }, "class": "filter-bar" } },
+                "childrenctrls": [
+                  {
+                    "component": "NMenuItem",
+                    "options": { "comoptions": { "icon": "shop", "iconClass": "mi-blue", "label": "Brand", "value": "Select Brand", "link": true } }
+                  },
+                  {
+                    "component": "NMenuItem",
+                    "options": { "comoptions": { "icon": "clock", "iconClass": "mi-green", "label": "Date", "value": "Please select", "link": true } }
+                  },
+                  {
+                    "component": "NButton",
+                    "options": { "comoptions": { "text": "View Email", "type": "primary", "block": true }, "itemoptions": { "style": { "marginTop": "12px" }, "class": "" } }
+                  }
+                ]
+              },
+              {
+                "component": "NEmpty",
+                "options": { "comoptions": { "icon": "image", "text": "No email generated yet" } }
+              }
+            ]
+          },
+          {
+            "component": "NBottomNav",
+            "options": {
+              "comoptions": {
+                "activePath": "/price-brand",
+                "tabs": [
+                  { "path": "/", "label": "Home", "icon": "home" },
+                  { "path": "/reports", "label": "Reports", "icon": "find" },
+                  { "path": "/price-brand", "label": "Price", "icon": "cart" },
+                  { "path": "/profile", "label": "Profile", "icon": "my" }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "pageCode": "mobile-profile",
+      "pageName": "移动端个人中心",
+      "config": {
+        "component": "NDivContainer",
+        "options": {
+          "itemoptions": { "style": { "minHeight": "100vh", "paddingBottom": "60px", "background": "#f5f6fa" }, "class": "mobile-profile-page" }
+        },
+        "childrenctrls": [
+          {
+            "component": "NProfileHeader",
+            "options": { "comoptions": { "userName": "Tom", "role": "Verified User", "userId": "1001", "avatarIcon": "my" } }
+          },
+          {
+            "component": "NDivContainer",
+            "options": { "itemoptions": { "style": { "padding": "16px" }, "class": "" } },
+            "childrenctrls": [
+              {
+                "component": "NDivContainer",
+                "options": { "itemoptions": { "style": { "display": "flex", "gap": "12px", "marginBottom": "16px" }, "class": "stats-row" } },
+                "childrenctrls": [
+                  { "component": "NStatCard", "options": { "comoptions": { "icon": "find", "iconClass": "si-blue", "value": "4", "label": "Reports" } } },
+                  { "component": "NStatCard", "options": { "comoptions": { "icon": "cart", "iconClass": "si-green", "value": "1", "label": "Price Tool" } } },
+                  { "component": "NStatCard", "options": { "comoptions": { "icon": "clock", "iconClass": "si-orange", "value": "24/7", "label": "Access" } } }
+                ]
+              },
+              {
+                "component": "NDivContainer",
+                "options": { "itemoptions": { "style": { "background": "#fff", "borderRadius": "12px", "padding": "12px", "marginBottom": "12px" }, "class": "menu-card" } },
+                "childrenctrls": [
+                  { "component": "NText", "options": { "comoptions": { "text": "Settings", "style": { "fontSize": "14px", "fontWeight": "600", "color": "#969799", "marginBottom": "8px" } } } },
+                  { "component": "NMenuItem", "options": { "comoptions": { "icon": "my", "iconClass": "mi-blue", "label": "Username", "value": "Tom" } } },
+                  { "component": "NMenuItem", "options": { "comoptions": { "icon": "refresh", "iconClass": "mi-green", "label": "Auto Login", "switch": true, "switchValue": true } } },
+                  { "component": "NMenuItem", "options": { "comoptions": { "icon": "notice", "iconClass": "mi-purple", "label": "Notifications", "switch": true, "switchValue": true } } }
+                ]
+              },
+              {
+                "component": "NDivContainer",
+                "options": { "itemoptions": { "style": { "background": "#fff", "borderRadius": "12px", "padding": "12px", "marginBottom": "16px" }, "class": "menu-card" } },
+                "childrenctrls": [
+                  { "component": "NText", "options": { "comoptions": { "text": "About", "style": { "fontSize": "14px", "fontWeight": "600", "color": "#969799", "marginBottom": "8px" } } } },
+                  { "component": "NMenuItem", "options": { "comoptions": { "icon": "tips", "iconClass": "mi-cyan", "label": "Version", "value": "1.0.0" } } },
+                  { "component": "NMenuItem", "options": { "comoptions": { "icon": "home", "iconClass": "mi-orange", "label": "Home", "link": true } } }
+                ]
+              },
+              {
+                "component": "NButton",
+                "options": { "comoptions": { "text": "Sign Out", "type": "danger", "block": true }, "itemoptions": { "style": {}, "class": "logout-btn" } }
+              }
+            ]
+          },
+          {
+            "component": "NBottomNav",
+            "options": {
+              "comoptions": {
+                "activePath": "/profile",
+                "tabs": [
+                  { "path": "/", "label": "Home", "icon": "home" },
+                  { "path": "/reports", "label": "Reports", "icon": "find" },
+                  { "path": "/price-brand", "label": "Price", "icon": "cart" },
+                  { "path": "/profile", "label": "Profile", "icon": "my" }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -36,6 +36,14 @@ public class ComponentDefinition
     [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
     public string? StyleContent { get; set; }
 
+    /// <summary>属性面板配置 JSON - 定义右侧属性面板的动态表单结构（Element Plus）</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? PropertyConfigJson { get; set; }
+
+    /// <summary>默认配置 JSON - 组件拖入画布时的初始配置</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? DefaultConfigJson { get; set; }
+
     /// <summary>组件描述</summary>
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Description { get; set; }

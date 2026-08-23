@@ -1,0 +1,32 @@
+﻿@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <div class="n-hero-banner" :style="getStyle(props.jsonconfig.options.itemoptions)">
+        <div class="n-hero-bg"></div>
+        <div class="n-hero-content">
+            <div class="n-hero-avatar">
+                <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: props.jsonconfig.options.comoptions.avatarIcon || 'my', size: '32px', color: '#4A90D9' } } }"></n-icon>
+            </div>
+            <div class="n-hero-text">
+                <div class="n-hero-greeting">{{ props.jsonconfig.options.comoptions.greeting || 'Hello' }},</div>
+                <div class="n-hero-name">{{ props.jsonconfig.options.comoptions.userName || 'Guest' }}</div>
+            </div>
+            <div class="n-hero-bell" v-if="props.jsonconfig.options.comoptions.showBell">
+                <n-icon :jsonconfig="{ component: 'NIcon', options: { comoptions: { name: 'notice', size: '22px', color: '#fff' } } }"></n-icon>
+            </div>
+        </div>
+        <div class="n-hero-stats" v-if="stats.length">
+            <div v-for="(stat, idx) in stats" :key="idx" class="n-stat-item">
+                <div class="n-stat-value">{{ stat.value }}</div>
+                <div class="n-stat-label">{{ stat.label }}</div>
+                <div v-if="idx < stats.length - 1" class="n-stat-divider"></div>
+            </div>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    const stats = props.jsonconfig.options.comoptions.stats || [];
+}

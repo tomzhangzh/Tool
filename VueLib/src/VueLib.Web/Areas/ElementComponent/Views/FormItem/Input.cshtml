@@ -1,0 +1,14 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <el-input v-model="modelinfo"
+              v-bind="jc.options.comoptions"
+              v-on="getComlisteners()">
+    </el-input>
+</template>
+
+@section setupScripts{
+    DVALUE = '';
+}
