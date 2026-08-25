@@ -54,6 +54,23 @@
         }
     </el-form>
 
+    @if (def.Navs != null && def.Navs.Count > 0)
+    {
+        <div class="dyn-nav-panel" v-if="model._nav" style="margin-top:10px;">
+            <div class="dyn-card-title">关联数据</div>
+            <div v-for="(v, k) in model._nav" :key="k" class="dyn-nav-item">
+                <div class="dyn-nav-title">{{ k }}<span class="dyn-nav-type">（{{ Array.isArray(v) ? '一对多' : '多对一' }}）</span></div>
+                <el-table v-if="Array.isArray(v)" :data="v" size="small" border style="width:100%">
+                    <el-table-column v-for="col in navCols(v)" :key="col.prop" :prop="col.prop" :label="col.label" :width="col.width" show-overflow-tooltip></el-table-column>
+                </el-table>
+                <el-descriptions v-else-if="v" :column="3" size="small" border class="dyn-nav-obj">
+                    <el-descriptions-item v-for="(vv, kk) in v" :key="kk" :label="kk">{{ vv }}</el-descriptions-item>
+                </el-descriptions>
+                <div v-else class="dyn-nav-empty">无关联数据</div>
+            </div>
+        </div>
+    }
+
     <div class="dyn-detail-actions">
         <el-button @@click="cancel">取消</el-button>
         <el-button type="primary"
@@ -64,6 +81,13 @@
         var dynConfig = {
             setup: function ({ model, element }) {
                 return {
+                    // 由导航数组首行字段动态生成列定义
+                    navCols: function (rows) {
+                        if (!rows || !rows.length) return [];
+                        return Object.keys(rows[0]).map(function (k) {
+                            return { prop: k, label: k, width: Math.max(110, Math.min(220, k.length * 20 + 60)) };
+                        });
+                    },
                     cancel: function () {
                         dyn.close(element);
                     }

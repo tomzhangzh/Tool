@@ -4,7 +4,8 @@
     var project = ViewBag.Project as DynProject;
     var pages = ViewBag.Pages as List<DynPage>;
     var current = ViewBag.CurrentPage as DynPage;
-    var summaryPages = pages?.Where(p => p.PageType == "Summary").ToList() ?? new List<DynPage>();
+    // Tab 展示可独立访问的页面：汇总屏 + 查询屏（细节屏由汇总屏/编辑按钮打开，不作为独立 Tab）
+    var tabPages = pages?.Where(p => p.PageType is "Summary" or "Filter").ToList() ?? new List<DynPage>();
 }
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -31,7 +32,7 @@
     <div class="run-topbar">
         <span class="run-title">@(project?.DisplayName ?? project?.Name) · 预览</span>
         <div class="run-tabs">
-            @foreach (var p in summaryPages)
+            @foreach (var p in tabPages)
             {
                 <a class="run-tab @(current?.Id == p.Id ? "active" : "")"
                    href="/DynRun/Index?projectId=@project!.Id&pageId=@p.Id">@(p.Title ?? p.Name)</a>
@@ -42,7 +43,15 @@
 
     @if (current != null)
     {
-        if (current.PageType == "Summary")
+        if (current.PageType == "Filter")
+        {
+            <div id="dynHost"
+                 dyn-init
+                 data-dyn-url="/DynRun/Filter?projectId=@project!.Id&pageId=@current.Id"
+                 data-dyn-load="true"
+                 class="run-host dyn-loading"></div>
+        }
+        else if (current.PageType == "Summary")
         {
             <div id="dynHost"
                  dyn-init

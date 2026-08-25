@@ -100,10 +100,21 @@
                     <div v-else>
                         <div class="pm-panel-title">页面定义 · {{ selectedTable }}</div>
                         <div class="pm-defbar">
-                            <el-input v-model="summaryCode" placeholder="汇总屏编码" style="width:165px"></el-input>
-                            <el-input v-model="summaryTitle" placeholder="汇总屏标题" style="width:165px"></el-input>
-                            <el-input v-model="detailCode" placeholder="细节屏编码" style="width:165px"></el-input>
-                            <el-input v-model="detailTitle" placeholder="细节屏标题" style="width:165px"></el-input>
+                            <el-input v-model="summaryCode" placeholder="汇总屏编码" style="width:160px"></el-input>
+                            <el-input v-model="summaryTitle" placeholder="汇总屏标题" style="width:160px"></el-input>
+                            <el-input v-model="detailCode" placeholder="细节屏编码" style="width:160px"></el-input>
+                            <el-input v-model="detailTitle" placeholder="细节屏标题" style="width:160px"></el-input>
+                            <el-input v-model="filterCode" placeholder="查询屏编码" style="width:160px"></el-input>
+                            <el-input v-model="filterTitle" placeholder="查询屏标题" style="width:160px"></el-input>
+                        </div>
+                        <div class="pm-defbar" style="margin-top:0;">
+                            <span style="font-size:12px;color:#606266;">数据源：</span>
+                            <el-select v-model="dataSource" style="width:130px">
+                                <el-option label="动态SQL查表" value="Dynamic"></el-option>
+                                <el-option label="真实视图" value="View"></el-option>
+                            </el-select>
+                            <el-input v-if="dataSource === 'View'" v-model="viewName" placeholder="真实视图名（如 vCustomerList）" style="width:220px"></el-input>
+                            <span class="hint">读取按此取数；增删改始终作用于真实表。真实视图适合动态满足不了的复杂联表。</span>
                         </div>
                         <el-table :data="colDefs" border size="small" max-height="330">
                             <el-table-column prop="name" label="列名" width="110"></el-table-column>
@@ -141,8 +152,50 @@
                                 </template>
                             </el-table-column>
                         </el-table>
+
+                        <!-- 外键导航配置 -->
+                        <div class="pm-panel-title" style="margin-top:14px;">外键导航（{{ navs.length }}）<span class="hint">多对一=当前表外键指向目标表(注入object)；一对多=目标表外键指向当前表(注入array)</span></div>
+                        <el-table :data="navs" border size="small">
+                            <el-table-column label="导航键" width="110">
+                                <template #default="{ row }"><el-input v-model="row.navKey" size="small" placeholder="如 Customer"></el-input></template>
+                            </el-table-column>
+                            <el-table-column label="标签" width="100">
+                                <template #default="{ row }"><el-input v-model="row.label" size="small"></el-input></template>
+                            </el-table-column>
+                            <el-table-column label="关系" width="100">
+                                <template #default="{ row }">
+                                    <el-select v-model="row.relation" size="small">
+                                        <el-option label="多对一" value="ManyToOne"></el-option>
+                                        <el-option label="一对多" value="OneToMany"></el-option>
+                                    </el-select>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="目标表" width="110">
+                                <template #default="{ row }">
+                                    <el-select v-model="row.targetTable" size="small" filterable allow-create>
+                                        <el-option v-for="t in tables" :key="t.name" :label="t.name" :value="t.name"></el-option>
+                                    </el-select>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="外键列(多对一)" width="120">
+                                <template #default="{ row }"><el-input v-model="row.fkColumn" size="small" placeholder="本表指向目标表"></el-input></template>
+                            </el-table-column>
+                            <el-table-column label="目标外键列(一对多)" width="130">
+                                <template #default="{ row }"><el-input v-model="row.targetFkColumn" size="small" placeholder="目标表指向本表"></el-input></template>
+                            </el-table-column>
+                            <el-table-column label="展示列(逗号分隔,空=全部)" min-width="150">
+                                <template #default="{ row }"><el-input v-model="row.displayColumns" size="small" placeholder="如 Name,Code"></el-input></template>
+                            </el-table-column>
+                            <el-table-column width="70" align="center">
+                                <template #default="{ $index }">
+                                    <el-button type="danger" size="small" link @@click="navs.splice($index, 1)">删除</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+
                         <div class="pm-actions">
                             <el-button type="primary" @@click="saveGeneratedPages" :loading="savingPages">生成并保存（汇总屏 + 细节屏）</el-button>
+                            <el-button type="warning" @@click="saveFilterPage" :loading="savingPages">生成查询屏（Filter）</el-button>
                             <el-button @@click="generateSqlView">生成 SQL 视图</el-button>
                             <el-button @@click="generateViewFiles">查看视图源码</el-button>
                         </div>
@@ -154,12 +207,16 @@
                             <el-table-column prop="title" label="标题" width="150"></el-table-column>
                             <el-table-column label="类型" width="90" align="center">
                                 <template #default="{ row }">
-                                    <el-tag :type="row.pageType === 'Summary' ? 'success' : 'warning'" size="small">
-                                        {{ row.pageType === 'Summary' ? '汇总屏' : '细节屏' }}
-                                    </el-tag>
+                                    <el-tag :type="typeTag(row.pageType)" size="small">{{ typeText(row.pageType) }}</el-tag>
                                 </template>
                             </el-table-column>
                             <el-table-column prop="tableName" label="表" width="110"></el-table-column>
+                            <el-table-column label="数据源" width="90" align="center">
+                                <template #default="{ row }">
+                                    <el-tag v-if="row.dataSource === 'View'" type="warning" size="small">视图 {{ row.viewName }}</el-tag>
+                                    <el-tag v-else type="info" size="small">动态表</el-tag>
+                                </template>
+                            </el-table-column>
                             <el-table-column prop="detailPageId" label="关联细节屏" width="90" align="center"></el-table-column>
                             <el-table-column label="操作" width="150" align="center">
                                 <template #default="{ row }">
@@ -256,6 +313,11 @@ createApp({
         const summaryTitle = ref('');
         const detailCode = ref('');
         const detailTitle = ref('');
+        const filterCode = ref('');
+        const filterTitle = ref('');
+        const dataSource = ref('Dynamic');
+        const viewName = ref('');
+        const navs = ref([]);
         const pages = ref([]);
         const savingPages = ref(false);
         const viewDialog = ref(false);
@@ -380,6 +442,11 @@ createApp({
             summaryTitle.value = name + '列表';
             detailCode.value = name + 'Edit';
             detailTitle.value = name + '编辑';
+            filterCode.value = name + 'Query';
+            filterTitle.value = name + '查询';
+            dataSource.value = 'Dynamic';
+            viewName.value = '';
+            navs.value = [];
             try {
                 const r = await api('/api/dynproject/' + pmProjectId.value + '/generate?table=' + encodeURIComponent(name));
                 if (r.success) {
@@ -387,6 +454,13 @@ createApp({
                     colDefs.value = (def.columns || []).map(c => ({
                         ...c,
                         optionsText: (c.options || []).map(o => o.value).join(',')
+                    }));
+                    // 外键导航建议（自动检测）
+                    navs.value = (def.navs || []).map(n => ({
+                        navKey: n.navKey || n.targetTable || '', label: n.label || n.navKey || '',
+                        relation: n.relation || 'ManyToOne', targetTable: n.targetTable || '',
+                        fkColumn: n.fkColumn || '', targetFkColumn: n.targetFkColumn || '',
+                        displayColumns: (n.displayColumns || []).join(',')
                     }));
                 } else {
                     ElMessage.error(r.message);
@@ -414,12 +488,19 @@ createApp({
                         options: options, required: !!c.required, width: c.width || 0,
                         isReadOnly: !!c.isReadOnly, order: c.order || 0
                     };
-                })
+                }),
+                navs: navs.value.map(n => ({
+                    navKey: n.navKey || n.targetTable || '', label: n.label || '',
+                    relation: n.relation === 'OneToMany' ? 'OneToMany' : 'ManyToOne',
+                    targetTable: n.targetTable || '', fkColumn: n.fkColumn || '',
+                    targetFkColumn: n.targetFkColumn || '',
+                    displayColumns: String(n.displayColumns || '').split(/[,，]/).map(s => s.trim()).filter(Boolean)
+                }))
             };
         }
 
         async function saveGeneratedPages() {
-            if (!selectedTable.value) { ElMessage.warning('请先选择一张表'); return; }
+            if (!pmProjectId.value || !selectedTable.value) { ElMessage.warning('请先选择工程和表'); return; }
             if (!summaryCode.value || !detailCode.value) { ElMessage.warning('请填写汇总屏与细节屏编码'); return; }
             savingPages.value = true;
             try {
@@ -428,6 +509,7 @@ createApp({
                 const summary = {
                     id: 0, projectId: pmProjectId.value, name: summaryCode.value, title: summaryTitle.value,
                     pageType: 'Summary', tableName: selectedTable.value, columnDefs: defJson,
+                    dataSource: dataSource.value, viewName: viewName.value || null,
                     sortOrder: 1, isEnabled: true, detailPageId: 0
                 };
                 const s = await api('/api/dynproject/page/save', {
@@ -440,6 +522,7 @@ createApp({
                 const detail = {
                     id: 0, projectId: pmProjectId.value, name: detailCode.value, title: detailTitle.value,
                     pageType: 'Detail', tableName: selectedTable.value, columnDefs: defJson,
+                    dataSource: dataSource.value, viewName: viewName.value || null,
                     sortOrder: 2, isEnabled: true
                 };
                 const d = await api('/api/dynproject/page/save', {
@@ -456,6 +539,27 @@ createApp({
                 });
 
                 ElMessage.success('已生成并保存：' + summaryCode.value + '（汇总屏）+ ' + detailCode.value + '（细节屏）');
+                loadPages();
+            } finally { savingPages.value = false; }
+        }
+
+        async function saveFilterPage() {
+            if (!pmProjectId.value || !selectedTable.value) { ElMessage.warning('请先选择工程和表'); return; }
+            if (!filterCode.value) { ElMessage.warning('请填写查询屏编码'); return; }
+            savingPages.value = true;
+            try {
+                const defJson = JSON.stringify(buildDef());
+                const r = await api('/api/dynproject/page/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: 0, projectId: pmProjectId.value, name: filterCode.value, title: filterTitle.value,
+                        pageType: 'Filter', tableName: selectedTable.value, columnDefs: defJson,
+                        dataSource: dataSource.value, viewName: viewName.value || null,
+                        sortOrder: 3, isEnabled: true
+                    })
+                });
+                if (!r.success) { ElMessage.error('查询屏保存失败：' + (r.message || '')); return; }
+                ElMessage.success('已生成查询屏（Filter）：' + filterCode.value);
                 loadPages();
             } finally { savingPages.value = false; }
         }
@@ -504,17 +608,22 @@ createApp({
                 }).catch(() => {});
         }
 
+        function typeText(t) { return t === 'Summary' ? '汇总屏' : t === 'Detail' ? '细节屏' : t === 'Filter' ? '查询屏' : (t || '-'); }
+        function typeTag(t) { return t === 'Summary' ? 'success' : t === 'Detail' ? 'warning' : t === 'Filter' ? 'primary' : 'info'; }
+
         onMounted(() => { loadProjects(); });
 
         return {
             tab, projects, projectsLoading,
             projDialog, projDialogTitle, savingProject, testing, projForm,
             pmProjectId, tables, selectedTable, colDefs,
-            summaryCode, summaryTitle, detailCode, detailTitle,
+            summaryCode, summaryTitle, detailCode, detailTitle, filterCode, filterTitle,
+            dataSource, viewName, navs,
             pages, savingPages, viewDialog, viewTab, sqlView, htmlView, savedPath,
             loadProjects, openProjectEdit, testProjectConnection, saveProject, deleteProject,
             goPages, previewProject, previewPage, onProjectChanged, loadTables, loadPages,
-            onTableClick, saveGeneratedPages, generateSqlView, generateViewFiles, deletePage
+            onTableClick, saveGeneratedPages, saveFilterPage, generateSqlView, generateViewFiles, deletePage,
+            typeText, typeTag
         };
     }
 }).use(ElementPlus).mount('#app');

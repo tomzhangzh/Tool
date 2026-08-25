@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using SqlSugar;
 using VueLib.Web.Data;
 using VueLib.Web.Models;
@@ -298,6 +299,68 @@ public class DynProjectService
         using var db = _db.Create();
         db.Deleteable<DynPage>().In(id).ExecuteCommand();
         return Op(true, "已删除");
+    }
+
+    // ==================== 外键导航自动检测 ====================
+
+    /// <summary>
+    /// 按命名约定自动检测外键导航建议：
+    /// ManyToOne：当前表存在形如 {X}Id 的列且 X 是库中表（如 DrawingId → Drawing）
+    /// OneToMany：其它表中存在列名为 {当前表}Id 的列（如 Component.DrawingId → Drawing）
+    /// </summary>
+    public List<DynNavConfig> BuildNavSuggestions(ISqlSugarClient db, string table)
+    {
+        var navs = new List<DynNavConfig>();
+        HashSet<string> tables;
+        try { tables = db.DbMaintenance.GetTableInfoList(false).Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase); }
+        catch { return navs; }
+
+        var cols = _crud.GetColumns(db, table);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // ManyToOne：当前表列 {X}Id → 目标表 X
+        foreach (var c in cols)
+        {
+            var m = Regex.Match(c.DbColumnName, "^(.+?)(?:Id|ID)$");
+            if (!m.Success) continue;
+            var target = m.Groups[1].Value;
+            if (string.IsNullOrWhiteSpace(target) || !tables.Contains(target)) continue;
+            if (string.Equals(target, table, StringComparison.OrdinalIgnoreCase)) continue;
+            if (seen.Contains("M:" + target)) continue;
+            seen.Add("M:" + target);
+            navs.Add(new DynNavConfig
+            {
+                NavKey = target,
+                Label = target,
+                Relation = NavRelation.ManyToOne,
+                TargetTable = target,
+                FkColumn = c.DbColumnName
+            });
+        }
+
+        // OneToMany：其它表存在列 {table}Id 指向当前表
+        foreach (var t in tables)
+        {
+            if (string.Equals(t, table, StringComparison.OrdinalIgnoreCase)) continue;
+            List<DbColumnInfo> tcols;
+            try { tcols = _crud.GetColumns(db, t); } catch { continue; }
+            var fk = tcols.FirstOrDefault(x =>
+                string.Equals(x.DbColumnName, table + "Id", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x.DbColumnName, table + "ID", StringComparison.OrdinalIgnoreCase));
+            if (fk == null) continue;
+            if (seen.Contains("O:" + t)) continue;
+            seen.Add("O:" + t);
+            navs.Add(new DynNavConfig
+            {
+                NavKey = t,
+                Label = t,
+                Relation = NavRelation.OneToMany,
+                TargetTable = t,
+                TargetFkColumn = fk.DbColumnName
+            });
+        }
+
+        return navs;
     }
 
     // ==================== SQL 视图生成 ====================

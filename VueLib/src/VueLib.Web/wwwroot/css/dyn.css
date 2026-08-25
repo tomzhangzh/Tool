@@ -10,3 +10,11 @@
 .dyn-detail-actions { margin-top: 16px; text-align: right; border-top: 1px solid #f0f0f0; padding-top: 12px; }
 .dyn-loading { color: #909399; padding: 40px 10px; text-align: center; font-size: 13px; }
 .el-form-item { margin-bottom: 14px; }
+
+/* 外键导航展示（多对一 object / 一对多 array） */
+.dyn-nav-panel { background: #fafbfc; border: 1px solid #ebeef5; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.dyn-nav-item { display: flex; flex-direction: column; gap: 6px; }
+.dyn-nav-title { font-weight: 600; color: #409eff; font-size: 13px; }
+.dyn-nav-type { font-weight: normal; color: #909399; font-size: 12px; margin-left: 4px; }
+.dyn-nav-obj { max-width: 100%; }
+.dyn-nav-empty { color: #c0c4cc; font-size: 13px; padding: 6px 0; }

@@ -66,6 +66,17 @@ public class DynPage
     [SugarColumn(Length = 100, IsNullable = true)]
     public string? TableName { get; set; }
 
+    /// <summary>
+    /// 数据源模式：Dynamic = 动态 SQL 直接查表；View = 使用真实数据库视图（ViewName）
+    /// 读取（列表/详情）按此模式取数；写入（增删改）始终作用于真实表
+    /// </summary>
+    [SugarColumn(Length = 20, IsNullable = true)]
+    public string? DataSource { get; set; } = "Dynamic";
+
+    /// <summary>真实视图名（DataSource = View 时用于读取）</summary>
+    [SugarColumn(Length = 100, IsNullable = true)]
+    public string? ViewName { get; set; }
+
     /// <summary>页面定义 JSON（DynPageDefinition）</summary>
     [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
     public string? ColumnDefs { get; set; }
@@ -96,6 +107,48 @@ public class DynPageDefinition
     /// <summary>默认排序方向 asc/desc</summary>
     public string OrderDir { get; set; } = "desc";
     public List<DynColumnDef> Columns { get; set; } = new();
+
+    /// <summary>外键导航配置（列表/详情时按外键注入关联数据）</summary>
+    public List<DynNavConfig> Navs { get; set; } = new();
+}
+
+/// <summary>外键关系类型</summary>
+public enum NavRelation
+{
+    /// <summary>多对一：当前记录引用目标表的一条记录 → 注入 object</summary>
+    ManyToOne,
+    /// <summary>一对多：目标表多条记录引用当前记录 → 注入 array</summary>
+    OneToMany
+}
+
+/// <summary>外键导航配置：按表外键把关联数据注入 summary 行 / detail 详情</summary>
+public class DynNavConfig
+{
+    /// <summary>导航数据在 model 中的键（如 "Customer"、"Orders"），模型里体现为 NavKey: object|array</summary>
+    public string NavKey { get; set; } = "";
+
+    /// <summary>关联标签（前端展示标题）</summary>
+    public string? Label { get; set; }
+
+    /// <summary>关系类型</summary>
+    [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
+    [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
+    public NavRelation Relation { get; set; } = NavRelation.ManyToOne;
+
+    /// <summary>目标表</summary>
+    public string TargetTable { get; set; } = "";
+
+    /// <summary>ManyToOne：当前表指向目标表的外键列（如 DrawingId）</summary>
+    public string? FkColumn { get; set; }
+
+    /// <summary>OneToMany：目标表指向当前表的外键列（如 DrawingId）</summary>
+    public string? TargetFkColumn { get; set; }
+
+    /// <summary>目标表展示列（为空则取全部列，逗号分隔可指定多个）</summary>
+    public List<string>? DisplayColumns { get; set; }
+
+    /// <summary>目标表主键列（自动识别，可手工指定）</summary>
+    public string? TargetPkColumn { get; set; }
 }
 
 /// <summary>单个列的页面配置</summary>

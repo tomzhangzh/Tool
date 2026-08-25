@@ -17,25 +17,27 @@ public class DynCrudService
     private HashSet<string> ColumnNames(ISqlSugarClient db, string table)
         => GetColumns(db, table).Select(c => c.DbColumnName).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>按主键取单条（返回字典）</summary>
-    public Dictionary<string, object?> GetByPk(ISqlSugarClient db, string table, object? pk, string pkName)
+    /// <summary>按主键取单条（返回字典）；sourceName 为空则用 table，否则按真实视图/其它源读取</summary>
+    public Dictionary<string, object?> GetByPk(ISqlSugarClient db, string table, object? pk, string pkName, string? sourceName = null)
     {
         if (pk == null || string.IsNullOrEmpty(pk.ToString())) return new();
-        var row = db.Queryable(table, "t").Where($"[{pkName}]=@pk", new { pk }).First();
+        var from = string.IsNullOrWhiteSpace(sourceName) ? table : sourceName;
+        var row = db.Queryable(from, "t").Where($"[{pkName}]=@pk", new { pk }).First();
         return row == null ? new() : ToDict(row);
     }
 
-    /// <summary>按页面定义 + 筛选字典分页查询</summary>
+    /// <summary>按页面定义 + 筛选字典分页查询；sourceName 为空则用 table，否则按真实视图/其它源读取</summary>
     public PagedResult<Dictionary<string, object?>> ListPaged(
         ISqlSugarClient db, string table, DynPageDefinition? def,
-        Dictionary<string, object?>? filter, int pageIndex, int pageSize)
+        Dictionary<string, object?>? filter, int pageIndex, int pageSize, string? sourceName = null)
     {
-        var cols = ColumnNames(db, table);
+        var from = string.IsNullOrWhiteSpace(sourceName) ? table : sourceName;
+        var cols = ColumnNames(db, from);
         filter ??= new();
         pageIndex = Math.Max(1, pageIndex);
         pageSize = Math.Max(1, pageSize);
 
-        var q = db.Queryable(table, "t");
+        var q = db.Queryable(from, "t");
         var (where, ps) = BuildWhere(def, filter, cols);
         if (!string.IsNullOrEmpty(where)) q = q.Where(where, ps);
 
@@ -52,7 +54,7 @@ public class DynCrudService
 
         var rows = q.OrderBy($"[{orderBy}] {orderDir}").ToPageList(pageIndex, pageSize);
 
-        return new PagedResult<Dictionary<string, object?>>
+        var result = new PagedResult<Dictionary<string, object?>>
         {
             Rows = rows.Select(ToDict).ToList(),
             TotalCount = total,
@@ -60,6 +62,78 @@ public class DynCrudService
             PageSize = pageSize,
             TotalPages = (int)Math.Ceiling(total / (double)pageSize)
         };
+        return result;
+    }
+
+    /// <summary>
+    /// 外键导航：按页面定义 Navs 为每行注入 _nav = { NavKey: object|array }
+    /// ManyToOne → 目标表主键 = 当前行外键值，注入单条（object）；无匹配为 null
+    /// OneToMany → 目标表外键列 = 当前行主键值，注入列表（array）
+    /// </summary>
+    public void LoadNavs(ISqlSugarClient db, DynPageDefinition? def, IEnumerable<Dictionary<string, object?>> rows)
+    {
+        if (def == null || def.Navs == null || def.Navs.Count == 0 || rows == null) return;
+        foreach (var row in rows)
+        {
+            if (row.ContainsKey("_nav")) continue;
+            var nav = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var cfg in def.Navs)
+            {
+                if (string.IsNullOrWhiteSpace(cfg.TargetTable)) continue;
+                var key = string.IsNullOrWhiteSpace(cfg.NavKey) ? cfg.TargetTable : cfg.NavKey;
+                try
+                {
+                    if (cfg.Relation == NavRelation.ManyToOne)
+                        nav[key] = LoadManyToOne(db, cfg, row);
+                    else
+                        nav[key] = LoadOneToMany(db, cfg, row, def);
+                }
+                catch { nav[key] = null; }
+            }
+            row["_nav"] = nav;
+        }
+    }
+
+    private object? LoadManyToOne(ISqlSugarClient db, DynNavConfig cfg, Dictionary<string, object?> row)
+    {
+        var fkName = cfg.FkColumn;
+        if (string.IsNullOrWhiteSpace(fkName) || !row.TryGetValue(fkName, out var fkVal) || fkVal == null) return null;
+        var pkName = cfg.TargetPkColumn ?? FindPk(db, cfg.TargetTable);
+        var t = db.Queryable(cfg.TargetTable, "t").Where($"[{pkName}]=@v", new { v = fkVal }).First();
+        if (t == null) return null;
+        return FilterColumns(ToDict(t), cfg);
+    }
+
+    private object? LoadOneToMany(ISqlSugarClient db, DynNavConfig cfg, Dictionary<string, object?> row, DynPageDefinition? def)
+    {
+        var fkName = cfg.TargetFkColumn;
+        if (string.IsNullOrWhiteSpace(fkName)) return null;
+        var pkName = def != null && !string.IsNullOrWhiteSpace(def.PrimaryKey) ? def.PrimaryKey : FindPk(db, cfg.TargetTable);
+        if (string.IsNullOrWhiteSpace(pkName) || !row.TryGetValue(pkName, out var pkVal) || pkVal == null) return null;
+        var list = db.Queryable(cfg.TargetTable, "t")
+            .Where($"[{fkName}]=@v", new { v = pkVal })
+            .OrderBy($"[{fkName}] DESC")
+            .ToList();
+        return list.Select(x => FilterColumns(ToDict(x), cfg)).ToList();
+    }
+
+    /// <summary>目标表主键列（按主键元数据识别，找不到用 Id）</summary>
+    private string FindPk(ISqlSugarClient db, string table)
+    {
+        try
+        {
+            var pk = GetColumns(db, table).FirstOrDefault(c => c.IsPrimarykey);
+            if (pk != null) return pk.DbColumnName;
+        }
+        catch { }
+        return "Id";
+    }
+
+    private static Dictionary<string, object?> FilterColumns(Dictionary<string, object?> row, DynNavConfig cfg)
+    {
+        if (cfg.DisplayColumns == null || cfg.DisplayColumns.Count == 0) return row;
+        var set = new HashSet<string>(cfg.DisplayColumns, StringComparer.OrdinalIgnoreCase);
+        return row.Where(kv => set.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>新增，返回自增主键</summary>

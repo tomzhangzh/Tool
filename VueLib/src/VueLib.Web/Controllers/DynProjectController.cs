@@ -75,6 +75,8 @@ public class DynProjectController : Controller
             using var db = _svc.CreateProjectClient(p);
             var cols = _svc.DynCrudColumns(db, table);
             var def = _svc.GenerateDefinition(table, cols);
+            // 自动检测外键导航建议（多对一 / 一对多）
+            def.Navs = _svc.BuildNavSuggestions(db, table);
             return Ok(new { success = true, data = def });
         }
         catch (Exception ex)

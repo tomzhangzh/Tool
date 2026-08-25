@@ -11,12 +11,28 @@ public static class DynViewGenerator
     public static string BuildStandaloneHtml(DynProject project, DynPage page, DynPageDefinition def, string host)
     {
         var isSummary = page.PageType == "Summary";
+        var isFilter = page.PageType == "Filter";
         var summaryUrl = $"{host}/DynRun/Summary?projectId={project.Id}&pageId={page.Id}";
         var detailUrl = $"{host}/DynRun/Detail?projectId={project.Id}&pageId={page.Id}&id=0";
+        var filterUrl = $"{host}/DynRun/Filter?projectId={project.Id}&pageId={page.Id}";
 
-        var containerAttrs = isSummary
-            ? $"dyn-init data-dyn-url=\"{summaryUrl}\" data-dyn-load=\"true\""
-            : $"dyn-init='{{\"model\":{{}} }}' data-dyn-url=\"{detailUrl}\" data-dyn-load=\"true\"";
+        string containerAttrs;
+        string typeLabel;
+        if (isFilter)
+        {
+            containerAttrs = $"dyn-init data-dyn-url=\"{filterUrl}\" data-dyn-load=\"true\"";
+            typeLabel = "查询屏";
+        }
+        else if (isSummary)
+        {
+            containerAttrs = $"dyn-init data-dyn-url=\"{summaryUrl}\" data-dyn-load=\"true\"";
+            typeLabel = "汇总屏";
+        }
+        else
+        {
+            containerAttrs = $"dyn-init='{{\"model\":{{}} }}' data-dyn-url=\"{detailUrl}\" data-dyn-load=\"true\"";
+            typeLabel = "细节屏";
+        }
 
         return $$"""
 <!DOCTYPE html>
@@ -37,7 +53,7 @@ public static class DynViewGenerator
 <body>
 <div class="view-topbar">
   <span class="proj">{{project.DisplayName ?? project.Name}}</span>
-  <span class="page">{{page.Title ?? page.Name}}（{{(isSummary ? "汇总屏" : "细节屏")}}）</span>
+  <span class="page">{{page.Title ?? page.Name}}（{{typeLabel}}）</span>
   <span style="color:#909399;font-size:12px;">Table: {{page.TableName}}</span>
 </div>
 <div id="dynHost" {{containerAttrs}} class="dyn-page dyn-loading"></div>

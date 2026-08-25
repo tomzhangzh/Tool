@@ -46,6 +46,15 @@ public class DynRunController : Controller
         return PartialView("_Summary", m);
     }
 
+    /// <summary>只读查询屏（筛选 + 表格 + 分页，无增删改操作列）</summary>
+    [HttpPost]
+    public IActionResult Filter(int projectId, int pageId, [FromBody] DynSummaryPost? post)
+    {
+        var r = BuildSummaryModel(projectId, pageId, post);
+        if (r is not OkObjectResult ok || ok.Value is not DynRunSummaryModel m) return r;
+        return PartialView("_Filter", m);
+    }
+
     [HttpGet]
     public IActionResult Detail(int projectId, int pageId, int id = 0)
     {
@@ -57,8 +66,10 @@ public class DynRunController : Controller
 
         using var db = _svc.CreateProjectClient(project);
         var row = id > 0
-            ? _crud.GetByPk(db, page.TableName ?? "", id, def.PrimaryKey)
+            ? _crud.GetByPk(db, page.TableName ?? "", id, def.PrimaryKey, QuerySource(page))
             : BuildEmptyRow(def);
+        // 外键导航注入（多对一 object / 一对多 array）
+        if (id > 0 && row.Count > 0) _crud.LoadNavs(db, def, new[] { row });
 
         var model = new DynRunDetailModel { Project = project, Page = page, Def = def, Row = row };
         return PartialView("_Detail", model);
@@ -188,7 +199,10 @@ public class DynRunController : Controller
         var pageSize = post?.PageInfo?.PageSize ?? (def.PageSize > 0 ? def.PageSize : 10);
 
         using var db = _svc.CreateProjectClient(project);
-        var result = _crud.ListPaged(db, page.TableName ?? "", def, filter, pageIndex, pageSize);
+        // 数据源模式：View → 从真实视图读取；Dynamic → 动态查表
+        var result = _crud.ListPaged(db, page.TableName ?? "", def, filter, pageIndex, pageSize, QuerySource(page));
+        // 外键导航注入
+        _crud.LoadNavs(db, def, result.Rows);
         var model = new DynRunSummaryModel
         {
             Project = project,
@@ -199,6 +213,15 @@ public class DynRunController : Controller
             Result = result
         };
         return Ok(model);
+    }
+
+    /// <summary>读取数据源：页面配置为真实视图且视图名非空时用视图，否则用真实表</summary>
+    private static string? QuerySource(DynPage page)
+    {
+        if (string.Equals(page.DataSource, "View", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(page.ViewName))
+            return page.ViewName.Trim();
+        return null;
     }
 
     private static DynPageDefinition? ParseDef(DynPage page)

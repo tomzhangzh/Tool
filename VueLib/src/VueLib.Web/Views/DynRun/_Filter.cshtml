@@ -6,16 +6,11 @@
     var def = Model.Def ?? new DynPageDefinition();
     var projId = Model.Project!.Id;
     var pageId = Model.Page!.Id;
-    var detailId = Model.DetailPageId;
-    var pk = def.PrimaryKey;
     var pageSize = def.PageSize > 0 ? def.PageSize : 10;
 
-    var summaryUrl = $"/DynRun/Summary?projectId={projId}&pageId={pageId}";
-    // script 块内嵌入 JS 字符串：必须 JSON 序列化（Razor 默认 HTML 编码会把 & 变成 &amp; 破坏 URL 查询串）
-    var summaryUrlJs = JsonConvert.SerializeObject(summaryUrl);
-    var detailUrl = $"/DynRun/Detail?projectId={projId}&pageId={detailId}";
-    var saveUrl = $"/DynRun/Save?projectId={projId}&pageId={detailId}";
-    var deleteUrl = $"/DynRun/Delete?projectId={projId}&pageId={pageId}";
+    var filterUrl = $"/DynRun/Filter?projectId={projId}&pageId={pageId}";
+    // script 块内嵌入 JS 字符串：Razor 默认 HTML 编码会把 & 变成 &amp; 破坏 URL 查询串
+    var filterUrlJs = JsonConvert.SerializeObject(filterUrl);
 
     var modelJson = DynRunController.JsonModel(new
     {
@@ -77,13 +72,11 @@
             }
 
             <el-button type="primary"
-                       dyn-click-postback='{"url":"@summaryUrl","resetPage":true}'>查询</el-button>
-            <el-button type="success"
-                       dyn-click-open='{"url":"@detailUrl","params":{"id":0},"title":"新增","width":"640px"}'>新增</el-button>
+                       dyn-click-postback='{"url":"@filterUrl","resetPage":true}'>查询</el-button>
         </div>
     </div>
 
-    <!-- ============ 数据表格（由页面定义的列表列驱动） ============ -->
+    <!-- ============ 数据表格（只读查询，无增删改操作列） ============ -->
     <div class="dyn-card">
         <el-table ref="tableRef" :data="model.Rows" border stripe size="default" v-loading="loading"
                   :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
@@ -121,16 +114,6 @@
                     <el-table-column prop="@c.Name" label="@c.Label" width="@(c.Width > 0 ? c.Width : 130)" show-overflow-tooltip></el-table-column>
                 }
             }
-            <el-table-column label="操作" width="150" fixed="right">
-                <template #default="scope">
-                    <el-button type="primary" size="small" link
-                               dyn-click-open='{"url":"@detailUrl","title":"编辑","width":"640px"}'
-                               :data-id="scope.row.@pk">编辑</el-button>
-                    <el-button type="danger" size="small" link
-                               dyn-click-postback='{"url":"@deleteUrl","confirm":"确定删除该记录吗？","reload":"#dynHost"}'
-                               :data-id="scope.row.@pk">删除</el-button>
-                </template>
-            </el-table-column>
         </el-table>
 
         <!-- ============ 分页 ============ -->
@@ -147,7 +130,7 @@
         </div>
     </div>
 
-    <!-- 组件配置：分页回调（更新 model 后重新 postback 刷新） -->
+    <!-- 组件配置：分页回调 + 导航列构建 + 窗口 resize 重排表格 -->
     <script tag="dynconfig">
         var dynConfig = {
             setup: function ({ model, element }) {
@@ -161,17 +144,16 @@
                     },
                     onPageChange: function (page) {
                         model.PageInfo.CurrentPage = page || 1;
-                        dyn.postback(element, { url: @Html.Raw(summaryUrlJs) });
+                        dyn.postback(element, { url: @Html.Raw(filterUrlJs) });
                     },
                     onSizeChange: function (size) {
                         model.PageInfo.PageSize = size || 10;
                         model.PageInfo.CurrentPage = 1;
-                        dyn.postback(element, { url: @Html.Raw(summaryUrlJs) });
+                        dyn.postback(element, { url: @Html.Raw(filterUrlJs) });
                     }
                 };
             },
-            // 桌面窗口最大化/还原/拖拽缩放会改变容器尺寸，el-table 布局不会自动完全重算，
-            // 需在 window resize 后调用 doLayout() 重排列（否则表头/表体错位、固定列错位）。
+            // 桌面窗口最大化/还原/拖拽缩放后重排表格，防止表头/表体错位
             mounted: function () {
                 var self = this;
                 var timer = null;
