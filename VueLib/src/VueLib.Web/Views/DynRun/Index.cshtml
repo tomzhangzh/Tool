@@ -1,0 +1,82 @@
+@using VueLib.Web.Models
+@{
+    Layout = null;
+    var project = ViewBag.Project as DynProject;
+    var pages = ViewBag.Pages as List<DynPage>;
+    var current = ViewBag.CurrentPage as DynPage;
+    var summaryPages = pages?.Where(p => p.PageType == "Summary").ToList() ?? new List<DynPage>();
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@(project?.DisplayName ?? project?.Name) - 预览</title>
+    <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true">
+    <link rel="stylesheet" href="~/css/dyn.css" asp-append-version="true">
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
+        .run-topbar { background: #fff; border-bottom: 1px solid #e4e7ed; padding: 8px 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .run-title { font-weight: 600; font-size: 15px; color: #303133; white-space: nowrap; }
+        .run-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+        .run-tab { padding: 4px 12px; border-radius: 12px; font-size: 13px; color: #606266; text-decoration: none; background: #f5f7fa; }
+        .run-tab.active { background: #409eff; color: #fff; }
+        .run-db { margin-left: auto; color: #909399; font-size: 12px; white-space: nowrap; }
+        .run-host { padding: 14px; }
+        .dyn-loading { color: #909399; padding: 30px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="run-topbar">
+        <span class="run-title">@(project?.DisplayName ?? project?.Name) · 预览</span>
+        <div class="run-tabs">
+            @foreach (var p in summaryPages)
+            {
+                <a class="run-tab @(current?.Id == p.Id ? "active" : "")"
+                   href="/DynRun/Index?projectId=@project!.Id&pageId=@p.Id">@(p.Title ?? p.Name)</a>
+            }
+        </div>
+        <span class="run-db">数据库：@project?.DatabaseName（@project?.Name）</span>
+    </div>
+
+    @if (current != null)
+    {
+        if (current.PageType == "Summary")
+        {
+            <div id="dynHost"
+                 dyn-init
+                 data-dyn-url="/DynRun/Summary?projectId=@project!.Id&pageId=@current.Id"
+                 data-dyn-load="true"
+                 class="run-host dyn-loading"></div>
+        }
+        else
+        {
+            <div id="dynHost"
+                 dyn-init
+                 data-dyn-url="/DynRun/Detail?projectId=@project!.Id&pageId=@current.Id&id=0"
+                 data-dyn-load="true"
+                 class="run-host dyn-loading"></div>
+        }
+    }
+    else
+    {
+        <div style="padding:60px 20px;text-align:center;color:#909399;font-size:14px;">
+            该工程还没有页面。请到 <b>工程管理 → 页面管理</b>，选择一张表自动生成“汇总屏 + 细节屏”。
+        </div>
+    }
+
+    <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
+    <script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
+    <script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
+    <script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
+    <script src="~/js/lodash.min.js" asp-append-version="true"></script>
+    <script src="~/js/dyn-lib.js" asp-append-version="true"></script>
+    <script>
+        $(function () {
+            if (window.dynLib) { dynLib.initAll(); }
+            else if (window.dyn) { dyn.initAll(); }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+@model VueLib.Web.Models.DynRunSummaryModel
+@using VueLib.Web.Models
+@using Newtonsoft.Json
+@using VueLib.Web.Controllers
+@{
+    var def = Model.Def ?? new DynPageDefinition();
+    var projId = Model.Project!.Id;
+    var pageId = Model.Page!.Id;
+    var detailId = Model.DetailPageId;
+    var pk = def.PrimaryKey;
+    var pageSize = def.PageSize > 0 ? def.PageSize : 10;
+
+    var summaryUrl = $"/DynRun/Summary?projectId={projId}&pageId={pageId}";
+    // script 块内嵌入 JS 字符串：必须 JSON 序列化（Razor 默认 HTML 编码会把 & 变成 &amp; 破坏 URL 查询串）
+    var summaryUrlJs = JsonConvert.SerializeObject(summaryUrl);
+    var detailUrl = $"/DynRun/Detail?projectId={projId}&pageId={detailId}";
+    var saveUrl = $"/DynRun/Save?projectId={projId}&pageId={detailId}";
+    var deleteUrl = $"/DynRun/Delete?projectId={projId}&pageId={pageId}";
+
+    var modelJson = DynRunController.JsonModel(new
+    {
+        Filter = Model.Filter,
+        Rows = Model.Result?.Rows ?? new List<Dictionary<string, object?>>(),
+        PageInfo = new
+        {
+            CurrentPage = Model.Result?.PageIndex ?? 1,
+            PageSize = Model.Result?.PageSize ?? pageSize,
+            TotalCount = Model.Result?.TotalCount ?? 0,
+            TotalPages = Model.Result?.TotalPages ?? 0
+        }
+    });
+}
+<script type="application/json" tag="dynmodel">@Html.Raw(modelJson)</script>
+
+<div class="dyn-summary">
+    <!-- ============ 查询条件（由页面定义的筛选列驱动） ============ -->
+    <div class="dyn-card">
+        <div class="dyn-card-title">查询条件</div>
+        <div class="dyn-filter">
+            @foreach (var c in def.Columns.Where(x => x.IsFilter && x.Control != "switch").OrderBy(x => x.Order))
+            {
+                if (c.Control == "select")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-select v-model="model.Filter.@c.Name" placeholder="请选择@(c.Label)" clearable style="width:150px">
+                            @foreach (var o in c.Options)
+                            {
+                                <el-option label="@o.Label" value="@o.Value"></el-option>
+                            }
+                        </el-select>
+                    </el-form-item>
+                }
+                else if (c.Control == "input-number")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-input-number v-model="model.Filter.@c.Name" :controls="false" style="width:140px"></el-input-number>
+                    </el-form-item>
+                }
+                else if (c.Control == "date")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-date-picker v-model="model.Filter.@c.Name" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:150px"></el-date-picker>
+                    </el-form-item>
+                }
+                else if (c.Control == "datetime")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-date-picker v-model="model.Filter.@c.Name" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="选择时间" style="width:170px"></el-date-picker>
+                    </el-form-item>
+                }
+                else
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-input v-model="model.Filter.@c.Name" placeholder="请输入@(c.Label)" clearable style="width:150px"></el-input>
+                    </el-form-item>
+                }
+            }
+
+            <el-button type="primary"
+                       dyn-click-postback='{"url":"@summaryUrl","resetPage":true}'>查询</el-button>
+            <el-button type="success"
+                       dyn-click-open='{"url":"@detailUrl","params":{"id":0},"title":"新增","width":"640px"}'>新增</el-button>
+        </div>
+    </div>
+
+    <!-- ============ 数据表格（由页面定义的列表列驱动） ============ -->
+    <div class="dyn-card">
+        <el-table ref="tableRef" :data="model.Rows" border stripe size="default" v-loading="loading"
+                  :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
+            @foreach (var c in def.Columns.Where(x => x.IsGrid).OrderBy(x => x.Order))
+            {
+                if (c.DbType == "bool")
+                {
+                    <el-table-column label="@c.Label" width="@(c.Width > 0 ? c.Width : 90)" align="center">
+                        <template #default="scope">
+                            <el-tag :type="scope.row.@c.Name ? 'success' : 'info'" size="small">{{ scope.row.@c.Name ? '是' : '否' }}</el-tag>
+                        </template>
+                    </el-table-column>
+                }
+                else
+                {
+                    <el-table-column prop="@c.Name" label="@c.Label" width="@(c.Width > 0 ? c.Width : 130)" show-overflow-tooltip></el-table-column>
+                }
+            }
+            <el-table-column label="操作" width="150" fixed="right">
+                <template #default="scope">
+                    <el-button type="primary" size="small" link
+                               dyn-click-open='{"url":"@detailUrl","title":"编辑","width":"640px"}'
+                               :data-id="scope.row.@pk">编辑</el-button>
+                    <el-button type="danger" size="small" link
+                               dyn-click-postback='{"url":"@deleteUrl","confirm":"确定删除该记录吗？","reload":"#dynHost"}'
+                               :data-id="scope.row.@pk">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+
+        <!-- ============ 分页 ============ -->
+        <div class="dyn-pager">
+            <el-pagination
+                v-model:current-page="model.PageInfo.CurrentPage"
+                v-model:page-size="model.PageInfo.PageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="model.PageInfo.TotalCount"
+                layout="total, sizes, prev, pager, next, jumper"
+                background
+                @@current-change="onPageChange"
+                @@size-change="onSizeChange"></el-pagination>
+        </div>
+    </div>
+
+    <!-- 组件配置：分页回调（更新 model 后重新 postback 刷新） -->
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function ({ model, element }) {
+                return {
+                    onPageChange: function (page) {
+                        model.PageInfo.CurrentPage = page || 1;
+                        dyn.postback(element, { url: @Html.Raw(summaryUrlJs) });
+                    },
+                    onSizeChange: function (size) {
+                        model.PageInfo.PageSize = size || 10;
+                        model.PageInfo.CurrentPage = 1;
+                        dyn.postback(element, { url: @Html.Raw(summaryUrlJs) });
+                    }
+                };
+            },
+            // 桌面窗口最大化/还原/拖拽缩放会改变容器尺寸，el-table 布局不会自动完全重算，
+            // 需在 window resize 后调用 doLayout() 重排列（否则表头/表体错位、固定列错位）。
+            mounted: function () {
+                var self = this;
+                var timer = null;
+                var relayout = function () {
+                    if (timer) clearTimeout(timer);
+                    timer = setTimeout(function () {
+                        var t = self.$refs.tableRef;
+                        if (t && t.doLayout) t.doLayout();
+                    }, 100);
+                };
+                this.__dynRelayout = relayout;
+                window.addEventListener('resize', relayout);
+            },
+            unmounted: function () {
+                if (this.__dynRelayout) {
+                    window.removeEventListener('resize', this.__dynRelayout);
+                    this.__dynRelayout = null;
+                }
+            }
+        };
+    </script>
+</div>

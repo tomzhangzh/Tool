@@ -1,0 +1,36 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAD 图纸系统 - 部件明细列表</title>
+<link rel="stylesheet" href="http://localhost:5000/css/element-plus.css">
+<style>
+  body { margin:0; font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#f0f2f5; }
+  .view-topbar { background:#fff; border-bottom:1px solid #e4e7ed; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+  .view-topbar .proj { font-weight:600; font-size:15px; }
+  .view-topbar .page { color:#409eff; font-size:13px; background:#ecf5ff; padding:2px 10px; border-radius:10px; }
+  .dyn-page { padding:16px; }
+</style>
+</head>
+<body>
+<div class="view-topbar">
+  <span class="proj">CAD 图纸系统</span>
+  <span class="page">部件明细列表（汇总屏）</span>
+  <span style="color:#909399;font-size:12px;">Table: Component</span>
+</div>
+<div id="dynHost" dyn-init data-dyn-url="http://localhost:5000/DynRun/Summary?projectId=2&pageId=10" data-dyn-load="true" class="dyn-page dyn-loading"></div>
+
+<script src="http://localhost:5000/lib/jquery/dist/jquery.min.js"></script>
+<script src="http://localhost:5000/js/vue.global.prod.js"></script>
+<script src="http://localhost:5000/js/element-plus.full.min.js"></script>
+<script src="http://localhost:5000/js/element-plus-icons.min.js"></script>
+<script src="http://localhost:5000/js/lodash.min.js"></script>
+<script src="http://localhost:5000/js/dyn-lib.js"></script>
+<script>
+$(function () {
+    if (window.dynLib) { dynLib.initAll(); }
+});
+</script>
+</body>
+</html>

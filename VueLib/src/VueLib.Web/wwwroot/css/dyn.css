@@ -1,0 +1,12 @@
+/* dyn 动态运行时样式（预览引擎 / 生成视图共用） */
+.dyn-page { font-size: 14px; }
+.dyn-summary { display: flex; flex-direction: column; gap: 12px; }
+.dyn-card { background: #fff; border-radius: 6px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.dyn-card-title { font-weight: 600; color: #303133; margin-bottom: 10px; font-size: 14px; border-left: 3px solid #409eff; padding-left: 8px; }
+.dyn-filter { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.dyn-f-item { margin-bottom: 0 !important; margin-right: 4px; }
+.dyn-pager { margin-top: 12px; display: flex; justify-content: flex-end; }
+.dyn-detail { padding: 4px 2px; }
+.dyn-detail-actions { margin-top: 16px; text-align: right; border-top: 1px solid #f0f0f0; padding-top: 12px; }
+.dyn-loading { color: #909399; padding: 40px 10px; text-align: center; font-size: 13px; }
+.el-form-item { margin-bottom: 14px; }

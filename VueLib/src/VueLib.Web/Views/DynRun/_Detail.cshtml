@@ -1,0 +1,74 @@
+@model VueLib.Web.Models.DynRunDetailModel
+@using VueLib.Web.Models
+@using VueLib.Web.Controllers
+@{
+    var def = Model.Def ?? new DynPageDefinition();
+    var projId = Model.Project!.Id;
+    var pageId = Model.Page!.Id;
+    var saveUrl = $"/DynRun/Save?projectId={projId}&pageId={pageId}";
+    var formCols = def.Columns.Where(x => x.IsForm).OrderBy(x => x.Order).ToList();
+    var modelJson = DynRunController.JsonModel(Model.Row);
+}
+<div dyn-init class="dyn-detail">
+    <script type="application/json" tag="dynmodel">@Html.Raw(modelJson)</script>
+    <el-form label-width="110px" size="default">
+        @foreach (var c in formCols)
+        {
+            var requiredAttr = c.Required ? " :required=\"true\"" : "";
+            var readonlyAttr = c.IsReadOnly ? " disabled" : "";
+            <el-form-item label="@c.Label"@Html.Raw(requiredAttr)>
+                @if (c.IsReadOnly)
+                {
+                    <el-input v-model="model.@c.Name" disabled style="width:100%"></el-input>
+                }
+                else if (c.Control == "select")
+                {
+                    <el-select v-model="model.@c.Name" placeholder="请选择@(c.Label)" clearable style="width:100%">
+                        @foreach (var o in c.Options)
+                        {
+                            <el-option label="@o.Label" value="@o.Value"></el-option>
+                        }
+                    </el-select>
+                }
+                else if (c.Control == "input-number")
+                {
+                    <el-input-number v-model="model.@c.Name" :controls="false" style="width:100%"></el-input-number>
+                }
+                else if (c.Control == "date")
+                {
+                    <el-date-picker v-model="model.@c.Name" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%"></el-date-picker>
+                }
+                else if (c.Control == "datetime")
+                {
+                    <el-date-picker v-model="model.@c.Name" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="选择时间" style="width:100%"></el-date-picker>
+                }
+                else if (c.Control == "switch")
+                {
+                    <el-switch v-model="model.@c.Name"@Html.Raw(readonlyAttr)></el-switch>
+                }
+                else
+                {
+                    <el-input v-model="model.@c.Name" placeholder="请输入@(c.Label)"@Html.Raw(readonlyAttr) style="width:100%"></el-input>
+                }
+            </el-form-item>
+        }
+    </el-form>
+
+    <div class="dyn-detail-actions">
+        <el-button @@click="cancel">取消</el-button>
+        <el-button type="primary"
+                   dyn-click-postback='{"url":"@saveUrl","close":true,"reload":"#dynHost","message":"保存成功"}'>保存</el-button>
+    </div>
+
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function ({ model, element }) {
+                return {
+                    cancel: function () {
+                        dyn.close(element);
+                    }
+                };
+            }
+        };
+    </script>
+</div>

@@ -1,0 +1,25 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <div class="el-form-item" :class="{ 'is-error': !comInnerInfo.validation.valid && comInnerInfo.validation.touched }">
+        <label v-if="jc.options.labeloptions.show !== false"
+               class="el-form-item__label"
+               :style="{ width: jc.options.labeloptions.labelWidth || 'auto' }"
+               :class="{ 'is-required': jc.options.labeloptions.required }">
+            {{ jc.options.labeloptions.label }}
+        </label>
+        <div class="el-form-item__content">
+            @RenderBody()
+            <div v-if="!comInnerInfo.validation.valid && comInnerInfo.validation.touched && comInnerInfo.validation.errors.length"
+                 class="el-form-item__error">
+                {{ comInnerInfo.validation.errors[0] }}
+            </div>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    @RenderSection("setupScripts", false)
+}

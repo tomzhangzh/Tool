@@ -1,0 +1,523 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工程管理</title>
+    <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true">
+    <style>
+        body { margin: 0; padding: 14px; background: #f5f7fa; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+        .page-container { }
+        .toolbar { margin-bottom: 10px; display: flex; gap: 8px; align-items: center; }
+        .hint { color: #909399; font-size: 12px; margin-left: 8px; }
+        .pm-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+        .pm-body { display: flex; gap: 10px; align-items: flex-start; }
+        .pm-left { width: 210px; background: #fff; border-radius: 6px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); max-height: 600px; overflow-y: auto; }
+        .pm-right { flex: 1; background: #fff; border-radius: 6px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); min-width: 0; }
+        .pm-panel-title { font-weight: 600; color: #303133; font-size: 13px; margin-bottom: 8px; border-left: 3px solid #409eff; padding-left: 8px; }
+        .pm-table-item { padding: 7px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; color: #606266; }
+        .pm-table-item:hover { background: #f0f7ff; }
+        .pm-table-item.active { background: #409eff; color: #fff; }
+        .pm-empty { color: #c0c4cc; font-size: 13px; padding: 20px; text-align: center; }
+        .pm-defbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .pm-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .code-pre { background: #1e1e1e; color: #d4d4d4; padding: 14px; border-radius: 6px; max-height: 420px; overflow: auto; font-family: Consolas, 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+        .conn-code { font-family: Consolas, monospace; font-size: 12px; color: #606266; }
+        .el-form-item { margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <el-tabs v-model="tab" type="border-card">
+
+        <!-- ==================== 工程管理 ==================== -->
+        <el-tab-pane label="工程管理" name="projects">
+            <div class="toolbar">
+                <el-button type="primary" @@click="openProjectEdit()">+ 新增工程</el-button>
+                <el-button @@click="loadProjects">刷新</el-button>
+                <span class="hint">工程 = 名称 + 数据库连接串；预览时按连接串连接目标库动态渲染页面</span>
+            </div>
+            <el-table :data="projects" border stripe v-loading="projectsLoading" size="default"
+                      :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
+                <el-table-column prop="id" label="ID" width="55" align="center"></el-table-column>
+                <el-table-column label="图标" width="60" align="center">
+                    <template #default="{ row }"><span style="font-size:20px;">{{ row.icon || '📦' }}</span></template>
+                </el-table-column>
+                <el-table-column prop="name" label="名称" width="120"></el-table-column>
+                <el-table-column prop="displayName" label="显示名" width="120"></el-table-column>
+                <el-table-column prop="databaseName" label="数据库" width="120"></el-table-column>
+                <el-table-column label="连接串" min-width="220" show-overflow-tooltip>
+                    <template #default="{ row }"><span class="conn-code">{{ row.connectionString }}</span></template>
+                </el-table-column>
+                <el-table-column prop="description" label="描述" width="130" show-overflow-tooltip></el-table-column>
+                <el-table-column label="状态" width="70" align="center">
+                    <template #default="{ row }">
+                        <el-tag :type="row.isEnabled ? 'success' : 'danger'" size="small">{{ row.isEnabled ? '启用' : '停用' }}</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="330" fixed="right" align="center">
+                    <template #default="{ row }">
+                        <el-button size="small" type="warning" link @@click="goPages(row)">页面管理</el-button>
+                        <el-button size="small" type="success" link @@click="previewProject(row)">预览</el-button>
+                        <el-button size="small" link @@click="openProjectEdit(row)">编辑</el-button>
+                        <el-button size="small" type="danger" link @@click="deleteProject(row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </el-tab-pane>
+
+        <!-- ==================== 页面管理 ==================== -->
+        <el-tab-pane label="页面管理" name="pages">
+            <div class="pm-header">
+                <el-select v-model="pmProjectId" placeholder="选择工程" style="width:280px;" filterable @@change="onProjectChanged">
+                    <el-option v-for="p in projects" :key="p.id"
+                               :label="(p.displayName || p.name) + '（' + p.name + '）'" :value="p.id"></el-option>
+                </el-select>
+                <el-button type="primary" @@click="loadTables" :disabled="!pmProjectId">加载表</el-button>
+                <span class="hint">选择一张表 → 自动生成汇总屏 + 细节屏 → 保存到数据库 或 生成视图</span>
+            </div>
+
+            <div class="pm-body">
+                <!-- 左：表列表 -->
+                <div class="pm-left">
+                    <div class="pm-panel-title">数据库表</div>
+                    <div v-if="!pmProjectId" class="pm-empty">请先选择工程</div>
+                    <div v-for="t in tables" :key="t.name" class="pm-table-item"
+                         :class="{ active: selectedTable === t.name }" @@click="onTableClick(t.name)">
+                        📋 {{ t.name }}
+                    </div>
+                    <div v-if="pmProjectId && !tables.length" class="pm-empty">未加载到表</div>
+                </div>
+
+                <!-- 右：列配置 + 生成 -->
+                <div class="pm-right">
+                    <div v-if="!selectedTable" class="pm-empty">
+                        请从左侧选择一张表，将根据表结构自动生成页面定义（列类型 → 控件/筛选/列表/表单）
+                    </div>
+                    <div v-else>
+                        <div class="pm-panel-title">页面定义 · {{ selectedTable }}</div>
+                        <div class="pm-defbar">
+                            <el-input v-model="summaryCode" placeholder="汇总屏编码" style="width:165px"></el-input>
+                            <el-input v-model="summaryTitle" placeholder="汇总屏标题" style="width:165px"></el-input>
+                            <el-input v-model="detailCode" placeholder="细节屏编码" style="width:165px"></el-input>
+                            <el-input v-model="detailTitle" placeholder="细节屏标题" style="width:165px"></el-input>
+                        </div>
+                        <el-table :data="colDefs" border size="small" max-height="330">
+                            <el-table-column prop="name" label="列名" width="110"></el-table-column>
+                            <el-table-column label="标签" width="120">
+                                <template #default="{ row }"><el-input v-model="row.label" size="small"></el-input></template>
+                            </el-table-column>
+                            <el-table-column label="控件" width="120">
+                                <template #default="{ row }">
+                                    <el-select v-model="row.control" size="small">
+                                        <el-option label="文本框" value="input"></el-option>
+                                        <el-option label="数字" value="input-number"></el-option>
+                                        <el-option label="日期" value="date"></el-option>
+                                        <el-option label="日期时间" value="datetime"></el-option>
+                                        <el-option label="下拉" value="select"></el-option>
+                                        <el-option label="开关" value="switch"></el-option>
+                                    </el-select>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="筛选" width="55" align="center">
+                                <template #default="{ row }"><el-checkbox v-model="row.isFilter" :disabled="row.isPrimary"></el-checkbox></template>
+                            </el-table-column>
+                            <el-table-column label="列表" width="55" align="center">
+                                <template #default="{ row }"><el-checkbox v-model="row.isGrid"></el-checkbox></template>
+                            </el-table-column>
+                            <el-table-column label="表单" width="55" align="center">
+                                <template #default="{ row }"><el-checkbox v-model="row.isForm"></el-checkbox></template>
+                            </el-table-column>
+                            <el-table-column label="必填" width="55" align="center">
+                                <template #default="{ row }"><el-checkbox v-model="row.required" :disabled="row.isPrimary"></el-checkbox></template>
+                            </el-table-column>
+                            <el-table-column label="下拉选项(逗号分隔)" min-width="150">
+                                <template #default="{ row }">
+                                    <el-input v-model="row.optionsText" size="small" placeholder="如: 男,女"
+                                              :disabled="row.control !== 'select'"></el-input>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <div class="pm-actions">
+                            <el-button type="primary" @@click="saveGeneratedPages" :loading="savingPages">生成并保存（汇总屏 + 细节屏）</el-button>
+                            <el-button @@click="generateSqlView">生成 SQL 视图</el-button>
+                            <el-button @@click="generateViewFiles">查看视图源码</el-button>
+                        </div>
+
+                        <div class="pm-panel-title" style="margin-top:16px;">已生成页面（{{ pages.length }}）</div>
+                        <el-table :data="pages" border size="small">
+                            <el-table-column prop="id" label="ID" width="55" align="center"></el-table-column>
+                            <el-table-column prop="name" label="编码" width="130"></el-table-column>
+                            <el-table-column prop="title" label="标题" width="150"></el-table-column>
+                            <el-table-column label="类型" width="90" align="center">
+                                <template #default="{ row }">
+                                    <el-tag :type="row.pageType === 'Summary' ? 'success' : 'warning'" size="small">
+                                        {{ row.pageType === 'Summary' ? '汇总屏' : '细节屏' }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="tableName" label="表" width="110"></el-table-column>
+                            <el-table-column prop="detailPageId" label="关联细节屏" width="90" align="center"></el-table-column>
+                            <el-table-column label="操作" width="150" align="center">
+                                <template #default="{ row }">
+                                    <el-button size="small" type="success" link @@click="previewPage(row)">预览</el-button>
+                                    <el-button size="small" type="danger" link @@click="deletePage(row)">删除</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </div>
+                </div>
+            </div>
+        </el-tab-pane>
+    </el-tabs>
+
+    <!-- 工程编辑对话框 -->
+    <el-dialog v-model="projDialog" :title="projDialogTitle" width="620px" :close-on-click-modal="false">
+        <el-form :model="projForm" label-width="90px" size="default">
+            <el-form-item label="名称" required>
+                <el-input v-model="projForm.name" placeholder="唯一标识，如 SunnySystem"></el-input>
+            </el-form-item>
+            <el-form-item label="显示名">
+                <el-input v-model="projForm.displayName" placeholder="如：阳光系统"></el-input>
+            </el-form-item>
+            <el-form-item label="数据库名">
+                <el-input v-model="projForm.databaseName" placeholder="如 SunnySystem"></el-input>
+            </el-form-item>
+            <el-form-item label="连接串" required>
+                <el-input v-model="projForm.connectionString" type="textarea" :rows="3"
+                          placeholder="Server=.;Database=SunnySystem;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True"></el-input>
+            </el-form-item>
+            <el-form-item label="描述">
+                <el-input v-model="projForm.description" placeholder="工程说明"></el-input>
+            </el-form-item>
+            <el-form-item label="图标">
+                <el-input v-model="projForm.icon" style="width:120px"></el-input>
+            </el-form-item>
+            <el-form-item label="启用">
+                <el-switch v-model="projForm.isEnabled"></el-switch>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @@click="testProjectConnection" :loading="testing">测试连接</el-button>
+            <el-button @@click="projDialog = false">取消</el-button>
+            <el-button type="primary" @@click="saveProject" :loading="savingProject">保存</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 视图源码对话框 -->
+    <el-dialog v-model="viewDialog" title="生成视图" width="72%" :close-on-click-modal="false">
+        <el-tabs v-model="viewTab">
+            <el-tab-pane label="SQL 视图" name="sql">
+                <pre class="code-pre">{{ sqlView || '未生成' }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="独立 HTML 视图源码" name="html">
+                <pre class="code-pre">{{ htmlView || '未生成' }}</pre>
+            </el-tab-pane>
+        </el-tabs>
+        <div v-if="savedPath" class="hint" style="margin-top:8px;">已写入文件：{{ savedPath }}</div>
+        <template #footer>
+            <el-button @@click="viewDialog = false">关闭</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
+<script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
+<script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
+<script>
+const { createApp, reactive, ref, onMounted } = Vue;
+const { ElMessage, ElMessageBox } = ElementPlus;
+
+createApp({
+    setup() {
+        const tab = ref('projects');
+        const projects = ref([]);
+        const projectsLoading = ref(false);
+
+        // ---- 工程 ----
+        const projDialog = ref(false);
+        const projDialogTitle = ref('新增工程');
+        const savingProject = ref(false);
+        const testing = ref(false);
+        const projForm = reactive({
+            id: 0, name: '', displayName: '', databaseName: '', connectionString: '',
+            description: '', icon: '📦', isEnabled: true
+        });
+
+        // ---- 页面管理 ----
+        const pmProjectId = ref(null);
+        const tables = ref([]);
+        const selectedTable = ref('');
+        const colDefs = ref([]);
+        const summaryCode = ref('');
+        const summaryTitle = ref('');
+        const detailCode = ref('');
+        const detailTitle = ref('');
+        const pages = ref([]);
+        const savingPages = ref(false);
+        const viewDialog = ref(false);
+        const viewTab = ref('sql');
+        const sqlView = ref('');
+        const htmlView = ref('');
+        const savedPath = ref('');
+
+        async function api(url, options) {
+            const r = await fetch(url, options);
+            return r.json();
+        }
+
+        async function loadProjects() {
+            projectsLoading.value = true;
+            try {
+                const r = await api('/api/dynproject/list');
+                projects.value = r.data || [];
+            } finally { projectsLoading.value = false; }
+        }
+
+        // ---------- 工程操作 ----------
+        function openProjectEdit(row) {
+            if (row) {
+                Object.assign(projForm, row);
+                projDialogTitle.value = '编辑工程';
+            } else {
+                Object.assign(projForm, { id: 0, name: '', displayName: '', databaseName: '', connectionString: '', description: '', icon: '📦', isEnabled: true });
+                projDialogTitle.value = '新增工程';
+            }
+            projDialog.value = true;
+        }
+
+        async function testProjectConnection() {
+            testing.value = true;
+            try {
+                const r = await api('/api/dynproject/test', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ connectionString: projForm.connectionString })
+                });
+                if (r.success) ElMessage.success(r.message); else ElMessage.error(r.message);
+            } finally { testing.value = false; }
+        }
+
+        async function saveProject() {
+            if (!projForm.name || !projForm.connectionString) { ElMessage.warning('名称与连接串必填'); return; }
+            savingProject.value = true;
+            try {
+                const r = await api('/api/dynproject/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(projForm)
+                });
+                if (r.success) {
+                    ElMessage.success(r.message);
+                    projDialog.value = false;
+                    loadProjects();
+                    if (projForm.id === 0 && r.data && r.data.id) pmProjectId.value = r.data.id;
+                } else {
+                    ElMessage.error(r.message);
+                }
+            } finally { savingProject.value = false; }
+        }
+
+        async function deleteProject(row) {
+            ElMessageBox.confirm('删除工程 [' + row.name + '] 将同时删除其所有页面定义，确定？', '提示', { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' })
+                .then(async () => {
+                    const r = await api('/api/dynproject/' + row.id, { method: 'DELETE' });
+                    if (r.success) { ElMessage.success('已删除'); loadProjects(); } else ElMessage.error(r.message);
+                }).catch(() => {});
+        }
+
+        function goPages(row) {
+            tab.value = 'pages';
+            pmProjectId.value = row.id;
+            onProjectChanged();
+        }
+
+        function previewProject(row) {
+            openPreview('/DynRun/Index?projectId=' + row.id, (row.displayName || row.name) + ' - 预览');
+        }
+
+        function previewPage(row) {
+            openPreview('/DynRun/Index?projectId=' + row.projectId + '&pageId=' + row.id, (row.title || row.name) + ' - 预览');
+        }
+
+        function openPreview(url, title) {
+            if (window.parent && window.parent.dynOpenUrl) {
+                window.parent.dynOpenUrl(url, title || '预览');
+            } else {
+                window.open(url, '_blank');
+            }
+        }
+
+        // ---------- 页面管理 ----------
+        async function onProjectChanged() {
+            tables.value = [];
+            selectedTable.value = '';
+            colDefs.value = [];
+            pages.value = [];
+            await Promise.all([loadTables(), loadPages()]);
+        }
+
+        async function loadTables() {
+            if (!pmProjectId.value) return;
+            try {
+                const r = await api('/api/dynproject/' + pmProjectId.value + '/tables');
+                if (r.success) tables.value = r.data || [];
+                else ElMessage.error(r.message);
+            } catch (e) { ElMessage.error('加载表失败：' + e.message); }
+        }
+
+        async function loadPages() {
+            if (!pmProjectId.value) return;
+            try {
+                const r = await api('/api/dynproject/' + pmProjectId.value + '/pages');
+                pages.value = r.data || [];
+            } catch (e) { }
+        }
+
+        async function onTableClick(name) {
+            selectedTable.value = name;
+            summaryCode.value = name + 'List';
+            summaryTitle.value = name + '列表';
+            detailCode.value = name + 'Edit';
+            detailTitle.value = name + '编辑';
+            try {
+                const r = await api('/api/dynproject/' + pmProjectId.value + '/generate?table=' + encodeURIComponent(name));
+                if (r.success) {
+                    const def = r.data;
+                    colDefs.value = (def.columns || []).map(c => ({
+                        ...c,
+                        optionsText: (c.options || []).map(o => o.value).join(',')
+                    }));
+                } else {
+                    ElMessage.error(r.message);
+                }
+            } catch (e) { ElMessage.error('生成定义失败：' + e.message); }
+        }
+
+        function buildDef() {
+            const pkCol = colDefs.value.find(c => c.isPrimary);
+            return {
+                primaryKey: (pkCol && pkCol.name) || (colDefs.value[0] && colDefs.value[0].name) || 'Id',
+                isIdentity: !!(pkCol && pkCol.isIdentity),
+                pageSize: 10,
+                orderBy: (pkCol && pkCol.name) || null,
+                orderDir: 'desc',
+                columns: colDefs.value.map(c => {
+                    const options = c.control === 'select'
+                        ? String(c.optionsText || '').split(/[,，]/).map(s => s.trim()).filter(Boolean).map(v => ({ label: v, value: v }))
+                        : [];
+                    return {
+                        name: c.name, label: c.label || c.name, dbType: c.dbType, sqlType: c.sqlType,
+                        isPrimary: !!c.isPrimary, isIdentity: !!c.isIdentity, isNullable: !!c.isNullable,
+                        isFilter: !!c.isFilter, filterOp: (c.dbType === 'string' ? 'like' : 'eq'),
+                        isGrid: !!c.isGrid, isForm: !!c.isForm, control: c.control || 'input',
+                        options: options, required: !!c.required, width: c.width || 0,
+                        isReadOnly: !!c.isReadOnly, order: c.order || 0
+                    };
+                })
+            };
+        }
+
+        async function saveGeneratedPages() {
+            if (!selectedTable.value) { ElMessage.warning('请先选择一张表'); return; }
+            if (!summaryCode.value || !detailCode.value) { ElMessage.warning('请填写汇总屏与细节屏编码'); return; }
+            savingPages.value = true;
+            try {
+                const defJson = JSON.stringify(buildDef());
+                // 1) 保存汇总屏
+                const summary = {
+                    id: 0, projectId: pmProjectId.value, name: summaryCode.value, title: summaryTitle.value,
+                    pageType: 'Summary', tableName: selectedTable.value, columnDefs: defJson,
+                    sortOrder: 1, isEnabled: true, detailPageId: 0
+                };
+                const s = await api('/api/dynproject/page/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(summary)
+                });
+                if (!s.success) { ElMessage.error('汇总屏保存失败：' + (s.message || '')); return; }
+                const summaryId = s.data && s.data.id;
+
+                // 2) 保存细节屏
+                const detail = {
+                    id: 0, projectId: pmProjectId.value, name: detailCode.value, title: detailTitle.value,
+                    pageType: 'Detail', tableName: selectedTable.value, columnDefs: defJson,
+                    sortOrder: 2, isEnabled: true
+                };
+                const d = await api('/api/dynproject/page/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(detail)
+                });
+                if (!d.success) { ElMessage.error('细节屏保存失败：' + (d.message || '')); return; }
+                const detailId = d.data && d.data.id;
+
+                // 3) 汇总屏挂接细节屏
+                summary.id = summaryId;
+                summary.detailPageId = detailId;
+                await api('/api/dynproject/page/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(summary)
+                });
+
+                ElMessage.success('已生成并保存：' + summaryCode.value + '（汇总屏）+ ' + detailCode.value + '（细节屏）');
+                loadPages();
+            } finally { savingPages.value = false; }
+        }
+
+        function findSummary() {
+            const s = pages.value.find(p => p.pageType === 'Summary');
+            if (!s) { ElMessage.warning('请先点击“生成并保存（汇总屏 + 细节屏）”'); return null; }
+            return s;
+        }
+
+        async function generateSqlView() {
+            const s = findSummary(); if (!s) return;
+            const r = await api('/api/dynproject/page/view', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: pmProjectId.value, pageId: s.id, withSqlView: true, executeSql: true, writeFiles: false })
+            });
+            if (r.success) {
+                sqlView.value = r.data.sqlView;
+                htmlView.value = r.data.cshtml || '';
+                savedPath.value = r.data.savedPath || '';
+                viewDialog.value = true;
+                viewTab.value = 'sql';
+            } else { ElMessage.error(r.message); }
+        }
+
+        async function generateViewFiles() {
+            const s = findSummary(); if (!s) return;
+            const r = await api('/api/dynproject/page/view', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId: pmProjectId.value, pageId: s.id, withSqlView: false, executeSql: false, writeFiles: true })
+            });
+            if (r.success) {
+                sqlView.value = '';
+                htmlView.value = r.data.cshtml || '';
+                savedPath.value = r.data.savedPath || '';
+                viewDialog.value = true;
+                viewTab.value = 'html';
+            } else { ElMessage.error(r.message); }
+        }
+
+        async function deletePage(row) {
+            ElMessageBox.confirm('删除页面 [' + (row.title || row.name) + ']？', '提示', { type: 'warning' })
+                .then(async () => {
+                    const r = await api('/api/dynproject/page/' + row.id, { method: 'DELETE' });
+                    if (r.success) { ElMessage.success('已删除'); loadPages(); } else ElMessage.error(r.message);
+                }).catch(() => {});
+        }
+
+        onMounted(() => { loadProjects(); });
+
+        return {
+            tab, projects, projectsLoading,
+            projDialog, projDialogTitle, savingProject, testing, projForm,
+            pmProjectId, tables, selectedTable, colDefs,
+            summaryCode, summaryTitle, detailCode, detailTitle,
+            pages, savingPages, viewDialog, viewTab, sqlView, htmlView, savedPath,
+            loadProjects, openProjectEdit, testProjectConnection, saveProject, deleteProject,
+            goPages, previewProject, previewPage, onProjectChanged, loadTables, loadPages,
+            onTableClick, saveGeneratedPages, generateSqlView, generateViewFiles, deletePage
+        };
+    }
+}).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>
