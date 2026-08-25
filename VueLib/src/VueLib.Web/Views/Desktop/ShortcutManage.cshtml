@@ -7,18 +7,61 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>快捷方式管理</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/css/layui.css">
+    <link rel="stylesheet" href="~/lib/layui/css/layui.css" asp-append-version="true">
     <style>
         body { padding: 16px; background: #f5f7fa; }
+        .filter-bar { margin-bottom: 12px; padding: 12px 16px; background: #fff; border-radius: 4px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .filter-bar .layui-form-item { margin-bottom: 0; }
+        .filter-bar .layui-input-inline { width: 160px; }
         .toolbar { margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
         .layui-table-cell { height: auto; line-height: 28px; }
     </style>
 </head>
 <body>
+
+<!-- 筛选栏 -->
+<div class="filter-bar layui-form">
+    <div class="layui-form-item">
+        <label class="layui-form-label">名称</label>
+        <div class="layui-input-inline">
+            <input id="f_name" class="layui-input" placeholder="请输入名称">
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">打开方式</label>
+        <div class="layui-input-inline">
+            <select id="f_openType">
+                <option value="">全部</option>
+                <option value="iframe">窗口</option>
+                <option value="fullscreen">全屏</option>
+                <option value="modal">模态</option>
+                <option value="newtab">新浏览器</option>
+            </select>
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">解决方案</label>
+        <div class="layui-input-inline">
+            <select id="f_solutionId">
+                <option value="">全部</option>
+            </select>
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <button class="layui-btn layui-btn-sm" onclick="doSearch()">
+            <i class="layui-icon layui-icon-search"></i> 查询
+        </button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary" onclick="doReset()">
+            <i class="layui-icon layui-icon-refresh"></i> 清除
+        </button>
+    </div>
+</div>
+
+<!-- 工具栏 -->
 <div class="toolbar">
     <button class="layui-btn layui-btn-sm" onclick="openEdit()">+ 新增快捷方式</button>
-    <button class="layui-btn layui-btn-sm layui-btn-primary" onclick="loadData()">刷新</button>
 </div>
+
 <table id="shortcutTable" lay-filter="shortcutTable"></table>
 
 <script type="text/html" id="barTpl">
@@ -26,7 +69,19 @@
     <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="del">删除</a>
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/layui.js"></script>
+<script type="text/html" id="openTypeTpl">
+    {{#  if(d.openType === 'fullscreen'){ }}
+        <span class="layui-badge layui-bg-orange">全屏</span>
+    {{#  } else if(d.openType === 'modal'){ }}
+        <span class="layui-badge layui-bg-purple">模态</span>
+    {{#  } else if(d.openType === 'newtab'){ }}
+        <span class="layui-badge layui-bg-blue">新浏览器</span>
+    {{#  } else { }}
+        <span class="layui-badge">窗口</span>
+    {{#  } }}
+</script>
+
+<script src="~/lib/layui/layui.js" asp-append-version="true"></script>
 <script>
 let table, form, layer;
 let solutions = [];
@@ -40,27 +95,47 @@ layui.use(['table', 'form', 'layer'], function(){
 });
 
 async function loadSolutions() {
-    const resp = await fetch('/api/desktop/solutions');
+    const resp = await fetch('/api/desktop/solutions?page=1&limit=1000');
     const result = await resp.json();
     solutions = result.data || [];
+    const sel = document.getElementById('f_solutionId');
+    solutions.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        sel.appendChild(opt);
+    });
+    form.render('select');
+}
+
+function getFilterParams() {
+    return {
+        name: document.getElementById('f_name').value.trim(),
+        openType: document.getElementById('f_openType').value,
+        solutionId: document.getElementById('f_solutionId').value
+    };
 }
 
 function loadData() {
+    const filter = getFilterParams();
     table.render({
         elem: '#shortcutTable',
         url: '/api/desktop/shortcuts',
-        parseData: function(res){ return { code: res.success ? 0 : 1, msg: '', count: res.data.length, data: res.data }; },
+        where: filter,
+        parseData: function(res){
+            return { code: res.success ? 0 : 1, msg: '', count: res.count || 0, data: res.data || [] };
+        },
         cols: [[
             { field: 'id', title: 'ID', width: 60 },
             { field: 'icon', title: '图标', width: 70, templet: d => `<span style="font-size:20px;">${d.icon || '📄'}</span>` },
             { field: 'name', title: '名称' },
             { field: 'url', title: '地址' },
-            { field: 'openType', title: '打开方式', width: 100, templet: d => d.openType === 'newtab' ? '新标签' : '窗口' },
+            { field: 'openType', title: '打开方式', width: 100, templet: '#openTypeTpl' },
             { field: 'solutionId', title: '解决方案', width: 120, templet: d => { const s = solutions.find(x => x.id === d.solutionId); return s ? s.name : '未分组'; } },
             { field: 'sortOrder', title: '排序', width: 70 },
             { title: '操作', width: 140, toolbar: '#barTpl' }
         ]],
-        page: false
+        page: { layout: ['prev', 'page', 'next', 'skip', 'count', 'limit'], limit: 10, limits: [10, 20, 50, 100] }
     });
 
     table.on('tool(shortcutTable)', function(obj){
@@ -75,31 +150,49 @@ function loadData() {
     });
 }
 
+function doSearch() {
+    loadData();
+}
+
+function doReset() {
+    document.getElementById('f_name').value = '';
+    document.getElementById('f_openType').value = '';
+    document.getElementById('f_solutionId').value = '';
+    form.render('select');
+    loadData();
+}
+
 function openEdit(data) {
     const isEdit = !!data;
     const d = data || { id: 0, name: '', icon: '📄', url: '', openType: 'iframe', solutionId: null, sortOrder: 0 };
     const solOptions = '<option value="">未分组</option>' + solutions.map(s => `<option value="${s.id}" ${d.solutionId == s.id ? 'selected' : ''}>${s.name}</option>`).join('');
     const html = `
         <form class="layui-form" style="padding:20px;">
-            <div class="layui-form-item"><label class="layui-form-label">名称</label><div class="layui-input-block"><input id="f_name" class="layui-input" value="${d.name}"></div></div>
-            <div class="layui-form-item"><label class="layui-form-label">图标</label><div class="layui-input-block"><input id="f_icon" class="layui-input" value="${d.icon}" placeholder="emoji或图片URL"></div></div>
-            <div class="layui-form-item"><label class="layui-form-label">地址</label><div class="layui-input-block"><input id="f_url" class="layui-input" value="${d.url}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">名称</label><div class="layui-input-block"><input id="edit_name" class="layui-input" value="${d.name}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">图标</label><div class="layui-input-block"><input id="edit_icon" class="layui-input" value="${d.icon}" placeholder="emoji或图片URL"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">地址</label><div class="layui-input-block"><input id="edit_url" class="layui-input" value="${d.url}"></div></div>
             <div class="layui-form-item"><label class="layui-form-label">打开方式</label><div class="layui-input-block">
-                <select id="f_openType"><option value="iframe" ${d.openType==='iframe'?'selected':''}>窗口内打开</option><option value="newtab" ${d.openType==='newtab'?'selected':''}>新标签页</option></select>
+                <select id="edit_openType">
+                    <option value="iframe" ${d.openType==='iframe'?'selected':''}>窗口</option>
+                    <option value="fullscreen" ${d.openType==='fullscreen'?'selected':''}>全屏</option>
+                    <option value="modal" ${d.openType==='modal'?'selected':''}>模态</option>
+                    <option value="newtab" ${d.openType==='newtab'?'selected':''}>新浏览器</option>
+                </select>
             </div></div>
-            <div class="layui-form-item"><label class="layui-form-label">解决方案</label><div class="layui-input-block"><select id="f_solutionId">${solOptions}</select></div></div>
-            <div class="layui-form-item"><label class="layui-form-label">排序</label><div class="layui-input-block"><input id="f_sortOrder" type="number" class="layui-input" value="${d.sortOrder}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">解决方案</label><div class="layui-input-block"><select id="edit_solutionId">${solOptions}</select></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">排序</label><div class="layui-input-block"><input id="edit_sortOrder" type="number" class="layui-input" value="${d.sortOrder}"></div></div>
         </form>`;
     layer.open({
-        type: 1, title: isEdit ? '编辑快捷方式' : '新增快捷方式', area: ['480px', '420px'], content: html,
+        type: 1, title: isEdit ? '编辑快捷方式' : '新增快捷方式', area: ['500px', '480px'], content: html,
+        success: function() { form.render('select'); },
         btn: ['保存', '取消'],
         yes: function(idx){
             const payload = {
-                id: d.id, name: document.getElementById('f_name').value,
-                icon: document.getElementById('f_icon').value, url: document.getElementById('f_url').value,
-                openType: document.getElementById('f_openType').value,
-                solutionId: document.getElementById('f_solutionId').value || null,
-                sortOrder: parseInt(document.getElementById('f_sortOrder').value) || 0, isEnabled: true
+                id: d.id, name: document.getElementById('edit_name').value,
+                icon: document.getElementById('edit_icon').value, url: document.getElementById('edit_url').value,
+                openType: document.getElementById('edit_openType').value,
+                solutionId: document.getElementById('edit_solutionId').value || null,
+                sortOrder: parseInt(document.getElementById('edit_sortOrder').value) || 0, isEnabled: true
             };
             if (!payload.name || !payload.url) { layer.msg('名称和地址不能为空'); return; }
             fetch('/api/desktop/shortcut', {

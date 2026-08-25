@@ -31,6 +31,10 @@ public class DesktopShortcut
     public int PosX { get; set; } = 0;
     public int PosY { get; set; } = 0;
 
+    /// <summary>窗口大小（像素），0 表示使用默认值</summary>
+    public int Width { get; set; } = 0;
+    public int Height { get; set; } = 0;
+
     public int SortOrder { get; set; }
     public bool IsEnabled { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

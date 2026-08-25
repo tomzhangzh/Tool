@@ -7,17 +7,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>解决方案管理</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/css/layui.css">
+    <link rel="stylesheet" href="~/lib/layui/css/layui.css" asp-append-version="true">
     <style>
         body { padding: 16px; background: #f5f7fa; }
-        .toolbar { margin-bottom: 12px; display: flex; gap: 8px; }
+        .filter-bar { margin-bottom: 12px; padding: 12px 16px; background: #fff; border-radius: 4px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .filter-bar .layui-form-item { margin-bottom: 0; }
+        .filter-bar .layui-input-inline { width: 200px; }
+        .toolbar { margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
     </style>
 </head>
 <body>
+
+<!-- 筛选栏 -->
+<div class="filter-bar layui-form">
+    <div class="layui-form-item">
+        <label class="layui-form-label">名称</label>
+        <div class="layui-input-inline">
+            <input id="f_name" class="layui-input" placeholder="请输入名称">
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <button class="layui-btn layui-btn-sm" onclick="doSearch()">
+            <i class="layui-icon layui-icon-search"></i> 查询
+        </button>
+        <button class="layui-btn layui-btn-sm layui-btn-primary" onclick="doReset()">
+            <i class="layui-icon layui-icon-refresh"></i> 清除
+        </button>
+    </div>
+</div>
+
+<!-- 工具栏 -->
 <div class="toolbar">
     <button class="layui-btn layui-btn-sm" onclick="openEdit()">+ 新增解决方案</button>
-    <button class="layui-btn layui-btn-sm layui-btn-primary" onclick="loadData()">刷新</button>
 </div>
+
 <table id="solTable" lay-filter="solTable"></table>
 
 <script type="text/html" id="barTpl">
@@ -25,20 +48,29 @@
     <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="del">删除</a>
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/layui.js"></script>
+<script src="~/lib/layui/layui.js" asp-append-version="true"></script>
 <script>
-let table, layer;
-layui.use(['table', 'layer'], function(){
+let table, form, layer;
+layui.use(['table', 'form', 'layer'], function(){
     table = layui.table;
+    form = layui.form;
     layer = layui.layer;
     loadData();
 });
 
+function getFilterParams() {
+    return { name: document.getElementById('f_name').value.trim() };
+}
+
 function loadData() {
+    const filter = getFilterParams();
     table.render({
         elem: '#solTable',
         url: '/api/desktop/solutions',
-        parseData: function(res){ return { code: res.success ? 0 : 1, msg: '', count: res.data.length, data: res.data }; },
+        where: filter,
+        parseData: function(res){
+            return { code: res.success ? 0 : 1, msg: '', count: res.count || 0, data: res.data || [] };
+        },
         cols: [[
             { field: 'id', title: 'ID', width: 60 },
             { field: 'icon', title: '图标', width: 70, templet: d => `<span style="font-size:20px;">${d.icon || '📁'}</span>` },
@@ -47,7 +79,7 @@ function loadData() {
             { field: 'sortOrder', title: '排序', width: 70 },
             { title: '操作', width: 140, toolbar: '#barTpl' }
         ]],
-        page: false
+        page: { layout: ['prev', 'page', 'next', 'skip', 'count', 'limit'], limit: 10, limits: [10, 20, 50, 100] }
     });
     table.on('tool(solTable)', function(obj){
         if (obj.event === 'edit') openEdit(obj.data);
@@ -61,24 +93,31 @@ function loadData() {
     });
 }
 
+function doSearch() { loadData(); }
+
+function doReset() {
+    document.getElementById('f_name').value = '';
+    loadData();
+}
+
 function openEdit(data) {
     const isEdit = !!data;
     const d = data || { id: 0, name: '', icon: '📁', description: '', sortOrder: 0 };
     const html = `
         <form class="layui-form" style="padding:20px;">
-            <div class="layui-form-item"><label class="layui-form-label">名称</label><div class="layui-input-block"><input id="f_name" class="layui-input" value="${d.name}"></div></div>
-            <div class="layui-form-item"><label class="layui-form-label">图标</label><div class="layui-input-block"><input id="f_icon" class="layui-input" value="${d.icon}" placeholder="emoji或图片URL"></div></div>
-            <div class="layui-form-item"><label class="layui-form-label">描述</label><div class="layui-input-block"><input id="f_desc" class="layui-input" value="${d.description || ''}"></div></div>
-            <div class="layui-form-item"><label class="layui-form-label">排序</label><div class="layui-input-block"><input id="f_sortOrder" type="number" class="layui-input" value="${d.sortOrder}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">名称</label><div class="layui-input-block"><input id="edit_name" class="layui-input" value="${d.name}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">图标</label><div class="layui-input-block"><input id="edit_icon" class="layui-input" value="${d.icon}" placeholder="emoji或图片URL"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">描述</label><div class="layui-input-block"><input id="edit_desc" class="layui-input" value="${d.description || ''}"></div></div>
+            <div class="layui-form-item"><label class="layui-form-label">排序</label><div class="layui-input-block"><input id="edit_sortOrder" type="number" class="layui-input" value="${d.sortOrder}"></div></div>
         </form>`;
     layer.open({
-        type: 1, title: isEdit ? '编辑解决方案' : '新增解决方案', area: ['440px', '320px'], content: html,
+        type: 1, title: isEdit ? '编辑解决方案' : '新增解决方案', area: ['440px', '340px'], content: html,
         btn: ['保存', '取消'],
         yes: function(idx){
             const payload = {
-                id: d.id, name: document.getElementById('f_name').value,
-                icon: document.getElementById('f_icon').value, description: document.getElementById('f_desc').value,
-                sortOrder: parseInt(document.getElementById('f_sortOrder').value) || 0, isEnabled: true
+                id: d.id, name: document.getElementById('edit_name').value,
+                icon: document.getElementById('edit_icon').value, description: document.getElementById('edit_desc').value,
+                sortOrder: parseInt(document.getElementById('edit_sortOrder').value) || 0, isEnabled: true
             };
             if (!payload.name) { layer.msg('名称不能为空'); return; }
             fetch('/api/desktop/solution', {

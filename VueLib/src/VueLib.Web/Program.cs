@@ -19,6 +19,10 @@ builder.Services.AddScoped<ComponentService>();
 builder.Services.AddScoped<PageSettingService>();
 builder.Services.AddScoped<ComponentMetaService>();
 
+// 动态工程 / 动态运行时
+builder.Services.AddScoped<DynCrudService>();
+builder.Services.AddScoped<DynProjectService>();
+
 // 跨域（开发环境前端调试用）
 builder.Services.AddCors(options =>
 {

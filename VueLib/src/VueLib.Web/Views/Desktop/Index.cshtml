@@ -7,7 +7,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VueLib Desktop</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/layui@2.9.16/dist/css/layui.css">
+    <link rel="stylesheet" href="~/lib/layui/css/layui.css" asp-append-version="true">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; user-select: none; }
@@ -124,6 +124,22 @@
         .window-body { flex: 1; overflow: hidden; position: relative; }
         .window-body iframe { width: 100%; height: 100%; border: none; }
 
+        /* 窗口调整大小手柄 */
+        .window-resize-handle {
+            position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
+            cursor: nwse-resize; z-index: 10;
+            background: linear-gradient(135deg, transparent 50%, #999 50%, #999 60%, transparent 60%, transparent 70%, #999 70%, #999 80%, transparent 80%);
+        }
+        .window.maximized .window-resize-handle { display: none; }
+
+        /* 模态遮罩 */
+        .modal-mask {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 5000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-mask .window { position: relative; }
+
         /* 右键菜单 */
         .context-menu {
             position: absolute; background: rgba(50,50,50,0.95); backdrop-filter: blur(10px);
@@ -170,7 +186,11 @@
         <div class="window-body">
             <iframe :src="win.url" :ref="el => { if(el) win.iframeEl = el; }"></iframe>
         </div>
+        <div v-if="!win.maximized && win.openType !== 'modal'" class="window-resize-handle" @@mousedown.stop="startResize($event, win)"></div>
     </div>
+
+    <!-- 模态遮罩 -->
+    <div v-if="modalWindow" class="modal-mask" @@click.self="closeWindow(modalWindow.id)"></div>
 
     <!-- 开始菜单 -->
     <div v-if="showStartMenu" class="start-menu" @@click.stop>
@@ -197,6 +217,7 @@
         <div class="start-menu-footer">
             <button @@click="openManage('shortcut')">快捷方式管理</button>
             <button @@click="openManage('solution')">解决方案管理</button>
+            <button @@click="openManage('dynproject')">工程管理</button>
         </div>
     </div>
 
@@ -207,6 +228,7 @@
         <div class="context-menu-item" @@click="openManage('shortcut')">🖥️ 快捷方式管理</div>
         <div class="context-menu-item" @@click="openManage('solution')">📁 解决方案管理</div>
         <div class="context-menu-item" @@click="openManage('page')">📄 页面管理</div>
+        <div class="context-menu-item" @@click="openManage('dynproject')">🏗️ 工程管理</div>
     </div>
 
     <!-- 任务栏 -->
@@ -232,7 +254,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+<script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
 <script>
 const { createApp, ref, reactive, computed, onMounted, onUnmounted } = Vue;
 
@@ -247,6 +269,7 @@ createApp({
         const currentTime = ref('');
         const currentDate = ref('');
         const contextMenu = reactive({ show: false, x: 0, y: 0 });
+        const modalWindow = ref(null);
         let winIdCounter = 0;
         let zIndexCounter = 100;
         let timer = null;
@@ -269,33 +292,56 @@ createApp({
 
         // 打开应用
         function openApp(sc) {
-            if (sc.openType === 'newtab') {
+            const openType = sc.openType || 'iframe';
+
+            // 新浏览器标签页
+            if (openType === 'newtab') {
                 window.open(sc.url, '_blank');
                 return;
             }
-            // 检查是否已打开
-            const existing = windows.find(w => w.url === sc.url);
-            if (existing) {
-                existing.minimized = false;
-                focusWindow(existing.id);
-                return;
+
+            // 模态：已有模态窗口时先关闭
+            if (openType === 'modal' && modalWindow.value) {
+                closeWindow(modalWindow.value.id);
             }
+
+            // 检查是否已打开（非模态）
+            if (openType !== 'modal') {
+                const existing = windows.find(w => w.url === sc.url);
+                if (existing) {
+                    existing.minimized = false;
+                    focusWindow(existing.id);
+                    return;
+                }
+            }
+
+            const isFullscreen = openType === 'fullscreen';
+            const isModal = openType === 'modal';
+            const defaultW = isModal ? 800 : 900;
+            const defaultH = isModal ? 600 : 600;
+            const savedW = sc.width > 0 ? sc.width : defaultW;
+            const savedH = sc.height > 0 ? sc.height : defaultH;
+            const savedX = sc.posX > 0 ? sc.posX : (isModal ? (window.innerWidth - savedW) / 2 : 80 + (windows.length * 30) % 200);
+            const savedY = sc.posY > 0 ? sc.posY : (isModal ? (window.innerHeight - savedH - 48) / 2 : 60 + (windows.length * 30) % 150);
             const win = {
                 id: ++winIdCounter,
+                shortcutId: sc.id,
                 title: sc.name,
                 icon: sc.icon || '📄',
                 url: sc.url,
-                x: 80 + (windows.length * 30) % 200,
-                y: 60 + (windows.length * 30) % 150,
-                width: 900,
-                height: 600,
+                openType: openType,
+                x: savedX,
+                y: savedY,
+                width: savedW,
+                height: savedH,
                 minimized: false,
-                maximized: false,
-                zIndex: ++zIndexCounter,
+                maximized: isFullscreen,
+                zIndex: isModal ? 6000 : ++zIndexCounter,
                 iframeEl: null
             };
             windows.push(win);
             activeWinId.value = win.id;
+            if (isModal) modalWindow.value = win;
         }
 
         function focusWindow(id) {
@@ -316,7 +362,13 @@ createApp({
 
         function closeWindow(id) {
             const idx = windows.findIndex(w => w.id === id);
-            if (idx >= 0) windows.splice(idx, 1);
+            if (idx >= 0) {
+                const win = windows[idx];
+                if (modalWindow.value && modalWindow.value.id === id) {
+                    modalWindow.value = null;
+                }
+                windows.splice(idx, 1);
+            }
         }
 
         function taskbarClick(win) {
@@ -333,7 +385,7 @@ createApp({
         // 窗口拖拽
         let dragState = null;
         function startDrag(e, win) {
-            if (win.maximized) return;
+            if (win.maximized || win.openType === 'modal') return;
             focusWindow(win.id);
             dragState = {
                 win, startX: e.clientX, startY: e.clientY,
@@ -348,9 +400,53 @@ createApp({
             dragState.win.y = Math.max(0, dragState.origY + (e.clientY - dragState.startY));
         }
         function stopDrag() {
+            if (dragState) {
+                saveWindowState(dragState.win);
+            }
             dragState = null;
             document.removeEventListener('mousemove', onDrag);
             document.removeEventListener('mouseup', stopDrag);
+        }
+
+        // 窗口调整大小
+        let resizeState = null;
+        function startResize(e, win) {
+            if (win.maximized || win.openType === 'modal') return;
+            focusWindow(win.id);
+            resizeState = {
+                win, startX: e.clientX, startY: e.clientY,
+                origW: win.width, origH: win.height
+            };
+            document.addEventListener('mousemove', onResize);
+            document.addEventListener('mouseup', stopResize);
+        }
+        function onResize(e) {
+            if (!resizeState) return;
+            resizeState.win.width = Math.max(400, resizeState.origW + (e.clientX - resizeState.startX));
+            resizeState.win.height = Math.max(300, resizeState.origH + (e.clientY - resizeState.startY));
+        }
+        function stopResize() {
+            if (resizeState) {
+                saveWindowState(resizeState.win);
+            }
+            resizeState = null;
+            document.removeEventListener('mousemove', onResize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        // 保存窗口位置和大小到数据库
+        function saveWindowState(win) {
+            if (!win.shortcutId || win.openType === 'modal' || win.openType === 'newtab') return;
+            fetch('/api/desktop/shortcut/' + win.shortcutId + '/window', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    posX: Math.round(win.x),
+                    posY: Math.round(win.y),
+                    width: Math.round(win.width),
+                    height: Math.round(win.height)
+                })
+            }).catch(err => console.error('保存窗口状态失败:', err));
         }
 
         // 右键菜单
@@ -372,9 +468,10 @@ createApp({
             const urls = {
                 shortcut: '/Desktop/ShortcutManage',
                 solution: '/Desktop/SolutionManage',
-                page: '/Desktop/PageManage'
+                page: '/Desktop/PageManage',
+                dynproject: '/DynProject/Index'
             };
-            openApp({ name: type === 'shortcut' ? '快捷方式管理' : type === 'solution' ? '解决方案管理' : '页面管理', icon: type === 'shortcut' ? '🖥️' : type === 'solution' ? '📁' : '📄', url: urls[type], openType: 'iframe' });
+            openApp({ name: type === 'shortcut' ? '快捷方式管理' : type === 'solution' ? '解决方案管理' : type === 'dynproject' ? '工程管理' : '页面管理', icon: type === 'shortcut' ? '🖥️' : type === 'solution' ? '📁' : type === 'dynproject' ? '🏗️' : '📄', url: urls[type], openType: 'iframe' });
         }
 
         // 时钟
@@ -396,6 +493,10 @@ createApp({
             updateClock();
             timer = setInterval(updateClock, 1000);
             document.addEventListener('click', onGlobalClick);
+            // 暴露给子 iframe（工程管理/页面管理）打开桌面预览窗口
+            window.dynOpenUrl = function (url, title) {
+                openApp({ id: 0, name: title || '预览', icon: '🖥️', url: url, openType: 'iframe', width: 0, height: 0, posX: 0, posY: 0 });
+            };
         });
         onUnmounted(() => {
             clearInterval(timer);
@@ -404,9 +505,9 @@ createApp({
 
         return {
             shortcuts, solutions, windows, showStartMenu, selectedId, activeWinId,
-            currentTime, currentDate, contextMenu,
+            currentTime, currentDate, contextMenu, modalWindow,
             shortcutsBySolution, openApp, focusWindow, minimizeWindow, toggleMaximize,
-            closeWindow, taskbarClick, startDrag, showContextMenu, refreshDesktop, openManage
+            closeWindow, taskbarClick, startDrag, startResize, showContextMenu, refreshDesktop, openManage
         };
     }
 }).mount('#app');

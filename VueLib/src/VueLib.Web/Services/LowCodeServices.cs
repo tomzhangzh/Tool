@@ -27,6 +27,27 @@ public class PageSettingService
         return await query.OrderBy(p => p.SortOrder).OrderBy(p => p.Id).ToListAsync();
     }
 
+    /// <summary>分页查询页面列表（支持筛选）</summary>
+    public async Task<(List<PageSetting> List, int Total)> GetPagedListAsync(int page, int limit,
+        string? pageCode = null, string? pageName = null, string? platform = null, string? category = null)
+    {
+        using var db = _dbContext.Create();
+        var query = db.Queryable<PageSetting>().Where(p => p.IsEnabled);
+        if (!string.IsNullOrWhiteSpace(pageCode))
+            query = query.Where(p => p.PageCode.Contains(pageCode));
+        if (!string.IsNullOrWhiteSpace(pageName))
+            query = query.Where(p => p.PageName.Contains(pageName));
+        if (!string.IsNullOrWhiteSpace(platform))
+            query = query.Where(p => p.Platform == platform);
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(p => p.Category == category);
+
+        var total = await query.CountAsync();
+        var list = await query.OrderBy(p => p.SortOrder).OrderBy(p => p.Id)
+            .Skip((page - 1) * limit).Take(limit).ToListAsync();
+        return (list, total);
+    }
+
     public async Task<PageSetting?> GetByCodeAsync(string pageCode)
     {
         if (string.IsNullOrWhiteSpace(pageCode)) return null;

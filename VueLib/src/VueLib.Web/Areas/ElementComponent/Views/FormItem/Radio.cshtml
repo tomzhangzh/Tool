@@ -1,7 +1,5 @@
-﻿@{ Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml"; }
-<template>
+﻿@{ Layout = "~/Areas/ElementComponent/Views/_ElementFormItemLayout.cshtml"; }
     <el-radio-group v-model="modelinfo" v-bind="jc.options.comoptions" v-on="getComlisteners()">
         <el-radio v-for="item in comInnerInfo.options" :key="item.value" :label="item.value">{{ item.label }}</el-radio>
     </el-radio-group>
-</template>
 @section setupScripts{ DVALUE = ''; }

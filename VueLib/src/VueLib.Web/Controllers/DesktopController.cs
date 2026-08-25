@@ -27,28 +27,40 @@ public class DesktopController : Controller
 
     // ===== API =====
 
-    // 获取所有快捷方式
+    // 获取快捷方式（支持分页和筛选）
     [HttpGet("/api/desktop/shortcuts")]
-    public async Task<IActionResult> GetShortcuts()
+    public async Task<IActionResult> GetShortcuts([FromQuery] int page = 1, [FromQuery] int limit = 10,
+        [FromQuery] string? name = null, [FromQuery] string? openType = null, [FromQuery] int? solutionId = null)
     {
         using var db = _dbContext.Create();
-        var list = await db.Queryable<DesktopShortcut>()
-            .Where(s => s.IsEnabled)
-            .OrderBy(s => s.SortOrder)
-            .ToListAsync();
-        return Ok(new { success = true, data = list });
+        var query = db.Queryable<DesktopShortcut>().Where(s => s.IsEnabled);
+        if (!string.IsNullOrWhiteSpace(name))
+            query = query.Where(s => s.Name.Contains(name));
+        if (!string.IsNullOrWhiteSpace(openType))
+            query = query.Where(s => s.OpenType == openType);
+        if (solutionId.HasValue)
+            query = query.Where(s => s.SolutionId == solutionId.Value);
+
+        var total = await query.CountAsync();
+        var list = await query.OrderBy(s => s.SortOrder)
+            .Skip((page - 1) * limit).Take(limit).ToListAsync();
+        return Ok(new { success = true, data = list, count = total });
     }
 
-    // 获取所有解决方案
+    // 获取解决方案（支持分页和筛选）
     [HttpGet("/api/desktop/solutions")]
-    public async Task<IActionResult> GetSolutions()
+    public async Task<IActionResult> GetSolutions([FromQuery] int page = 1, [FromQuery] int limit = 10,
+        [FromQuery] string? name = null)
     {
         using var db = _dbContext.Create();
-        var list = await db.Queryable<DesktopSolution>()
-            .Where(s => s.IsEnabled)
-            .OrderBy(s => s.SortOrder)
-            .ToListAsync();
-        return Ok(new { success = true, data = list });
+        var query = db.Queryable<DesktopSolution>().Where(s => s.IsEnabled);
+        if (!string.IsNullOrWhiteSpace(name))
+            query = query.Where(s => s.Name.Contains(name));
+
+        var total = await query.CountAsync();
+        var list = await query.OrderBy(s => s.SortOrder)
+            .Skip((page - 1) * limit).Take(limit).ToListAsync();
+        return Ok(new { success = true, data = list, count = total });
     }
 
     // 保存快捷方式（新增/更新）
@@ -74,6 +86,29 @@ public class DesktopController : Controller
         using var db = _dbContext.Create();
         await db.Deleteable<DesktopShortcut>(id).ExecuteCommandAsync();
         return Ok(new { success = true });
+    }
+
+    // 更新窗口位置和大小
+    [HttpPost("/api/desktop/shortcut/{id}/window")]
+    public async Task<IActionResult> UpdateWindowSize(int id, [FromBody] WindowSizeModel model)
+    {
+        using var db = _dbContext.Create();
+        await db.Updateable<DesktopShortcut>()
+            .SetColumns(s => s.PosX == model.PosX)
+            .SetColumns(s => s.PosY == model.PosY)
+            .SetColumns(s => s.Width == model.Width)
+            .SetColumns(s => s.Height == model.Height)
+            .Where(s => s.Id == id)
+            .ExecuteCommandAsync();
+        return Ok(new { success = true });
+    }
+
+    public class WindowSizeModel
+    {
+        public int PosX { get; set; }
+        public int PosY { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
     }
 
     // 保存解决方案

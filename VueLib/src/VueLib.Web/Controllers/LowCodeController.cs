@@ -57,6 +57,23 @@ public class LowCodeController : ControllerBase
         }
     }
 
+    /// <summary>分页查询页面列表（支持筛选）</summary>
+    [HttpGet("pages/paged")]
+    public async Task<IActionResult> GetPagesPaged([FromQuery] int page = 1, [FromQuery] int limit = 10,
+        [FromQuery] string? pageCode = null, [FromQuery] string? pageName = null,
+        [FromQuery] string? platform = null, [FromQuery] string? category = null)
+    {
+        try
+        {
+            var (list, total) = await _pageService.GetPagedListAsync(page, limit, pageCode, pageName, platform, category);
+            return Ok(new { success = true, data = list, count = total });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message, data = new List<PageSetting>(), count = 0 });
+        }
+    }
+
     /// <summary>根据页面编码获取页面配置</summary>
     [HttpGet("page/{code}")]
     public async Task<ApiResponse<PageSetting>> GetPage(string code)

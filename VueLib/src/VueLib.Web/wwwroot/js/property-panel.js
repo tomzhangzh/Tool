@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
  * VueLib 低代码平台 - 动态属性面板
  * 根据 PropertyConfigJson 动态生成 DynElement Plus 表单
  * 支持: input/number/switch/select/textarea/color/slider/radio/checkbox/icon
@@ -42,6 +42,21 @@
         computed: {
             groups: function () {
                 var baseGroups = (this.propertyConfig && this.propertyConfig.groups) || [];
+                // 兼容：支持 group.name 和 group.title
+                var normalizedGroups = baseGroups.map(function (g) {
+                    return {
+                        title: g.title || g.name || '未命名分组',
+                        fields: (g.fields || []).map(function (f) {
+                            // 自动补全字段路径：如果 key 不包含点号，默认添加 options.comoptions. 前缀
+                            // 特殊字段：modelname 保持根级别
+                            var key = f.key || '';
+                            if (key && key.indexOf('.') < 0 && key !== 'modelname') {
+                                key = 'options.comoptions.' + key;
+                            }
+                            return Object.assign({}, f, { key: key });
+                        })
+                    };
+                });
                 // 自动添加数据绑定分组（所有组件通用）
                 var bindingGroup = {
                     title: '数据绑定',
@@ -49,7 +64,7 @@
                         { key: 'modelname', label: '绑定字段名', type: 'input', default: '', placeholder: '如: user.name' }
                     ]
                 };
-                return [bindingGroup].concat(baseGroups);
+                return [bindingGroup].concat(normalizedGroups);
             }
         },
         watch: {

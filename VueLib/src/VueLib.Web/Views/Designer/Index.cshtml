@@ -199,7 +199,7 @@
         <el-dialog v-model="showJson" title="页面配置 JSON" width="700px" top="5vh">
             <el-input v-model="configJsonText" type="textarea" :rows="24" font-size="12px"
                       placeholder="页面配置 JSON"></el-input>
-            <template #footer>
+            <template v-slot:footer>
                 <el-button @@click="applyJson">应用 JSON</el-button>
                 <el-button type="primary" @@click="showJson=false">关闭</el-button>
             </template>
@@ -215,7 +215,7 @@
                     <el-input v-model="newPageForm.pageCode" placeholder="英文，如 user-form"></el-input>
                 </el-form-item>
             </el-form>
-            <template #footer>
+            <template v-slot:footer>
                 <el-button @@click="showNewPage=false">取消</el-button>
                 <el-button type="primary" @@click="confirmNewPage">创建</el-button>
             </template>
@@ -225,7 +225,7 @@
         <el-dialog v-model="showModelModal" title="页面数据模型 (Model JSON)" width="600px" top="8vh">
             <el-input v-model="modelJsonText" type="textarea" :rows="20" font-size="12px"
                       readonly placeholder="页面数据模型为空，请先在组件中设置绑定字段名并输入值"></el-input>
-            <template #footer>
+            <template v-slot:footer>
                 <el-button type="primary" @@click="copyModelJson">复制</el-button>
                 <el-button @@click="showModelModal=false">关闭</el-button>
             </template>
