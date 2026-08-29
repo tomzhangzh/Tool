@@ -1,0 +1,100 @@
+@model VueLib.Web.Models.DynRouteHomeModel
+@using VueLib.Web.Models
+@{
+    Layout = null;
+    var project = Model.Project!;
+    var webPage = Model.WebPage!;
+    var projId = project.Id;
+    var pages = Model.Pages ?? new List<DynWebPage>();
+    var homeDef = Model.HomeSummaryDef;
+    var homeRows = Model.HomeResult?.Rows ?? new List<Dictionary<string, object?>>();
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@(project.DisplayName ?? project.Name) - @(webPage.Title ?? webPage.Name)</title>
+<style>
+    body { margin:0; font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#f0f2f5; }
+    .topbar { background:#fff; border-bottom:1px solid #e4e7ed; padding:12px 20px; display:flex; align-items:center; gap:12px; }
+    .topbar .proj { font-weight:600; font-size:16px; }
+    .topbar .page { color:#409eff; font-size:13px; background:#ecf5ff; padding:2px 10px; border-radius:10px; }
+    .container { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+    .hero { background: linear-gradient(135deg, #409eff, #6a5acd); color:#fff; border-radius: 12px; padding: 32px 28px; margin-bottom: 20px; }
+    .hero h1 { margin: 0 0 6px; font-size: 24px; }
+    .hero p { margin: 0; opacity: 0.85; font-size: 14px; }
+    .section-title { font-size: 15px; font-weight: 600; color:#303133; margin: 18px 0 10px; border-left: 3px solid #409eff; padding-left: 8px; }
+    .links { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .link-card { background:#fff; border:1px solid #ebeef5; border-radius: 8px; padding: 16px; cursor:pointer; transition: all 0.15s; text-decoration:none; color:#303133; display:block; }
+    .link-card:hover { border-color:#409eff; box-shadow: 0 4px 12px rgba(64,158,255,0.15); transform: translateY(-1px); }
+    .link-card .t { font-weight:600; font-size:14px; }
+    .link-card .r { color:#909399; font-size:12px; margin-top:4px; font-family: Consolas, monospace; }
+    .card { background:#fff; border-radius:8px; padding:16px; border:1px solid #ebeef5; }
+    table { width:100%; border-collapse: collapse; font-size:13px; }
+    th, td { border:1px solid #ebeef5; padding:8px 10px; text-align:left; }
+    th { background:#f5f7fa; font-weight:600; color:#606266; }
+    td { color:#303133; }
+</style>
+</head>
+<body>
+<div class="topbar">
+    <span class="proj">@(project.DisplayName ?? project.Name)</span>
+    <span class="page">@(webPage.Title ?? webPage.Name)</span>
+    <span style="color:#909399;font-size:12px;">@(webPage.Route)</span>
+</div>
+
+<div class="container">
+    <div class="hero">
+        <h1>欢迎使用 @(project.DisplayName ?? project.Name)</h1>
+        <p>@(webPage.Title ?? webPage.Name) · 模板：@(Model.Template?.Name)</p>
+    </div>
+
+    @if (pages.Count > 0)
+    {
+        <div class="section-title">功能入口</div>
+        <div class="links">
+            @foreach (var p in pages)
+            {
+                <a class="link-card" href="/DynRun/Route?projectId=@projId&route=@(Uri.EscapeDataString(p.Route))">
+                    <div class="t">@(p.Title ?? p.Name)</div>
+                    <div class="r">@p.Route</div>
+                </a>
+            }
+        </div>
+    }
+
+    @if (homeDef != null && homeDef.Columns.Any(x => x.IsGrid))
+    {
+        <div class="section-title">数据概览</div>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        @foreach (var c in homeDef.Columns.Where(x => x.IsGrid).OrderBy(x => x.Order))
+                        {
+                            <th>@c.Label</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in homeRows)
+                    {
+                        <tr>
+                            @foreach (var c in homeDef.Columns.Where(x => x.IsGrid).OrderBy(x => x.Order))
+                            {
+                                <td>@(row.TryGetValue(c.Name, out var v) && v != null ? v : "")</td>
+                            }
+                        </tr>
+                    }
+                    @if (homeRows.Count == 0)
+                    {
+                        <tr><td colspan="@(homeDef.Columns.Count(x => x.IsGrid))" style="text-align:center;color:#c0c4cc;">暂无数据</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+</body>
+</html>

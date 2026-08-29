@@ -365,8 +365,19 @@
     /* ---------------- reload ---------------- */
 
     function reload(target) {
+        // 支持命名函数 / 函数引用 / 全局回调（模板路由页 RouteList 等场景）
+        if (typeof target === 'function') { try { return Promise.resolve(target()); } catch (e) { return Promise.resolve(null); } }
+        if (typeof target === 'string' && typeof window[target] === 'function') {
+            try { return Promise.resolve(window[target]()); } catch (e) { return Promise.resolve(null); }
+        }
         var el = resolve(target);
-        if (!el) return Promise.resolve(null);
+        if (!el) {
+            // #dynHost 等 Shell 专属选择器在模板路由页不存在 → 兜底走页面注册的刷新回调
+            if (typeof window.__dynRouteReload === 'function') {
+                try { return Promise.resolve(window.__dynRouteReload()); } catch (e) { return Promise.resolve(null); }
+            }
+            return Promise.resolve(null);
+        }
 
         var $t;
         if (el.hasAttribute('dyn-init')) $t = $(el);

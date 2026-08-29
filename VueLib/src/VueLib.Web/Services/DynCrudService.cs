@@ -17,6 +17,28 @@ public class DynCrudService
     private HashSet<string> ColumnNames(ISqlSugarClient db, string table)
         => GetColumns(db, table).Select(c => c.DbColumnName).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// 模板查询定义：查询字段（筛选）来自 Filter 屏定义，主键/排序/分页/导航来自 Summary 屏定义。
+    /// filterDef 为空时回退用 summaryDef 自身的筛选列。
+    /// </summary>
+    public static DynPageDefinition? BuildQueryDef(DynPageDefinition? summaryDef, DynPageDefinition? filterDef)
+    {
+        if (summaryDef == null) return null;
+        var qd = new DynPageDefinition
+        {
+            PrimaryKey = summaryDef.PrimaryKey,
+            IsIdentity = summaryDef.IsIdentity,
+            PageSize = summaryDef.PageSize,
+            OrderBy = summaryDef.OrderBy,
+            OrderDir = summaryDef.OrderDir,
+            Navs = summaryDef.Navs
+        };
+        qd.Columns = filterDef != null && filterDef.Columns.Count > 0
+            ? filterDef.Columns.ToList()
+            : summaryDef.Columns.ToList();
+        return qd;
+    }
+
     /// <summary>按主键取单条（返回字典）；sourceName 为空则用 table，否则按真实视图/其它源读取</summary>
     public Dictionary<string, object?> GetByPk(ISqlSugarClient db, string table, object? pk, string pkName, string? sourceName = null)
     {

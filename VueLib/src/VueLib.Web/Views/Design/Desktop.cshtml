@@ -1,0 +1,146 @@
+@using VueLib.Web.Models
+@{
+    Layout = null;
+    var project = ViewBag.Project as DynProject;
+    var pid = project!.Id;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@(project.DisplayName ?? project.Name) - 设计工作台</title>
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; font-family:'Segoe UI','Microsoft YaHei',sans-serif; user-select:none; }
+    .desktop { width:100%; height:100%; position:relative; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #6a11cb 100%); background-size:400% 400%; animation: grad 18s ease infinite; }
+    @@keyframes grad { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+    .desktop-icons { position:absolute; top:8px; left:0; right:0; bottom:48px; padding:16px; display:flex; flex-direction:column; flex-wrap:wrap; align-content:flex-start; gap:8px; }
+    .desktop-icon { width:86px; height:96px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:8px 4px; border-radius:8px; cursor:pointer; transition:background .15s; }
+    .desktop-icon:hover { background:rgba(255,255,255,0.15); }
+    .desktop-icon.selected { background:rgba(255,255,255,0.25); border:1px solid rgba(255,255,255,0.4); }
+    .desktop-icon .icon { font-size:38px; line-height:1; margin-bottom:6px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.3)); }
+    .desktop-icon .label { color:#fff; font-size:12px; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,.8); line-height:1.3; }
+
+    .taskbar { position:absolute; bottom:0; left:0; right:0; height:48px; background:rgba(30,30,30,.85); backdrop-filter:blur(20px); display:flex; align-items:center; padding:0 8px; z-index:1000; border-top:1px solid rgba(255,255,255,.1); }
+    .taskbar .proj-name { color:#fff; font-size:13px; font-weight:600; padding:0 12px; }
+    .taskbar-btn { height:32px; padding:0 12px; border:none; border-radius:6px; background:rgba(255,255,255,0.1); color:#fff; cursor:pointer; font-size:12px; margin-right:8px; }
+    .taskbar-btn:hover { background:rgba(255,255,255,0.22); }
+    .taskbar-windows { flex:1; display:flex; gap:4px; padding:0 8px; overflow-x:auto; height:100%; align-items:center; }
+    .taskbar-windows::-webkit-scrollbar { display:none; }
+    .win-task-item { height:36px; min-width:150px; max-width:200px; padding:0 10px; display:flex; align-items:center; gap:8px; border-radius:6px; cursor:pointer; color:#fff; font-size:13px; background:rgba(255,255,255,.08); }
+    .win-task-item:hover { background:rgba(255,255,255,.18); }
+    .win-task-item.active { background:rgba(255,255,255,.25); border-bottom:2px solid #4fc3f7; }
+    .win-task-item .title { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .system-tray { color:#fff; font-size:12px; padding:0 12px; }
+
+    .window { position:absolute; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,.4); display:flex; flex-direction:column; min-width:420px; min-height:320px; }
+    .window.minimized { display:none; }
+    .window.maximized { top:0!important; left:0!important; width:100%!important; height:calc(100% - 48px)!important; border-radius:0; }
+    .window-header { height:36px; background:linear-gradient(to bottom,#f5f5f5,#e8e8e8); display:flex; align-items:center; padding:0 8px; cursor:move; border-bottom:1px solid #ddd; flex-shrink:0; }
+    .window-header .icon { font-size:16px; margin-right:8px; }
+    .window-header .title { flex:1; font-size:13px; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .window-controls { display:flex; gap:4px; }
+    .win-btn { width:28px; height:24px; border:none; background:none; cursor:pointer; border-radius:4px; font-size:14px; color:#666; }
+    .win-btn:hover { background:rgba(0,0,0,.08); }
+    .win-btn.close:hover { background:#e81123; color:#fff; }
+    .window-body { flex:1; overflow:hidden; position:relative; }
+    .window-body iframe { width:100%; height:100%; border:none; }
+    .window-resize-handle { position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize; z-index:10; }
+    .window.maximized .window-resize-handle { display:none; }
+</style>
+</head>
+<body>
+<div id="app" class="desktop">
+    <div class="desktop-icons">
+        <div v-for="app in apps" :key="app.id" class="desktop-icon" :class="{selected: selectedId===app.id}"
+             @@click.stop="selectedId=app.id" @@dblclick="openApp(app)">
+            <div class="icon">{{ app.icon }}</div>
+            <div class="label">{{ app.name }}</div>
+        </div>
+    </div>
+
+    <div v-for="win in windows" :key="win.id" class="window"
+         :class="{minimized: win.minimized, maximized: win.maximized}"
+         :style="{left: win.x+'px', top: win.y+'px', width: win.width+'px', height: win.height+'px', zIndex: win.zIndex}"
+         @@mousedown="focusWindow(win.id)">
+        <div class="window-header" @@mousedown="startDrag($event, win)" @@dblclick="toggleMaximize(win)">
+            <span class="icon">{{ win.icon }}</span>
+            <span class="title">{{ win.title }}</span>
+            <div class="window-controls">
+                <button class="win-btn" @@click.stop="minimizeWindow(win)" title="最小化">─</button>
+                <button class="win-btn" @@click.stop="toggleMaximize(win)" title="最大化">{{ win.maximized?'❐':'☐' }}</button>
+                <button class="win-btn close" @@click.stop="closeWindow(win.id)" title="关闭">✕</button>
+            </div>
+        </div>
+        <div class="window-body">
+            <iframe :src="win.url"></iframe>
+        </div>
+        <div v-if="!win.maximized" class="window-resize-handle" @@mousedown.stop="startResize($event, win)"></div>
+    </div>
+
+    <div class="taskbar">
+        <button class="taskbar-btn" @@click="goBack">← 返回工程管理</button>
+        <span class="proj-name">@(project.DisplayName ?? project.Name)</span>
+        <div class="taskbar-windows">
+            <div v-for="win in windows" :key="win.id" class="win-task-item"
+                 :class="{active: activeWinId===win.id && !win.minimized}" @@click="taskbarClick(win)">
+                <span>{{ win.icon }}</span>
+                <span class="title">{{ win.title }}</span>
+            </div>
+        </div>
+        <div class="system-tray">{{ clock }}</div>
+    </div>
+</div>
+
+<script src="~/js/vue.global.prod.js"></script>
+<script>
+const { createApp, ref, reactive, onMounted, onUnmounted } = Vue;
+const PROJECT_ID = @pid;
+createApp({
+    setup() {
+        const apps = [
+            { id:'pages', name:'页面管理', icon:'📄', url:'/Design/WebPages?projectId='+PROJECT_ID },
+            { id:'templates', name:'模板管理', icon:'🧩', url:'/Design/Templates?projectId='+PROJECT_ID },
+            { id:'db', name:'数据库管理', icon:'🗄️', url:'/Design/Database?projectId='+PROJECT_ID },
+            { id:'screens', name:'屏设计', icon:'🖥️', url:'/Design/Screens?projectId='+PROJECT_ID }
+        ];
+        const windows = reactive([]);
+        const selectedId = ref(null);
+        const activeWinId = ref(null);
+        const clock = ref('');
+        let winId = 0, zIndex = 100, timer = null;
+        let drag = null, resize = null;
+
+        function openApp(app) {
+            const existing = windows.find(w => w.appId === app.id);
+            if (existing) { existing.minimized = false; focusWindow(existing.id); return; }
+            const w = { id: ++winId, appId: app.id, title: app.name, icon: app.icon, url: app.url,
+                x: 80 + (windows.length*40)%160, y: 50 + (windows.length*30)%120, width: 1000, height: 640,
+                minimized:false, maximized:false, zIndex: ++zIndex };
+            windows.push(w); activeWinId.value = w.id;
+        }
+        function focusWindow(id) { const w = windows.find(x=>x.id===id); if(w){ w.zIndex=++zIndex; activeWinId.value=id; } }
+        function minimizeWindow(w) { w.minimized = true; }
+        function toggleMaximize(w) { w.maximized = !w.maximized; }
+        function closeWindow(id) { const i = windows.findIndex(x=>x.id===id); if(i>=0) windows.splice(i,1); }
+        function taskbarClick(w) { if(w.minimized){w.minimized=false;focusWindow(w.id);} else if(activeWinId.value===w.id){w.minimized=true;} else focusWindow(w.id); }
+        function startDrag(e, w) { if(w.maximized) return; focusWindow(w.id); drag={w, sx:e.clientX, sy:e.clientY, ox:w.x, oy:w.y}; document.addEventListener('mousemove',onDrag); document.addEventListener('mouseup',stopDrag); }
+        function onDrag(e){ if(!drag) return; drag.w.x = drag.ox+(e.clientX-drag.sx); drag.w.y = Math.max(0, drag.oy+(e.clientY-drag.sy)); }
+        function stopDrag(){ drag=null; document.removeEventListener('mousemove',onDrag); document.removeEventListener('mouseup',stopDrag); }
+        function startResize(e,w){ if(w.maximized) return; focusWindow(w.id); resize={w, sx:e.clientX, sy:e.clientY, ow:w.width, oh:w.height}; document.addEventListener('mousemove',onResize); document.addEventListener('mouseup',stopResize); }
+        function onResize(e){ if(!resize) return; resize.w.width=Math.max(420,resize.ow+(e.clientX-resize.sx)); resize.w.height=Math.max(320,resize.oh+(e.clientY-resize.sy)); }
+        function stopResize(){ resize=null; document.removeEventListener('mousemove',onResize); document.removeEventListener('mouseup',stopResize); }
+        function goBack(){ window.location.href = '/DynProject/Index'; }
+        function tick(){ const n=new Date(); clock.value=n.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
+
+        onMounted(()=>{ tick(); timer=setInterval(tick,1000); });
+        onUnmounted(()=>{ clearInterval(timer); });
+        return { apps, windows, selectedId, activeWinId, clock,
+            openApp, focusWindow, minimizeWindow, toggleMaximize, closeWindow, taskbarClick,
+            startDrag, startResize, goBack };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

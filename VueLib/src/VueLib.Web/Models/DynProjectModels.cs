@@ -32,6 +32,10 @@ public class DynProject
     [SugarColumn(Length = 50, IsNullable = true)]
     public string? Icon { get; set; } = "📦";
 
+    /// <summary>工程类型（Web / Phone / PC ...）默认一工程一数据库</summary>
+    [SugarColumn(Length = 20, IsNullable = true)]
+    public string? Type { get; set; } = "Web";
+
     public bool IsEnabled { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -209,6 +213,139 @@ public class OpResult
     public bool Success { get; set; }
     public string? Message { get; set; }
     public object? Data { get; set; }
+}
+
+// ==================== 设计层：模板管理 + 路由页面管理 ====================
+
+/// <summary>模板：把 Filter 屏 + Summary 屏 + Detail 屏组装成一个可复用模板（如 List 模板 / 主页模板）</summary>
+public class DynTemplate
+{
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+    public int Id { get; set; }
+    public int ProjectId { get; set; }
+
+    [SugarColumn(Length = 100, IsNullable = false)]
+    public string Name { get; set; } = "";
+
+    [SugarColumn(Length = 100, IsNullable = false)]
+    public string Code { get; set; } = "";
+
+    /// <summary>模板类型：List / Home / Custom</summary>
+    [SugarColumn(Length = 20, IsNullable = true)]
+    public string TemplateType { get; set; } = "List";
+
+    /// <summary>组装的 Filter 屏 Id</summary>
+    public int? FilterPageId { get; set; }
+    /// <summary>组装的 Summary 屏 Id</summary>
+    public int? SummaryPageId { get; set; }
+    /// <summary>组装的 Detail 屏 Id</summary>
+    public int? DetailPageId { get; set; }
+
+    /// <summary>模板配置 JSON（DynTemplateConfig）</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? Config { get; set; }
+
+    public bool IsEnabled { get; set; } = true;
+    public int SortOrder { get; set; }
+
+    [SugarColumn(Length = 500, IsNullable = true)]
+    public string? Remark { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+/// <summary>模板配置：detail 打开路径、新增参数、deleteUrl、自定义数据 url 等</summary>
+public class DynTemplateConfig
+{
+    /// <summary>detail 打开路径模板（支持 {projectId} {pageId} {id} 占位）；空 → 用默认 Detail 路径</summary>
+    public string? DetailOpenPath { get; set; }
+    /// <summary>detail 打开方式：modal(默认) / window / newtab</summary>
+    public string DetailOpenMode { get; set; } = "modal";
+    /// <summary>点击"新增"时预填到详情表单的参数</summary>
+    public Dictionary<string, object?>? AddParams { get; set; }
+    /// <summary>自定义删除 url；空 → 通用 /DynRun/Delete</summary>
+    public string? DeleteUrl { get; set; }
+    /// <summary>自定义数据 url；空 → 通用后端（按模板 summary 屏定义查询）</summary>
+    public string? DataUrl { get; set; }
+    /// <summary>预留扩展</summary>
+    public Dictionary<string, object?>? Extra { get; set; }
+}
+
+/// <summary>路由页面：把"路由 ↔ 模板"关联起来，配置模板所需数据即可显示页面</summary>
+public class DynWebPage
+{
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+    public int Id { get; set; }
+    public int ProjectId { get; set; }
+
+    /// <summary>路由路径（如 /home /drawings）</summary>
+    [SugarColumn(Length = 200, IsNullable = false)]
+    public string Route { get; set; } = "";
+
+    [SugarColumn(Length = 100, IsNullable = false)]
+    public string Name { get; set; } = "";
+
+    [SugarColumn(Length = 100, IsNullable = true)]
+    public string? Title { get; set; }
+
+    /// <summary>使用的模板 Id</summary>
+    public int TemplateId { get; set; }
+
+    /// <summary>页面配置 JSON（DynWebPageConfig）：可覆盖模板的 filter/summary/detail + 模板实例数据</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? Config { get; set; }
+
+    /// <summary>是否主页（首页路由）</summary>
+    public bool IsHome { get; set; }
+    public bool IsEnabled { get; set; } = true;
+    public int SortOrder { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+/// <summary>路由页面配置：覆盖模板的三屏 pageId + 模板实例数据（Params）</summary>
+public class DynWebPageConfig
+{
+    /// <summary>覆盖模板的 Filter 屏 Id（空 → 用模板的）</summary>
+    public int? FilterPageId { get; set; }
+    /// <summary>覆盖模板的 Summary 屏 Id</summary>
+    public int? SummaryPageId { get; set; }
+    /// <summary>覆盖模板的 Detail 屏 Id</summary>
+    public int? DetailPageId { get; set; }
+    /// <summary>模板实例数据（如主页展示内容 / 默认查询参数）</summary>
+    public Dictionary<string, object?>? Params { get; set; }
+    /// <summary>预留扩展</summary>
+    public Dictionary<string, object?>? Extra { get; set; }
+}
+
+/// <summary>路由页面运行时模型（List 模板：Filter 屏 + Summary 屏 + Detail 屏 组合）</summary>
+public class DynRouteListModel
+{
+    public DynProject? Project { get; set; }
+    public DynWebPage? WebPage { get; set; }
+    public DynTemplate? Template { get; set; }
+    public DynPage? FilterPage { get; set; }
+    public DynPage? SummaryPage { get; set; }
+    public DynPage? DetailPage { get; set; }
+    public DynPageDefinition? FilterDef { get; set; }
+    public DynPageDefinition? SummaryDef { get; set; }
+    public DynTemplateConfig? TemplateConfig { get; set; }
+    public DynWebPageConfig? PageConfig { get; set; }
+    public Dictionary<string, object?>? Filter { get; set; }
+    public PagedResult<Dictionary<string, object?>>? Result { get; set; }
+}
+
+/// <summary>路由页面运行时模型（Home 模板：主页）</summary>
+public class DynRouteHomeModel
+{
+    public DynProject? Project { get; set; }
+    public DynWebPage? WebPage { get; set; }
+    public DynTemplate? Template { get; set; }
+    public DynWebPageConfig? PageConfig { get; set; }
+    public DynPageDefinition? HomeSummaryDef { get; set; }
+    public PagedResult<Dictionary<string, object?>>? HomeResult { get; set; }
+    /// <summary>主页快捷入口（其它路由页面）</summary>
+    public List<DynWebPage>? Pages { get; set; }
 }
 
 // ==================== 预览运行时视图模型 ====================

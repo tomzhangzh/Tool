@@ -1,0 +1,1 @@
+{"id":0,"projectId":2,"name":"图纸列表模板","code":"drawing_list","templateType":"List","filterPageId":17,"summaryPageId":6,"detailPageId":5,"config":"{\"detailOpenMode\":\"modal\",\"addParams\":{\"Status\":\"Draft\"}}","remark":"CAD 图纸管理：Filter+汇总+Detail","isEnabled":true}

@@ -108,6 +108,46 @@ public class DynProjectController : Controller
         return Ok(new { r.Success, r.Message });
     }
 
+    // ==================== 设计层：模板管理 ====================
+
+    [HttpGet("/api/dynproject/{projectId}/templates")]
+    public IActionResult Templates(int projectId)
+        => Ok(new { success = true, data = _svc.GetTemplates(projectId) });
+
+    [HttpPost("/api/dynproject/template/save")]
+    public IActionResult SaveTemplate([FromBody] DynTemplate t)
+    {
+        var r = _svc.SaveTemplate(t);
+        return Ok(new { r.Success, r.Message, r.Data });
+    }
+
+    [HttpDelete("/api/dynproject/template/{id}")]
+    public IActionResult DeleteTemplate(int id)
+    {
+        var r = _svc.DeleteTemplate(id);
+        return Ok(new { r.Success, r.Message });
+    }
+
+    // ==================== 设计层：路由页面管理 ====================
+
+    [HttpGet("/api/dynproject/{projectId}/webpages")]
+    public IActionResult WebPages(int projectId)
+        => Ok(new { success = true, data = _svc.GetWebPages(projectId) });
+
+    [HttpPost("/api/dynproject/webpage/save")]
+    public IActionResult SaveWebPage([FromBody] DynWebPage w)
+    {
+        var r = _svc.SaveWebPage(w);
+        return Ok(new { r.Success, r.Message, r.Data });
+    }
+
+    [HttpDelete("/api/dynproject/webpage/{id}")]
+    public IActionResult DeleteWebPage(int id)
+    {
+        var r = _svc.DeleteWebPage(id);
+        return Ok(new { r.Success, r.Message });
+    }
+
     /// <summary>生成视图：返回 SQL 视图脚本 + 独立 .cshtml 源码，可选写入文件 / 在工程库执行</summary>
     [HttpPost("/api/dynproject/page/view")]
     public IActionResult GenerateView([FromBody] DynPageViewRequest req)
@@ -166,6 +206,38 @@ public class DynProjectController : Controller
 
         return Ok(new { success = true, data = new { sqlView, cshtml, savedPath } });
     }
+
+    /// <summary>数据库管理：只读 SQL 查询（仅允许 SELECT / WITH）</summary>
+    [HttpPost("/api/dynproject/{projectId}/sql")]
+    public IActionResult RunSql(int projectId, [FromBody] SqlQueryRequest req)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.Sql)) return Ok(new { success = false, message = "SQL 不能为空" });
+        var sql = req.Sql.Trim();
+        if (!sql.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+            && !sql.StartsWith("WITH", StringComparison.OrdinalIgnoreCase))
+            return Ok(new { success = false, message = "仅支持只读 SELECT 查询" });
+        var p = _svc.GetProject(projectId);
+        if (p == null) return Ok(new { success = false, message = "工程不存在" });
+        try
+        {
+            using var db = _svc.CreateProjectClient(p);
+            var dt = db.Ado.GetDataTable(sql);
+            var cols = dt.Columns.Cast<System.Data.DataColumn>().Select(c => c.ColumnName).ToList();
+            var rows = new List<Dictionary<string, object?>>();
+            foreach (System.Data.DataRow r in dt.Rows)
+            {
+                var d = new Dictionary<string, object?>();
+                foreach (System.Data.DataColumn c in dt.Columns)
+                    d[c.ColumnName] = r[c] == System.DBNull.Value ? null : r[c];
+                rows.Add(d);
+            }
+            return Ok(new { success = true, columns = cols, rows = rows, count = rows.Count });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
 }
 
 public class DynPageViewRequest
@@ -175,4 +247,9 @@ public class DynPageViewRequest
     public bool WithSqlView { get; set; }
     public bool ExecuteSql { get; set; }
     public bool WriteFiles { get; set; }
+}
+
+public class SqlQueryRequest
+{
+    public string? Sql { get; set; }
 }

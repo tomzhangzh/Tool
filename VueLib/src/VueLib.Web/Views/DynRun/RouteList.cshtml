@@ -1,0 +1,329 @@
+@model VueLib.Web.Models.DynRouteListModel
+@using VueLib.Web.Models
+@using Newtonsoft.Json
+@using VueLib.Web.Controllers
+@{
+    Layout = null;
+    var project = Model.Project!;
+    var webPage = Model.WebPage!;
+    var filterDef = Model.FilterDef ?? Model.SummaryDef ?? new DynPageDefinition();
+    var summaryDef = Model.SummaryDef ?? new DynPageDefinition();
+    var detailPageId = Model.DetailPage?.Id ?? 0;
+    var summaryPageId = Model.SummaryPage?.Id ?? 0;
+    var projId = project.Id;
+    var route = webPage.Route;
+
+    // 数据源 url：模板可指定自定义 url；否则走通用后端
+    var dataUrl = string.IsNullOrWhiteSpace(Model.TemplateConfig?.DataUrl)
+        ? $"/DynRun/Route/List?projectId={projId}&route={route}"
+        : Model.TemplateConfig!.DataUrl.Trim();
+
+    // 详情打开路径（{id} 占位保留给 JS 替换）
+    string detailOpenPath;
+    if (!string.IsNullOrWhiteSpace(Model.TemplateConfig?.DetailOpenPath))
+    {
+        detailOpenPath = Model.TemplateConfig.DetailOpenPath
+            .Replace("{projectId}", projId.ToString())
+            .Replace("{pageId}", detailPageId.ToString());
+    }
+    else
+    {
+        detailOpenPath = $"/DynRun/Detail?projectId={projId}&pageId={detailPageId}&id={{id}}";
+    }
+    if (!detailOpenPath.Contains("{id}")) detailOpenPath += "{id}";
+
+    var detailOpenMode = string.IsNullOrWhiteSpace(Model.TemplateConfig?.DetailOpenMode)
+        ? "modal" : Model.TemplateConfig!.DetailOpenMode;
+    var deleteUrl = string.IsNullOrWhiteSpace(Model.TemplateConfig?.DeleteUrl)
+        ? $"/DynRun/Delete?projectId={projId}&pageId={(detailPageId > 0 ? detailPageId : summaryPageId)}&id="
+        : Model.TemplateConfig!.DeleteUrl;
+    var addParamsJson = Model.TemplateConfig?.AddParams != null
+        ? JsonConvert.SerializeObject(Model.TemplateConfig.AddParams)
+        : "null";
+
+    var modelJson = DynRunController.JsonModel(new
+    {
+        Filter = Model.Filter ?? new Dictionary<string, object?>(),
+        Rows = Model.Result?.Rows ?? new List<Dictionary<string, object?>>(),
+        PageInfo = new
+        {
+            CurrentPage = Model.Result?.PageIndex ?? 1,
+            PageSize = Model.Result?.PageSize ?? (summaryDef.PageSize > 0 ? summaryDef.PageSize : 10),
+            TotalCount = Model.Result?.TotalCount ?? 0,
+            TotalPages = Model.Result?.TotalPages ?? 0
+        }
+    });
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@(project.DisplayName ?? project.Name) - @(webPage.Title ?? webPage.Name)</title>
+<link rel="stylesheet" href="~/css/element-plus.css">
+<link rel="stylesheet" href="~/css/dyn.css">
+<style>
+    body { margin:0; font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#f0f2f5; }
+    .view-topbar { background:#fff; border-bottom:1px solid #e4e7ed; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+    .view-topbar .proj { font-weight:600; font-size:15px; }
+    .view-topbar .page { color:#409eff; font-size:13px; background:#ecf5ff; padding:2px 10px; border-radius:10px; }
+    .view-topbar .route { color:#909399; font-size:12px; }
+    .dyn-page { padding:14px; }
+</style>
+</head>
+<body>
+<div class="view-topbar">
+    <span class="proj">@(project.DisplayName ?? project.Name)</span>
+    <span class="page">@(webPage.Title ?? webPage.Name)</span>
+    <span class="route">@(webPage.Route)</span>
+    <span style="color:#909399;font-size:12px;flex:1;"></span>
+    <span style="color:#909399;font-size:12px;">模板：@(Model.Template?.Name)</span>
+</div>
+
+<div dyn-init class="dyn-page">
+    <script type="application/json" tag="dynmodel">@Html.Raw(modelJson)</script>
+
+    <!-- ============ Filter 屏（模板组装的查询屏定义：仅筛选字段，无按钮） ============ -->
+    <div class="dyn-card">
+        <div class="dyn-card-title">查询条件</div>
+        <div class="dyn-filter">
+            @foreach (var c in filterDef.Columns.Where(x => x.IsFilter && x.Control != "switch").OrderBy(x => x.Order))
+            {
+                if (c.Control == "select")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-select v-model="model.Filter.@c.Name" placeholder="请选择@(c.Label)" clearable style="width:150px">
+                            @foreach (var o in c.Options)
+                            {
+                                <el-option label="@o.Label" value="@o.Value"></el-option>
+                            }
+                        </el-select>
+                    </el-form-item>
+                }
+                else if (c.Control == "input-number")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-input-number v-model="model.Filter.@c.Name" :controls="false" style="width:140px"></el-input-number>
+                    </el-form-item>
+                }
+                else if (c.Control == "date")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-date-picker v-model="model.Filter.@c.Name" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:150px"></el-date-picker>
+                    </el-form-item>
+                }
+                else if (c.Control == "datetime")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-date-picker v-model="model.Filter.@c.Name" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="选择时间" style="width:170px"></el-date-picker>
+                    </el-form-item>
+                }
+                else
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-input v-model="model.Filter.@c.Name" placeholder="请输入@(c.Label)" clearable style="width:150px"></el-input>
+                    </el-form-item>
+                }
+            }
+
+            <el-button type="primary" @@click="doQuery">查询</el-button>
+            <el-button @@click="resetFilter">重置</el-button>
+        </div>
+    </div>
+
+    <!-- ============ Summary 屏（模板组装的汇总屏定义：纯表格 + 分页） ============ -->
+    <div class="dyn-card">
+        <div class="dyn-card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>@(webPage.Title ?? webPage.Name)</span>
+            @if (detailPageId > 0)
+            {
+                <el-button type="primary" size="small" @@click="onAdd">＋ 新增</el-button>
+            }
+        </div>
+        <el-table ref="tableRef" :data="model.Rows" border stripe size="default" v-loading="loading"
+                  :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
+            @if (summaryDef.Navs != null && summaryDef.Navs.Count > 0)
+            {
+                <el-table-column type="expand">
+                    <template #default="scope">
+                        <div v-if="scope.row._nav" class="dyn-nav-panel">
+                            <div v-for="(v, k) in scope.row._nav" :key="k" class="dyn-nav-item">
+                                <div class="dyn-nav-title">{{ k }}<span class="dyn-nav-type">（{{ Array.isArray(v) ? '一对多' : '多对一' }}）</span></div>
+                                <el-table v-if="Array.isArray(v)" :data="v" size="small" border style="width:100%">
+                                    <el-table-column v-for="col in navCols(v)" :key="col.prop" :prop="col.prop" :label="col.label" :width="col.width" show-overflow-tooltip></el-table-column>
+                                </el-table>
+                                <el-descriptions v-else-if="v" :column="4" size="small" border class="dyn-nav-obj">
+                                    <el-descriptions-item v-for="(vv, kk) in v" :key="kk" :label="kk">{{ vv }}</el-descriptions-item>
+                                </el-descriptions>
+                                <div v-else class="dyn-nav-empty">无关联数据</div>
+                            </div>
+                        </div>
+                    </template>
+                </el-table-column>
+            }
+            @foreach (var c in summaryDef.Columns.Where(x => x.IsGrid).OrderBy(x => x.Order))
+            {
+                if (c.DbType == "bool")
+                {
+                    <el-table-column label="@c.Label" width="@(c.Width > 0 ? c.Width : 90)" align="center">
+                        <template #default="scope">
+                            <el-tag :type="scope.row.@c.Name ? 'success' : 'info'" size="small">{{ scope.row.@c.Name ? '是' : '否' }}</el-tag>
+                        </template>
+                    </el-table-column>
+                }
+                else
+                {
+                    <el-table-column prop="@c.Name" label="@c.Label" width="@(c.Width > 0 ? c.Width : 130)" show-overflow-tooltip></el-table-column>
+                }
+            }
+            @if (detailPageId > 0)
+            {
+                <el-table-column label="操作" width="150" align="center" fixed="right">
+                    <template #default="scope">
+                        <el-button size="small" type="primary" link @@click="onEdit(scope.row)">编辑</el-button>
+                        <el-button size="small" type="danger" link @@click="onDelete(scope.row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            }
+        </el-table>
+
+        <div class="dyn-pager">
+            <el-pagination
+                v-model:current-page="model.PageInfo.CurrentPage"
+                v-model:page-size="model.PageInfo.PageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="model.PageInfo.TotalCount"
+                layout="total, sizes, prev, pager, next, jumper"
+                background
+                @@current-change="onPageChange"
+                @@size-change="onSizeChange"></el-pagination>
+        </div>
+    </div>
+
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function ({ model, element }) {
+                var cfg = {
+                    dataUrl: @Html.Raw(JsonConvert.SerializeObject(dataUrl)),
+                    detailOpenPath: @Html.Raw(JsonConvert.SerializeObject(detailOpenPath)),
+                    detailOpenMode: @Html.Raw(JsonConvert.SerializeObject(detailOpenMode)),
+                    deleteUrl: @Html.Raw(JsonConvert.SerializeObject(deleteUrl)),
+                    addParams: @Html.Raw(addParamsJson),
+                    pkName: '@(summaryDef.PrimaryKey)',
+                    loading: false
+                };
+                var self = {
+                    navCols: function (rows) {
+                        if (!rows || !rows.length) return [];
+                        return Object.keys(rows[0]).map(function (k) {
+                            return { prop: k, label: k, width: Math.max(110, Math.min(220, k.length * 20 + 60)) };
+                        });
+                    },
+                    doQuery: function () {
+                        self.loading = true;
+                        $.ajax({
+                            url: cfg.dataUrl,
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({
+                                filter: model.Filter,
+                                pageInfo: { currentPage: model.PageInfo.CurrentPage, pageSize: model.PageInfo.PageSize }
+                            })
+                        }).done(function (res) {
+                            if (res && (res.success === false)) { ElMessage.error(res.message || '查询失败'); return; }
+                            model.Rows = res.rows || [];
+                            model.PageInfo.TotalCount = res.totalCount || 0;
+                            model.PageInfo.TotalPages = res.totalPages || 1;
+                            if (res.pageIndex) model.PageInfo.CurrentPage = res.pageIndex;
+                            if (res.pageSize) model.PageInfo.PageSize = res.pageSize;
+                        }).fail(function () { ElMessage.error('查询失败'); })
+                          .always(function () { self.loading = false; });
+                    },
+                    resetFilter: function () {
+                        Object.keys(model.Filter).forEach(function (k) { model.Filter[k] = undefined; });
+                        model.PageInfo.CurrentPage = 1;
+                        self.doQuery();
+                    },
+                    buildDetailUrl: function (id) {
+                        var url = cfg.detailOpenPath.replace('{id}', id || 0);
+                        if (id <= 0 && cfg.addParams && Object.keys(cfg.addParams).length) {
+                            var sep = url.indexOf('?') >= 0 ? '&' : '?';
+                            url += sep + '_params=' + encodeURIComponent(JSON.stringify(cfg.addParams));
+                        }
+                        return url;
+                    },
+                    onAdd: function () { self.openDetail(self.buildDetailUrl(0)); },
+                    onEdit: function (row) { self.openDetail(self.buildDetailUrl(row[cfg.pkName])); },
+                    openDetail: function (url) {
+                        if (cfg.detailOpenMode === 'newtab') { window.open(url, '_blank'); return; }
+                        if (cfg.detailOpenMode === 'window') {
+                            if (window.dynOpenUrl) window.dynOpenUrl(url, '详情');
+                            else window.open(url, '_blank');
+                            return;
+                        }
+                        dyn.open({ url: url, title: '详情', width: '60%' }, element);
+                    },
+                    onDelete: function (row) {
+                        var url = cfg.deleteUrl;
+                        if (url.indexOf('{id}') >= 0) url = url.replace('{id}', row[cfg.pkName]);
+                        else if (url.indexOf('id=') >= 0) url += row[cfg.pkName];
+                        else url += (url.indexOf('?') >= 0 ? '&' : '?') + 'id=' + row[cfg.pkName];
+                        ElMessageBox.confirm('确认删除该记录？', '提示', { type: 'warning' }).then(function () {
+                            $.post(url).done(function (r) {
+                                if (r && r.success === false) { ElMessage.error(r.message || '删除失败'); return; }
+                                ElMessage.success('已删除');
+                                self.doQuery();
+                            });
+                        }).catch(function () {});
+                    },
+                    onPageChange: function (page) {
+                        model.PageInfo.CurrentPage = page || 1;
+                        self.doQuery();
+                    },
+                    onSizeChange: function (size) {
+                        model.PageInfo.PageSize = size || 10;
+                        model.PageInfo.CurrentPage = 1;
+                        self.doQuery();
+                    }
+                };
+                return self;
+            },
+            // 详情模态保存后刷新列表（dyn-lib reload 对 #dynHost 兜底）+ 窗口尺寸变化重排表格
+            mounted: function () {
+                var self = this;
+                window.__dynRouteReload = function () { if (typeof self.doQuery === 'function') self.doQuery(); };
+                var timer = null;
+                var relayout = function () {
+                    if (timer) clearTimeout(timer);
+                    timer = setTimeout(function () {
+                        var t = self.$refs.tableRef;
+                        if (t && t.doLayout) t.doLayout();
+                    }, 100);
+                };
+                this.__dynRelayout = relayout;
+                window.addEventListener('resize', relayout);
+            },
+            unmounted: function () {
+                window.__dynRouteReload = null;
+                if (this.__dynRelayout) {
+                    window.removeEventListener('resize', this.__dynRelayout);
+                    this.__dynRelayout = null;
+                }
+            }
+        };
+    </script>
+</div>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/js/vue.global.prod.js"></script>
+<script src="~/js/element-plus.full.min.js"></script>
+<script src="~/js/element-plus-icons.min.js"></script>
+<script src="~/js/lodash.min.js"></script>
+<script src="~/js/dyn-lib.js"></script>
+<script>
+    window.ElMessage = ElementPlus.ElMessage;
+    window.ElMessageBox = ElementPlus.ElMessageBox;
+    document.addEventListener('DOMContentLoaded', function () { dyn.initAll(); });
+</script>
+</body>
+</html>

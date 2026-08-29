@@ -56,7 +56,7 @@ public class DynRunController : Controller
     }
 
     [HttpGet]
-    public IActionResult Detail(int projectId, int pageId, int id = 0)
+    public IActionResult Detail(int projectId, int pageId, int id = 0, string? _params = null)
     {
         var project = _svc.GetProject(projectId);
         var page = _svc.GetPage(pageId);
@@ -68,11 +68,134 @@ public class DynRunController : Controller
         var row = id > 0
             ? _crud.GetByPk(db, page.TableName ?? "", id, def.PrimaryKey, QuerySource(page))
             : BuildEmptyRow(def);
+        // 新增时模板预填参数（addParams）：合并进空行
+        if (id <= 0 && !string.IsNullOrWhiteSpace(_params))
+        {
+            try
+            {
+                var extra = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object?>>(_params);
+                if (extra != null)
+                    foreach (var kv in extra)
+                        if (!string.IsNullOrWhiteSpace(kv.Key) && row.ContainsKey(kv.Key))
+                            row[kv.Key] = kv.Value is System.Text.Json.JsonElement je ? JsonElementToObject(je) : kv.Value;
+            }
+            catch { }
+        }
         // 外键导航注入（多对一 object / 一对多 array）
         if (id > 0 && row.Count > 0) _crud.LoadNavs(db, def, new[] { row });
 
         var model = new DynRunDetailModel { Project = project, Page = page, Def = def, Row = row };
         return PartialView("_Detail", model);
+    }
+
+    // ==================== 路由页面运行时（模板驱动） ====================
+
+    /// <summary>按"路由"渲染页面：路由 → 模板（List=Filter+Summary+Detail / Home=主页）</summary>
+    [HttpGet("/DynRun/Route")]
+    public IActionResult Route(int projectId, string route)
+    {
+        var project = _svc.GetProject(projectId);
+        var wp = _svc.FindWebPage(projectId, route);
+        if (project == null || wp == null) return NotFound("路由页面不存在");
+        var template = _svc.GetTemplate(wp.TemplateId);
+        if (template == null) return NotFound("模板不存在");
+
+        var tcfg = DynProjectService.ParseTemplateConfig(template);
+        var (fp, sp, dp) = DynProjectService.EffectivePageIds(wp, template);
+
+        if (template.TemplateType == "Home")
+        {
+            var homeModel = new DynRouteHomeModel
+            {
+                Project = project,
+                WebPage = wp,
+                Template = template,
+                PageConfig = DynProjectService.ParseWebPageConfig(wp),
+                Pages = _svc.GetWebPages(projectId).Where(x => x.Id != wp.Id && x.IsEnabled).ToList()
+            };
+            // 主页模板可配置一个 Summary 屏做数据看板
+            if (sp > 0)
+            {
+                var spage = _svc.GetPage(sp.Value);
+                var sdef = spage != null ? ParseDef(spage) : null;
+                if (spage != null && sdef != null)
+                {
+                    homeModel.HomeSummaryDef = sdef;
+                    using var db = _svc.CreateProjectClient(project);
+                    homeModel.HomeResult = _crud.ListPaged(db, spage.TableName ?? "", sdef, null, 1, sdef.PageSize > 0 ? sdef.PageSize : 10, QuerySource(spage));
+                }
+            }
+            return View("RouteHome", homeModel);
+        }
+
+        // List 模板（默认）
+        var filterPage = fp > 0 ? _svc.GetPage(fp.Value) : null;
+        var summaryPage = sp > 0 ? _svc.GetPage(sp.Value) : null;
+        var detailPage = dp > 0 ? _svc.GetPage(dp.Value) : null;
+        if (summaryPage == null) return BadRequest("模板未配置汇总屏");
+        var filterDef = filterPage != null ? ParseDef(filterPage) : null;
+        var summaryDef = ParseDef(summaryPage);
+        if (summaryDef == null) return BadRequest("汇总屏定义无效");
+
+        // 初始数据（通用后端）；若配置了自定义数据 url，则由前端另行请求
+        var listModel = new DynRouteListModel
+        {
+            Project = project,
+            WebPage = wp,
+            Template = template,
+            FilterPage = filterPage,
+            SummaryPage = summaryPage,
+            DetailPage = detailPage,
+            FilterDef = filterDef,
+            SummaryDef = summaryDef,
+            TemplateConfig = tcfg,
+            PageConfig = DynProjectService.ParseWebPageConfig(wp),
+            Filter = new Dictionary<string, object?>()
+        };
+        if (string.IsNullOrWhiteSpace(tcfg?.DataUrl))
+        {
+            using var db = _svc.CreateProjectClient(project);
+            var qd = DynCrudService.BuildQueryDef(summaryDef, filterDef);
+            var result = _crud.ListPaged(db, summaryPage.TableName ?? "", qd, null, 1, summaryDef.PageSize > 0 ? summaryDef.PageSize : 10, QuerySource(summaryPage));
+            _crud.LoadNavs(db, summaryDef, result.Rows);
+            listModel.Result = result;
+        }
+        else
+        {
+            listModel.Result = new PagedResult<Dictionary<string, object?>>();
+        }
+        return View("RouteList", listModel);
+    }
+
+    /// <summary>List 模板的数据接口：Filter 屏定义筛选字段，Summary 屏定义表格/排序/分页</summary>
+    [HttpPost("/DynRun/Route/List")]
+    public IActionResult RouteList(int projectId, string route, [FromBody] DynSummaryPost? post)
+    {
+        var project = _svc.GetProject(projectId);
+        var wp = _svc.FindWebPage(projectId, route);
+        if (project == null || wp == null) return BadRequest("路由页面不存在");
+        var template = _svc.GetTemplate(wp.TemplateId);
+        if (template == null) return BadRequest("模板不存在");
+        var (fp, sp, _) = DynProjectService.EffectivePageIds(wp, template);
+        var summaryPage = sp > 0 ? _svc.GetPage(sp.Value) : null;
+        if (summaryPage == null) return BadRequest("模板未配置汇总屏");
+        var summaryDef = ParseDef(summaryPage);
+        if (summaryDef == null) return BadRequest("汇总屏定义无效");
+
+        var filterDef = fp > 0 ? ParseDef(_svc.GetPage(fp.Value)) : null;
+
+        var filter = new Dictionary<string, object?>();
+        if (post?.Filter != null)
+            foreach (var kv in post.Filter)
+                filter[kv.Key] = kv.Value is System.Text.Json.JsonElement je ? JsonElementToObject(je) : kv.Value;
+        var pageIndex = post?.PageInfo?.CurrentPage ?? 1;
+        var pageSize = post?.PageInfo?.PageSize ?? (summaryDef.PageSize > 0 ? summaryDef.PageSize : 10);
+
+        using var db = _svc.CreateProjectClient(project);
+        var qd = DynCrudService.BuildQueryDef(summaryDef, filterDef);
+        var result = _crud.ListPaged(db, summaryPage.TableName ?? "", qd, filter, pageIndex, pageSize, QuerySource(summaryPage));
+        _crud.LoadNavs(db, summaryDef, result.Rows);
+        return Json(result);
     }
 
     [HttpPost]

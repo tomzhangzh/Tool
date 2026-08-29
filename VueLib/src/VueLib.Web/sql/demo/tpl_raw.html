@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模板管理 - CAD &#x56FE;&#x7EB8;&#x7CFB;&#x7EDF;</title>
+<link rel="stylesheet" href="/css/element-plus.css">
+<style>
+    body { margin:0; background:#f0f2f5; font-family:'Segoe UI','Microsoft YaHei',sans-serif; }
+    .bar { background:#fff; border-bottom:1px solid #e4e7ed; padding:10px 16px; display:flex; align-items:center; gap:10px; }
+    .bar h2 { margin:0; font-size:16px; }
+    .wrap { padding:14px; }
+    .cfg-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+    .cfg-full { grid-column:1 / -1; }
+    .tip { color:#909399; font-size:12px; line-height:1.6; }
+</style>
+</head>
+<body>
+<div id="app">
+    <div class="bar">
+        <h2>🧩 模板管理</h2>
+        <span style="color:#909399;font-size:12px;">把 Filter 屏 + 汇总屏 + Detail 屏组装成可复用模板</span>
+        <span style="flex:1"></span>
+        <el-button type="primary" size="small" @click="openAdd">＋ 新建模板</el-button>
+    </div>
+    <div class="wrap">
+        <el-table :data="templates" border stripe size="default" v-loading="loading">
+            <el-table-column prop="name" label="模板名称" min-width="140"></el-table-column>
+            <el-table-column prop="code" label="编码" min-width="120"></el-table-column>
+            <el-table-column prop="templateType" label="类型" width="90">
+                <template #default="s"><el-tag :type="s.row.templateType==='Home'?'success':'primary'" size="small">{{ s.row.templateType }}</el-tag></template>
+            </el-table-column>
+            <el-table-column label="Filter 屏" width="130">
+                <template #default="s">{{ pageName(s.row.filterPageId) }}</template>
+            </el-table-column>
+            <el-table-column label="汇总屏" width="130">
+                <template #default="s">{{ pageName(s.row.summaryPageId) }}</template>
+            </el-table-column>
+            <el-table-column label="Detail 屏" width="130">
+                <template #default="s">{{ pageName(s.row.detailPageId) }}</template>
+            </el-table-column>
+            <el-table-column label="数据 url" min-width="150" show-overflow-tooltip>
+                <template #default="s">{{ cfgOf(s.row)?.dataUrl || '通用后端' }}</template>
+            </el-table-column>
+            <el-table-column label="启用" width="70">
+                <template #default="s"><el-switch :model-value="s.row.isEnabled" disabled></el-switch></template>
+            </el-table-column>
+            <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
+            <el-table-column label="操作" width="130" fixed="right">
+                <template #default="s">
+                    <el-button size="small" type="primary" link @click="openEdit(s.row)">编辑</el-button>
+                    <el-button size="small" type="danger" link @click="del(s.row)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+    </div>
+
+    <el-dialog v-model="dlg" :title="form.id ? '编辑模板' : '新建模板'" width="720px" :close-on-click-modal="false">
+        <el-form :model="form" label-width="100px" size="default">
+            <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="模板名称" required><el-input v-model="form.name" placeholder="如：图纸列表模板"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="模板编码" required><el-input v-model="form.code" placeholder="如：drawing_list"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="模板类型">
+                    <el-select v-model="form.templateType" style="width:100%">
+                        <el-option label="List（列表：Filter+汇总+Detail）" value="List"></el-option>
+                        <el-option label="Home（主页）" value="Home"></el-option>
+                        <el-option label="Custom（自定义）" value="Custom"></el-option>
+                    </el-select>
+                </el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="备注"><el-input v-model="form.remark"></el-input></el-form-item></el-col>
+            </el-row>
+
+            <el-divider content-position="left">组装三屏</el-divider>
+            <el-row :gutter="16">
+                <el-col :span="8"><el-form-item label="Filter 屏">
+                    <el-select v-model="form.filterPageId" clearable placeholder="选择查询屏" style="width:100%">
+                        <el-option v-for="p in filterPages" :key="p.id" :label="p.name" :value="p.id"></el-option>
+                    </el-select>
+                </el-form-item></el-col>
+                <el-col :span="8"><el-form-item label="汇总屏">
+                    <el-select v-model="form.summaryPageId" clearable placeholder="选择汇总屏" style="width:100%">
+                        <el-option v-for="p in summaryPages" :key="p.id" :label="p.name" :value="p.id"></el-option>
+                    </el-select>
+                </el-form-item></el-col>
+                <el-col :span="8"><el-form-item label="Detail 屏">
+                    <el-select v-model="form.detailPageId" clearable placeholder="选择详情屏" style="width:100%">
+                        <el-option v-for="p in detailPages" :key="p.id" :label="p.name" :value="p.id"></el-option>
+                    </el-select>
+                </el-form-item></el-col>
+            </el-row>
+
+            <el-divider content-position="left">模板配置</el-divider>
+            <div class="cfg-grid">
+                <el-form-item label="Detail 打开路径">
+                    <el-input v-model="form.cfg.detailOpenPath" placeholder="可留空（用默认） /DynRun/Detail?projectId={projectId}&pageId={pageId}&id={id}"></el-input>
+                </el-form-item>
+                <el-form-item label="Detail 打开方式">
+                    <el-select v-model="form.cfg.detailOpenMode" style="width:100%">
+                        <el-option label="模态对话框" value="modal"></el-option>
+                        <el-option label="新窗口（desktop）" value="window"></el-option>
+                        <el-option label="新标签页" value="newtab"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="新增预填参数" class="cfg-full">
+                    <el-input v-model="form.cfg.addParamsText" type="textarea" :rows="2" placeholder='JSON，如 {"Status":"Draft","Kind":"Drawing"}'></el-input>
+                </el-form-item>
+                <el-form-item label="删除 url">
+                    <el-input v-model="form.cfg.deleteUrl" placeholder="可留空（用通用删除）"></el-input>
+                </el-form-item>
+                <el-form-item label="自定义数据 url">
+                    <el-input v-model="form.cfg.dataUrl" placeholder="留空用通用后端（按汇总屏查询）"></el-input>
+                </el-form-item>
+            </div>
+            <div class="tip">说明：Detail 打开路径支持 {projectId} {pageId} {id} 占位；自定义数据 url 需返回 { rows, totalCount, pageIndex, pageSize }。</div>
+        </el-form>
+        <template #footer>
+            <el-button @click="dlg=false">取消</el-button>
+            <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script src="/lib/jquery/dist/jquery.min.js"></script>
+<script src="/js/vue.global.prod.js"></script>
+<script src="/js/element-plus.full.min.js"></script>
+<script src="/js/element-plus-icons.min.js"></script>
+<script>
+const { createApp, ref, reactive, computed, onMounted } = Vue;
+const PROJECT_ID = 2;
+createApp({
+    setup() {
+        const templates = ref([]);
+        const pages = ref([]);
+        const loading = ref(false);
+        const saving = ref(false);
+        const dlg = ref(false);
+        const form = reactive({ id:0, projectId:PROJECT_ID, name:'', code:'', templateType:'List', filterPageId:null, summaryPageId:null, detailPageId:null, remark:'',
+            cfg:{ detailOpenPath:'', detailOpenMode:'modal', addParamsText:'', deleteUrl:'', dataUrl:'' } });
+
+        const filterPages = computed(() => pages.value.filter(p => p.pageType === 'Filter'));
+        const summaryPages = computed(() => pages.value.filter(p => p.pageType === 'Summary'));
+        const detailPages = computed(() => pages.value.filter(p => p.pageType === 'Detail'));
+
+        function pageName(id) { const p = pages.value.find(x=>x.id===id); return p ? p.name : '—'; }
+        function cfgOf(t) { try { return t.config ? JSON.parse(t.config) : {}; } catch { return {}; } }
+
+        async function load() {
+            loading.value = true;
+            try {
+                const [t, pg] = await Promise.all([
+                    $.getJSON('/api/dynproject/'+PROJECT_ID+'/templates'),
+                    $.getJSON('/api/dynproject/'+PROJECT_ID+'/pages')
+                ]);
+                templates.value = t.data || [];
+                pages.value = pg.data || [];
+            } catch(e) { ElMessage.error('加载失败'); }
+            loading.value = false;
+        }
+        function openAdd() {
+            Object.assign(form, { id:0, name:'', code:'', templateType:'List', filterPageId:null, summaryPageId:null, detailPageId:null, remark:'' });
+            Object.assign(form.cfg, { detailOpenPath:'', detailOpenMode:'modal', addParamsText:'', deleteUrl:'', dataUrl:'' });
+            dlg.value = true;
+        }
+        function openEdit(t) {
+            Object.assign(form, { id:t.id, name:t.name, code:t.code, templateType:t.templateType||'List',
+                filterPageId:t.filterPageId||null, summaryPageId:t.summaryPageId||null, detailPageId:t.detailPageId||null, remark:t.remark||'' });
+            const c = cfgOf(t);
+            Object.assign(form.cfg, {
+                detailOpenPath: c.detailOpenPath||'', detailOpenMode: c.detailOpenMode||'modal',
+                addParamsText: c.addParams ? JSON.stringify(c.addParams, null, 2) : '',
+                deleteUrl: c.deleteUrl||'', dataUrl: c.dataUrl||'' });
+            dlg.value = true;
+        }
+        function buildConfig() {
+            const cfg = { detailOpenMode: form.cfg.detailOpenMode||'modal' };
+            if (form.cfg.detailOpenPath) cfg.detailOpenPath = form.cfg.detailOpenPath;
+            if (form.cfg.deleteUrl) cfg.deleteUrl = form.cfg.deleteUrl;
+            if (form.cfg.dataUrl) cfg.dataUrl = form.cfg.dataUrl;
+            const t = (form.cfg.addParamsText||'').trim();
+            if (t) { try { cfg.addParams = JSON.parse(t); } catch(e) { ElMessage.warning('新增预填参数不是合法 JSON'); return null; } }
+            return cfg;
+        }
+        async function save() {
+            if (!form.name || !form.code) { ElMessage.warning('名称与编码必填'); return; }
+            const cfg = buildConfig(); if (cfg === null) return;
+            saving.value = true;
+            try {
+                const r = await $.ajax({ url:'/api/dynproject/template/save', method:'POST', contentType:'application/json',
+                    data: JSON.stringify({ id:form.id, projectId:PROJECT_ID, name:form.name, code:form.code, templateType:form.templateType,
+                        filterPageId:form.filterPageId, summaryPageId:form.summaryPageId, detailPageId:form.detailPageId,
+                        config: Object.keys(cfg).length ? JSON.stringify(cfg) : null, remark:form.remark }) });
+                if (r.success) { ElMessage.success('已保存'); dlg.value=false; load(); }
+                else ElMessage.error(r.message || '保存失败');
+            } catch(e) { ElMessage.error('保存失败'); }
+            saving.value = false;
+        }
+        async function del(t) {
+            ElMessageBox.confirm('确认删除模板「'+t.name+'」？','提示',{type:'warning'}).then(async ()=>{
+                const r = await $.ajax({ url:'/api/dynproject/template/'+t.id, method:'DELETE' });
+                if (r.success) { ElMessage.success('已删除'); load(); } else ElMessage.error(r.message||'删除失败');
+            }).catch(()=>{});
+        }
+        onMounted(load);
+        return { templates, loading, saving, dlg, form, filterPages, summaryPages, detailPages, pageName, cfgOf, openAdd, openEdit, save, del };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

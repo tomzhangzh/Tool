@@ -1,0 +1,27 @@
+@using VueLib.Web.Models
+@{
+    Layout = null;
+    var project = ViewBag.Project as DynProject;
+    var pid = project!.Id;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>屏设计 - @(project.DisplayName ?? project.Name)</title>
+<style>
+    body { margin:0; height:100vh; overflow:hidden; font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#f0f2f5; }
+    .bar { background:#fff; border-bottom:1px solid #e4e7ed; padding:8px 14px; font-size:13px; color:#303133; display:flex; align-items:center; gap:8px; }
+    .bar b { color:#409eff; }
+    iframe { width:100%; height:calc(100% - 36px); border:none; background:#fff; }
+</style>
+</head>
+<body>
+<div class="bar">
+    <b>屏设计</b>
+    <span>选择工程中的表 → 按表定义自动生成 汇总屏（纯表格+分页）/ 查询屏（仅筛选字段）/ 细节屏（表单）→ 保存到数据库 或 生成独立视图</span>
+</div>
+<iframe src="/DynProject/Index?projectId=@pid&tab=pages"></iframe>
+</body>
+</html>

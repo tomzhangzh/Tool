@@ -301,6 +301,122 @@ public class DynProjectService
         return Op(true, "已删除");
     }
 
+    // ==================== 设计层：模板管理 + 路由页面管理 ====================
+
+    public List<DynTemplate> GetTemplates(int projectId)
+    {
+        using var db = _db.Create();
+        return db.Queryable<DynTemplate>().Where(x => x.ProjectId == projectId).OrderBy(x => x.SortOrder).OrderBy(x => x.Name).ToList();
+    }
+
+    public DynTemplate? GetTemplate(int id)
+    {
+        using var db = _db.Create();
+        return db.Queryable<DynTemplate>().InSingle(id);
+    }
+
+    public OpResult SaveTemplate(DynTemplate t)
+    {
+        if (string.IsNullOrWhiteSpace(t.Name)) return Op(false, "模板名称不能为空");
+        if (string.IsNullOrWhiteSpace(t.Code)) return Op(false, "模板编码不能为空");
+        using var db = _db.Create();
+        t.Code = t.Code.Trim();
+        t.UpdatedAt = DateTime.UtcNow;
+        if (t.Id == 0)
+        {
+            if (db.Queryable<DynTemplate>().Any(x => x.ProjectId == t.ProjectId && x.Code == t.Code))
+                return Op(false, "同工程的模板编码已存在");
+            t.CreatedAt = DateTime.UtcNow;
+            var id = db.Insertable(t).ExecuteReturnIdentity();
+            return Op(true, "保存成功", new { Id = (int)id });
+        }
+        db.Updateable(t).ExecuteCommand();
+        return Op(true, "保存成功", t);
+    }
+
+    public OpResult DeleteTemplate(int id)
+    {
+        using var db = _db.Create();
+        // 被路由页面引用时禁止删除
+        if (db.Queryable<DynWebPage>().Any(x => x.TemplateId == id))
+            return Op(false, "该模板正被路由页面使用，请先解除引用");
+        db.Deleteable<DynTemplate>().In(id).ExecuteCommand();
+        return Op(true, "已删除");
+    }
+
+    public List<DynWebPage> GetWebPages(int projectId)
+    {
+        using var db = _db.Create();
+        return db.Queryable<DynWebPage>().Where(x => x.ProjectId == projectId).OrderByDescending(x => x.IsHome).OrderBy(x => x.SortOrder).OrderBy(x => x.Name).ToList();
+    }
+
+    public DynWebPage? GetWebPage(int id)
+    {
+        using var db = _db.Create();
+        return db.Queryable<DynWebPage>().InSingle(id);
+    }
+
+    public DynWebPage? FindWebPage(int projectId, string route)
+    {
+        using var db = _db.Create();
+        var r = (route ?? "").Trim();
+        if (!r.StartsWith("/")) r = "/" + r;
+        return db.Queryable<DynWebPage>()
+            .Where(x => x.ProjectId == projectId && x.Route == r && x.IsEnabled)
+            .OrderByDescending(x => x.IsHome).First();
+    }
+
+    public OpResult SaveWebPage(DynWebPage w)
+    {
+        if (string.IsNullOrWhiteSpace(w.Name)) return Op(false, "页面名称不能为空");
+        if (string.IsNullOrWhiteSpace(w.Route)) return Op(false, "路由不能为空");
+        if (w.TemplateId <= 0) return Op(false, "请选择模板");
+        using var db = _db.Create();
+        w.Route = w.Route.Trim().StartsWith("/") ? w.Route.Trim() : "/" + w.Route.Trim();
+        w.UpdatedAt = DateTime.UtcNow;
+        if (w.Id == 0)
+        {
+            if (db.Queryable<DynWebPage>().Any(x => x.ProjectId == w.ProjectId && x.Route == w.Route))
+                return Op(false, "同工程已存在该路由");
+            w.CreatedAt = DateTime.UtcNow;
+            var id = db.Insertable(w).ExecuteReturnIdentity();
+            return Op(true, "保存成功", new { Id = (int)id });
+        }
+        db.Updateable(w).ExecuteCommand();
+        return Op(true, "保存成功", w);
+    }
+
+    public OpResult DeleteWebPage(int id)
+    {
+        using var db = _db.Create();
+        db.Deleteable<DynWebPage>().In(id).ExecuteCommand();
+        return Op(true, "已删除");
+    }
+
+    public static DynTemplateConfig? ParseTemplateConfig(DynTemplate? t)
+    {
+        if (t == null || string.IsNullOrWhiteSpace(t.Config)) return null;
+        try { return Newtonsoft.Json.JsonConvert.DeserializeObject<DynTemplateConfig>(t.Config); }
+        catch { return null; }
+    }
+
+    public static DynWebPageConfig? ParseWebPageConfig(DynWebPage? w)
+    {
+        if (w == null || string.IsNullOrWhiteSpace(w.Config)) return null;
+        try { return Newtonsoft.Json.JsonConvert.DeserializeObject<DynWebPageConfig>(w.Config); }
+        catch { return null; }
+    }
+
+    /// <summary>生效的三屏 Id：路由页面配置覆盖 > 模板配置（未指定为 null）</summary>
+    public static (int? filter, int? summary, int? detail) EffectivePageIds(DynWebPage? w, DynTemplate? t)
+    {
+        var wc = ParseWebPageConfig(w);
+        return (
+            wc?.FilterPageId ?? t?.FilterPageId,
+            wc?.SummaryPageId ?? t?.SummaryPageId,
+            wc?.DetailPageId ?? t?.DetailPageId);
+    }
+
     // ==================== 外键导航自动检测 ====================
 
     /// <summary>

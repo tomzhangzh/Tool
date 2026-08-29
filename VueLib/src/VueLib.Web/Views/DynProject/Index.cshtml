@@ -46,6 +46,11 @@
                 <el-table-column label="图标" width="60" align="center">
                     <template #default="{ row }"><span style="font-size:20px;">{{ row.icon || '📦' }}</span></template>
                 </el-table-column>
+                <el-table-column prop="type" label="类型" width="80" align="center">
+                    <template #default="{ row }">
+                        <el-tag :type="typeTagOf(row.type)" size="small">{{ row.type || 'Web' }}</el-tag>
+                    </template>
+                </el-table-column>
                 <el-table-column prop="name" label="名称" width="120"></el-table-column>
                 <el-table-column prop="displayName" label="显示名" width="120"></el-table-column>
                 <el-table-column prop="databaseName" label="数据库" width="120"></el-table-column>
@@ -58,8 +63,9 @@
                         <el-tag :type="row.isEnabled ? 'success' : 'danger'" size="small">{{ row.isEnabled ? '启用' : '停用' }}</el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column label="操作" width="330" fixed="right" align="center">
+                <el-table-column label="操作" width="380" fixed="right" align="center">
                     <template #default="{ row }">
+                        <el-button size="small" type="primary" link @@click="openDesign(row)">管理</el-button>
                         <el-button size="small" type="warning" link @@click="goPages(row)">页面管理</el-button>
                         <el-button size="small" type="success" link @@click="previewProject(row)">预览</el-button>
                         <el-button size="small" link @@click="openProjectEdit(row)">编辑</el-button>
@@ -237,6 +243,14 @@
             <el-form-item label="名称" required>
                 <el-input v-model="projForm.name" placeholder="唯一标识，如 SunnySystem"></el-input>
             </el-form-item>
+            <el-form-item label="工程类型">
+                <el-radio-group v-model="projForm.type">
+                    <el-radio value="Web">Web 网站</el-radio>
+                    <el-radio value="Phone">手机 App</el-radio>
+                    <el-radio value="PC">电脑桌面</el-radio>
+                </el-radio-group>
+                <span class="hint">默认一工程一数据库</span>
+            </el-form-item>
             <el-form-item label="显示名">
                 <el-input v-model="projForm.displayName" placeholder="如：阳光系统"></el-input>
             </el-form-item>
@@ -300,7 +314,7 @@ createApp({
         const savingProject = ref(false);
         const testing = ref(false);
         const projForm = reactive({
-            id: 0, name: '', displayName: '', databaseName: '', connectionString: '',
+            id: 0, name: '', type: 'Web', displayName: '', databaseName: '', connectionString: '',
             description: '', icon: '📦', isEnabled: true
         });
 
@@ -345,7 +359,7 @@ createApp({
                 Object.assign(projForm, row);
                 projDialogTitle.value = '编辑工程';
             } else {
-                Object.assign(projForm, { id: 0, name: '', displayName: '', databaseName: '', connectionString: '', description: '', icon: '📦', isEnabled: true });
+                Object.assign(projForm, { id: 0, name: '', type: 'Web', displayName: '', databaseName: '', connectionString: '', description: '', icon: '📦', isEnabled: true });
                 projDialogTitle.value = '新增工程';
             }
             projDialog.value = true;
@@ -392,6 +406,12 @@ createApp({
             tab.value = 'pages';
             pmProjectId.value = row.id;
             onProjectChanged();
+        }
+
+        function typeTagOf(t) { return t === 'Phone' ? 'warning' : t === 'PC' ? 'danger' : 'primary'; }
+
+        function openDesign(row) {
+            openPreview('/Design/Desktop?projectId=' + row.id, (row.displayName || row.name) + ' - 设计工作台');
         }
 
         function previewProject(row) {
@@ -611,7 +631,17 @@ createApp({
         function typeText(t) { return t === 'Summary' ? '汇总屏' : t === 'Detail' ? '细节屏' : t === 'Filter' ? '查询屏' : (t || '-'); }
         function typeTag(t) { return t === 'Summary' ? 'success' : t === 'Detail' ? 'warning' : t === 'Filter' ? 'primary' : 'info'; }
 
-        onMounted(() => { loadProjects(); });
+        onMounted(async () => {
+            await loadProjects();
+            // 支持 ?projectId=X&tab=pages 直达页面管理（供设计工作台"屏设计"窗口 iframe 使用）
+            const qs = new URLSearchParams(location.search);
+            const pid = parseInt(qs.get('projectId') || '', 10);
+            if (qs.get('tab') === 'pages' && pid > 0 && projects.value.find(p => p.id === pid)) {
+                tab.value = 'pages';
+                pmProjectId.value = pid;
+                await onProjectChanged();
+            }
+        });
 
         return {
             tab, projects, projectsLoading,
@@ -621,7 +651,7 @@ createApp({
             dataSource, viewName, navs,
             pages, savingPages, viewDialog, viewTab, sqlView, htmlView, savedPath,
             loadProjects, openProjectEdit, testProjectConnection, saveProject, deleteProject,
-            goPages, previewProject, previewPage, onProjectChanged, loadTables, loadPages,
+            goPages, typeTagOf, openDesign, previewProject, previewPage, onProjectChanged, loadTables, loadPages,
             onTableClick, saveGeneratedPages, saveFilterPage, generateSqlView, generateViewFiles, deletePage,
             typeText, typeTag
         };

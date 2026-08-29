@@ -1,0 +1,146 @@
+@using VueLib.Web.Models
+@{
+    Layout = null;
+    var project = ViewBag.Project as DynProject;
+    var pid = project!.Id;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据库管理 - @(project.DisplayName ?? project.Name)</title>
+<link rel="stylesheet" href="~/css/element-plus.css">
+<style>
+    body { margin:0; background:#f0f2f5; font-family:'Segoe UI','Microsoft YaHei',sans-serif; }
+    .bar { background:#fff; border-bottom:1px solid #e4e7ed; padding:10px 16px; display:flex; align-items:center; gap:10px; }
+    .bar h2 { margin:0; font-size:16px; }
+    .layout { display:flex; gap:14px; padding:14px; align-items:flex-start; }
+    .left { width:230px; background:#fff; border:1px solid #ebeef5; border-radius:6px; overflow:hidden; }
+    .left .h { padding:8px 12px; background:#f5f7fa; font-weight:600; font-size:13px; border-bottom:1px solid #ebeef5; }
+    .left ul { list-style:none; margin:0; padding:4px 0; max-height:520px; overflow:auto; }
+    .left li { padding:6px 12px; font-size:13px; cursor:pointer; color:#303133; }
+    .left li:hover { background:#ecf5ff; }
+    .left li.active { background:#409eff; color:#fff; }
+    .right { flex:1; display:flex; flex-direction:column; gap:14px; min-width:0; }
+    .card { background:#fff; border:1px solid #ebeef5; border-radius:6px; }
+    .card .h { padding:8px 12px; background:#f5f7fa; font-weight:600; font-size:13px; border-bottom:1px solid #ebeef5; }
+    .card .b { padding:12px; }
+    .sql-runner textarea { width:100%; height:90px; border:1px solid #dcdfe6; border-radius:4px; padding:8px; font-family:Consolas,monospace; font-size:13px; resize:vertical; box-sizing:border-box; }
+    .res-table { max-height:300px; overflow:auto; }
+    .res-table table { border-collapse:collapse; width:100%; font-size:12px; }
+    .res-table th, .res-table td { border:1px solid #ebeef5; padding:4px 8px; text-align:left; white-space:nowrap; }
+    .res-table th { background:#f5f7fa; position:sticky; top:0; }
+</style>
+</head>
+<body>
+<div id="app">
+    <div class="bar">
+        <h2>🗄️ 数据库管理</h2>
+        <span style="color:#909399;font-size:12px;">@(project.DatabaseName ?? project.ConnectionString)（只读查询）</span>
+    </div>
+    <div class="layout">
+        <div class="left">
+            <div class="h">表 / 视图（{{ tables.length }}）</div>
+            <ul>
+                <li v-for="t in tables" :key="t.name" :class="{active: currentTable===t.name}" @@click="selectTable(t.name)">{{ t.name }}</li>
+            </ul>
+        </div>
+        <div class="right">
+            <div class="card">
+                <div class="h">列信息 - {{ currentTable || '未选择' }}</div>
+                <div class="b">
+                    <el-table :data="columns" size="small" border max-height="260">
+                        <el-table-column prop="dbColumnName" label="列名" min-width="130"></el-table-column>
+                        <el-table-column prop="dataType" label="类型" width="90"></el-table-column>
+                        <el-table-column label="长度" width="70">
+                            <template #default="s">{{ s.row.length || '' }}</template>
+                        </el-table-column>
+                        <el-table-column label="可空" width="60" align="center">
+                            <template #default="s">{{ s.row.isNullable ? '是' : '否' }}</template>
+                        </el-table-column>
+                        <el-table-column label="主键" width="60" align="center">
+                            <template #default="s">{{ s.row.isPrimarykey ? '√' : '' }}</template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+            </div>
+            <div class="card sql-runner">
+                <div class="h">SQL 查询（只读 SELECT）</div>
+                <div class="b">
+                    <textarea v-model="sql" placeholder="SELECT * FROM Drawing"></textarea>
+                    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+                        <el-button type="primary" size="small" :loading="sqlLoading" @@click="runSql">执行</el-button>
+                        <span v-if="sqlResult" style="color:#67c23a;font-size:12px;">{{ sqlResult.count }} 行</span>
+                        <span v-if="sqlError" style="color:#f56c6c;font-size:12px;">{{ sqlError }}</span>
+                    </div>
+                    <div v-if="sqlColumns.length" class="res-table" style="margin-top:10px;">
+                        <table>
+                            <thead><tr><th v-for="c in sqlColumns" :key="c">{{ c }}</th></tr></thead>
+                            <tbody>
+                                <tr v-for="(r, i) in sqlRows" :key="i">
+                                    <td v-for="c in sqlColumns" :key="c">{{ r[c] }}</td>
+                                </tr>
+                                <tr v-if="!sqlRows.length"><td :colspan="sqlColumns.length" style="color:#c0c4cc;text-align:center;">无结果</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/js/vue.global.prod.js"></script>
+<script src="~/js/element-plus.full.min.js"></script>
+<script src="~/js/element-plus-icons.min.js"></script>
+<script>
+    window.ElMessage = ElementPlus.ElMessage;
+    window.ElMessageBox = ElementPlus.ElMessageBox;
+</script>
+<script>
+const { createApp, ref, onMounted } = Vue;
+const PROJECT_ID = @pid;
+createApp({
+    setup() {
+        const tables = ref([]);
+        const currentTable = ref('');
+        const columns = ref([]);
+        const sql = ref('SELECT TOP 20 * FROM Drawing');
+        const sqlColumns = ref([]);
+        const sqlRows = ref([]);
+        const sqlResult = ref(null);
+        const sqlError = ref('');
+        const sqlLoading = ref(false);
+
+        async function loadTables() {
+            const r = await $.getJSON('/api/dynproject/'+PROJECT_ID+'/tables');
+            if (r.success !== false) { tables.value = r.data || []; if (tables.value.length) selectTable(tables.value[0].name); }
+            else ElMessage.error(r.message||'加载表失败');
+        }
+        async function selectTable(name) {
+            currentTable.value = name;
+            const r = await $.getJSON('/api/dynproject/'+PROJECT_ID+'/columns?table='+encodeURIComponent(name));
+            if (r.success !== false) columns.value = r.data || [];
+            else ElMessage.error(r.message||'加载列失败');
+            sql.value = 'SELECT TOP 20 * FROM ' + name;
+        }
+        async function runSql() {
+            if (!sql.value.trim()) return;
+            sqlLoading.value = true; sqlError.value=''; sqlResult.value=null; sqlColumns.value=[]; sqlRows.value=[];
+            try {
+                const r = await $.ajax({ url:'/api/dynproject/'+PROJECT_ID+'/sql', method:'POST', contentType:'application/json',
+                    data: JSON.stringify({ sql: sql.value }) });
+                if (r.success) { sqlColumns.value=r.columns||[]; sqlRows.value=r.rows||[]; sqlResult.value=r; }
+                else sqlError.value = r.message||'执行失败';
+            } catch(e) { sqlError.value = '请求失败'; }
+            sqlLoading.value = false;
+        }
+        onMounted(loadTables);
+        return { tables, currentTable, columns, sql, sqlColumns, sqlRows, sqlResult, sqlError, sqlLoading, selectTable, runSql };
+    }
+}).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>
