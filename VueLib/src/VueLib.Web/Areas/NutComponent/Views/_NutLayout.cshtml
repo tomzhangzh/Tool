@@ -193,6 +193,10 @@ var comConfig = {
         }
         initOptionsFromConfig();
         watch(() => props.jsonconfig.options?.optionValues, initOptionsFromConfig);
+        // 过滤 childrenctrls 中的 undefined/null 元素（避免数组空洞导致渲染崩溃）
+        const safeChildren = computed(() => (props.jsonconfig.childrenctrls || []).filter(c => c && typeof c === 'object' && c.component));
+
+
 
         // 提供父组件链（设计器用）
         provide('parent_jsonconfig', props.jsonconfig);
@@ -230,6 +234,7 @@ var comConfig = {
             getStyle,
             getClass,
             getComlisteners,
+            safeChildren,
             props,
             context,
             designShared,

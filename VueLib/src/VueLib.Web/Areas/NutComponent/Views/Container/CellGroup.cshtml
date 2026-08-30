@@ -3,11 +3,11 @@
 }
 
 <template>
-    <div class="lc-container t_container nut-cell-group-wrapper" v-draggable="[props.jsonconfig.childrenctrls, dragOptions]">
+    <div class="lc-container t_container nut-cell-group-wrapper" v-draggable="[safeChildren, dragOptions]">
         <div v-if="props.jsonconfig.options.comoptions.title" class="nut-cell-group-title">
             {{ props.jsonconfig.options.comoptions.title }}
         </div>
-        <n-dynamic-com v-for="(child, idx) in props.jsonconfig.childrenctrls"
+        <n-dynamic-com v-for="(child, idx) in safeChildren"
                        :key="child.component + '_' + idx"
                        :jsonconfig="child"
                        :parentmodelinfo="props.parentmodelinfo"

@@ -10,7 +10,7 @@
         <div class="n-navbar-title">{{ props.jsonconfig.options.comoptions.title || '' }}</div>
         <div class="n-navbar-subtitle" v-if="props.jsonconfig.options.comoptions.subtitle">{{ props.jsonconfig.options.comoptions.subtitle }}</div>
         <div class="n-navbar-right">
-            <n-dynamic-com v-for="(child, idx) in props.jsonconfig.childrenctrls"
+            <n-dynamic-com v-for="(child, idx) in safeChildren"
                            :key="idx"
                            :jsonconfig="child"
                            :parentmodelinfo="props.parentmodelinfo"

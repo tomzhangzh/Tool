@@ -5,7 +5,7 @@
 <template>
     <nut-grid :column-num="props.jsonconfig.options.comoptions.columnNum || 2"
               v-bind="props.jsonconfig.options.comoptions">
-        <nut-grid-item v-for="(child, idx) in props.jsonconfig.childrenctrls"
+        <nut-grid-item v-for="(child, idx) in safeChildren"
                        :key="child.component + '_' + idx">
             <n-dynamic-com :jsonconfig="child"
                            :parentmodelinfo="props.parentmodelinfo"

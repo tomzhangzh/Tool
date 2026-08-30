@@ -207,12 +207,12 @@
             function buildParentMapping(root) {
                 const mapping = [];
                 function walk(node, parent) {
-                    if (node.childrenctrls) {
-                        node.childrenctrls.forEach(child => {
-                            mapping.push({ child, parent: parent || root, parentObj: node });
-                            walk(child, node);
-                        });
-                    }
+                    if (!node || !node.childrenctrls) return;
+                    node.childrenctrls.forEach(child => {
+                        if (!child) return;
+                        mapping.push({ child, parent: parent || root, parentObj: node });
+                        walk(child, node);
+                    });
                 }
                 walk(root, null);
                 return mapping;
@@ -462,7 +462,7 @@
                 const newConfig = deepClone(config);
                 // 替换 vue-draggable-plus 在该位置添加的克隆对象
                 if (idx >= 0 && idx < list.length) {
-                    list.splice(idx, 1, newConfig);
+                    list.splice(idx, 0, newConfig);
                 } else {
                     list.push(newConfig);
                 }
@@ -500,6 +500,7 @@
                 swapThreshold: 0.1,
                 group: { name: 'lc-designer-group', pull: 'clone', put: false },
                 sort: false,
+                draggable: '.component-item',
                 ghostClass: 'lc-ghost',
                 dragClass: 'lc-drag',
                 chosenClass: 'lc-chosen',
@@ -561,18 +562,71 @@
         }
     }
 
-    // vue-draggable-plus
-    if (window.VueDraggablePlus) {
-        const VDP = window.VueDraggablePlus.default || window.VueDraggablePlus;
-        console.log('[Designer] VueDraggablePlus keys:', Object.keys(VDP));
-        if (VDP.VueDraggable) app.component('VueDraggable', VDP.VueDraggable);
-        if (VDP.vDraggable) {
-            app.directive('draggable', VDP.vDraggable);
-            console.log('[Designer] v-draggable directive registered');
-        }
-        if (VDP.useDraggable) window.__useDraggable = VDP.useDraggable;
+        // v-draggable 指令（基于独立 Sortable.js，修复 vue-draggable-plus onMounted 不触发的 bug）
+    if (window.Sortable) {
+        app.directive('draggable', {
+            mounted(el, binding) {
+                const value = binding.value;
+                const arr = Array.isArray(value) ? value : [value];
+                const unref = v => (v && v.__v_isRef) ? v.value : v;
+                const list = unref(arr[0]);
+                const options = unref(arr[1]) || {};
+                if (!el || !list) return;
+
+                const merged = {
+                    animation: 150,
+                    group: 'lc-designer-group',
+                    ghostClass: 'lc-ghost',
+                    dragClass: 'lc-drag',
+                    chosenClass: 'lc-chosen',
+                    draggable: '.lc-node',
+                    forceFallback: false,
+                    ...options,
+                    onStart(evt) {
+                        document.body.style.userSelect = 'none';
+                        if (typeof options.onStart === 'function') options.onStart(evt);
+                    },
+                    onAdd(evt) {
+                        // 从左侧面板 clone 拖入时，删除 Sortable 自动插入的克隆 DOM（避免图标和组件重复）
+                        if (evt.from && evt.from.classList && evt.from.classList.contains('component-grid')) {
+                            if (evt.item && evt.item.parentNode) {
+                                evt.item.parentNode.removeChild(evt.item);
+                            }
+                        }
+                        if (typeof options.onAdd === 'function') options.onAdd(evt);
+                        // 新元素渲染后补 draggable 属性
+                        setTimeout(() => {
+                            el.querySelectorAll(dragSel).forEach(c => c.setAttribute('draggable', 'true'));
+                        }, 50);
+                    },
+                    onEnd(evt) {
+                        document.body.style.userSelect = '';
+                        // 内部排序：同步数组顺序
+                        if (evt.from === evt.to && evt.oldIndex !== evt.newIndex && evt.oldIndex != null) {
+                            const item = list.splice(evt.oldIndex, 1)[0];
+                            list.splice(evt.newIndex, 0, item);
+                        }
+                        if (typeof options.onEnd === 'function') options.onEnd(evt);
+                    }
+                };
+                const sortable = Sortable.create(el, merged);
+                el.__sortable = sortable;
+                // Sortable 1.15.2 原生模式下不自动加 draggable，手动添加
+                const dragSel = merged.draggable || '.lc-node';
+                const applyDraggable = () => el.querySelectorAll(dragSel).forEach(c => c.setAttribute('draggable', 'true'));
+                applyDraggable();
+                setTimeout(applyDraggable, 150); // 延迟再执行，覆盖动态渲染的子元素
+            },
+            unmounted(el) {
+                if (el.__sortable) {
+                    el.__sortable.destroy();
+                    el.__sortable = null;
+                }
+            }
+        });
+        console.log('[Designer] v-draggable directive registered (Sortable.js)');
     } else {
-        console.error('[Designer] VueDraggablePlus not loaded!');
+        console.error('[Designer] Sortable.js not loaded!');
     }
 
     // 动态属性面板

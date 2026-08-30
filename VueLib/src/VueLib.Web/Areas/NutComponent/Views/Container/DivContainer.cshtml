@@ -4,10 +4,10 @@
 
 <template>
     <div class="lc-container t_container"
-         v-draggable="[props.jsonconfig.childrenctrls, dragOptions]"
+         v-draggable="[safeChildren, dragOptions]"
          :style="getStyle(props.jsonconfig.options.itemoptions)"
          :class="getClass(props.jsonconfig.options.itemoptions)">
-        <n-dynamic-com v-for="(child, idx) in props.jsonconfig.childrenctrls"
+        <n-dynamic-com v-for="(child, idx) in safeChildren"
                        :key="child.component + '_' + idx"
                        :jsonconfig="child"
                        :parentmodelinfo="props.parentmodelinfo"
