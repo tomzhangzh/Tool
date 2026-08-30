@@ -112,6 +112,7 @@
             const comListRef = ref(null);
             const paletteRef = ref(null);
             const treeRef = ref(null);
+            const treeVersion = ref(0);
 
             // ===== 分类 =====
             const categories = [
@@ -555,6 +556,8 @@
             // ===== 初始化 =====
             onMounted(async () => {
                 console.log('[Designer] mounted, useDraggable:', typeof window.__useDraggable);
+                // 监听拖动排序完成事件，刷新组件树
+                window.addEventListener('lc-tree-refresh', () => { treeVersion.value++; });
                 await Promise.all([loadComponentMeta(), loadPageList()]);
                 if (pageList.value.length > 0) {
                     currentPageCode.value = pageList.value[0].pageCode;
@@ -579,7 +582,7 @@
                 componentMetaList, pageList, currentPageCode, saving, showJson, showNewPage, showModelModal,
                 activeCategory, activeUiLibrary, leftTab, configJsonText, newPageForm, designMode, treeFilter,
                 currentCom, currentContainer, currentPath, breadcrumbList,
-                configObj, modelObj, comListRef, treeRef,
+                configObj, modelObj, comListRef, treeRef, treeVersion,
                 categories, hasOptionField, canMoveUp, canMoveDown,
                 currentPropertyConfig, modelJsonText, onPropertyUpdate, showJsonEditor, showModelData, copyModelJson,
                 filteredComponents, paletteDragOptions, selectFromTree, setCurrentCom,
@@ -622,21 +625,32 @@
                 const value = binding.value;
                 const arr = Array.isArray(value) ? value : [value];
                 const unref = v => (v && v.__v_isRef) ? v.value : v;
-                const list = unref(arr[0]);
+                // 动态获取最新 list（页面加载时 Object.assign 会替换 childrenctrls 引用，不能缓存）
+                const getList = () => {
+                    const v = binding.value;
+                    const a = Array.isArray(v) ? v : [v];
+                    return unref(a[0]);
+                };
                 const options = unref(arr[1]) || {};
-                if (!el || !list) return;
+                if (!el) return;
 
+                const dragSel = '.lc-node';
+                let dragOldArrIndex = -1;
                 const merged = {
                     animation: 150,
                     group: 'lc-designer-group',
                     ghostClass: 'lc-ghost',
                     dragClass: 'lc-drag',
                     chosenClass: 'lc-chosen',
-                    draggable: '.lc-node',
+                    draggable: dragSel,
                     forceFallback: false,
                     ...options,
                     onStart(evt) {
                         document.body.style.userSelect = 'none';
+                        // 记录被拖动元素在 draggable 子元素中的数组索引（过滤非 draggable 元素如标题）
+                        const draggableChildren = Array.from(el.children).filter(c => c.matches(dragSel));
+                        dragOldArrIndex = draggableChildren.indexOf(evt.item);
+                        console.log('[Drag] onStart:', { itemText: evt.item.textContent.trim().substring(0,20), oldDOMIndex: evt.oldIndex, oldArrIndex: dragOldArrIndex, listLength: getList().length, listItems: getList().map(i => i.component || '?') });
                         if (typeof options.onStart === 'function') options.onStart(evt);
                     },
                     onAdd(evt) {
@@ -654,18 +668,50 @@
                     },
                     onEnd(evt) {
                         document.body.style.userSelect = '';
-                        // 内部排序：同步数组顺序
-                        if (evt.from === evt.to && evt.oldIndex !== evt.newIndex && evt.oldIndex != null) {
-                            const item = list.splice(evt.oldIndex, 1)[0];
-                            list.splice(evt.newIndex, 0, item);
+                        // 内部排序：同步数组顺序（用过滤非 draggable 元素后的正确数组索引）
+                        if (evt.from === evt.to && dragOldArrIndex >= 0) {
+                            const targetDraggable = Array.from(evt.to.children).filter(c => c.matches(dragSel));
+                            const newArrIndex = targetDraggable.indexOf(evt.item);
+                            const safeList = getList();
+                            const item = safeList[dragOldArrIndex];
+                            console.log('[Drag] onEnd:', { newArrIndex, oldArrIndex: dragOldArrIndex, item: item?.component });
+                            if (item && newArrIndex >= 0 && newArrIndex !== dragOldArrIndex) {
+                                // 直接修改容器组件的原始数组 props.jsonconfig.childrenctrls
+                                const originalArray = binding.instance?.props?.jsonconfig?.childrenctrls;
+                                if (originalArray && Array.isArray(originalArray)) {
+                                    const origIdx = originalArray.indexOf(item);
+                                    if (origIdx >= 0) {
+                                        originalArray.splice(origIdx, 1);
+                                        let insertIdx = originalArray.length;
+                                        let safeCount = 0;
+                                        for (let i = 0; i < originalArray.length; i++) {
+                                            const cc = originalArray[i];
+                                            if (cc && typeof cc === 'object' && cc.component) {
+                                                if (safeCount === newArrIndex) { insertIdx = i; break; }
+                                                safeCount++;
+                                            }
+                                        }
+                                        originalArray.splice(insertIdx, 0, item);
+                                        console.log('[Drag] originalArray updated:', originalArray.map(i => i.component));
+                                    }
+                                } else {
+                                    console.warn('[Drag] originalArray not found via binding.instance');
+                                }
+                            }
                         }
+                        dragOldArrIndex = -1;
                         if (typeof options.onEnd === 'function') options.onEnd(evt);
+                        // 通知组件树刷新（el-tree 对深层数组顺序变化不自动更新）
+                        window.dispatchEvent(new CustomEvent('lc-tree-refresh'));
                     }
                 };
                 const sortable = Sortable.create(el, merged);
                 el.__sortable = sortable;
+                el.__dragList = getList; // 调试：暴露获取数组的函数
+                el.__vueInstance = binding.instance; // 调试：暴露组件实例
+                el.__dragBinding = binding.value; // 调试：暴露绑定值
+                el.__dragArr0 = Array.isArray(binding.value) ? binding.value[0] : binding.value; // 调试：暴露数组引用
                 // Sortable 1.15.2 原生模式下不自动加 draggable，手动添加
-                const dragSel = merged.draggable || '.lc-node';
                 const applyDraggable = () => el.querySelectorAll(dragSel).forEach(c => c.setAttribute('draggable', 'true'));
                 applyDraggable();
                 setTimeout(applyDraggable, 150); // 延迟再执行，覆盖动态渲染的子元素
@@ -708,7 +754,8 @@
             </div>
             <div v-else class="lc-node"
                  :class="{ 'lc-selected': isSelected, 'lc-container': isContainer, 'lc-design': isDesign, 'lc-composite': isComposite, 'lc-wrapper': hasWrapper }"
-                 @click.stop="onClick">
+                 @click.stop="onClick"
+                 @lc-sort-end="onSortEnd">
                 <!-- 有 Wrapper：用包装器包裹 -->
                 <component v-if="hasWrapper" :is="wrapperComponent"
                            :jsonconfig="jsonconfig.options.wrapperoptions"
@@ -763,6 +810,30 @@
                 if (this.lcDesigner?.setCurrentCom && this.isDesign) {
                     this.lcDesigner.setCurrentCom(this.jsonconfig);
                 }
+            },
+            onMouseDown(e) {
+                if (!this.isDesign) return;
+                if (e.target.closest('.el-form-item__label, .nut-form-item__label, .nut-cell-group-title')) return;
+                e.preventDefault();
+            },
+            onSortEnd(e) {
+                const { item, newArrIndex } = e.detail || {};
+                const children = this.jsonconfig?.childrenctrls;
+                if (!item || !children || !Array.isArray(children)) return;
+                const origIdx = children.indexOf(item);
+                if (origIdx < 0) return;
+                children.splice(origIdx, 1);
+                let insertIdx = children.length;
+                let safeCount = 0;
+                for (let i = 0; i < children.length; i++) {
+                    const cc = children[i];
+                    if (cc && typeof cc === 'object' && cc.component) {
+                        if (safeCount === newArrIndex) { insertIdx = i; break; }
+                        safeCount++;
+                    }
+                }
+                children.splice(insertIdx, 0, item);
+                console.log('[NDynamicCom] onSortEnd:', children.map(c => c.component));
             }
         }
     });

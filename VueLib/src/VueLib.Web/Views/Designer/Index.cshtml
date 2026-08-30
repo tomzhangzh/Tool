@@ -84,6 +84,7 @@
                         <div class="tree-inner">
                             <el-input v-model="treeFilter" placeholder="过滤组件" size="small" clearable style="margin-bottom:8px;"></el-input>
                             <el-tree ref="treeRef"
+                                     :key="treeVersion"
                                      :data="[configObj]"
                                      :props="{ children: 'childrenctrls', label: 'component' }"
                                      draggable

@@ -487,3 +487,23 @@ body {
 .ruler-h canvas, .ruler-v canvas {
     display: block;
 }
+
+/* ===== 设计模式遮罩层 ===== */
+.lc-node {
+    position: relative;
+}
+/* 设计模式下禁用组件内部所有交互元素的点击响应，事件冒泡到 .lc-node 触发选中 */
+.lc-design * {
+    pointer-events: none;
+}
+/* .lc-node 本身必须能接收点击（嵌套时会被外层规则禁用） */
+.lc-design .lc-node {
+    pointer-events: auto;
+}
+/* 只保留 label 可点击编辑 */
+.lc-design .el-form-item__label,
+.lc-design .nut-form-item__label,
+.lc-design .nut-cell-group-title {
+    pointer-events: auto;
+    cursor: text;
+}
