@@ -51,6 +51,44 @@
             const designMode = ref('design');
             const treeFilter = ref('');
 
+            // ===== 画布视图控制 =====
+            const canvasPlatform = ref('mobile'); // mobile | desktop
+            const canvasZoom = ref(1);
+            const showRuler = ref(true);
+            const canvasWidth = ref(1200);
+            const canvasHeight = ref(800);
+            const zoomIn = () => { canvasZoom.value = Math.min(2, +(canvasZoom.value + 0.1).toFixed(2)); };
+            const zoomOut = () => { canvasZoom.value = Math.max(0.25, +(canvasZoom.value - 0.1).toFixed(2)); };
+            const zoomReset = () => { canvasZoom.value = 1; };
+            const zoomPercent = computed(() => Math.round(canvasZoom.value * 100) + '%');
+            // 生成标尺刻度
+            const generateRulerMarks = (maxPx, zoom) => {
+                const marks = [];
+                const step = zoom >= 1 ? 50 : (zoom >= 0.5 ? 100 : 200);
+                for (let i = 0; i <= maxPx; i += step) {
+                    marks.push({ pos: i * zoom, label: i % (step * 2) === 0 ? i + '' : '' });
+                }
+                return marks;
+            };
+            const rulerHMarks = computed(() => generateRulerMarks(1600, canvasZoom.value));
+            const rulerVMarks = computed(() => generateRulerMarks(1200, canvasZoom.value));
+
+            // ===== daybrush/ruler 标尺 =====
+            const rulerHRef = ref(null);
+            const rulerVRef = ref(null);
+            let rulerH = null, rulerV = null;
+            const initRulers = () => {
+                if (!window.Ruler) return;
+                if (rulerHRef.value && !rulerH) {
+                    rulerH = new Ruler(rulerHRef.value, { type: 'horizontal', zoom: canvasZoom.value, unit: 50, backgroundColor: '#fafafa', lineColor: '#c0c4cc', textColor: '#909399' });
+                }
+                if (rulerVRef.value && !rulerV) {
+                    rulerV = new Ruler(rulerVRef.value, { type: 'vertical', zoom: canvasZoom.value, unit: 50, backgroundColor: '#fafafa', lineColor: '#c0c4cc', textColor: '#909399' });
+                }
+            };
+            const resizeRulers = () => { rulerH?.resize(); rulerV?.resize(); };
+            const setRulerZoom = (z) => { if (rulerH) rulerH.zoom = z; if (rulerV) rulerV.zoom = z; resizeRulers(); };
+
             // 选中状态
             const currentCom = ref(null);
             const currentContainer = ref(null);
@@ -522,7 +560,20 @@
                     currentPageCode.value = pageList.value[0].pageCode;
                     loadPage(pageList.value[0].pageCode);
                 }
+                nextTick(() => { initRulers(); resizeRulers(); });
             });
+
+            // 缩放变化时同步标尺
+            watch(canvasZoom, (z) => { setRulerZoom(z); });
+            // 标尺显示切换时重新初始化
+            watch(showRuler, (show) => {
+                if (show) {
+                    rulerH = null; rulerV = null;
+                    nextTick(() => { initRulers(); resizeRulers(); });
+                }
+            });
+            // 平台切换时重新调整标尺
+            watch(canvasPlatform, () => { nextTick(() => resizeRulers()); });
 
             return {
                 componentMetaList, pageList, currentPageCode, saving, showJson, showNewPage, showModelModal,
@@ -536,7 +587,9 @@
                 deleteCurrent, moveUp, moveDown, copyCurrent,
                 addValidator, removeValidator, needsValue, toggleRequired,
                 loadPage, newPage, confirmNewPage, savePage, openPreview, applyJson,
-                isContainerComp
+                isContainerComp,
+                canvasPlatform, canvasZoom, showRuler, zoomIn, zoomOut, zoomReset, zoomPercent,
+                rulerHRef, rulerVRef, canvasWidth, canvasHeight
             };
         }
     });

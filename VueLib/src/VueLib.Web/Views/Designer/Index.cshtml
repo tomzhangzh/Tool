@@ -27,11 +27,25 @@
                 <el-button size="small" type="success" @@click="savePage" :loading="saving">保存</el-button>
             </div>
             <div class="toolbar-right">
-                <el-radio-group v-model="designMode" size="small" style="margin-right:12px;">
+                <el-radio-group v-model="canvasPlatform" size="small" style="margin-right:8px;">
+                    <el-radio-button label="mobile">手机</el-radio-button>
+                    <el-radio-button label="desktop">电脑</el-radio-button>
+                </el-radio-group>
+                <template v-if="canvasPlatform === 'desktop'">
+                    <el-input-number v-model="canvasWidth" :min="320" :max="3840" :step="10" size="small" style="width:100px;"></el-input-number>
+                    <span style="color:#909399;font-size:12px;margin:0 2px;">×</span>
+                    <el-input-number v-model="canvasHeight" :min="240" :max="2160" :step="10" size="small" style="width:100px;margin-right:8px;"></el-input-number>
+                </template>
+                <el-switch v-model="showRuler" active-text="标尺" size="small" style="margin:0 8px;"></el-switch>
+                <span style="font-size:12px;color:#606266;">缩放</span>
+                <el-slider v-model="canvasZoom" :min="0.25" :max="2" :step="0.05" :format-tooltip="v => Math.round(v*100)+'%'" style="width:140px;margin:0 8px;"></el-slider>
+                <span class="zoom-percent-top">{{ zoomPercent }}</span>
+                <el-divider direction="vertical" style="margin:0 8px;"></el-divider>
+                <el-radio-group v-model="designMode" size="small" style="margin-right:8px;">
                     <el-radio-button label="design">设计</el-radio-button>
                     <el-radio-button label="preview">预览</el-radio-button>
                 </el-radio-group>
-                <el-switch v-model="showJson" active-text="JSON" inactive-text="" size="small" style="margin:0 12px;"></el-switch>
+                <el-switch v-model="showJson" active-text="JSON" inactive-text="" size="small" style="margin:0 8px;"></el-switch>
                 <el-button size="small" type="info" @@click="showModelData">查看数据</el-button>
                 <el-button size="small" type="warning" @@click="openPreview">新窗口预览</el-button>
             </div>
@@ -82,17 +96,32 @@
                 </el-tabs>
             </div>
 
-            <!-- 中间手机模拟器（直接渲染） -->
+                        <!-- 中间画布区域 -->
             <div class="panel panel-center">
-                <div class="phone-wrapper">
-                    <div class="phone-notch"></div>
-                    <div class="phone-screen designer-canvas" :class="{ 'preview-mode': designMode === 'preview' }">
-                        <n-dynamic-com :jsonconfig="configObj" :parentmodelinfo="modelObj" node-path="root"></n-dynamic-com>
+                <!-- 标尺 + 画布 -->
+                <div class="canvas-area" :class="{ 'desktop-mode': canvasPlatform === 'desktop' }">
+                    <div class="ruler ruler-v" v-if="showRuler" ref="rulerVRef"></div>
+                    <div class="canvas-main">
+                        <div class="ruler ruler-h" v-if="showRuler" ref="rulerHRef"></div>
+                        <div class="canvas-scroll">
+                            <div class="canvas-zoom" :style="{ transform: 'scale(' + canvasZoom + ')', transformOrigin: 'top left' }">
+                                <div class="phone-wrapper" v-if="canvasPlatform === 'mobile'">
+                                    <div class="phone-notch"></div>
+                                    <div class="phone-screen designer-canvas" :class="{ 'preview-mode': designMode === 'preview' }">
+                                        <n-dynamic-com :jsonconfig="configObj" :parentmodelinfo="modelObj" node-path="root"></n-dynamic-com>
+                                    </div>
+                                    <div class="phone-home-indicator"></div>
+                                </div>
+                                <div class="desktop-canvas designer-canvas" v-else :class="{ 'preview-mode': designMode === 'preview' }" :style="{ width: canvasWidth + 'px', minHeight: canvasHeight + 'px' }">
+                                    <n-dynamic-com :jsonconfig="configObj" :parentmodelinfo="modelObj" node-path="root"></n-dynamic-com>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="phone-home-indicator"></div>
                 </div>
                 <div class="canvas-info">
-                    <span>画布: 375 × 667 (iPhone SE)</span>
+                    <span>画布: {{ canvasPlatform === 'mobile' ? '375 × 667 (手机)' : '自适应宽度 (电脑)' }}</span>
+                    <span>缩放: {{ zoomPercent }}</span>
                     <span v-if="currentPath">选中: {{ currentPath }}</span>
                 </div>
             </div>
@@ -242,6 +271,7 @@
     <script src="~/js/mobile-setup.js" asp-append-version="true"></script>
     <script src="~/js/property-panel.js" asp-append-version="true"></script>
     <script src="~/lib/sortable/sortable.min.js" asp-append-version="true"></script>
+    <script src="~/lib/ruler/ruler.min.js" asp-append-version="true"></script>
     <script src="~/js/vue-draggable-plus.umd.min.js" asp-append-version="true"></script>
     <script src="~/js/designer.js" asp-append-version="true"></script>
 </body>

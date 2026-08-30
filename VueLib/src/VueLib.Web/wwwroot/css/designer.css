@@ -340,3 +340,150 @@ body {
     outline: none !important;
     margin: 0;
 }
+
+/* ===== 画布控制栏 ===== */
+.canvas-toolbar {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 12px;
+    background: #fff;
+    border-bottom: 1px solid #e4e7ed;
+    gap: 8px;
+}
+.zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+.zoom-percent {
+    font-size: 12px;
+    color: #606266;
+    min-width: 48px;
+    text-align: center;
+}
+
+/* ===== 画布区域 ===== */
+.canvas-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    background: #f5f7fa;
+}
+.canvas-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.canvas-scroll {
+    flex: 1;
+    overflow: auto;
+    padding: 24px;
+}
+.canvas-zoom {
+    display: inline-block;
+    transform-origin: top left;
+}
+
+/* ===== 标尺 ===== */
+.ruler {
+    background: #fafafa;
+    border: 1px solid #e4e7ed;
+    position: relative;
+    flex-shrink: 0;
+}
+.ruler-h {
+    height: 24px;
+    border-left: none;
+    border-top: none;
+    overflow: hidden;
+}
+.ruler-v {
+    width: 24px;
+    border-top: none;
+    border-left: none;
+    overflow: hidden;
+}
+.ruler-mark {
+    position: absolute;
+    border-left: 1px solid #c0c4cc;
+}
+.ruler-h .ruler-mark {
+    top: 0;
+    width: 1px;
+    height: 100%;
+}
+.ruler-h .ruler-mark .ruler-label {
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    font-size: 10px;
+    color: #909399;
+    white-space: nowrap;
+}
+.ruler-v .ruler-mark {
+    left: 0;
+    height: 1px;
+    width: 100%;
+}
+.ruler-v .ruler-mark .ruler-label {
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    font-size: 10px;
+    color: #909399;
+    white-space: nowrap;
+    transform: rotate(-90deg);
+    transform-origin: left top;
+}
+
+/* ===== 电脑模式画布 ===== */
+.desktop-canvas {
+    width: 100%;
+    min-height: 600px;
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.canvas-area.desktop-mode .canvas-scroll {
+    padding: 0;
+}
+.canvas-area.desktop-mode .canvas-zoom {
+    width: 100%;
+}
+.canvas-area.desktop-mode .desktop-canvas {
+    width: 100%;
+    min-height: calc(100vh - 160px);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.canvas-size-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 12px;
+}
+
+/* 顶部工具栏缩放百分比 */
+.zoom-percent-top {
+    font-size: 12px;
+    color: #606266;
+    min-width: 42px;
+    text-align: center;
+}
+/* daybrush/ruler 容器尺寸 */
+.ruler-h {
+    height: 28px !important;
+    width: 100%;
+}
+.ruler-v {
+    width: 28px !important;
+    height: 100%;
+}
+.ruler-h canvas, .ruler-v canvas {
+    display: block;
+}
