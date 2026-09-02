@@ -55,37 +55,33 @@
 
         <!-- 主体三栏 -->
         <div class="designer-body">
-            <!-- 左侧组件面板 -->
-            <div class="panel panel-left">
+            <!-- 左侧组件面板（可吸附/折叠/关闭，lowcode-engine 风格） -->
+            <div class="panel-left-wrap">
+                <div v-if="leftPanel === 'docked'" class="panel-dock panel-dock-left" title="展开组件面板">
+                    <span class="dock-icon" @@click="openLeftPanel('palette')">📦</span>
+                    <span class="dock-icon" @@click="openLeftPanel('tree')">🌳</span>
+                    <span class="dock-close" @@click="leftPanel = 'closed'">×</span>
+                </div>
+                <div v-else-if="leftPanel === 'open'" class="panel panel-left">
+                <div class="panel-header">
+                    <span>组件</span>
+                    <span class="panel-header-actions">
+                        <button class="panel-btn" title="吸附为窄条" @@click="leftPanel = 'docked'">◀</button>
+                        <button class="panel-btn" title="关闭面板" @@click="leftPanel = 'closed'">✕</button>
+                    </span>
+                </div>
                 <el-tabs v-model="leftTab" tab-position="top" class="component-tabs">
                     <el-tab-pane label="组件库" name="palette">
-                        <div class="palette-inner">
-                            <div style="margin-bottom:8px;">
-                                <el-select v-model="activeUiLibrary" size="small" style="width:100%;">
-                                    <el-option label="全部组件" value="all"></el-option>
-                                    <el-option label="NutUI (移动端)" value="nutui"></el-option>
-                                    <el-option label="ElementUI (电脑端)" value="elementui"></el-option>
-                                    <el-option label="自定义" value="custom"></el-option>
-                                </el-select>
-                            </div>
-                            <el-radio-group v-model="activeCategory" size="small" style="margin-bottom:8px;">
-                                <el-radio-button v-for="cat in categories" :key="cat.key" :label="cat.key">{{ cat.label }}</el-radio-button>
-                            </el-radio-group>
-                            <div class="component-grid">
-                                <div v-for="comp in filteredComponents"
-                                     :key="comp.componentName"
-                                     class="component-item"
-                                     :data-comp-name="comp.componentName"
-                                     :class="{ 'is-composite': comp.isComposite || comp.IsComposite }"
-                                     :title="comp.description"
-                                     draggable="true"
-                                     @@dragstart="onPaletteDragStart($event, comp)"
-                                     @@dragend="onPaletteDragEnd">
-                                    <span class="comp-icon">{{ comp.icon }}</span>
-                                    <span class="comp-label">{{ comp.displayName || comp.label || comp.componentName }}</span>
-                                </div>
-                            </div>
-                        </div>
+                    <palette-content
+                        :components="filteredComponents"
+                        :categories="categories"
+                        :ui-library="activeUiLibrary"
+                        :category="activeCategory"
+                        :on-drag-start="onPaletteDragStart"
+                        :on-drag-end="onPaletteDragEnd"
+                        @@update:ui-library="activeUiLibrary = $event"
+                        @@update:category="activeCategory = $event">
+                    </palette-content>
                     </el-tab-pane>
                     <el-tab-pane label="组件树" name="tree">
                         <div class="tree-inner">
@@ -102,6 +98,10 @@
                         </div>
                     </el-tab-pane>
                 </el-tabs>
+                </div>
+                <div v-else class="panel-restore panel-restore-left" title="展开组件面板" @@click="leftPanel = 'open'">
+                    <span>▶</span>
+                </div>
             </div>
 
                         <!-- 中间画布区域 -->
@@ -136,9 +136,20 @@
                 </div>
             </div>
 
-            <!-- 右侧属性面板 -->
-            <div class="panel panel-right">
-                <div class="panel-header">属性配置</div>
+            <!-- 右侧属性面板（可吸附/折叠/关闭，lowcode-engine 风格） -->
+            <div class="panel-right-wrap">
+                <div v-if="rightPanel === 'docked'" class="panel-dock panel-dock-right" title="展开属性面板">
+                    <span class="dock-icon" @@click="openRightPanel()">⚙️</span>
+                    <span class="dock-close" @@click="rightPanel = 'closed'">×</span>
+                </div>
+                <div v-else-if="rightPanel === 'open'" class="panel panel-right">
+                <div class="panel-header">
+                    <span>属性配置</span>
+                    <span class="panel-header-actions">
+                        <button class="panel-btn" title="吸附为窄条" @@click="rightPanel = 'docked'">▶</button>
+                        <button class="panel-btn" title="关闭面板" @@click="rightPanel = 'closed'">✕</button>
+                    </span>
+                </div>
                 <div v-if="!currentCom" class="empty-tip">
                     <el-empty description="在左侧点击组件添加，或在画布中选中组件" :image-size="80"></el-empty>
                 </div>
@@ -250,6 +261,29 @@
                         <el-button size="small" type="danger" @@click="deleteCurrent">删除</el-button>
                     </el-form-item>
                 </div>
+                </div>
+                <div v-else class="panel-restore panel-restore-right" title="展开属性面板" @@click="rightPanel = 'open'">
+                    <span>◀</span>
+                </div>
+            </div>
+            
+            <!-- 左侧折叠时：浮动组件入口（悬浮菜单） -->
+            <div v-if="leftPanel === 'docked'" class="palette-float">
+                <el-popover placement="right-start" :width="300" trigger="click" :show-arrow="false" popper-class="palette-float-popper">
+                    <template #reference>
+                        <div class="palette-float-fab" title="打开组件库">🧩</div>
+                    </template>
+                    <palette-content
+                        :components="filteredComponents"
+                        :categories="categories"
+                        :ui-library="activeUiLibrary"
+                        :category="activeCategory"
+                        :on-drag-start="onPaletteDragStart"
+                        :on-drag-end="onPaletteDragEnd"
+                        @@update:ui-library="activeUiLibrary = $event"
+                        @@update:category="activeCategory = $event">
+                    </palette-content>
+                </el-popover>
             </div>
         </div>
 

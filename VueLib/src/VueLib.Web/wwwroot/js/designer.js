@@ -177,7 +177,46 @@
         document.querySelectorAll('.lc-drop-target').forEach(e => e.classList.remove('lc-drop-target'));
     }
 
+
+    // ===== 组件库面板（可复用：左侧 tab 与浮动弹出层共用）=====
+    const PaletteContent = {
+        name: 'PaletteContent',
+        props: {
+            components: Array,
+            categories: Array,
+            uiLibrary: String,
+            category: String,
+            onDragStart: Function,
+            onDragEnd: Function
+        },
+        emits: ['update:uiLibrary', 'update:category'],
+        template: `<div class="palette-inner">
+            <div style="margin-bottom:8px;">
+                <el-select :model-value="uiLibrary" size="small" style="width:100%;" @update:model-value="v => $emit('update:uiLibrary', v)">
+                    <el-option label="全部组件" value="all"></el-option>
+                    <el-option label="NutUI (移动端)" value="nutui"></el-option>
+                    <el-option label="ElementUI (电脑端)" value="elementui"></el-option>
+                    <el-option label="自定义" value="custom"></el-option>
+                </el-select>
+            </div>
+            <el-radio-group :model-value="category" size="small" style="margin-bottom:8px;" @update:model-value="v => $emit('update:category', v)">
+                <el-radio-button v-for="cat in categories" :key="cat.key" :label="cat.key">{{ cat.label }}</el-radio-button>
+            </el-radio-group>
+            <div class="component-grid">
+                <div v-for="comp in components" :key="comp.componentName"
+                     class="component-item" :data-comp-name="comp.componentName"
+                     :class="{ 'is-composite': comp.isComposite || comp.IsComposite }"
+                     :title="comp.description" draggable="true"
+                     @dragstart="onDragStart($event, comp)" @dragend="onDragEnd">
+                    <span class="comp-icon">{{ comp.icon }}</span>
+                    <span class="comp-label">{{ comp.displayName || comp.label || comp.componentName }}</span>
+                </div>
+            </div>
+        </div>`
+    };
+
     const app = createApp({
+        components: { PaletteContent },
         setup() {
             // ===== 状态 =====
             const componentMetaList = ref([]);
@@ -191,9 +230,21 @@
             const activeCategory = ref('表单');
             const activeUiLibrary = ref('all');
             const leftTab = ref('palette');
+            // 左右侧栏状态：open（展开）| docked（吸附成窄条）| closed（关闭）
+            const leftPanel = ref('open');
+            const rightPanel = ref('open');
             const configJsonText = ref('');
             const designMode = ref('design');
             const treeFilter = ref('');
+
+            // dock 点击展开左侧面板（可切换 tab）
+            function openLeftPanel(tab) {
+                if (tab) leftTab.value = tab;
+                leftPanel.value = 'open';
+            }
+            function openRightPanel() {
+                rightPanel.value = 'open';
+            }
 
             // ===== 画布视图控制 =====
             const canvasPlatform = ref('mobile'); // mobile | desktop
@@ -1084,7 +1135,8 @@
                 loadPage, newPage, confirmNewPage, savePage, openPreview, applyJson,
                 isContainerComp,
                 canvasPlatform, canvasZoom, showRuler, zoomIn, zoomOut, zoomReset, zoomPercent,
-                rulerHRef, rulerVRef, canvasWidth, canvasHeight
+                rulerHRef, rulerVRef, canvasWidth, canvasHeight,
+                leftPanel, rightPanel, openLeftPanel, openRightPanel
             };
         }
     });
