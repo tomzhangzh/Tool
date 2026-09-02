@@ -234,6 +234,14 @@ public class DynTemplate
     [SugarColumn(Length = 20, IsNullable = true)]
     public string TemplateType { get; set; } = "List";
 
+    /// <summary>模板统一渲染视图名（如 RouteList / RouteHome），运行时按此渲染</summary>
+    [SugarColumn(Length = 100, IsNullable = true)]
+    public string? RenderView { get; set; }
+
+    /// <summary>模板参数定义 JSON（DynTemplateParam 数组）：描述模板需要哪些参数及控件</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? ParamSchema { get; set; }
+
     /// <summary>组装的 Filter 屏 Id</summary>
     public int? FilterPageId { get; set; }
     /// <summary>组装的 Summary 屏 Id</summary>
@@ -295,6 +303,10 @@ public class DynWebPage
     [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
     public string? Config { get; set; }
 
+    /// <summary>按模板 ParamSchema 填写的参数值 JSON（如 {"summaryPageId":6,"filterPageId":17,"detailPageId":5}）</summary>
+    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    public string? Params { get; set; }
+
     /// <summary>是否主页（首页路由）</summary>
     public bool IsHome { get; set; }
     public bool IsEnabled { get; set; } = true;
@@ -318,6 +330,29 @@ public class DynWebPageConfig
     public Dictionary<string, object?>? Extra { get; set; }
 }
 
+/// <summary>模板参数定义（ParamSchema 数组项）：描述模板需要哪些参数及控件</summary>
+public class DynTemplateParam
+{
+    public string Key { get; set; } = "";
+    public string? Label { get; set; }
+    /// <summary>控件类型：pagePicker 页面选择 / input / textarea / number / switch / select / gridItems 九宫格数组 / json</summary>
+    public string Type { get; set; } = "input";
+    /// <summary>pagePicker 过滤的页面类型（Filter/Summary/Detail）</summary>
+    public string? PageType { get; set; }
+    public bool Required { get; set; }
+    public object? Default { get; set; }
+    /// <summary>select 选项</summary>
+    public List<DynOption>? Options { get; set; }
+    /// <summary>gridItems 子字段定义</summary>
+    public List<DynTemplateParamField>? Fields { get; set; }
+}
+
+public class DynTemplateParamField
+{
+    public string Key { get; set; } = "";
+    public string? Label { get; set; }
+}
+
 /// <summary>路由页面运行时模型（List 模板：Filter 屏 + Summary 屏 + Detail 屏 组合）</summary>
 public class DynRouteListModel
 {
@@ -333,6 +368,8 @@ public class DynRouteListModel
     public DynWebPageConfig? PageConfig { get; set; }
     public Dictionary<string, object?>? Filter { get; set; }
     public PagedResult<Dictionary<string, object?>>? Result { get; set; }
+    /// <summary>按模板 ParamSchema 解析后的页面实例参数</summary>
+    public Dictionary<string, object?>? Params { get; set; }
 }
 
 /// <summary>路由页面运行时模型（Home 模板：主页）</summary>
@@ -346,6 +383,21 @@ public class DynRouteHomeModel
     public PagedResult<Dictionary<string, object?>>? HomeResult { get; set; }
     /// <summary>主页快捷入口（其它路由页面）</summary>
     public List<DynWebPage>? Pages { get; set; }
+    /// <summary>按模板 ParamSchema 解析后的页面实例参数（banner/gridItems 等）</summary>
+    public Dictionary<string, object?>? Params { get; set; }
+}
+
+/// <summary>路由页面运行时模型（通用模板：按 Params 动态渲染）</summary>
+public class DynRouteCustomModel
+{
+    public DynProject? Project { get; set; }
+    public DynWebPage? WebPage { get; set; }
+    public DynTemplate? Template { get; set; }
+    public Dictionary<string, object?>? Params { get; set; }
+    /// <summary>模板参数定义（用于按类型渲染参数值）</summary>
+    public List<DynTemplateParam>? Schema { get; set; }
+    /// <summary>工程页面列表（pagePicker 参数值转页面名称）</summary>
+    public List<DynPage>? Pages { get; set; }
 }
 
 // ==================== 预览运行时视图模型 ====================

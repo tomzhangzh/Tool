@@ -235,6 +235,88 @@
                 </div>
             </div>
         </el-tab-pane>
+        <!-- ==================== 模板管理 ==================== -->
+        <el-tab-pane label="模板管理" name="templates">
+            <div class="toolbar">
+                <el-button type="primary" @@click="openTemplateEdit()">+ 新增模板</el-button>
+                <el-button @@click="loadTemplates">刷新</el-button>
+                <span class="hint">模板 = 页面形态 + 参数定义（ParamSchema）；统一页面由 RenderView 渲染，参数由页面实例按模板填写</span>
+            </div>
+            <div class="pm-defbar">
+                <el-input v-model="tplFilter.keyword" placeholder="名称/编码关键字" clearable style="width:220px" @@clear="tplPage=1;loadTemplates()"></el-input>
+                <el-select v-model="tplFilter.type" placeholder="模板类型" clearable style="width:160px" @@change="tplPage=1;loadTemplates()">
+                    <el-option v-for="t in ['List','Home','Custom']" :key="t" :label="t" :value="t"></el-option>
+                </el-select>
+                <el-button type="primary" @@click="tplPage=1;loadTemplates()">查询</el-button>
+                <el-button @@click="tplFilter={keyword:'',type:''};tplPage=1;loadTemplates()">清除</el-button>
+            </div>
+            <el-table :data="tplPaged" border stripe v-loading="templatesLoading" size="default"
+                      :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
+                <el-table-column prop="id" label="ID" width="55" align="center"></el-table-column>
+                <el-table-column prop="name" label="名称" min-width="110"></el-table-column>
+                <el-table-column prop="code" label="编码" min-width="110"></el-table-column>
+                <el-table-column prop="templateType" label="类型" width="80" align="center"></el-table-column>
+                <el-table-column prop="renderView" label="渲染视图" min-width="110"></el-table-column>
+                <el-table-column label="参数数" width="70" align="center">
+                    <template #default="{row}">{{ tplParamCount(row) }}</template>
+                </el-table-column>
+                <el-table-column prop="sortOrder" label="排序" width="60" align="center"></el-table-column>
+                <el-table-column label="启用" width="60" align="center">
+                    <template #default="{row}">{{ row.isEnabled ? '✓' : '✗' }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="130" fixed="right">
+                    <template #default="{row}">
+                        <el-button size="small" type="primary" link @@click="openTemplateEdit(row)">编辑</el-button>
+                        <el-button size="small" type="danger" link @@click="deleteTemplate(row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                <el-pagination background layout="total, prev, pager, next" :total="tplTotal" :page-size="tplPageSize" v-model:current-page="tplPage" @@current-change="loadTemplates"></el-pagination>
+            </div>
+        </el-tab-pane>
+        <!-- ==================== 路由页面管理 ==================== -->
+        <el-tab-pane label="路由页面管理" name="webpages">
+            <div class="toolbar">
+                <el-button type="primary" @@click="openWebPageEdit()">+ 新增页面</el-button>
+                <el-button @@click="loadWebPages">刷新</el-button>
+                <span class="hint">路由页面 = 选择模板 + 按模板参数定义（ParamSchema）填参，真正运行</span>
+            </div>
+            <div class="pm-defbar">
+                <el-input v-model="wpFilter.keyword" placeholder="路由/名称关键字" clearable style="width:220px" @@clear="wpPage=1;loadWebPages()"></el-input>
+                <el-select v-model="wpFilter.templateId" placeholder="模板" clearable filterable style="width:200px" @@change="wpPage=1;loadWebPages()">
+                    <el-option v-for="t in templates" :key="t.id" :label="t.name" :value="t.id"></el-option>
+                </el-select>
+                <el-button type="primary" @@click="wpPage=1;loadWebPages()">查询</el-button>
+                <el-button @@click="wpFilter={keyword:'',templateId:null};wpPage=1;loadWebPages()">清除</el-button>
+            </div>
+            <el-table :data="wpPaged" border stripe v-loading="webpagesLoading" size="default"
+                      :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
+                <el-table-column prop="id" label="ID" width="55" align="center"></el-table-column>
+                <el-table-column prop="route" label="路由" min-width="110"></el-table-column>
+                <el-table-column prop="name" label="名称" min-width="110"></el-table-column>
+                <el-table-column label="模板" min-width="120">
+                    <template #default="{row}">{{ templateName(row.templateId) }}</template>
+                </el-table-column>
+                <el-table-column label="主页" width="60" align="center">
+                    <template #default="{row}">{{ row.isHome ? '✓' : '' }}</template>
+                </el-table-column>
+                <el-table-column prop="sortOrder" label="排序" width="60" align="center"></el-table-column>
+                <el-table-column label="启用" width="60" align="center">
+                    <template #default="{row}">{{ row.isEnabled ? '✓' : '✗' }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="170" fixed="right">
+                    <template #default="{row}">
+                        <el-button size="small" type="success" link @@click="runWebPage(row)">运行</el-button>
+                        <el-button size="small" type="primary" link @@click="openWebPageEdit(row)">编辑</el-button>
+                        <el-button size="small" type="danger" link @@click="deleteWebPage(row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+                <el-pagination background layout="total, prev, pager, next" :total="wpTotal" :page-size="wpPageSize" v-model:current-page="wpPage" @@current-change="loadWebPages"></el-pagination>
+            </div>
+        </el-tab-pane>
     </el-tabs>
 
     <!-- 工程编辑对话框 -->
@@ -278,6 +360,127 @@
         </template>
     </el-dialog>
 
+    <el-dialog v-model="tplDialog" :title="tplDialogTitle" width="880px" :close-on-click-modal="false">
+        <el-form :model="tplForm" label-width="90px" size="default">
+            <el-form-item label="名称" required><el-input v-model="tplForm.name" placeholder="模板名称"></el-input></el-form-item>
+            <el-form-item label="编码" required><el-input v-model="tplForm.code" placeholder="唯一编码，如 drawing_list"></el-input></el-form-item>
+            <el-form-item label="类型">
+                <el-select v-model="tplForm.templateType" style="width:200px">
+                    <el-option v-for="t in ['List','Home','Custom']" :key="t" :label="t" :value="t"></el-option>
+                </el-select>
+                <span class="hint">List=3屏（筛选/汇总/细节），Home=主页九宫格，Custom=自定义</span>
+            </el-form-item>
+            <el-form-item label="渲染视图">
+                <el-input v-model="tplForm.renderView" placeholder="RouteList / RouteHome / 自定义 View 名"></el-input>
+                <span class="hint">模板的统一页面：运行时按此 View 渲染并消费参数</span>
+            </el-form-item>
+            <el-form-item label="启用"><el-switch v-model="tplForm.isEnabled"></el-switch></el-form-item>
+            <el-form-item label="排序"><el-input-number v-model="tplForm.sortOrder" :min="0"></el-input-number></el-form-item>
+            <el-form-item label="备注"><el-input v-model="tplForm.remark" type="textarea" :rows="2"></el-input></el-form-item>
+            <el-form-item label="参数定义">
+                <div style="width:100%">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <span class="hint">模板需要的参数：页面选择 / 输入 / 九宫格…由页面实例按此定义填写</span>
+                        <div>
+                            <el-button size="small" type="primary" @@click="addTplParam">+ 参数</el-button>
+                            <el-button size="small" type="info" @@click="tplToggleSchemaMode">{{ tplSchemaJsonMode ? '可视化' : 'JSON' }}</el-button>
+                        </div>
+                    </div>
+                    <el-table v-if="!tplSchemaJsonMode" :data="tplForm.paramSchema" border size="small" max-height="320">
+                        <el-table-column label="Key" min-width="120">
+                            <template #default="{row}"><el-input v-model="row.key" size="small" placeholder="summaryPageId"></el-input></template>
+                        </el-table-column>
+                        <el-table-column label="标签" min-width="100">
+                            <template #default="{row}"><el-input v-model="row.label" size="small" placeholder="汇总屏页面"></el-input></template>
+                        </el-table-column>
+                        <el-table-column label="控件类型" width="118">
+                            <template #default="{row}">
+                                <el-select v-model="row.type" size="small">
+                                    <el-option v-for="t in ['pagePicker','input','textarea','number','switch','select','gridItems','json']" :key="t" :label="t" :value="t"></el-option>
+                                </el-select>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="页面类型" width="96">
+                            <template #default="{row}">
+                                <el-select v-model="row.pageType" size="small" clearable placeholder="全部">
+                                    <el-option v-for="t in ['Filter','Summary','Detail']" :key="t" :label="t" :value="t"></el-option>
+                                </el-select>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="必填" width="56" align="center">
+                            <template #default="{row}"><el-checkbox v-model="row.required"></el-checkbox></template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="70" align="center">
+                            <template #default="{row,$index}">
+                                <el-button size="small" type="danger" link @@click="tplForm.paramSchema.splice($index,1)">删除</el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    <el-input v-else v-model="tplSchemaJson" type="textarea" :rows="8" placeholder="参数定义 JSON：[{&quot;key&quot;:&quot;summaryPageId&quot;,&quot;label&quot;:&quot;汇总屏页面&quot;,&quot;type&quot;:&quot;pagePicker&quot;,&quot;pageType&quot;:&quot;Summary&quot;,&quot;required&quot;:true}]"></el-input>
+                    <div v-if="!tplSchemaJsonMode" class="hint" style="margin-top:4px;">
+                        控件：pagePicker=选页面(按页面类型过滤)；input/textarea/number/switch=基础控件；select=下拉(需在 options 填 [{label,value}] JSON)；gridItems=九宫格数组(需在 fields 填 [{key,label}] 子字段)；json=JSON 输入
+                    </div>
+                </div>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @@click="tplDialog=false">取消</el-button>
+            <el-button type="primary" @@click="saveTemplate" :loading="savingTemplate">保存</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 路由页面编辑对话框 -->
+    <el-dialog v-model="wpDialog" :title="wpDialogTitle" width="840px" :close-on-click-modal="false">
+        <el-form :model="wpForm" label-width="100px" size="default">
+            <el-form-item label="名称" required><el-input v-model="wpForm.name" placeholder="页面名称"></el-input></el-form-item>
+            <el-form-item label="路由" required><el-input v-model="wpForm.route" placeholder="/drawings"></el-input></el-form-item>
+            <el-form-item label="标题"><el-input v-model="wpForm.title" placeholder="浏览器标题（可选）"></el-input></el-form-item>
+            <el-form-item label="模板" required>
+                <el-select v-model="wpForm.templateId" filterable placeholder="选择模板" style="width:100%" @@change="onWpTemplateChanged">
+                    <el-option v-for="t in templates" :key="t.id" :label="t.name + ' (' + t.code + ')'" :value="t.id"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item v-if="wpForm.templateId && wpSchema.length===0" label=" ">
+                <span class="hint">该模板未定义参数，无需填写即可运行。</span>
+            </el-form-item>
+            <template v-for="p in wpSchema" :key="p.key">
+                <el-form-item :label="p.label || p.key" :required="p.required">
+                    <el-select v-if="p.type==='pagePicker'" v-model="wpParams[p.key]" filterable clearable placeholder="选择页面" style="width:100%">
+                        <el-option v-for="pg in pageOptionsOf(p)" :key="pg.id" :label="pg.code + ' (' + typeText(pg.type) + ')'" :value="pg.id"></el-option>
+                    </el-select>
+                    <el-input v-else-if="p.type==='textarea'" v-model="wpParams[p.key]" type="textarea" :rows="2"></el-input>
+                    <el-switch v-else-if="p.type==='switch'" v-model="wpParams[p.key]"></el-switch>
+                    <el-input-number v-else-if="p.type==='number'" v-model="wpParams[p.key]" :min="0"></el-input-number>
+                    <el-select v-else-if="p.type==='select'" v-model="wpParams[p.key]" filterable clearable style="width:100%">
+                        <el-option v-for="o in (p.options||[])" :key="o.value" :label="o.label" :value="o.value"></el-option>
+                    </el-select>
+                    <el-input v-else-if="p.type==='json'" v-model="wpParamsJson[p.key]" type="textarea" :rows="3" placeholder="JSON 值"></el-input>
+                    <el-input v-else v-model="wpParams[p.key]"></el-input>
+                    <div v-if="p.type==='gridItems'" style="width:100%;margin-top:6px;">
+                        <el-table :data="wpGridItems[p.key] || []" border size="small">
+                            <el-table-column v-for="f in (p.fields||[])" :key="f.key" :label="f.label || f.key" min-width="110">
+                                <template #default="{row}"><el-input v-model="row[f.key]" size="small"></el-input></template>
+                            </el-table-column>
+                            <el-table-column label="操作" width="60" align="center">
+                                <template #default="{row,$index}">
+                                    <el-button size="small" type="danger" link @@click="(wpGridItems[p.key]||[]).splice($index,1)">删除</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                        <el-button size="small" style="margin-top:4px" @@click="addGridItem(p)">+ 添加一项</el-button>
+                    </div>
+                </el-form-item>
+            </template>
+            <el-form-item label="主页"><el-switch v-model="wpForm.isHome"></el-switch></el-form-item>
+            <el-form-item label="启用"><el-switch v-model="wpForm.isEnabled"></el-switch></el-form-item>
+            <el-form-item label="排序"><el-input-number v-model="wpForm.sortOrder" :min="0"></el-input-number></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @@click="wpDialog=false">取消</el-button>
+            <el-button type="primary" @@click="saveWebPage" :loading="savingWebPage">保存</el-button>
+        </template>
+    </el-dialog>
+
     <!-- 视图源码对话框 -->
     <el-dialog v-model="viewDialog" title="生成视图" width="72%" :close-on-click-modal="false">
         <el-tabs v-model="viewTab">
@@ -299,7 +502,7 @@
 <script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
 <script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
 <script>
-const { createApp, reactive, ref, onMounted } = Vue;
+const { createApp, reactive, ref, computed, onMounted } = Vue;
 const { ElMessage, ElMessageBox } = ElementPlus;
 
 createApp({
@@ -307,6 +510,30 @@ createApp({
         const tab = ref('projects');
         const projects = ref([]);
         const projectsLoading = ref(false);
+
+        // ---------- 模板管理 ----------
+        const templates = ref([]);
+        const templatesLoading = ref(false);
+        const tplFilter = reactive({ keyword: '', type: '' });
+        const tplPage = ref(1); const tplPageSize = 10; const tplTotal = ref(0);
+        const tplDialog = ref(false); const tplDialogTitle = ref('新增模板'); const savingTemplate = ref(false);
+        const tplSchemaJsonMode = ref(false); const tplSchemaJson = ref('');
+        const tplForm = reactive({ id: 0, projectId: null, name: '', code: '', templateType: 'List', renderView: 'RouteList', paramSchema: [], isEnabled: true, sortOrder: 0, remark: '' });
+        const tplPaged = computed(() => templates.value.slice((tplPage.value - 1) * tplPageSize, tplPage.value * tplPageSize));
+
+        // ---------- 路由页面管理 ----------
+        const webpages = ref([]);
+        const webpagesLoading = ref(false);
+        const wpFilter = reactive({ keyword: '', templateId: null });
+        const wpPage = ref(1); const wpPageSize = 10; const wpTotal = ref(0);
+        const wpDialog = ref(false); const wpDialogTitle = ref('新增页面'); const savingWebPage = ref(false);
+        const wpForm = reactive({ id: 0, projectId: null, name: '', route: '', title: '', templateId: null, isHome: false, isEnabled: true, sortOrder: 0, remark: '' });
+        const wpSchema = ref([]);
+        const wpParams = reactive({});
+        const wpParamsJson = reactive({});
+        const wpGridItems = reactive({});
+        const pageOptionsCache = ref([]);
+        const wpPaged = computed(() => webpages.value.slice((wpPage.value - 1) * wpPageSize, wpPage.value * wpPageSize));
 
         // ---- 工程 ----
         const projDialog = ref(false);
@@ -436,7 +663,7 @@ createApp({
             selectedTable.value = '';
             colDefs.value = [];
             pages.value = [];
-            await Promise.all([loadTables(), loadPages()]);
+            await Promise.all([loadTables(), loadPages(), loadTemplates(), loadWebPages(), loadPageOptions()]);
         }
 
         async function loadTables() {
@@ -631,6 +858,139 @@ createApp({
         function typeText(t) { return t === 'Summary' ? '汇总屏' : t === 'Detail' ? '细节屏' : t === 'Filter' ? '查询屏' : (t || '-'); }
         function typeTag(t) { return t === 'Summary' ? 'success' : t === 'Detail' ? 'warning' : t === 'Filter' ? 'primary' : 'info'; }
 
+        // ---------- 模板管理操作 ----------
+        async function loadTemplates() {
+            if (!pmProjectId.value) return;
+            templatesLoading.value = true;
+            try {
+                const r = await api(`/api/dynproject/${pmProjectId.value}/templates`);
+                let list = r.data || [];
+                const kw = (tplFilter.keyword || '').toLowerCase();
+                if (kw) list = list.filter(x => (x.name || '').toLowerCase().includes(kw) || (x.code || '').toLowerCase().includes(kw));
+                if (tplFilter.type) list = list.filter(x => x.templateType === tplFilter.type);
+                templates.value = list;
+                tplTotal.value = list.length;
+            } finally { templatesLoading.value = false; }
+        }
+        function tplParamCount(row) { try { return JSON.parse(row.paramSchema || '[]').length } catch { return 0 } }
+        function openTemplateEdit(row) {
+            tplSchemaJsonMode.value = false;
+            if (row) {
+                Object.assign(tplForm, { id: row.id, projectId: pmProjectId.value, name: row.name, code: row.code, templateType: row.templateType || 'List', renderView: row.renderView || '', isEnabled: row.isEnabled !== false, sortOrder: row.sortOrder || 0, remark: row.remark || '' });
+                try { tplForm.paramSchema = JSON.parse(row.paramSchema || '[]') } catch { tplForm.paramSchema = [] }
+                tplDialogTitle.value = '编辑模板';
+            } else {
+                Object.assign(tplForm, { id: 0, projectId: pmProjectId.value, name: '', code: '', templateType: 'List', renderView: 'RouteList', paramSchema: [], isEnabled: true, sortOrder: 0, remark: '' });
+                tplDialogTitle.value = '新增模板';
+            }
+            tplDialog.value = true;
+        }
+        function addTplParam() { tplForm.paramSchema.push({ key: '', label: '', type: 'input', pageType: null, required: false, default: null, options: [], fields: [] }); }
+        function tplToggleSchemaMode() {
+            if (!tplSchemaJsonMode.value) {
+                // 可视化 → JSON
+                tplSchemaJson.value = JSON.stringify(tplForm.paramSchema, null, 2);
+                tplSchemaJsonMode.value = true;
+            } else {
+                // JSON → 可视化
+                try { const arr = JSON.parse(tplSchemaJson.value); if (!Array.isArray(arr)) throw 0; tplForm.paramSchema = arr; }
+                catch { ElMessage.error('参数定义 JSON 解析失败'); return; }
+                tplSchemaJsonMode.value = false;
+            }
+        }
+        async function saveTemplate() {
+            if (!tplForm.name || !tplForm.code) return ElMessage.warning('请填写名称和编码');
+            const body = { ...tplForm, projectId: pmProjectId.value, paramSchema: JSON.stringify(tplForm.paramSchema) };
+            savingTemplate.value = true;
+            try {
+                const r = await api('/api/dynproject/template/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (r.success) { ElMessage.success('已保存'); tplDialog.value = false; await loadTemplates(); }
+                else ElMessage.error(r.message || '保存失败');
+            } finally { savingTemplate.value = false; }
+        }
+        async function deleteTemplate(row) {
+            const ok = await ElMessageBox.confirm(`确定删除模板「${row.name}」？`, '提示', { type: 'warning' }).catch(() => false);
+            if (!ok) return;
+            const r = await api(`/api/dynproject/template/${row.id}`, { method: 'DELETE' });
+            if (r.success) { ElMessage.success('已删除'); await loadTemplates(); } else ElMessage.error(r.message || '删除失败');
+        }
+
+        // ---------- 路由页面管理操作 ----------
+        async function loadWebPages() {
+            if (!pmProjectId.value) return;
+            webpagesLoading.value = true;
+            try {
+                const r = await api(`/api/dynproject/${pmProjectId.value}/webpages`);
+                let list = r.data || [];
+                const kw = (wpFilter.keyword || '').toLowerCase();
+                if (kw) list = list.filter(x => (x.name || '').toLowerCase().includes(kw) || (x.route || '').toLowerCase().includes(kw));
+                if (wpFilter.templateId) list = list.filter(x => x.templateId === wpFilter.templateId);
+                webpages.value = list;
+                wpTotal.value = list.length;
+            } finally { webpagesLoading.value = false; }
+        }
+        function templateName(id) { const t = templates.value.find(x => x.id === id); return t ? t.name : (id || '—'); }
+        async function loadPageOptions() { pageOptionsCache.value = (await api(`/api/dynproject/${pmProjectId.value}/pages`)).data || []; }
+        function pageOptionsOf(p) { return pageOptionsCache.value.filter(x => !p.pageType || x.type === p.pageType); }
+        function onWpTemplateChanged() {
+            wpSchema.value = [];
+            const t = templates.value.find(x => x.id === wpForm.templateId);
+            if (t) { try { wpSchema.value = JSON.parse(t.paramSchema || '[]') } catch { wpSchema.value = [] } }
+            for (const k of Object.keys(wpParams)) delete wpParams[k];
+            for (const k of Object.keys(wpParamsJson)) delete wpParamsJson[k];
+            for (const k of Object.keys(wpGridItems)) delete wpGridItems[k];
+            for (const p of wpSchema.value) {
+                if (p.type === 'json') wpParamsJson[p.key] = (p.default && typeof p.default === 'string') ? p.default : '';
+                else if (p.type === 'gridItems') wpGridItems[p.key] = Array.isArray(p.default) ? p.default.map(x => ({ ...x })) : [];
+                else if (p.type === 'switch') wpParams[p.key] = !!p.default;
+                else wpParams[p.key] = (p.default !== undefined && p.default !== null) ? p.default : '';
+            }
+        }
+        function addGridItem(p) { if (!wpGridItems[p.key]) wpGridItems[p.key] = []; wpGridItems[p.key].push(Object.fromEntries((p.fields || []).map(f => [f.key, '']))); }
+        function openWebPageEdit(row) {
+            if (row) {
+                Object.assign(wpForm, { id: row.id, projectId: pmProjectId.value, name: row.name, route: row.route, title: row.title || '', templateId: row.templateId || null, isHome: row.isHome, isEnabled: row.isEnabled !== false, sortOrder: row.sortOrder || 0, remark: row.remark || '' });
+                wpDialogTitle.value = '编辑页面';
+            } else {
+                Object.assign(wpForm, { id: 0, projectId: pmProjectId.value, name: '', route: '', title: '', templateId: null, isHome: false, isEnabled: true, sortOrder: 0, remark: '' });
+                wpDialogTitle.value = '新增页面';
+            }
+            onWpTemplateChanged();
+            if (row && row.params) {
+                try {
+                    const saved = JSON.parse(row.params);
+                    for (const k of Object.keys(saved)) {
+                        if (k in wpParamsJson) wpParamsJson[k] = typeof saved[k] === 'string' ? saved[k] : JSON.stringify(saved[k]);
+                        else if (k in wpGridItems) wpGridItems[k] = Array.isArray(saved[k]) ? saved[k].map(x => ({ ...x })) : [];
+                        else wpParams[k] = saved[k];
+                    }
+                } catch {}
+            }
+            wpDialog.value = true;
+        }
+        async function saveWebPage() {
+            if (!wpForm.name || !wpForm.route) return ElMessage.warning('请填写名称和路由');
+            if (!wpForm.templateId) return ElMessage.warning('请选择模板');
+            const params = {};
+            for (const k of Object.keys(wpParams)) params[k] = wpParams[k];
+            for (const k of Object.keys(wpParamsJson)) { try { params[k] = JSON.parse(wpParamsJson[k] || '\"\"') } catch { params[k] = wpParamsJson[k] } }
+            for (const k of Object.keys(wpGridItems)) params[k] = wpGridItems[k];
+            const body = { ...wpForm, projectId: pmProjectId.value, params: JSON.stringify(params) };
+            savingWebPage.value = true;
+            try {
+                const r = await api('/api/dynproject/webpage/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (r.success) { ElMessage.success('已保存'); wpDialog.value = false; await loadWebPages(); }
+                else ElMessage.error(r.message || '保存失败');
+            } finally { savingWebPage.value = false; }
+        }
+        async function deleteWebPage(row) {
+            const ok = await ElMessageBox.confirm(`确定删除页面「${row.name}」？`, '提示', { type: 'warning' }).catch(() => false);
+            if (!ok) return;
+            const r = await api(`/api/dynproject/webpage/${row.id}`, { method: 'DELETE' });
+            if (r.success) { ElMessage.success('已删除'); await loadWebPages(); } else ElMessage.error(r.message || '删除失败');
+        }
+        function runWebPage(row) { openPreview(`/DynRun/Route?projectId=${pmProjectId.value}&route=${encodeURIComponent(row.route)}`, row.name); }
+
         onMounted(async () => {
             await loadProjects();
             // 支持 ?projectId=X&tab=pages 直达页面管理（供设计工作台"屏设计"窗口 iframe 使用）
@@ -650,10 +1010,17 @@ createApp({
             summaryCode, summaryTitle, detailCode, detailTitle, filterCode, filterTitle,
             dataSource, viewName, navs,
             pages, savingPages, viewDialog, viewTab, sqlView, htmlView, savedPath,
+            templates, templatesLoading, tplFilter, tplPage, tplPageSize, tplTotal, tplDialog, tplDialogTitle, savingTemplate,
+            tplSchemaJsonMode, tplSchemaJson, tplForm, tplPaged,
+            webpages, webpagesLoading, wpFilter, wpPage, wpPageSize, wpTotal, wpDialog, wpDialogTitle, savingWebPage,
+            wpForm, wpSchema, wpParams, wpParamsJson, wpGridItems, pageOptionsCache, wpPaged,
             loadProjects, openProjectEdit, testProjectConnection, saveProject, deleteProject,
             goPages, typeTagOf, openDesign, previewProject, previewPage, onProjectChanged, loadTables, loadPages,
             onTableClick, saveGeneratedPages, saveFilterPage, generateSqlView, generateViewFiles, deletePage,
-            typeText, typeTag
+            typeText, typeTag,
+            loadTemplates, tplParamCount, openTemplateEdit, addTplParam, tplToggleSchemaMode, saveTemplate, deleteTemplate,
+            loadWebPages, templateName, loadPageOptions, pageOptionsOf, onWpTemplateChanged, addGridItem,
+            openWebPageEdit, saveWebPage, deleteWebPage, runWebPage
         };
     }
 }).use(ElementPlus).mount('#app');

@@ -103,7 +103,12 @@ public class DynRunController : Controller
         var tcfg = DynProjectService.ParseTemplateConfig(template);
         var (fp, sp, dp) = DynProjectService.EffectivePageIds(wp, template);
 
-        if (template.TemplateType == "Home")
+        // 模板统一页面：按 RenderView 分派（兼容旧数据：未配置时按 TemplateType 推导）
+        var renderView = string.IsNullOrEmpty(template.RenderView)
+            ? (template.TemplateType == "Home" ? "RouteHome" : "RouteList")
+            : template.RenderView;
+
+        if (renderView == "RouteHome")
         {
             var homeModel = new DynRouteHomeModel
             {
@@ -111,7 +116,8 @@ public class DynRunController : Controller
                 WebPage = wp,
                 Template = template,
                 PageConfig = DynProjectService.ParseWebPageConfig(wp),
-                Pages = _svc.GetWebPages(projectId).Where(x => x.Id != wp.Id && x.IsEnabled).ToList()
+                Pages = _svc.GetWebPages(projectId).Where(x => x.Id != wp.Id && x.IsEnabled).ToList(),
+                Params = DynProjectService.ParseParams(wp)
             };
             // 主页模板可配置一个 Summary 屏做数据看板
             if (sp > 0)
@@ -128,6 +134,8 @@ public class DynRunController : Controller
             return View("RouteHome", homeModel);
         }
 
+        if (renderView == "RouteList")
+        {
         // List 模板（默认）
         var filterPage = fp > 0 ? _svc.GetPage(fp.Value) : null;
         var summaryPage = sp > 0 ? _svc.GetPage(sp.Value) : null;
@@ -150,7 +158,8 @@ public class DynRunController : Controller
             SummaryDef = summaryDef,
             TemplateConfig = tcfg,
             PageConfig = DynProjectService.ParseWebPageConfig(wp),
-            Filter = new Dictionary<string, object?>()
+            Filter = new Dictionary<string, object?>(),
+            Params = DynProjectService.ParseParams(wp)
         };
         if (string.IsNullOrWhiteSpace(tcfg?.DataUrl))
         {
@@ -164,7 +173,20 @@ public class DynRunController : Controller
         {
             listModel.Result = new PagedResult<Dictionary<string, object?>>();
         }
-        return View("RouteList", listModel);
+            return View("RouteList", listModel);
+        }
+
+        // 通用模板：RouteCustom（按 Params 动态渲染）
+        var customModel = new DynRouteCustomModel
+        {
+            Project = project,
+            WebPage = wp,
+            Template = template,
+            Params = DynProjectService.ParseParams(wp),
+            Schema = DynProjectService.ParseParamSchema(template),
+            Pages = _svc.GetPages(projectId)
+        };
+        return View("RouteCustom", customModel);
     }
 
     /// <summary>List 模板的数据接口：Filter 屏定义筛选字段，Summary 屏定义表格/排序/分页</summary>

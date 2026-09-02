@@ -407,14 +407,56 @@ public class DynProjectService
         catch { return null; }
     }
 
-    /// <summary>生效的三屏 Id：路由页面配置覆盖 > 模板配置（未指定为 null）</summary>
+    /// <summary>解析模板参数定义（ParamSchema JSON → 参数项列表）</summary>
+    public static List<DynTemplateParam> ParseParamSchema(DynTemplate? t)
+    {
+        if (t == null || string.IsNullOrWhiteSpace(t.ParamSchema)) return new();
+        try { return Newtonsoft.Json.JsonConvert.DeserializeObject<List<DynTemplateParam>>(t.ParamSchema) ?? new(); }
+        catch { return new(); }
+    }
+
+    /// <summary>解析页面实例参数（Params JSON → 字典）</summary>
+    public static Dictionary<string, object?> ParseParams(DynWebPage? w)
+    {
+        var dict = new Dictionary<string, object?>();
+        if (w == null || string.IsNullOrWhiteSpace(w.Params)) return dict;
+        try
+        {
+            var j = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, object?>>(w.Params);
+            if (j != null) foreach (var kv in j) dict[kv.Key] = kv.Value;
+        }
+        catch { }
+        return dict;
+    }
+
+    /// <summary>把参数值转为 int?（兼容 int/long/JValue/字符串）</summary>
+    public static int? ToIntParam(object? v)
+    {
+        if (v == null) return null;
+        if (v is int i) return i;
+        if (v is long l) return (int)l;
+        if (v is Newtonsoft.Json.Linq.JValue jv)
+            return int.TryParse(jv.Value?.ToString(), out var r) ? r : null;
+        return int.TryParse(v.ToString(), out var n) ? n : null;
+    }
+
+    /// <summary>生效的三屏 Id：页面实例 Params > 页面 Config 覆盖 > 模板配置（未指定为 null）</summary>
     public static (int? filter, int? summary, int? detail) EffectivePageIds(DynWebPage? w, DynTemplate? t)
     {
-        var wc = ParseWebPageConfig(w);
-        return (
-            wc?.FilterPageId ?? t?.FilterPageId,
-            wc?.SummaryPageId ?? t?.SummaryPageId,
-            wc?.DetailPageId ?? t?.DetailPageId);
+        var ps = ParseParams(w);
+        var f = ps.TryGetValue("filterPageId", out var fv) ? ToIntParam(fv) : null;
+        var s = ps.TryGetValue("summaryPageId", out var sv) ? ToIntParam(sv) : null;
+        var d = ps.TryGetValue("detailPageId", out var dv) ? ToIntParam(dv) : null;
+        if (f == null && s == null && d == null)
+        {
+            // 兼容旧数据：未配置 Params 时回退页面 Config 覆盖 / 模板三字段
+            var wc = ParseWebPageConfig(w);
+            return (
+                wc?.FilterPageId ?? t?.FilterPageId,
+                wc?.SummaryPageId ?? t?.SummaryPageId,
+                wc?.DetailPageId ?? t?.DetailPageId);
+        }
+        return (f, s, d);
     }
 
     // ==================== 外键导航自动检测 ====================
