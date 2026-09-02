@@ -473,6 +473,10 @@
             // 属性更新回调
             function onPropertyUpdate(key, value, localModel) {
                 if (!currentCom.value) return;
+                // 字面键（@@/@ 前缀 = 开放属性/开放容器）：DynamicPropertyPanel 已直接写入
+                // componentConfig.options.comoptions / slots（键含 . 和 [ ]，不能走 ppSetByPath
+                // 点号路径，否则生成根级垃圾键如 @childrenctrls[0]）
+                if (typeof key === 'string' && key.indexOf('@') === 0) return;
                 // 直接修改 currentCom（响应式）
                 // localModel 是 DynamicPropertyPanel 内部的模型，已被修改
                 // 需要同步回 currentCom
@@ -775,6 +779,14 @@
                 if (!currentPageCode.value) { ElMessage.warning('请先选择或新建页面'); return; }
                 saving.value = true;
                 try {
+                    // 清理历史残留的 at 前缀根级垃圾键（旧版属性面板 bug 产生，如 @childrenctrls[0]，
+                    // 会破坏开放属性读写与 JSON 校验）——只清理节点根级，不动 extendinfo/comoptions 内嵌数据
+                    (function cleanAtKeys(node) {
+                        if (!node || typeof node !== 'object') return;
+                        Object.keys(node).forEach(function (k) { if (k.indexOf('@') === 0) delete node[k]; });
+                        (node.childrenctrls || []).forEach(cleanAtKeys);
+                        if (node.slots) Object.keys(node.slots).forEach(function (sk) { (node.slots[sk] || []).forEach(cleanAtKeys); });
+                    })(configObj);
                     const pageData = {
                         id: currentPageId.value || 0,
                         pageName: pageList.value.find(p => p.pageCode === currentPageCode.value)?.pageName || currentPageCode.value,

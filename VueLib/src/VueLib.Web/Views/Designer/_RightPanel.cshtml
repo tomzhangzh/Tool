@@ -254,6 +254,9 @@
                 });
                 function onPropertyUpdate(key, value, localModel) {
                     if (!S.currentCom.value) return;
+                    // 字面键（at 前缀，如 @@childrenctrls[0].modelname）：DynamicPropertyPanel 已直接写入
+                    // comoptions / slots（键含 . 和 [ ]，不能走 ppSetByPath 点号路径，否则会生成根级垃圾键）
+                    if (typeof key === 'string' && key.indexOf('@@') === 0) return;
                     if (window.ppSetByPath) window.ppSetByPath(S.currentCom.value, key, value);
                 }
                 function showJsonEditor() {

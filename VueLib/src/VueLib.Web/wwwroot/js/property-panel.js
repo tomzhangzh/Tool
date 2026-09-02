@@ -52,7 +52,9 @@
                             // 自动补全字段路径：如果 key 不包含点号，默认添加 options.comoptions. 前缀
                             // 特殊字段：modelname 保持根级别
                             var key = f.key || '';
-                            if (key && key.indexOf('.') < 0 && key !== 'modelname') {
+                            // at 前缀字面键（@@/@ = 开放属性/开放容器）不补 options.comoptions. 前缀，
+                            // 否则 @@username 会被误改为 options.comoptions.@@username 导致读写错位
+                            if (key && key.indexOf('@') !== 0 && key.indexOf('.') < 0 && key !== 'modelname') {
                                 key = 'options.comoptions.' + key;
                             }
                             return Object.assign({}, f, { key: key });
@@ -78,13 +80,21 @@
             }
         },
         methods: {
+            // 字面键前缀长度：@@ 双前缀（官方）返回 2，@ 单前缀（历史/手动数据兼容）返回 1，非字面键返回 0
+            literalPrefixLen: function (k) {
+                if (typeof k !== 'string') return 0;
+                if (k.indexOf('@@') === 0) return 2;
+                if (k.indexOf('@') === 0) return 1;
+                return 0;
+            },
             isLiteralKey: function (k) {
-                return typeof k === 'string' && k.indexOf('@@') === 0;
+                return this.literalPrefixLen(k) > 0;
             },
             getFieldValue: function (field) {
-                // @@ 字面键：开放属性存 comoptions[完整路径]，开放容器存 slots[路径]（键含点号/方括号，不能按点号路径解析）
-                if (this.isLiteralKey(field.key)) {
-                    var body = field.key.slice(2);
+                var pl = this.literalPrefixLen(field.key);
+                // @@ / @ 字面键：开放属性存 comoptions[完整路径]，开放容器存 slots[路径]（键含点号/方括号，不能按点号路径解析）
+                if (pl > 0) {
+                    var body = field.key.slice(pl);
                     if (body.indexOf('slots:') === 0) {
                         var sk = body.slice(6);
                         var sl = (this.componentConfig && this.componentConfig.slots) || {};
@@ -97,8 +107,9 @@
                 return (val === undefined) ? field.default : val;
             },
             setFieldValue: function (field, val) {
-                if (this.isLiteralKey(field.key)) {
-                    var body = field.key.slice(2);
+                var pl = this.literalPrefixLen(field.key);
+                if (pl > 0) {
+                    var body = field.key.slice(pl);
                     if (body.indexOf('slots:') === 0) {
                         var sk = body.slice(6);
                         if (!this.componentConfig.slots) this.componentConfig.slots = {};
