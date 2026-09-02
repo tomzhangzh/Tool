@@ -93,7 +93,10 @@ body {
 .panel-btn:hover { color: #409eff; background: #ecf5ff; }
 
 /* 侧栏吸附(dock)/关闭(restore)——lowcode-engine 风格 */
-.panel-left-wrap, .panel-right-wrap { display: flex; align-items: stretch; flex-shrink: 0; }
+/* #lc-left / #lc-right 是独立 dyn-init app 根，需为 flex column 以约束 wrap 高度，
+   否则 wrap 被内容撑开（min-height:auto）超出 lc-main 高度被裁剪，内部滚动条失效 */
+#lc-left, #lc-right { display: flex; flex-direction: column; min-height: 0; }
+.panel-left-wrap, .panel-right-wrap { display: flex; align-items: stretch; flex: 1; min-height: 0; }
 .panel-dock {
     width: 42px; background: #fff; cursor: pointer; user-select: none;
     display: flex; flex-direction: column; align-items: center; gap: 14px;
