@@ -7,6 +7,8 @@
     <meta charset="utf-8" />
     <title>dyn-lib 动作委托 Demo</title>
     <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/nutui.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/nutui-icons.css" asp-append-version="true" />
     <style>
         body { font-family: 'Segoe UI', 'PingFang SC', Arial, sans-serif; margin: 0; background: #f4f4f5; padding: 20px; }
         .demo-card { background: #fff; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
@@ -85,11 +87,76 @@
         </div>
     </div>
 
+    <div class="demo-card">
+        <h3>⑤ 全局对象调用（直接调用 ElementUI/NutUI 方法，无需注册）</h3>
+        <div class="demo-row">
+            <span class="demo-label">ElementUI：</span>
+            <button dyn-click-ElementPlus.ElMessage.success='{"text":"操作成功"}' class="btn">成功消息</button>
+            <button dyn-click-ElementPlus.ElMessage.warning='{"text":"请注意"}' class="btn">警告消息</button>
+            <button dyn-click-ElementPlus.ElMessage.info='{"text":"提示信息"}' class="btn">信息消息</button>
+            <button dyn-click-ElementPlus.ElMessage.error='{"text":"操作失败"}' class="btn">错误消息</button>
+        </div>
+        <div class="demo-row">
+            <span class="demo-label">ElementUI：</span>
+            <button dyn-click-ElementPlus.ElMessageBox.alert='{"text":"警告内容","title":"警告"}' class="btn">警告框</button>
+            <button dyn-click-ElementPlus.ElMessageBox.confirm='{"text":"确定删除？","title":"确认"}' class="btn">确认框</button>
+            <button dyn-click-ElementPlus.ElNotification.success='{"title":"成功","message":"操作成功"}' class="btn">成功通知</button>
+        </div>
+        <div class="demo-row">
+            <span class="demo-label">NutUI：</span>
+            <button dyn-click-nutui.showToast.success='{"text":"操作成功"}' class="btn">成功消息</button>
+            <button dyn-click-nutui.showToast.loading='{"text":"加载中"}' class="btn">加载消息</button>
+            <button dyn-click-nutui.showToast.fail='{"text":"操作失败"}' class="btn">失败消息</button>
+        </div>
+        <div class="demo-row">
+            <span class="demo-label">NutUI：</span>
+            <button dyn-click-nutui.showDialog='{"title":"警告","content":"警告内容","showCancelButton":false}' class="btn">警告框</button>
+            <button dyn-click-nutui.showDialog='{"title":"确认","content":"确定删除？","showCancelButton":true}' class="btn">确认框</button>
+            <button dyn-click-nutui.showNotify.success='{"message":"操作成功"}' class="btn">成功通知</button>
+        </div>
+        <div class="demo-row">
+            <span class="demo-label">带参数：</span>
+            <button dyn-click-ElementPlus.ElMessageBox.alert='{"args":["警告内容","警告",{"confirmButtonText":"确定"}]}' class="btn">带参数</button>
+            <span style="font-size:12px;color:#909399;">（{"args":[...]} 数组形式传参）</span>
+        </div>
+        <div class="demo-row" style="font-size:12px;color:#909399;">
+            说明：属性名 <code>dyn-click-{全局对象路径}</code>，如 <code>dyn-click-ElementPlus.ElMessage.success</code>。
+            全局对象解析不区分大小写（HTML 属性名总是小写）。参数 <code>{"text":"..."}</code> 或 <code>{"args":[...]}</code>。
+        </div>
+    </div>
+
+    <div class="demo-card">
+        <h3>⑥ evalJS 动作（直接执行 JavaScript 代码）</h3>
+        <div class="demo-row">
+            <span class="demo-label">ElementUI：</span>
+            <button dyn-click-evaljs='ElementPlus.ElMessageBox.alert("xxx")' class="btn">警告框</button>
+            <button dyn-click-evaljs='ElementPlus.ElMessageBox.confirm("确定删除？")' class="btn">确认框</button>
+            <button dyn-click-evaljs='ElementPlus.ElNotification.success({title:"成功",message:"操作成功"})' class="btn">成功通知</button>
+        </div>
+        <div class="demo-row">
+            <span class="demo-label">NutUI：</span>
+            <button dyn-click-evaljs='nutui.showToast.success("操作成功")' class="btn">成功消息</button>
+            <button dyn-click-evaljs='nutui.showDialog({title:"警告",content:"警告内容",showCancelButton:false})' class="btn">警告框</button>
+            <button dyn-click-evaljs='nutui.showDialog({title:"确认",content:"确定删除？",showCancelButton:true})' class="btn">确认框</button>
+        </div>
+        <div class="demo-row">
+            <span class="demo-label">自定义：</span>
+            <button dyn-click-evaljs='alert("Hello World")' class="btn">alert</button>
+            <button dyn-click-evaljs='console.log("Hello World")' class="btn">console.log</button>
+            <button dyn-click-evaljs='document.title = "已修改"' class="btn">修改标题</button>
+        </div>
+        <div class="demo-row" style="font-size:12px;color:#909399;">
+            说明：属性名 <code>dyn-click-evaljs</code>，属性值是 JavaScript 代码字符串。
+            直接执行代码，无需注册动作。
+        </div>
+    </div>
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/js/vue.global.prod.js"></script>
     <script src="~/js/lodash.min.js"></script>
     <script src="~/js/element-plus.full.min.js"></script>
     <script src="~/js/element-plus-icons.min.js"></script>
+    <script src="~/js/nutui.umd.min.js"></script>
     <script src="~/js/dyn-lib.js"></script>
     <script>
         // 注册自定义运行时动作：dyn-click-toast

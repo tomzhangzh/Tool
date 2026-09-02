@@ -95,6 +95,30 @@
         return 'HTTP ' + (xhr.status || 0);
     }
 
+    // 全局对象解析：把 'ElementPlus.ElMessageBox.alert' 解析为 window.ElementPlus.ElMessageBox.alert
+    // 不区分大小写（HTML 属性名总是小写）
+    function resolveGlobal(path) {
+        var parts = path.split('.');
+        var obj = window;
+        for (var i = 0; i < parts.length; i++) {
+            if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) return undefined;
+            // 不区分大小写查找
+            var found = null;
+            for (var key in obj) {
+                if (key.toLowerCase() === parts[i].toLowerCase()) {
+                    found = key;
+                    break;
+                }
+            }
+            if (found) {
+                obj = obj[found];
+            } else {
+                return undefined;
+            }
+        }
+        return obj;
+    }
+
     function showMessage(msg, type) {
         if (!msg) return;
         try {
@@ -627,7 +651,7 @@
     // 注册一个运行时动作：注册后自动进入委托选择器
     function registerAction(name, fn, meta) {
         if (!name || typeof fn !== 'function') { console.error('[dyn-lib] registerAction 参数错误', name); return; }
-        _actions[name] = fn;
+        _actions[name] = { fn: fn, events: (meta && meta.events) || ['click'] };
         if (meta && meta.events) {
             meta.events.forEach(function (ev) { if (ACTION_EVENTS.indexOf(ev) < 0) ACTION_EVENTS.push(ev); });
         }
@@ -644,6 +668,10 @@
 
     // 构造统一上下文（动作方法的唯一入参）
     function buildCtx(el, eventName, $event, options, actionName) {
+        // 处理字符串类型的 options（如 evalJS 动作）
+        if (typeof options === 'string') {
+            options = { code: options };
+        }
         options = options || {};
         var params = {};
         if (el && el.attributes) {
@@ -672,23 +700,33 @@
     // 为某事件生成委托选择器（由注册表动态生成，注册动作时失效缓存）
     function selectorFor(eventName) {
         if (_selCache[eventName]) return _selCache[eventName];
-        var sels = [];
-        Object.keys(_actions).forEach(function (name) {
-            sels.push('[dyn-' + eventName + '-' + name + ']');
-        });
-        _selCache[eventName] = sels.join(',');
+        var parts = [];
+        for (var name in _actions) {
+            if (_actions[name].events.indexOf(eventName) !== -1) {
+                parts.push('[dyn-' + eventName + '-' + name + ']');
+            }
+        }
+        // 所有 dyn-{event}-* 属性（全局对象路径）
+        parts.push('[dyn-' + eventName + '-]');
+        _selCache[eventName] = parts.join(',');
         return _selCache[eventName];
     }
 
     // 解析元素属性：找 dyn-{event}-{action}，返回 { action, raw }
     function resolveActionAttr(el, eventName) {
-        var prefix = 'dyn-' + eventName + '-';
-        if (!el || !el.attributes) return null;
-        var hit = null;
-        [].forEach.call(el.attributes, function (a) {
-            if (a.name.indexOf(prefix) === 0) hit = { action: a.name.substring(prefix.length), raw: a.value };
-        });
-        return hit;
+        var attr = 'dyn-' + eventName + '-';
+        for (var i = 0; i < el.attributes.length; i++) {
+            var a = el.attributes[i];
+            if (a.name.indexOf(attr) === 0) {
+                var action = a.name.substring(attr.length);
+                // 先查注册表
+                if (_actions[action]) return { action: action, raw: a.value };
+                // 尝试解析为全局对象路径
+                var fn = resolveGlobal(action);
+                if (typeof fn === 'function') return { action: action, raw: a.value };
+            }
+        }
+        return null;
     }
 
     // 解析 options：JSON 优先；裸字符串兼容旧 dyn-click-reload 的选择器写法
@@ -702,12 +740,15 @@
     // 通用事件委托：每个事件一个 document capture 监听器，覆盖动态渲染出的所有元素
     ACTION_EVENTS.forEach(function (ev) {
         document.addEventListener(ev, function (e) {
-            var sel = selectorFor(ev);
-            if (!sel) return;
-            var el = e.target && e.target.closest ? e.target.closest(sel) : null;
-            if (!el) return;
-            var hit = resolveActionAttr(el, ev);
-            if (!hit || !_actions[hit.action]) return;
+            // 手动遍历父元素找 dyn-{event}-* 属性（不用 closest，因为属性名可能包含点号）
+            var el = e.target;
+            var hit = null;
+            while (el && el.attributes) {
+                hit = resolveActionAttr(el, ev);
+                if (hit) break;
+                el = el.parentNode;
+            }
+            if (!hit) return;
             var ctx = buildCtx(el, ev, e, parseActionOptions(hit.raw), hit.action);
             // P5: 提供 prevent 选项（默认阻止）
             var prevent = ctx.options.prevent !== false;
@@ -715,7 +756,39 @@
                 e.preventDefault();
                 e.stopPropagation();
             }
-            try { _actions[hit.action](ctx); }
+            try {
+                // 先查注册表
+                if (_actions[hit.action]) {
+                    _actions[hit.action].fn(ctx);
+                } else {
+                    // 全局对象路径
+                    var fn = resolveGlobal(hit.action);
+                    if (typeof fn === 'function') {
+                        var opts = ctx.options;
+                        if (typeof opts === 'string') {
+                            fn(opts);
+                        } else if (opts.args && Array.isArray(opts.args)) {
+                            fn.apply(null, opts.args);
+                        } else {
+                            // 把 text 改为 message（ElementPlus 的约定）
+                            if (opts.text && !opts.message) {
+                                opts.message = opts.text;
+                                delete opts.text;
+                            }
+                            // 判断参数类型：如果有 message 字段，把 message 作为第一个参数传入
+                            // （适用于 ElMessage.success / ElMessageBox.alert / showToast.success 等）
+                            // 否则把 opts 作为对象参数传入（适用于 showDialog 等）
+                            if (opts.message) {
+                                fn(opts.message);
+                            } else {
+                                fn(opts);
+                            }
+                        }
+                    } else {
+                        console.error('[dyn-lib] 动作不存在: ' + hit.action);
+                    }
+                }
+            }
             catch (err) {
                 console.error('[dyn-lib] 动作执行失败: ' + hit.action, err);
                 showMessage('操作失败：' + ((err && err.message) || err), 'error');
@@ -753,6 +826,20 @@
     registerAction('updateel', function (ctx) {
         var o = ctx.options || {};
         return updateEl(o.selector || ctx.element, o.url, o.params);
+    }, { events: ['click', 'change'] });
+    registerAction('evaljs', function (ctx) {
+        var code = ctx.options;
+        if (typeof code === 'object') code = code.selector || code;
+        if (!code) return;
+        try {
+            // 使用 new Function 执行代码
+            // eslint-disable-next-line no-new-func
+            var result = new Function("ctx", `return ${code}`)(ctx);
+            return result;
+        } catch (err) {
+            console.error('[dyn-lib] evalJS 执行失败', err);
+            showMessage('执行失败：' + ((err && err.message) || err), 'error');
+        }
     }, { events: ['click', 'change'] });
 
     // ===== 内置初始化动作（dyn-init-{action}：页面/Vue 初始化完毕立即执行） =====
@@ -907,7 +994,10 @@
         actionEvents: ACTION_EVENTS.slice(),
         updateEl: updateEl,
         serializeForm: serializeForm,
-        setDynCfg: setDynCfg
+        setDynCfg: setDynCfg,
+        resolveGlobal: resolveGlobal,
+        selectorFor: selectorFor,
+        resolveActionAttr: resolveActionAttr
     };
 
     global.dyn = dyn;
