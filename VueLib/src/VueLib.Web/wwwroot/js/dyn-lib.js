@@ -74,16 +74,17 @@
         return null;
     }
 
-    function fetchPartial(url, params, type) {
+    function fetchPartial(url, params, type, dataType) {
         type = type || 'POST';
         params = params || {};
+        dataType = dataType || 'html';
         return new Promise(function (resolvePromise, reject) {
             $.ajax({
                 url: url,
                 type: type,
                 data: type === 'GET' ? $.param(params) : JSON.stringify(params),
                 contentType: type === 'GET' ? undefined : 'application/json',
-                dataType: 'html'
+                dataType: dataType
             }).done(function (res) { resolvePromise(res); })
               .fail(function (xhr) { reject(new Error(extractError(xhr))); });
         });
@@ -358,13 +359,51 @@
         // 2) 顶层 dyn-init 应用
         var tops = topDynInit(root);
         tops.forEach(function (el) { mount(el); });
+        // 3) 初始化动作（dyn-{action}-init）
+        initActions(root);
     }
 
     function initAll() { init(document.body); }
 
     /* ---------------- reload ---------------- */
 
-    function reload(target) {
+    // 序列化容器内表单输入为参数对象（不限于 <form>，容器内任意 input/select/textarea）
+    function serializeForm(root) {
+        if (!root || !root.querySelectorAll) return null;
+        var $inputs = $(':input', root).filter(function () {
+            var n = this.name || '';
+            return !!n && !/^dyn-|^data-|^_|^v-|^inspector-|^doubao-/.test(n);
+        });
+        if (!$inputs.length) return null;
+        var o = {};
+        $inputs.each(function () {
+            var $e = $(this);
+            var n = this.name;
+            if (this.type === 'radio') { if (this.checked) o[n] = $e.val(); return; }
+            if (this.type === 'checkbox') { if (this.checked) o[n] = $e.val(); return; }
+            o[n] = $e.val();
+        });
+        return o;
+    }
+
+    // 汇总 reload 请求参数：固定参数(__dynCfg.params) → Vue model → form 序列化 → 显式 extra
+    function collectParams(targetEl, extra) {
+        var params = {};
+        var cfg = targetEl.__dynCfg || {};
+        if (cfg.params) params = Object.assign({}, cfg.params);
+        var inner = targetEl.hasAttribute('dyn-init') ? targetEl : (targetEl.querySelector('[dyn-init]') || null);
+        var app = inner ? getApp(inner) : null;
+        if (app && app._instance) params = Object.assign(params, deepClone(app._instance.proxy.model));
+        else if (inner) params = Object.assign(params, parseModel(inner) || {});
+        else params = Object.assign(params, parseModel(targetEl) || {});
+        var fp = serializeForm(inner || targetEl);
+        if (fp) params = Object.assign(params, fp);
+        if (extra) params = Object.assign(params, extra);
+        return params;
+    }
+
+    function reload(target, opts) {
+        opts = opts || {};
         // 支持命名函数 / 函数引用 / 全局回调（模板路由页 RouteList 等场景）
         if (typeof target === 'function') { try { return Promise.resolve(target()); } catch (e) { return Promise.resolve(null); } }
         if (typeof target === 'string' && typeof window[target] === 'function') {
@@ -381,23 +420,39 @@
 
         var $t;
         if (el.hasAttribute('dyn-init')) $t = $(el);
-        else if (el.hasAttribute('data-dyn-url')) $t = $(el);
+        else if (el.hasAttribute('data-dyn-url') || el.hasAttribute('data-url')) $t = $(el);
         else $t = $(el).closest('[dyn-init]');
         var targetEl = $t && $t.length ? $t.get(0) : null;
         if (!targetEl) return Promise.resolve(null);
 
-        var url = targetEl.getAttribute('data-dyn-url');
-        if (!url) { console.warn('[dyn-lib] reload 目标缺少 data-dyn-url', targetEl); return Promise.resolve(null); }
+        // url 读取优先级：显式 opts.url → __dynCfg.url → data-dyn-url → data-url
+        var cfg = targetEl.__dynCfg || {};
+        var url = opts.url || cfg.url || targetEl.getAttribute('data-dyn-url') || targetEl.getAttribute('data-url');
+        if (!url) { console.warn('[dyn-lib] reload 目标缺少 url（data-url / data-dyn-url / __dynCfg.url）', targetEl); return Promise.resolve(null); }
 
-        // 取当前 Model（host 里已挂载的 dyn-init 应用，或自身就是 dyn-init）
-        var model = {};
-        var inner = targetEl.hasAttribute('dyn-init') ? targetEl : (targetEl.querySelector('[dyn-init]') || null);
-        var app = inner ? getApp(inner) : null;
-        if (app && app._instance) model = deepClone(app._instance.proxy.model);
-        else if (inner) model = parseModel(inner) || {};
-        else model = parseModel(targetEl) || {};
+        // 参数三层合并：固定(__dynCfg.params) → Vue model → form；显式 opts.params 最后覆盖
+        var params = collectParams(targetEl, opts.params);
 
-        return fetchPartial(url, model, 'POST').then(function (html) {
+        // P0: 检测是否是 dyn-init app 本身（Vue 管理下）
+        var isDynInitApp = targetEl.hasAttribute('dyn-init');
+        if (isDynInitApp) {
+            // dyn-init app：用 JSON 方式更新（model 数据驱动，Vue 自动重新渲染）
+            return fetchPartial(url, params, opts.method || cfg.method || 'POST', 'json').then(function (data) {
+                if (data && typeof data === 'object') {
+                    var app = getApp(targetEl);
+                    if (app && app._instance) {
+                        Object.assign(app._instance.proxy.model, data);
+                    }
+                }
+                return init(targetEl);
+            }).catch(function (err) {
+                showMessage('刷新失败：' + ((err && err.message) || err), 'error');
+                return null;
+            });
+        }
+
+        // 纯 HTML 容器：直接 innerHTML
+        return fetchPartial(url, params, opts.method || cfg.method || 'POST').then(function (html) {
             unmount(targetEl);
             targetEl.innerHTML = html;
             return init(targetEl);
@@ -405,6 +460,25 @@
             showMessage('刷新失败：' + ((err && err.message) || err), 'error');
             return null;
         });
+    }
+
+    // updateEl(selector, url, param)：从 selector 元素开始，沿祖先链向上找最近的含
+    // data-url / data-dyn-url 的容器并刷新（closest 天然覆盖"继续向上直到 body"，无匹配则跳过）
+    function updateEl(selector, url, params) {
+        var el = resolve(selector);
+        if (!el) return Promise.resolve(null);
+        var $anc = $(el).closest('[data-url],[data-dyn-url]');
+        var target = $anc.length ? $anc.get(0) : null;
+        if (!target) return Promise.resolve(null);
+        return reload(target, { url: url, params: params });
+    }
+
+    // setDynCfg(el, cfg)：更新元素的 __dynCfg 配置（url + params + method），同步更新 data-url
+    function setDynCfg(el, cfg) {
+        el = resolve(el);
+        if (!el) return;
+        el.__dynCfg = Object.assign({}, el.__dynCfg, cfg);
+        if (cfg.url) el.setAttribute('data-url', cfg.url);
     }
 
     /* ---------------- postback：找到祖先 Model → POST → 处理响应 ---------------- */
@@ -529,68 +603,207 @@
         else host.remove();
     }
 
-    /* ---------------- 事件委托：一次绑定，覆盖所有动态渲染出的元素 ---------------- */
+    /* ============================================================================
+     * 动作注册表 + 通用事件委托（属性驱动：dyn-{event}-{action}='{JSON options}'）
+     * ----------------------------------------------------------------------------
+     *   dyn-click-postdata='{"url":"/x","confirm":true,"message":"保存成功"}'
+     *   dyn-click-reload='{"selector":"#list"}'
+     *   dyn-change-reload（change 事件）
+     *   dyn-{action}-init                          初始化动作（initActions 扫描执行）
+     *
+     * 动作通过 registerAction(name, fn, {events}) 注册，注册后自动进入委托选择器，
+     * 扩展新动作无需改委托代码。动作统一收一个 ctx 上下文对象（比 common.js 的函数
+     * 签名反射更安全、更显式）：
+     *   ctx = { element, event, $event, targetInfo, action, options, params,
+     *           model(最近 dyn-init 祖先), url(祖先 data-dyn-url) }
+     * 兼容旧属性 dyn-click-postback/open/close/reload（作为内置动作注册）。
+     * ============================================================================ */
 
-    function parseOpts(el, attr) {
-        var raw = el.getAttribute(attr);
-        var opts = {};
-        if (raw && raw.trim()) {
-            try { opts = JSON.parse(raw); }
-            catch (e) { console.error('[dyn-lib] ' + attr + ' 不是合法 JSON：', raw); }
+    var ACTION_EVENTS = ['change', 'click', 'dblclick', 'error', 'focus', 'select', 'mouseover'];
+    var _actions = {};
+    var _initActions = {};
+    var _selCache = {};
+
+    // 注册一个运行时动作：注册后自动进入委托选择器
+    function registerAction(name, fn, meta) {
+        if (!name || typeof fn !== 'function') { console.error('[dyn-lib] registerAction 参数错误', name); return; }
+        _actions[name] = fn;
+        if (meta && meta.events) {
+            meta.events.forEach(function (ev) { if (ACTION_EVENTS.indexOf(ev) < 0) ACTION_EVENTS.push(ev); });
         }
+        _selCache = {};
+        return dyn;
+    }
+
+    // 注册一个初始化动作（dyn-{name}-init 属性，initActions 扫描执行）
+    function registerInitAction(name, fn) {
+        if (!name || typeof fn !== 'function') { console.error('[dyn-lib] registerInitAction 参数错误', name); return; }
+        _initActions[name] = fn;
+        return dyn;
+    }
+
+    // 构造统一上下文（动作方法的唯一入参）
+    function buildCtx(el, eventName, $event, options, actionName) {
+        options = options || {};
         var params = {};
-        if (el.attributes) {
+        if (el && el.attributes) {
             [].forEach.call(el.attributes, function (a) {
                 if (a.name.indexOf('data-') === 0 && a.name.indexOf('data-dyn') !== 0 && a.name.indexOf('data-v-') !== 0) {
                     params[a.name.substring(5)] = a.value;
                 }
             });
         }
-        opts.params = Object.assign({}, params, opts.params || {});
-        return opts;
+        options.params = Object.assign({}, params, options.params || {});
+        var $anc = $(el).closest('[dyn-init]');
+        var ancEl = $anc && $anc.length ? $anc.get(0) : el;
+        var app = getApp(ancEl);
+        return {
+            element: el, el: el,
+            event: eventName, $event: $event, targetInfo: $event,
+            action: actionName,
+            options: options,
+            params: options.params,
+            model: getModel(ancEl) || parseModel(ancEl) || {},
+            vm: app && app._instance ? app._instance.proxy : null,  // Vue 组件实例
+            url: options.url || (ancEl && ancEl.getAttribute ? ancEl.getAttribute('data-dyn-url') : '') || ''
+        };
     }
 
-    document.addEventListener('click', function (e) {
-        var el = e.target && e.target.closest
-            ? e.target.closest('[dyn-click-postback],[dyn-click-open],[dyn-click-close],[dyn-click-reload]')
-            : null;
-        if (!el) return;
-        e.preventDefault();
-        e.stopPropagation();
+    // 为某事件生成委托选择器（由注册表动态生成，注册动作时失效缓存）
+    function selectorFor(eventName) {
+        if (_selCache[eventName]) return _selCache[eventName];
+        var sels = [];
+        Object.keys(_actions).forEach(function (name) {
+            sels.push('[dyn-' + eventName + '-' + name + ']');
+        });
+        _selCache[eventName] = sels.join(',');
+        return _selCache[eventName];
+    }
 
-        if (el.hasAttribute('dyn-click-postback')) {
-            var opts = parseOpts(el, 'dyn-click-postback');
-            if (opts.confirm) {
-                var msg = opts.confirm === true ? '确定执行该操作吗？' : opts.confirm;
-                confirmAsync(msg).then(function (ok) { if (ok) postback(el, opts); });
-            } else {
-                postback(el, opts);
+    // 解析元素属性：找 dyn-{event}-{action}，返回 { action, raw }
+    function resolveActionAttr(el, eventName) {
+        var prefix = 'dyn-' + eventName + '-';
+        if (!el || !el.attributes) return null;
+        var hit = null;
+        [].forEach.call(el.attributes, function (a) {
+            if (a.name.indexOf(prefix) === 0) hit = { action: a.name.substring(prefix.length), raw: a.value };
+        });
+        return hit;
+    }
+
+    // 解析 options：JSON 优先；裸字符串兼容旧 dyn-click-reload 的选择器写法
+    function parseActionOptions(raw) {
+        if (!raw || !raw.trim()) return {};
+        var t = raw.trim();
+        if (t.charAt(0) === '{') { try { return JSON.parse(t); } catch (e) { return { selector: t }; } }
+        return { selector: t };
+    }
+
+    // 通用事件委托：每个事件一个 document capture 监听器，覆盖动态渲染出的所有元素
+    ACTION_EVENTS.forEach(function (ev) {
+        document.addEventListener(ev, function (e) {
+            var sel = selectorFor(ev);
+            if (!sel) return;
+            var el = e.target && e.target.closest ? e.target.closest(sel) : null;
+            if (!el) return;
+            var hit = resolveActionAttr(el, ev);
+            if (!hit || !_actions[hit.action]) return;
+            var ctx = buildCtx(el, ev, e, parseActionOptions(hit.raw), hit.action);
+            // P5: 提供 prevent 选项（默认阻止）
+            var prevent = ctx.options.prevent !== false;
+            if (prevent) {
+                e.preventDefault();
+                e.stopPropagation();
             }
-        } else if (el.hasAttribute('dyn-click-open')) {
-            open(parseOpts(el, 'dyn-click-open'), el);
-        } else if (el.hasAttribute('dyn-click-close')) {
-            close(el);
-        } else if (el.hasAttribute('dyn-click-reload')) {
-            var sel = el.getAttribute('dyn-click-reload');
-            reload(sel || el);
+            try { _actions[hit.action](ctx); }
+            catch (err) {
+                console.error('[dyn-lib] 动作执行失败: ' + hit.action, err);
+                showMessage('操作失败：' + ((err && err.message) || err), 'error');
+            }
+        }, true);
+    });
+
+    // ===== 内置动作（兼容旧 dyn-click-postback/open/close/reload） =====
+    registerAction('postback', function (ctx) {
+        var o = ctx.options || {};
+        if (o.confirm) {
+            var msg = o.confirm === true ? '确定执行该操作吗？' : o.confirm;
+            return confirmAsync(msg).then(function (ok) { if (ok) return postback(ctx.element, o); });
         }
-    }, true);
+        return postback(ctx.element, o);
+    }, { events: ['click', 'change'] });
+    registerAction('postdata', function (ctx) {
+        return _actions.postback(ctx);
+    }, { events: ['click', 'change'] });
+    registerAction('confirm-postdata', function (ctx) {
+        var o = Object.assign({}, ctx.options || {});
+        if (!o.confirm) o.confirm = true;
+        return _actions.postback(Object.assign({}, ctx, { options: o }));
+    }, { events: ['click', 'change'] });
+    registerAction('reload', function (ctx) {
+        var o = ctx.options || {};
+        return reload(o.selector || ctx.element);
+    }, { events: ['click', 'change'] });
+    registerAction('open', function (ctx) {
+        return open(ctx.options || {}, ctx.element);
+    }, { events: ['click'] });
+    registerAction('close', function (ctx) {
+        return close(ctx.element);
+    }, { events: ['click'] });
+    registerAction('updateel', function (ctx) {
+        var o = ctx.options || {};
+        return updateEl(o.selector || ctx.element, o.url, o.params);
+    }, { events: ['click', 'change'] });
 
-    /* ---------------- 卸载兜底：DOM 被外部移除时自动卸载 app，防止内存溢出 ---------------- */
+    // ===== 内置初始化动作（dyn-init-{action}：页面/Vue 初始化完毕立即执行） =====
+    // dyn-init-load='{"url":"/x"}'：请求后端，由后端 HTML 填充本 div，随后 init(div)，
+    // 并将 url 写入 div 的 data-url（后续可被 reload 动作读取，作为数据源）。
+    registerInitAction('load', function (ctx) {
+        var o = ctx.options || {};
+        var url = o.url || ctx.url;
+        if (!url) { console.warn('[dyn-lib] dyn-init-load 缺少 url', ctx.element); return; }
+        var el = ctx.element;
+        // 完整请求配置存 element 上（url + 固定参数 + method），data-url 存 url 供声明式读取/reload 兜底
+        el.__dynCfg = { url: url, params: o.params || {}, method: o.method || 'POST' };
+        if (o.writeUrl !== false) el.setAttribute('data-url', url);
 
-    if (typeof MutationObserver !== 'undefined' && document.body) {
-        new MutationObserver(function (muts) {
-            muts.forEach(function (m) {
-                if (!m.removedNodes) return;
-                [].forEach.call(m.removedNodes, function (n) {
-                    if (n.nodeType !== 1) return;
-                    if (n.__dynApp) unmount(n);
-                    else if (n.querySelectorAll) {
-                        [].slice.call(n.querySelectorAll('[dyn-init]')).forEach(function (c) { if (c.__dynApp) unmount(c); });
-                    }
+        // P0: 检测是否在 Vue 管理下（dyn-init app 内部）
+        var isVueManaged = el.closest('[dyn-init]');
+        if (isVueManaged) {
+            console.warn('[dyn-lib] dyn-init-load 元素在 Vue 管理下，建议用 Vue 方式更新（通过 model 数据驱动）', el);
+            // 仍然尝试 innerHTML，但可能破坏 Vue
+        }
+
+        return fetchPartial(url, o.params || {}, o.method || 'POST').then(function (html) {
+            el.innerHTML = html;
+            return init(el);
+        }).catch(function (err) {
+            showMessage('加载失败：' + ((err && err.message) || err), 'error');
+            return null;
+        });
+    });
+
+    // ===== 初始化动作扫描 =====
+    // 属性约定：dyn-init-{action}（页面/Vue 初始化完毕立即执行，推荐）
+    //           兼容旧命名 dyn-{action}-init
+    function initActions(root) {
+        root = resolve(root) || document.body;
+        if (!root) return;
+        Object.keys(_initActions).forEach(function (name) {
+            ['dyn-init-' + name, 'dyn-' + name + '-init'].forEach(function (attrName) {
+                var targets = [];
+                if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute(attrName)) targets.push(root);
+                if (root.querySelectorAll) targets = targets.concat([].slice.call(root.querySelectorAll('[' + attrName + ']')));
+                targets.forEach(function (el) {
+                    if (el.__dynInitDone) return;
+                    el.__dynInitDone = true;
+                    var raw = el.getAttribute(attrName);
+                    var ctx = buildCtx(el, 'init', null, parseActionOptions(raw), name);
+                    try { _initActions[name](ctx); }
+                    catch (err) { console.error('[dyn-lib] 初始化动作失败: ' + name, err); }
                 });
             });
-        }).observe(document.body, { childList: true, subtree: true });
+        });
     }
 
     /* ---------------- 事件总线（跨组件解耦通信：设计器等场景） ---------------- */
@@ -684,7 +897,17 @@
         getByPath: getByPath,
         setPathVal: setPathVal,
         isContainerComp: isContainerComp,
-        nextId: nextId
+        nextId: nextId,
+        /* --- 动作注册表 + 通用委托 --- */
+        registerAction: registerAction,
+        registerInitAction: registerInitAction,
+        initActions: initActions,
+        actions: _actions,
+        buildCtx: buildCtx,
+        actionEvents: ACTION_EVENTS.slice(),
+        updateEl: updateEl,
+        serializeForm: serializeForm,
+        setDynCfg: setDynCfg
     };
 
     global.dyn = dyn;

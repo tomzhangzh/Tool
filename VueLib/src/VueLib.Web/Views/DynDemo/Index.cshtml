@@ -1,0 +1,117 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <title>dyn-lib 动作委托 Demo</title>
+    <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true" />
+    <style>
+        body { font-family: 'Segoe UI', 'PingFang SC', Arial, sans-serif; margin: 0; background: #f4f4f5; padding: 20px; }
+        .demo-card { background: #fff; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+        .demo-card h3 { margin: 0 0 12px; font-size: 15px; color: #303133; }
+        .demo-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+        .demo-label { font-size: 13px; color: #909399; min-width: 90px; }
+        .model-view { background: #f0f2f5; border-radius: 4px; padding: 6px 10px; font-size: 13px; color: #409eff; font-family: Consolas, monospace; }
+        .badge-init { display: inline-block; background: #67c23a; color: #fff; border-radius: 10px; padding: 2px 10px; font-size: 12px; }
+        .btn { display:inline-flex; align-items:center; justify-content:center; height:32px; padding:0 16px; background:#409eff; color:#fff;
+               border:none; border-radius:4px; font-size:13px; cursor:pointer; transition:background .2s; }
+        .btn:hover { background:#66b1ff; }
+        input[type="text"], input:not([type]) { height:32px; padding:0 8px; border:1px solid #dcdfe6; border-radius:4px; font-size:13px; }
+    </style>
+</head>
+<body>
+
+    <div id="demo-app" dyn-init='{"count":0,"msg":"初始状态"}'>
+        <div class="demo-card">
+            <h3>① 内置动作 postdata（POST Model → 后端返回 JSON 合并进 Model）</h3>
+            <div class="demo-row">
+                <span class="demo-label">当前 Model：</span>
+                <span class="model-view">count = {{ model.count }} ，msg = "{{ model.msg }}"</span>
+            </div>
+            <div class="demo-row">
+                <button dyn-click-postdata='{"url":"/DynDemo/Submit","message":"提交成功"}' class="btn">postdata 提交（+1）</button>
+                <button dyn-click-postdata='{"url":"/DynDemo/Submit","confirm":"确定要提交吗？","message":"已确认提交"}' class="btn">带确认提交</button>
+                <button dyn-click-confirm-postdata='{"url":"/DynDemo/Submit","message":"confirm-postdata"}' class="btn">confirm-postdata</button>
+                <span style="font-size:12px;color:#909399;">（点击后 count 递增、msg 显示服务端时间）</span>
+            </div>
+        </div>
+
+        <div class="demo-card">
+            <h3>③ 自定义动作（registerAction）+ 初始化动作（registerInitAction）</h3>
+            <div class="demo-row">
+                <span class="demo-label">自定义 toast：</span>
+                <button dyn-click-toast='{"text":"这是自定义动作，参数来自属性 JSON","type":"success"}' class="btn">toast 自定义动作</button>
+                <span style="font-size:12px;color:#909399;">（dyn-click-toast 由页面 registerAction 注册，自动进入委托）</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">init 动作：</span>
+                <span dyn-init-badge='{"text":"初始化完成 ✔"}' class="badge-init" style="opacity:.4">待初始化…</span>
+                <span style="font-size:12px;color:#909399;">（初始化完毕 dyn.init 立即执行 dyn-init-badge）</span>
+            </div>
+        </div>
+
+        <div class="demo-card" style="font-size:12px;color:#909399;">
+            说明：属性约定 <code>dyn-{event}-{action}='{JSON options}'</code>，事件委托覆盖
+            change / click / dblclick / error / focus / select / mouseover；动作统一收 ctx 上下文
+            （element / model / options / params / url / targetInfo），由注册表驱动，扩展动作零改委托。
+            初始化动作 <code>dyn-init-{action}='{JSON options}'</code>：页面/Vue 初始化完毕立即执行；
+            <code>dyn-init-load</code> 请求后端 HTML 填充本容器 + init + 写 data-url + __dynCfg（固定参数/method）。
+            reload/updateEl 刷新时参数三层合并：固定参数(__dynCfg.params) → Vue model → 容器内 form 序列化。
+        </div>
+    </div>
+
+    <div class="demo-card">
+        <h3>② reload 动作（data-dyn-url 容器局部刷新，容器位于 dyn-init 之外）</h3>
+        <div class="demo-row">
+            <button dyn-click-reload='{"selector":"#reload-host"}' class="btn">reload 刷新容器</button>
+            <span style="font-size:12px;color:#909399;">输入框 change 事件也会触发 reload：</span>
+            <input dyn-change-reload='{"selector":"#reload-host"}' placeholder="输入后失焦/回车触发 change" style="padding:4px 8px;" />
+        </div>
+        <div id="reload-host" data-dyn-url="/DynDemo/Partial" data-dyn-load="true"></div>
+    </div>
+
+    <div class="demo-card">
+        <h3>④ dyn-init-load：div 初始化完毕立即请求后端 HTML 填充（含 init + 写 data-url + 固定参数）</h3>
+        <div class="demo-row">
+            <span class="demo-label">load div：</span>
+            <div id="load-host" dyn-init-load='{"url":"/DynDemo/LoadPart","params":{"fixed":"fix1"}}' style="flex:1"></div>
+        </div>
+        <div class="demo-row">
+            <button dyn-click-reload='{"selector":"#load-host"}' class="btn">reload（读 data-url）</button>
+            <button dyn-click-updateel='{"selector":"#load-host","url":"/DynDemo/LoadPart","params":{"via":"updateEl"}}' class="btn">updateEl 更新</button>
+            <span style="font-size:12px;color:#909399;">reload/updateEl 时把「固定参数 + 容器内 form(input search)」POST 回去，后端回显收到的参数。</span>
+        </div>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/js/vue.global.prod.js"></script>
+    <script src="~/js/lodash.min.js"></script>
+    <script src="~/js/element-plus.full.min.js"></script>
+    <script src="~/js/element-plus-icons.min.js"></script>
+    <script src="~/js/dyn-lib.js"></script>
+    <script>
+        // 注册自定义运行时动作：dyn-click-toast
+        window.dyn.registerAction('toast', function (ctx) {
+            var o = ctx.options || {};
+            window.dyn.showMessage(o.text || 'toast', o.type || 'success');
+            console.log('[dyn-demo] toast ctx =', {
+                action: ctx.action, event: ctx.event, url: ctx.url,
+                model: ctx.model, options: ctx.options
+            });
+        }, { events: ['click', 'change'] });
+
+        // 注册自定义初始化动作：dyn-badge-init
+        window.dyn.registerInitAction('badge', function (ctx) {
+            var o = ctx.options || {};
+            ctx.element.textContent = (o.text || '已初始化');
+            ctx.element.style.opacity = '1';
+            console.log('[dyn-demo] init badge =', o.text, 'on', ctx.element);
+        });
+
+        // 启动：扫描 dyn-init 应用 + 初始化动作
+        window.dyn.initAll();
+    </script>
+</body>
+</html>
