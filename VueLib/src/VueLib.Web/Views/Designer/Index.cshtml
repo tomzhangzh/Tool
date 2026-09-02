@@ -25,6 +25,8 @@
                 </el-select>
                 <el-button size="small" type="primary" @@click="newPage">新建</el-button>
                 <el-button size="small" type="success" @@click="savePage" :loading="saving">保存</el-button>
+                <el-switch v-model="openConfigMode" active-text="开放配置" inactive-text="" size="small" style="margin:0 4px;"></el-switch>
+                <el-button size="small" type="warning" @@click="openCompositeDialog">🧩 存组合</el-button>
             </div>
             <div class="toolbar-right">
                 <el-radio-group v-model="canvasPlatform" size="small" style="margin-right:8px;">
@@ -73,6 +75,8 @@
                                 <div v-for="comp in filteredComponents"
                                      :key="comp.componentName"
                                      class="component-item"
+                                     :data-comp-name="comp.componentName"
+                                     :class="{ 'is-composite': comp.isComposite || comp.IsComposite }"
                                      :title="comp.description">
                                     <span class="comp-icon">{{ comp.icon }}</span>
                                     <span class="comp-label">{{ comp.displayName || comp.label || comp.componentName }}</span>
@@ -146,14 +150,43 @@
                     </div>
 
                     <!-- 动态属性面板 -->
+                    <!-- 开放此容器开关（开放配置模式 + 选中容器时） -->
+                    <div v-if="openConfigMode && isContainerComp(currentCom.component)" class="pp-open-container">
+                        <span style="font-size:12px;color:#303133;">开放此容器（允许拖入组件）</span>
+                        <el-switch :model-value="currentComOpenContainer" size="small" @@change="toggleOpenContainer" />
+                    </div>
+
                     <dynamic-property-panel
                         v-if="currentPropertyConfig"
                         :property-config="currentPropertyConfig"
                         :component-config="currentCom"
                         :component-name="currentCom.component"
+                        :open-config-mode="openConfigMode"
+                        :open-map="currentComOpenMap"
                         @@update="onPropertyUpdate"
-                        @@reset="resetCurrentCom">
+                        @@reset="resetCurrentCom"
+                        @@toggle-open="toggleOpenProp">
                     </dynamic-property-panel>
+
+                    <!-- 已开放项列表（开放配置模式，面板级始终显示） -->
+                    <div v-if="openConfigMode" class="pp-open-summary">
+                        <div class="pp-open-summary-title">已开放项 <span style="font-weight:normal;color:#909399;font-size:11px;">（保存为组合组件后外部可配置/可拖入）</span></div>
+                        <template v-if="openSummary.props.length || openSummary.containers.length">
+                            <div v-for="(item, i) in openSummary.props" :key="'p'+i" class="pp-open-item">
+                                <el-tag size="mini" type="warning" style="margin-right:4px;">属性</el-tag>
+                                <span class="pp-open-path" :title="item.path">{{ item.path }}</span>
+                                <span class="pp-open-val">{{ item.value }}</span>
+                                <el-button size="mini" text type="danger" @@click="removeOpenItem(item)">移除</el-button>
+                            </div>
+                            <div v-for="(item, i) in openSummary.containers" :key="'c'+i" class="pp-open-item">
+                                <el-tag size="mini" type="success" style="margin-right:4px;">容器</el-tag>
+                                <span class="pp-open-path" :title="item.path">{{ item.path }}</span>
+                                <span class="pp-open-val">{{ item.label }}</span>
+                                <el-button size="mini" text type="danger" @@click="removeOpenItem(item)">移除</el-button>
+                            </div>
+                        </template>
+                        <div v-else style="color:#909399;font-size:12px;padding:6px;">暂无开放项——选中组件后在属性面板勾选「开放」，或选中容器开启「开放此容器」</div>
+                    </div>
 
                     <!-- 无属性配置时的回退 -->
                     <div v-else class="pp-fallback">
@@ -258,6 +291,67 @@
             <template v-slot:footer>
                 <el-button type="primary" @@click="copyModelJson">复制</el-button>
                 <el-button @@click="showModelModal=false">关闭</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 保存为组合组件弹窗 -->
+        <el-dialog v-model="showCompositeDialog" title="🧩 保存为组合组件" width="760px" top="5vh"
+                   class="composite-dialog">
+            <el-form label-width="86px" size="small">
+                <el-form-item label="组件名称">
+                    <el-input v-model="compositeForm.componentName" placeholder="如 DynComContactCard"></el-input>
+                </el-form-item>
+                <el-form-item label="显示名称">
+                    <el-input v-model="compositeForm.label" placeholder="组合组件在左侧面板的显示名"></el-input>
+                </el-form-item>
+                <el-form-item label="图标">
+                    <el-input v-model="compositeForm.icon" style="width:120px;" placeholder="📦"></el-input>
+                    <span style="font-size:12px;color:#909399;margin-left:8px;">留空默认 📦</span>
+                </el-form-item>
+                <el-form-item label="内容来源">
+                    <el-radio-group v-model="compositeForm.source" @@change="onCompositeSourceChange">
+                        <el-radio label="selected">当前选中组件</el-radio>
+                        <el-radio label="page">整个页面</el-radio>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="说明">
+                    <el-input v-model="compositeForm.description" placeholder="可选，组件说明"></el-input>
+                </el-form-item>
+            </el-form>
+
+            <div class="composite-section-title">开放属性（勾选需要外部配置的属性，可修改 key / 显示名）</div>
+            <div class="composite-expose-list">
+                <div v-for="(p, i) in compositeForm.exposedProps" :key="'e'+i" class="composite-expose-item">
+                    <el-checkbox v-model="p.checked"></el-checkbox>
+                    <span class="ce-path" :title="p.path">{{ p.path }}</span>
+                    <span class="ce-field">{{ p.field }}</span>
+                    <span class="ce-value" :title="String(p.value)">{{ p.value }}</span>
+                    <el-input v-model="p.key" size="mini" placeholder="key" style="width:110px;"></el-input>
+                    <el-input v-model="p.label" size="mini" placeholder="显示名" style="width:100px;"></el-input>
+                </div>
+                <div v-if="!compositeForm.exposedProps.length" style="color:#909399;font-size:12px;padding:8px;">
+                    未发现可开放属性（如标签、绑定字段、placeholder 等）
+                </div>
+            </div>
+
+            <div class="composite-section-title">开放容器（勾选允许外部拖入组件的容器，填插槽 key）</div>
+            <div class="composite-expose-list">
+                <div v-for="(c, i) in compositeForm.openContainers" :key="'c'+i" class="composite-expose-item">
+                    <el-checkbox v-model="c.checked"></el-checkbox>
+                    <span class="ce-path" :title="c.path">{{ c.path }}</span>
+                    <span class="ce-field">{{ c.component }}</span>
+                    <span class="ce-tag">容器</span>
+                    <el-input v-model="c.key" size="mini" placeholder="插槽 key" style="width:120px;"></el-input>
+                    <el-input v-model="c.label" size="mini" placeholder="显示名" style="width:100px;"></el-input>
+                </div>
+                <div v-if="!compositeForm.openContainers.length" style="color:#909399;font-size:12px;padding:8px;">
+                    未发现容器组件，组合组件内部将完全锁定
+                </div>
+            </div>
+
+            <template v-slot:footer>
+                <el-button @@click="showCompositeDialog=false">取消</el-button>
+                <el-button type="primary" @@click="saveAsComposite">保存组合组件</el-button>
             </template>
         </el-dialog>
     </div>

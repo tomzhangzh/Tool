@@ -31,9 +31,11 @@
         props: {
             propertyConfig: { type: Object, default: function () { return { groups: [] }; } },
             componentConfig: { type: Object, required: true },
-            componentName: { type: String, default: '' }
+            componentName: { type: String, default: '' },
+            openConfigMode: { type: Boolean, default: false },
+            openMap: { type: Object, default: function () { return {}; } }
         },
-        emits: ['update', 'reset'],
+        emits: ['update', 'reset', 'toggle-open'],
         data: function () {
             return {
                 activeGroups: []
@@ -76,16 +78,46 @@
             }
         },
         methods: {
+            isLiteralKey: function (k) {
+                return typeof k === 'string' && k.indexOf('@@') === 0;
+            },
             getFieldValue: function (field) {
+                // @@ 字面键：开放属性存 comoptions[完整路径]，开放容器存 slots[路径]（键含点号/方括号，不能按点号路径解析）
+                if (this.isLiteralKey(field.key)) {
+                    var body = field.key.slice(2);
+                    if (body.indexOf('slots:') === 0) {
+                        var sk = body.slice(6);
+                        var sl = (this.componentConfig && this.componentConfig.slots) || {};
+                        return sl[sk];
+                    }
+                    var co = (this.componentConfig && this.componentConfig.options && this.componentConfig.options.comoptions) || {};
+                    return co[body] !== undefined ? co[body] : field.default;
+                }
                 var val = getByPath(this.componentConfig, field.key);
                 return (val === undefined) ? field.default : val;
             },
             setFieldValue: function (field, val) {
+                if (this.isLiteralKey(field.key)) {
+                    var body = field.key.slice(2);
+                    if (body.indexOf('slots:') === 0) {
+                        var sk = body.slice(6);
+                        if (!this.componentConfig.slots) this.componentConfig.slots = {};
+                        this.componentConfig.slots[sk] = val;
+                    } else {
+                        if (!this.componentConfig.options.comoptions) this.componentConfig.options.comoptions = {};
+                        this.componentConfig.options.comoptions[body] = val;
+                    }
+                    this.$emit('update', field.key, val, this.componentConfig);
+                    return;
+                }
                 setByPath(this.componentConfig, field.key, val);
                 this.$emit('update', field.key, val, this.componentConfig);
             },
             needsValue: function (type) {
                 return ['minLength', 'maxLength', 'min', 'max', 'pattern'].indexOf(type) >= 0;
+            },
+            onToggleOpen: function (field, val) {
+                this.$emit('toggle-open', field.key, val, this.componentConfig);
             }
         },
         template: `
@@ -95,7 +127,15 @@
                     <el-collapse-item v-for="group in groups" :key="group.title" :title="group.title" :name="group.title">
                         <div class="pp-fields">
                             <div v-for="field in group.fields" :key="field.key" class="pp-field">
-                                <label class="pp-label">{{ field.label }}</label>
+                                <div class="pp-field-head">
+                                    <label class="pp-label">{{ field.label }}</label>
+                                    <el-switch v-if="openConfigMode && field.type !== 'slot'"
+                                        class="pp-open-switch"
+                                        :model-value="!!(openMap && openMap[field.key])"
+                                        @update:model-value="onToggleOpen(field, $event)"
+                                        size="small" inline-prompt active-text="开" inactive-text="开" />
+                                    <span v-if="openConfigMode && field.type !== 'slot'" class="pp-open-tip">{{ !!(openMap && openMap[field.key]) ? '已开放' : '开放' }}</span>
+                                </div>
                                 <div class="pp-control">
                                     <!-- input -->
                                     <el-input v-if="field.type === 'input'"
@@ -163,6 +203,12 @@
                                         <el-checkbox v-for="opt in field.options" :key="opt.value"
                                             :label="opt.value" :disabled="opt.disabled">{{ opt.label }}</el-checkbox>
                                     </el-checkbox-group>
+
+                                    <!-- slot: 开放容器（只读提示） -->
+                                    <div v-else-if="field.type === 'slot'" class="pp-slot-tip">
+                                        <el-tag size="small" type="success" style="margin-right:4px;">⊕ 插槽</el-tag>
+                                        <span style="font-size:12px;color:#909399;">{{ field.hint || '从左侧拖入组件到画布中该绿色区域' }}（当前 {{ (getFieldValue(field)||[]).length }} 个组件）</span>
+                                    </div>
 
                                     <!-- fallback -->
                                     <el-input v-else

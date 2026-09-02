@@ -220,3 +220,76 @@ body {
     cursor: pointer;
     font-size: 14px;
 }
+
+/* ============================================================
+ * 组合组件：锁定区域 + 开放容器（插槽）
+ * 组合组件内部除开放容器外全部锁定：不可选中、不可编辑、不可拖拽
+ * 点击锁定区域穿透到组合组件根节点（选中组合组件本身）
+ * ============================================================ */
+
+/* 锁定区域：完全禁用交互（含子级，嵌套在开放容器内也生效） */
+.lc-design .lc-node.lc-locked,
+.lc-design .lc-node.lc-locked * {
+    pointer-events: none !important;
+    user-select: none;
+}
+/* 锁定区域视觉：半透明磨砂，提示"已封装" */
+.lc-node.lc-locked {
+    opacity: 0.85;
+    background-image: repeating-linear-gradient(45deg, rgba(64,158,255,0.03) 0 6px, transparent 6px 12px);
+}
+.lc-node.lc-locked:hover {
+    outline-color: #c0c4cc;
+}
+
+/* 开放容器（插槽）：恢复交互，可拖入组件 */
+.lc-design .lc-node.lc-open-slot,
+.lc-design .lc-node.lc-open-slot * {
+    pointer-events: auto !important;
+}
+.lc-node.lc-open-slot {
+    background: rgba(103, 194, 58, 0.05);
+}
+
+/* 开放容器插槽标签条 */
+.lc-open-slot-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    line-height: 18px;
+    color: #67c23a;
+    background: rgba(103, 194, 58, 0.12);
+    border: 1px dashed #67c23a;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+.lc-open-slot-icon {
+    font-weight: 700;
+    font-size: 13px;
+}
+.lc-open-slot-hint {
+    color: #909399;
+    font-size: 10px;
+}
+.lc-open-slot-tag:hover {
+    background: rgba(103, 194, 58, 0.2);
+}
+
+/* 组合组件根节点标识 */
+.lc-node.lc-composite::after {
+    content: '组合';
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: #67c23a;
+    color: #fff;
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 0 0 4px 0;
+    pointer-events: none;
+    z-index: 11;
+}

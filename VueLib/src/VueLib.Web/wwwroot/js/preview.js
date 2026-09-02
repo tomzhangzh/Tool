@@ -43,19 +43,55 @@
     // 组合组件配置 map
     const compositeComponents = {};
 
-    // 应用组合组件的外部属性到内部树
-    function applyCompositeProps(innerTree, compositeConfig, externalProps) {
-        if (!compositeConfig?.exposedProps || !externalProps) return innerTree;
+        // 按路径取值
+    function getByPath(obj, path) {
+        if (!obj || !path) return undefined;
+        return path.split('.').reduce(function (o, k) { return (o == null) ? undefined : o[k]; }, obj);
+    }
+
+    // 应用组合组件的外部属性 + 开放容器到内部树
+    function applyCompositeProps(innerTree, compositeConfig, externalProps, externalSlots) {
+        if (!compositeConfig) return innerTree;
         const tree = JSON.parse(JSON.stringify(innerTree));
-        for (const prop of compositeConfig.exposedProps) {
-            if (externalProps[prop.key] !== undefined && prop.target && window._) {
-                window._.set(tree, prop.target, externalProps[prop.key]);
+        // 组合内部节点默认锁定（预览不拖入，仅保持与设计器一致的锁定标记）
+        (function markLocked(n) {
+            if (!n || typeof n !== 'object') return;
+            n.__locked = true;
+            (n.childrenctrls || []).forEach(markLocked);
+        })(tree);
+        if (compositeConfig.exposedProps && externalProps) {
+            for (const prop of compositeConfig.exposedProps) {
+                if (externalProps[prop.key] === undefined) continue;
+                const val = externalProps[prop.key];
+                if (prop.targets && Array.isArray(prop.targets)) {
+                    for (const t of prop.targets) {
+                        if (window._) window._.set(tree, t, val);
+                    }
+                } else if (prop.target && window._) {
+                    window._.set(tree, prop.target, val);
+                }
+            }
+        }
+        // 开放容器：内部固定内容 + 外部拖入内容合并渲染（空 target 表示组合根自身开放）
+        if (compositeConfig.openContainers && externalSlots) {
+            for (const oc of compositeConfig.openContainers) {
+                const node = oc.target ? getByPath(tree, oc.target) : tree;
+                if (node && typeof node === 'object') {
+                    if (!externalSlots[oc.key]) externalSlots[oc.key] = [];
+                    const internalChildren = node.childrenctrls || [];
+                    node.childrenctrls = internalChildren.concat(externalSlots[oc.key]);
+                    node.__openSlot = { key: oc.key, label: oc.label || oc.key, hint: oc.hint || '' };
+                    node.__unlocked = true;
+                    delete node.__locked;
+                    node.__fixedLen = internalChildren.length;
+                    node.__slotRef = externalSlots[oc.key];
+                }
             }
         }
         return tree;
     }
 
-    function getUrlParam(name) {
+function getUrlParam(name) {
         const match = window.location.search.match(new RegExp('[?&]' + name + '=([^&]+)'));
         return match ? decodeURIComponent(match[1]) : null;
     }
@@ -84,7 +120,18 @@
             props: {
                 jsonconfig: { type: Object, required: true },
                 parentmodelinfo: { type: Object, default: () => ({}) },
-                nodePath: { type: String, default: 'root' }
+                nodePath: { type: String, default: 'root' },
+                locked: { type: Boolean, default: false }
+            },
+            inject: {
+                lcLocked: { default: null },
+                lcCompositeRoot: { default: null }
+            },
+            provide() {
+                return {
+                    lcLocked: computed(() => this.isLocked),
+                    lcCompositeRoot: this.isComposite ? this.jsonconfig : null
+                };
             },
             template: `
                 <div v-if="!validConfig" style="padding:8px;color:#f56c6c;font-size:12px;">
@@ -101,7 +148,9 @@
                         'lc-drop-target': isDropTarget,
                         'lc-container': isContainerComp,
                         'lc-composite': isComposite,
-                        'lc-wrapper': hasWrapper
+                        'lc-wrapper': hasWrapper,
+                        'lc-locked': isLocked,
+                        'lc-open-slot': isOpenSlot
                      }"
                      :draggable="true"
                      @@dragstart.stop="onDragStart"
@@ -117,7 +166,8 @@
                         <n-dynamic-com v-if="isComposite && compositeTree"
                                        :jsonconfig="compositeTree"
                                        :parentmodelinfo="parentmodelinfo"
-                                       :node-path="nodePath + '.composite'"></n-dynamic-com>
+                                       :node-path="nodePath + '.composite'"
+                                   :locked="true"></n-dynamic-com>
                         <component v-else :is="jsonconfig.component"
                                    :jsonconfig="jsonconfig"
                                    :parentmodelinfo="parentmodelinfo"
@@ -128,7 +178,8 @@
                         <n-dynamic-com v-if="isComposite && compositeTree"
                                        :jsonconfig="compositeTree"
                                        :parentmodelinfo="parentmodelinfo"
-                                       :node-path="nodePath + '.composite'"></n-dynamic-com>
+                                       :node-path="nodePath + '.composite'"
+                                   :locked="true"></n-dynamic-com>
                         <component v-else :is="jsonconfig.component"
                                    :jsonconfig="jsonconfig"
                                    :parentmodelinfo="parentmodelinfo"
@@ -146,7 +197,8 @@
                     <n-dynamic-com v-if="isComposite && compositeTree"
                                    :jsonconfig="compositeTree"
                                    :parentmodelinfo="parentmodelinfo"
-                                   :node-path="nodePath + '.composite'"></n-dynamic-com>
+                                   :node-path="nodePath + '.composite'"
+                                   :locked="true"></n-dynamic-com>
                     <component v-else :is="jsonconfig.component"
                                :jsonconfig="jsonconfig"
                                :parentmodelinfo="parentmodelinfo"
@@ -155,7 +207,8 @@
                 <n-dynamic-com v-else-if="!isDesign && isComposite && compositeTree"
                                :jsonconfig="compositeTree"
                                :parentmodelinfo="parentmodelinfo"
-                               :node-path="nodePath + '.composite'"></n-dynamic-com>
+                               :node-path="nodePath + '.composite'"
+                                   :locked="true"></n-dynamic-com>
                 <component v-else-if="!isDesign" :is="jsonconfig.component"
                            :jsonconfig="jsonconfig"
                            :parentmodelinfo="parentmodelinfo"
@@ -180,8 +233,16 @@
                     const config = compositeComponents[this.jsonconfig.component];
                     if (!config?.tree) return null;
                     const externalProps = this.jsonconfig.options?.comoptions || {};
-                    return applyCompositeProps(config.tree, config, externalProps);
+                    const externalSlots = this.jsonconfig.slots || (this.jsonconfig.slots = {});
+                    return applyCompositeProps(config.tree, config, externalProps, externalSlots);
                 },
+                parentLocked() {
+                    const pl = this.lcLocked;
+                    if (pl == null) return false;
+                    return (typeof pl === 'object' && 'value' in pl) ? !!pl.value : !!pl;
+                },
+                isLocked() { return (this.locked || this.parentLocked) && !this.jsonconfig?.__unlocked; },
+                isOpenSlot() { return !!(this.jsonconfig?.__openSlot); },
                 isDraggingSelf() {
                     return designState.isDragging && designState.dragType === 'move' && designState.sourcePath === this.nodePath;
                 },
@@ -197,6 +258,12 @@
             },
             methods: {
                 onClick() {
+                    if (this.isLocked) return;
+                    if (this.isOpenSlot && this.lcCompositeRoot) {
+                        designState.selectedPath = this.lcCompositeRoot.__path || this.nodePath;
+                        try { parent.postMessage({ type: 'component-selected', path: this.nodePath }, '*'); } catch (e) {}
+                        return;
+                    }
                     designState.selectedPath = this.nodePath;
                     try { parent.postMessage({ type: 'component-selected', path: this.nodePath }, '*'); } catch (e) {}
                 },
