@@ -88,6 +88,94 @@
 
 // 当前从左侧菜单拖拽的组件元数据
     let currentMenuCom = null;
+    // 全局 lcDesigner 引用（v-draggable 指令在 setup 外，接收 palette drop 时通过它调用 onPaletteDrop）
+    let lcDesignerGlobal = null;
+    // 是否正在从左侧组件库拖拽（模块级，v-draggable 指令的 isPaletteDrag fallback 需要）
+    let draggingFromPalette = false;
+
+    // ===== 左侧 palette 拖拽 ghost（组件 HTML 外观）+ 插入占位符 =====
+    // 模块级：被 v-draggable 指令（setup 外）与 setup 内 onPaletteDragStart/End 共用
+    let activeGhost = null;
+    let dropTargetInfo = null; // { el, insertIndex }
+    const PALETTE_GHOST_SHAPES = {
+        'DynNInput': '<div class="gh-field"><span class="gh-ph">请输入</span></div>',
+        'DynNTextarea': '<div class="gh-field gh-textarea">请输入...</div>',
+        'DynNButton': '<div class="gh-btn">按钮</div>',
+        'DynNRadio': '<div class="gh-radio"><i class="gh-dot"></i><span>选项1</span></div>',
+        'DynNCheckbox': '<div class="gh-check"><i class="gh-dot gh-square"></i><span>选项</span></div>',
+        'DynNSwitch': '<div class="gh-switch is-on"></div>',
+        'DynNCellGroup': '<div class="gh-box">容器 · CellGroup</div>',
+        'DynNForm': '<div class="gh-box">容器 · Form</div>',
+        'DynNDivider': '<div class="gh-divider"></div>',
+        'DynNCell': '<div class="gh-cell">单元格</div>',
+        'DynNSelect': '<div class="gh-field"><span class="gh-ph">请选择</span><span class="gh-arrow">▾</span></div>',
+        'DynNDatePicker': '<div class="gh-field"><span class="gh-ph">选择日期</span><span class="gh-arrow">▾</span></div>',
+        'DynNNumberInput': '<div class="gh-field"><span class="gh-ph">数字</span></div>',
+        'DynNSlider': '<div class="gh-slider"><i class="gh-thumb"></i></div>',
+        'DynNProgress': '<div class="gh-progress"><i></i></div>'
+    };
+    function ghostShape(name, comp) {
+        const icon = (comp && comp.icon) || '📦';
+        const label = (comp && (comp.displayName || comp.label)) || name;
+        const inner = PALETTE_GHOST_SHAPES[name] || '<span class="gh-icon">' + icon + '</span><span class="gh-label">' + label + '</span>';
+        return '<div class="gh-card">' + inner + '</div>';
+    }
+    function createPaletteGhost(comp) {
+        const ghost = document.createElement('div');
+        ghost.className = 'lc-palette-ghost';
+        ghost.innerHTML = ghostShape(comp.componentName || comp.ComponentName || '', comp);
+        ghost.style.cssText = 'position:fixed;top:-2000px;left:-2000px;pointer-events:none;z-index:9999;opacity:0.95;';
+        document.body.appendChild(ghost);
+        return ghost;
+    }
+    function removePaletteGhost() {
+        if (activeGhost) { activeGhost.remove(); activeGhost = null; }
+    }
+    // 根据鼠标在容器内的位置计算插入索引，并在对应位置显示蓝色占位线
+    // 根据鼠标在容器内的位置计算插入索引（基于容器直接子节点 .lc-node 的顺序）
+    function computeInsertIndex(containerEl, evt) {
+        const nodes = Array.from(containerEl.querySelectorAll(':scope > .lc-node'));
+        let idx = nodes.length;
+        for (let i = 0; i < nodes.length; i++) {
+            const r = nodes[i].getBoundingClientRect();
+            if (evt.clientY < r.top + r.height / 2) { idx = i; break; }
+        }
+        return idx;
+    }
+    function updateDropPlaceholder(containerEl, evt) {
+        // dragover 冒泡：只让最内层容器接管占位符（否则外层容器会把占位符/索引覆盖成自己的）
+        if (evt.target && evt.target.closest) {
+            const inner = evt.target.closest('.lc-container, .lc-open-slot');
+            if (inner && inner !== containerEl && containerEl.contains(inner)) return;
+        }
+        const idx = computeInsertIndex(containerEl, evt);
+        const nodes = Array.from(containerEl.querySelectorAll(':scope > .lc-node'));
+        let ph = document.querySelector('.lc-drop-placeholder');
+        if (!ph) {
+            ph = document.createElement('div');
+            ph.className = 'lc-drop-placeholder';
+            document.body.appendChild(ph);
+        }
+        let rect;
+        if (nodes.length > 0 && idx >= nodes.length) {
+            const r = nodes[nodes.length - 1].getBoundingClientRect();
+            rect = { left: r.left, top: r.bottom - 3, width: r.width };
+        } else if (nodes.length > 0) {
+            const r = nodes[idx].getBoundingClientRect();
+            rect = { left: r.left, top: r.top - 3, width: r.width };
+        } else {
+            const r = containerEl.getBoundingClientRect();
+            rect = { left: r.left, top: r.top, width: r.width };
+        }
+        ph.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:6px;background:#409eff;border-radius:3px;z-index:9998;pointer-events:none;box-shadow:0 0 8px rgba(64,158,255,.7);';
+        dropTargetInfo = { el: containerEl, insertIndex: idx };
+    }
+    function clearDropPlaceholder() {
+        const ph = document.querySelector('.lc-drop-placeholder');
+        if (ph) ph.remove();
+        dropTargetInfo = null;
+        document.querySelectorAll('.lc-drop-target').forEach(e => e.classList.remove('lc-drop-target'));
+    }
 
     const app = createApp({
         setup() {
@@ -861,61 +949,96 @@
             }
 
             // ===== provide 给子组件 =====
-            provide('lcDesigner', {
+            const lcProvider = {
                 designMode,
                 currentCom,
                 setCurrentCom,
                 onContainerDragAdd,
                 onContainerDragEnd,
+                onPaletteDrop,
                 dragGroup: DRAG_GROUP
-            });
+            };
+            lcDesignerGlobal = lcProvider;
+            provide('lcDesigner', lcProvider);
 
             // ===== 左侧组件库拖拽 =====
-            function onPaletteDragStart(evt) {
+            // ===== 左侧组件库拖拽（原生 HTML5 DnD，不依赖 Sortable）=====
+            // 方案：dragstart 记录组件元数据并设置 dataTransfer；画布容器通过 dragover/drop 接收并插入；
+            // dragend 清理状态。palette 与画布内部（Sortable 管排序/嵌套）两种实现完全解耦。
+            function onPaletteDragStart(evt, comp) {
+                if (!evt.dataTransfer) return;
+                try {
+                    evt.dataTransfer.setData('application/x-lc-comp', comp.componentName || comp.ComponentName || '');
+                    evt.dataTransfer.setData('text/plain', comp.componentName || '');
+                } catch (e) {}
+                if (evt.dataTransfer) evt.dataTransfer.effectAllowed = 'copy';
+                draggingFromPalette = true;
                 dragSessionId++;
-                currentMenuCom = filteredComponents.value[evt.oldIndex];
+                currentMenuCom = comp;
+                // 拖拽 ghost：显示组件的 HTML 外观（而非浏览器默认 + 号）
+                removePaletteGhost();
+                activeGhost = createPaletteGhost(comp);
+                try { evt.dataTransfer.setDragImage(activeGhost, 16, 16); } catch (e) {}
             }
 
             function onPaletteDragEnd() {
-                // 不立即清空，等容器的 onAdd 处理完
-                setTimeout(() => { currentMenuCom = null; }, 100);
+                draggingFromPalette = false;
+                removePaletteGhost();
+                clearDropPlaceholder();
+                setTimeout(() => { currentMenuCom = null; }, 0);
             }
 
-            // 左侧组件库拖拽配置（v-draggable 指令用）
-            // paletteStartSet: 记录拖拽前 palette 的 DOM 集合，拖拽结束后删除拖拽期间新插入的残留 clone
-            //（Sortable pull:clone 拖到画布后不自动清理源里的 clone，若不清理，切换分类时残留项会出现在各分类首位）
-            let paletteStartSet = null;
-            const paletteDragOptions = computed(() => ({
-                animation: 250,
-                swapThreshold: 0.1,
-                group: { name: 'lc-designer-group', pull: 'clone', put: false },
-                sort: false,
-                draggable: '.component-item',
-                ghostClass: 'lc-ghost',
-                dragClass: 'lc-drag',
-                chosenClass: 'lc-chosen',
-                onStart(evt) {
-                    console.log('[Designer] palette drag start:', evt.oldIndex);
-                    paletteStartSet = new Set(Array.from(evt.from.children));
-                    currentMenuCom = filteredComponents.value[evt.oldIndex];
-                },
-                onEnd() {
-                    console.log('[Designer] palette drag end');
-                    setTimeout(() => {
-                        // 清理 palette 中拖拽期间新插入的残留 clone（不在起始 DOM 集合里的 component-item）
-                        const grid = document.querySelector('.component-grid');
-                        if (grid && paletteStartSet) {
-                            Array.from(grid.children).forEach(el => {
-                                if (el.classList && el.classList.contains('component-item') && !paletteStartSet.has(el)) {
-                                    el.parentNode && el.parentNode.removeChild(el);
-                                }
-                            });
-                        }
-                        paletteStartSet = null;
-                        currentMenuCom = null;
-                    }, 200);
+            // 画布容器收到 palette drop：插入组件到目标容器（组合内部锁定容器除外）
+            function onPaletteDrop(parentConfig, evt, insertIndex) {
+                if (!currentMenuCom || !parentConfig) return;
+                if (parentConfig.__locked) return; // 组合内部锁定容器禁止拖入（开放容器已解锁）
+                let config = {};
+                try {
+                    config = JSON.parse(currentMenuCom.defaultConfigJson || currentMenuCom.DefaultConfigJson || '{}');
+                } catch (e) {
+                    config = { component: currentMenuCom.componentName || currentMenuCom.ComponentName, childrenctrls: [] };
                 }
-            }));
+                const newConfig = deepClone(config);
+                if (parentConfig.__openSlot && Array.isArray(parentConfig.__slotRef)) {
+                    // 开放容器：追加到外部 slots（持久化目标），compositeTree 响应式重建合并数组
+                    parentConfig.__slotRef.push(newConfig);
+                } else if (Array.isArray(parentConfig.childrenctrls)) {
+                    // 按占位符索引插入（无索引则追加）
+                    if (typeof insertIndex === 'number' && insertIndex >= 0 && insertIndex <= parentConfig.childrenctrls.length) {
+                        parentConfig.childrenctrls.splice(insertIndex, 0, newConfig);
+                    } else {
+                        parentConfig.childrenctrls.push(newConfig);
+                    }
+                }
+                setCurrentCom(newConfig);
+                ElMessage.success('已添加: ' + newConfig.component);
+                window.dispatchEvent(new CustomEvent('lc-tree-refresh'));
+            }
+
+            // ===== 画布级兜底 drop =====
+            // 新建空页面时，根容器（DynNDivContainer）只有顶部一小块高度，拖到画布空白处无法命中子容器。
+            // 在画布元素上兜底接收 palette drop：未命中子容器时插入到页面根容器（configObj.childrenctrls）。
+            function isPaletteDragEvent(evt) {
+                if (evt.dataTransfer && evt.dataTransfer.types) {
+                    return Array.from(evt.dataTransfer.types || []).indexOf('application/x-lc-comp') >= 0;
+                }
+                return draggingFromPalette === true;
+            }
+            function onCanvasDragOver(evt) {
+                if (isPaletteDragEvent(evt)) {
+                    evt.preventDefault(); // 允许 drop
+                    if (evt.dataTransfer) evt.dataTransfer.dropEffect = 'copy';
+                }
+            }
+            function onCanvasDrop(evt) {
+                if (!isPaletteDragEvent(evt)) return;
+                evt.preventDefault();
+                evt.stopPropagation();
+                // 兜底：插入页面根容器（子容器已处理过的 drop 会 stopPropagation，到不了这里）
+                if (configObj && Array.isArray(configObj.childrenctrls)) {
+                    onPaletteDrop(configObj, evt, undefined);
+                }
+            }
 
             // ===== 初始化 =====
             onMounted(async () => {
@@ -949,12 +1072,13 @@
                 configObj, modelObj, comListRef, treeRef, treeVersion,
                 categories, hasOptionField, canMoveUp, canMoveDown,
                 currentPropertyConfig, modelJsonText, onPropertyUpdate, showJsonEditor, showModelData, copyModelJson,
-                filteredComponents, paletteDragOptions, selectFromTree, setCurrentCom,
+                filteredComponents, selectFromTree, setCurrentCom,
                 showCompositeDialog, compositeForm, openCompositeDialog, saveAsComposite,
                 onCompositeSourceChange,
                 openConfigMode, currentComOpenMap, currentComOpenContainer, toggleOpenProp,
                 toggleOpenContainer, openSummary, removeOpenItem, isContainerComp,
                 onPaletteDragStart, onPaletteDragEnd,
+                onCanvasDragOver, onCanvasDrop,
                 deleteCurrent, moveUp, moveDown, copyCurrent,
                 addValidator, removeValidator, needsValue, toggleRequired,
                 loadPage, newPage, confirmNewPage, savePage, openPreview, applyJson,
@@ -1032,16 +1156,7 @@
                         if (typeof options.onStart === 'function') options.onStart(evt);
                     },
                     onAdd(evt) {
-                        // 从左侧面板(palette)拖入画布容器时，删除 Sortable 自动插入的克隆 DOM（避免图标和组件重复）。
-                        // 注意：palette 自身的 pull:clone 也会触发 onAdd（evt.to 就是 palette），此时不能删 clone，
-                        // 否则会干扰 Sortable 的 clone 生命周期，导致拖拽结束后源容器残留克隆 DOM，切分类时残留项出现在各分类首位。
-                        const fromIsPalette = evt.from && evt.from.classList && evt.from.classList.contains('component-grid');
-                        const toIsPalette = evt.to && evt.to.classList && evt.to.classList.contains('component-grid');
-                        if (fromIsPalette && !toIsPalette) {
-                            if (evt.item && evt.item.parentNode) {
-                                evt.item.parentNode.removeChild(evt.item);
-                            }
-                        }
+                        // palette 已改用原生 DnD（不走 Sortable），此 onAdd 仅处理画布内部容器间移动
                         if (typeof options.onAdd === 'function') options.onAdd(evt);
                         syncOpenSlotArr(); // 同步开放容器 slots（外部拖入持久化）
                         // 新元素渲染后补 draggable 属性
@@ -1095,6 +1210,39 @@
                 el.__vueInstance = binding.instance; // 调试：暴露组件实例
                 el.__dragBinding = binding.value; // 调试：暴露绑定值
                 el.__dragArr0 = Array.isArray(binding.value) ? binding.value[0] : binding.value; // 调试：暴露数组引用
+                // 接收左侧 palette 的原生 HTML5 drop（palette 不参与 Sortable group，走原生 dragover/drop）
+                // isPaletteDrag: 通过 dataTransfer 自定义 MIME 判断是否来自左侧组件库
+                const isPaletteDrag = (evt) => {
+                    if (evt.dataTransfer && evt.dataTransfer.types) {
+                        return Array.from(evt.dataTransfer.types || []).indexOf('application/x-lc-comp') >= 0;
+                    }
+                    return draggingFromPalette === true;
+                };
+                el.addEventListener('dragover', (evt) => {
+                    if (isPaletteDrag(evt)) {
+                        evt.preventDefault(); // 允许 drop
+                        if (evt.dataTransfer) evt.dataTransfer.dropEffect = 'copy';
+                        el.classList.add('lc-drop-target');
+                        updateDropPlaceholder(el, evt); // 显示插入位置占位线
+                    }
+                });
+                el.addEventListener('dragleave', (evt) => {
+                    if (!evt.relatedTarget || !el.contains(evt.relatedTarget)) {
+                        el.classList.remove('lc-drop-target');
+                        if (dropTargetInfo && dropTargetInfo.el === el) clearDropPlaceholder();
+                    }
+                });
+                el.addEventListener('drop', (evt) => {
+                    if (!isPaletteDrag(evt)) return;
+                    evt.preventDefault();
+                    evt.stopPropagation(); // 嵌套容器：只让最深（最内层）容器处理
+                    el.classList.remove('lc-drop-target');
+                    const parentConfig = binding.instance && binding.instance.props ? binding.instance.props.jsonconfig : null;
+                    // 重算插入索引：dragover 冒泡会污染 dropTargetInfo，drop 时基于当前容器与鼠标位置重算最可靠
+                    const insertIndex = computeInsertIndex(el, evt);
+                    if (lcDesignerGlobal && parentConfig) lcDesignerGlobal.onPaletteDrop(parentConfig, evt, insertIndex);
+                    clearDropPlaceholder();
+                });
                 // Sortable 1.15.2 原生模式下不自动加 draggable，手动添加
                 const applyDraggable = () => el.querySelectorAll(dragSel).forEach(c => c.setAttribute('draggable', 'true'));
                 applyDraggable();

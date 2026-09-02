@@ -71,13 +71,16 @@
                             <el-radio-group v-model="activeCategory" size="small" style="margin-bottom:8px;">
                                 <el-radio-button v-for="cat in categories" :key="cat.key" :label="cat.key">{{ cat.label }}</el-radio-button>
                             </el-radio-group>
-                            <div class="component-grid" v-draggable="[filteredComponents, paletteDragOptions]">
+                            <div class="component-grid">
                                 <div v-for="comp in filteredComponents"
                                      :key="comp.componentName"
                                      class="component-item"
                                      :data-comp-name="comp.componentName"
                                      :class="{ 'is-composite': comp.isComposite || comp.IsComposite }"
-                                     :title="comp.description">
+                                     :title="comp.description"
+                                     draggable="true"
+                                     @@dragstart="onPaletteDragStart($event, comp)"
+                                     @@dragend="onPaletteDragEnd">
                                     <span class="comp-icon">{{ comp.icon }}</span>
                                     <span class="comp-label">{{ comp.displayName || comp.label || comp.componentName }}</span>
                                 </div>
@@ -112,12 +115,14 @@
                             <div class="canvas-zoom" :style="{ transform: 'scale(' + canvasZoom + ')', transformOrigin: 'top left' }">
                                 <div class="phone-wrapper" v-if="canvasPlatform === 'mobile'">
                                     <div class="phone-notch"></div>
-                                    <div class="phone-screen designer-canvas" :class="{ 'preview-mode': designMode === 'preview' }">
+                                    <div class="phone-screen designer-canvas" :class="{ 'preview-mode': designMode === 'preview' }"
+                                         @@dragover="onCanvasDragOver" @@drop="onCanvasDrop">
                                         <n-dynamic-com :jsonconfig="configObj" :parentmodelinfo="modelObj" node-path="root"></n-dynamic-com>
                                     </div>
                                     <div class="phone-home-indicator"></div>
                                 </div>
-                                <div class="desktop-canvas designer-canvas" v-else :class="{ 'preview-mode': designMode === 'preview' }" :style="{ width: canvasWidth + 'px', minHeight: canvasHeight + 'px' }">
+                                <div class="desktop-canvas designer-canvas" v-else :class="{ 'preview-mode': designMode === 'preview' }" :style="{ width: canvasWidth + 'px', minHeight: canvasHeight + 'px' }"
+                                     @@dragover="onCanvasDragOver" @@drop="onCanvasDrop">
                                     <n-dynamic-com :jsonconfig="configObj" :parentmodelinfo="modelObj" node-path="root"></n-dynamic-com>
                                 </div>
                             </div>

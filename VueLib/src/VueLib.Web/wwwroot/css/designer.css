@@ -696,3 +696,66 @@ body {
     color: #606266;
     flex-shrink: 0;
 }
+
+/* ===== 左侧 palette 拖拽 ghost（组件 HTML 外观）+ 插入占位线 ===== */
+.lc-palette-ghost { font-size: 13px; color: #606266; }
+.lc-palette-ghost .gh-card {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #fff; border: 1px solid #dcdfe6; border-radius: 8px;
+    padding: 10px 14px; min-width: 120px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.14);
+}
+.lc-palette-ghost .gh-icon { font-size: 18px; }
+.lc-palette-ghost .gh-label { white-space: nowrap; }
+.lc-palette-ghost .gh-field {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 120px; height: 26px; border: 1px solid #dcdfe6; border-radius: 4px;
+    padding: 0 8px; color: #a8abb2; background: #fff;
+}
+.lc-palette-ghost .gh-textarea { height: 40px; align-items: flex-start; padding-top: 4px; }
+.lc-palette-ghost .gh-btn {
+    height: 26px; line-height: 26px; padding: 0 16px; border-radius: 4px;
+    background: #409eff; color: #fff; text-align: center;
+}
+.lc-palette-ghost .gh-radio, .lc-palette-ghost .gh-check {
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.lc-palette-ghost .gh-dot {
+    width: 12px; height: 12px; border-radius: 50%; border: 1px solid #409eff; display: inline-block;
+}
+.lc-palette-ghost .gh-square { border-radius: 3px; }
+.lc-palette-ghost .gh-switch {
+    width: 34px; height: 18px; border-radius: 9px; position: relative; background: #e4e7ed;
+}
+.lc-palette-ghost .gh-switch.is-on { background: #409eff; }
+.lc-palette-ghost .gh-switch::after {
+    content: ''; position: absolute; top: 2px; left: 18px; width: 14px; height: 14px;
+    border-radius: 50%; background: #fff;
+}
+.lc-palette-ghost .gh-box {
+    border: 1px dashed #409eff; border-radius: 6px; padding: 8px 14px;
+    color: #409eff; background: rgba(64,158,255,.06); white-space: nowrap;
+}
+.lc-palette-ghost .gh-divider { width: 120px; border-top: 1px dashed #c0c4cc; }
+.lc-palette-ghost .gh-cell {
+    border: 1px solid #ebeef5; border-radius: 4px; padding: 4px 10px; white-space: nowrap;
+}
+.lc-palette-ghost .gh-slider {
+    width: 100px; height: 4px; border-radius: 2px; background: #e4e7ed; position: relative;
+}
+.lc-palette-ghost .gh-thumb {
+    position: absolute; top: -4px; left: 60px; width: 12px; height: 12px;
+    border-radius: 50%; background: #409eff;
+}
+.lc-palette-ghost .gh-progress {
+    width: 120px; height: 8px; border-radius: 4px; background: #e4e7ed; overflow: hidden;
+}
+.lc-palette-ghost .gh-progress i { display: block; height: 100%; width: 60%; background: #409eff; }
+.lc-palette-ghost .gh-arrow { color: #c0c4cc; }
+
+/* 拖拽插入位置占位线 */
+.lc-drop-placeholder {
+    position: fixed; height: 6px; background: #409eff; border-radius: 3px;
+    z-index: 9998; pointer-events: none; box-shadow: 0 0 8px rgba(64,158,255,.7);
+}
+.lc-drop-target { outline: 1px dashed #409eff; outline-offset: -1px; }
