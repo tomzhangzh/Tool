@@ -31,6 +31,7 @@
                 <el-radio-button label="preview">预览</el-radio-button>
             </el-radio-group>
             <el-switch v-model="showJson" active-text="JSON" inactive-text="" size="small" style="margin:0 8px;"></el-switch>
+            <el-button size="small" type="info" @@click="openHtmlCode">HTML Code</el-button>
             <el-button size="small" type="info" @@click="showModelData">查看数据</el-button>
             <el-button size="small" type="warning" @@click="openPreview">新窗口预览</el-button>
         </div>
@@ -58,6 +59,7 @@
                     savePage: api.savePage,
                     openCompositeDialog: api.openCompositeDialog,
                     showModelData: api.showModelData,
+                    openHtmlCode: api.openHtmlCode,
                     openPreview: api.openPreview
                 };
             }

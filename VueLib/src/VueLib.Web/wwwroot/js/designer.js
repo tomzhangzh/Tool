@@ -79,6 +79,8 @@
             const currentPageId = S.currentPageId;
             const saving = S.saving;
             const showJson = S.showJson;
+            const showHtmlCode = S.showHtmlCode;
+            const htmlCodeText = S.htmlCodeText;
             const showNewPage = S.showNewPage;
             const showModelModal = S.showModelModal;
             const rightPanel = ref('open');
@@ -486,6 +488,17 @@
                     configJsonText.value = JSON.stringify(currentCom.value, null, 2);
                 }
                 showJson.value = true;
+            }
+
+            // 打开 HTML 代码生成弹窗：根据当前页面配置生成 ElementUI / NutUI 的 Vue HTML 代码
+            function openHtmlCode() {
+                if (!window.LCHtmlCodeGen) { ElMessage.error('代码生成器未加载'); return; }
+                try {
+                    htmlCodeText.value = window.LCHtmlCodeGen.generateHtml(configObj, modelObj);
+                    showHtmlCode.value = true;
+                } catch (e) {
+                    ElMessage.error('生成 HTML 代码失败: ' + e.message);
+                }
             }
 
             const canMoveUp = computed(() => {
@@ -921,7 +934,7 @@
             Object.assign(window.__lcApi, {
                 loadComponentMeta, loadPageList, loadPage, savePage, newPage, confirmNewPage,
                 showModelData, openCompositeDialog, onCompositeSourceChange, saveAsComposite,
-                openPreview, applyJson, setCurrentCom, showJsonEditor,
+                openPreview, applyJson, setCurrentCom, showJsonEditor, openHtmlCode,
                 deleteCurrent, moveUp, moveDown, copyCurrent,
                 zoomIn, zoomOut, zoomReset
             });
@@ -953,7 +966,7 @@
 
             return {
                 componentMetaList, pageList, currentPageCode, saving, showJson, showNewPage, showModelModal,
-                configJsonText, newPageForm, designMode,
+                configJsonText, newPageForm, designMode, showHtmlCode, htmlCodeText,
                 currentCom, currentContainer, currentPath, breadcrumbList,
                 configObj, modelObj, treeVersion,
                 hasOptionField, canMoveUp, canMoveDown,

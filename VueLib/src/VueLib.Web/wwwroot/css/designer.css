@@ -823,3 +823,16 @@ body {
 .palette-float-fab:hover { background: #66b1ff; transform: scale(1.06); }
 .palette-float-popper .palette-inner { max-height: 62vh; overflow-y: auto; }
 .palette-float-popper .component-grid { grid-template-columns: repeat(2, 1fr); }
+
+/* HTML 代码生成弹窗 */
+.html-code-dialog .html-code-pre {
+    margin: 0; padding: 12px;
+    max-height: 62vh; overflow: auto;
+    background: #1e1e1e; color: #d4d4d4;
+    font-family: Consolas, Menlo, 'Courier New', monospace;
+    font-size: 12px; line-height: 1.6;
+    border-radius: 6px; white-space: pre; word-break: normal;
+}
+.html-code-dialog .html-code-pre::-webkit-scrollbar { width: 8px; height: 8px; }
+.html-code-dialog .html-code-pre::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+.html-code-dialog .html-code-pre::-webkit-scrollbar-track { background: #2d2d2d; }

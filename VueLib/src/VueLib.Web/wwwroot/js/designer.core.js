@@ -20,6 +20,8 @@
     var canvasZoom = Vue.ref(1);           // 画布缩放
     var showRuler = Vue.ref(true);         // 标尺显示
     var showJson = Vue.ref(false);         // JSON 弹窗
+    var showHtmlCode = Vue.ref(false);     // HTML 代码弹窗
+    var htmlCodeText = Vue.ref('');        // 生成的 HTML 代码
     var canvasWidth = Vue.ref(1200);       // 桌面画布宽
     var canvasHeight = Vue.ref(800);       // 桌面画布高
     var currentCom = Vue.ref(null);        // 当前选中组件
@@ -65,6 +67,8 @@
         canvasZoom: canvasZoom,
         showRuler: showRuler,
         showJson: showJson,
+        showHtmlCode: showHtmlCode,
+        htmlCodeText: htmlCodeText,
         canvasWidth: canvasWidth,
         canvasHeight: canvasHeight,
         currentCom: currentCom,
