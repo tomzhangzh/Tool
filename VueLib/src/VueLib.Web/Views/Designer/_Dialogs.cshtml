@@ -1,0 +1,132 @@
+<!-- 弹窗组（独立 dyn-init app：JSON / 新建页面 / Model / 存组合） -->
+<div id="lc-dialogs" dyn-init="{}">
+    <!-- JSON 编辑器弹窗 -->
+    <el-dialog v-model="showJson" title="页面配置 JSON" width="700px" top="5vh">
+        <el-input v-model="configJsonText" type="textarea" :rows="24" font-size="12px"
+                  placeholder="页面配置 JSON"></el-input>
+        <template v-slot:footer>
+            <el-button @@click="applyJson">应用 JSON</el-button>
+            <el-button type="primary" @@click="showJson=false">关闭</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 新建页面弹窗 -->
+    <el-dialog v-model="showNewPage" title="新建页面" width="400px">
+        <el-form label-width="80px">
+            <el-form-item label="页面名称">
+                <el-input v-model="newPageForm.pageName"></el-input>
+            </el-form-item>
+            <el-form-item label="页面编码">
+                <el-input v-model="newPageForm.pageCode" placeholder="英文，如 user-form"></el-input>
+            </el-form-item>
+        </el-form>
+        <template v-slot:footer>
+            <el-button @@click="showNewPage=false">取消</el-button>
+            <el-button type="primary" @@click="confirmNewPage">创建</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- Model 数据弹窗 -->
+    <el-dialog v-model="showModelModal" title="页面数据模型 (Model JSON)" width="600px" top="8vh">
+        <el-input v-model="modelJsonText" type="textarea" :rows="20" font-size="12px"
+                  readonly placeholder="页面数据模型为空，请先在组件中设置绑定字段名并输入值"></el-input>
+        <template v-slot:footer>
+            <el-button type="primary" @@click="copyModelJson">复制</el-button>
+            <el-button @@click="showModelModal=false">关闭</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 保存为组合组件弹窗 -->
+    <el-dialog v-model="showCompositeDialog" title="🧩 保存为组合组件" width="760px" top="5vh"
+               class="composite-dialog">
+        <el-form label-width="86px" size="small">
+            <el-form-item label="组件名称">
+                <el-input v-model="compositeForm.componentName" placeholder="如 DynComContactCard"></el-input>
+            </el-form-item>
+            <el-form-item label="显示名称">
+                <el-input v-model="compositeForm.label" placeholder="组合组件在左侧面板的显示名"></el-input>
+            </el-form-item>
+            <el-form-item label="图标">
+                <el-input v-model="compositeForm.icon" style="width:120px;" placeholder="📦"></el-input>
+                <span style="font-size:12px;color:#909399;margin-left:8px;">留空默认 📦</span>
+            </el-form-item>
+            <el-form-item label="内容来源">
+                <el-radio-group v-model="compositeForm.source" @@change="onCompositeSourceChange">
+                    <el-radio label="selected">当前选中组件</el-radio>
+                    <el-radio label="page">整个页面</el-radio>
+                </el-radio-group>
+            </el-form-item>
+            <el-form-item label="说明">
+                <el-input v-model="compositeForm.description" placeholder="可选，组件说明"></el-input>
+            </el-form-item>
+        </el-form>
+
+        <div class="composite-section-title">开放属性（勾选需要外部配置的属性，可修改 key / 显示名）</div>
+        <div class="composite-expose-list">
+            <div v-for="(p, i) in compositeForm.exposedProps" :key="'e'+i" class="composite-expose-item">
+                <el-checkbox v-model="p.checked"></el-checkbox>
+                <span class="ce-path" :title="p.path">{{ p.path }}</span>
+                <span class="ce-field">{{ p.field }}</span>
+                <span class="ce-value" :title="String(p.value)">{{ p.value }}</span>
+                <el-input v-model="p.key" size="mini" placeholder="key" style="width:110px;"></el-input>
+                <el-input v-model="p.label" size="mini" placeholder="显示名" style="width:100px;"></el-input>
+            </div>
+            <div v-if="!compositeForm.exposedProps.length" style="color:#909399;font-size:12px;padding:8px;">
+                未发现可开放属性（如标签、绑定字段、placeholder 等）
+            </div>
+        </div>
+
+        <div class="composite-section-title">开放容器（勾选允许外部拖入组件的容器，填插槽 key）</div>
+        <div class="composite-expose-list">
+            <div v-for="(c, i) in compositeForm.openContainers" :key="'c'+i" class="composite-expose-item">
+                <el-checkbox v-model="c.checked"></el-checkbox>
+                <span class="ce-path" :title="c.path">{{ c.path }}</span>
+                <span class="ce-field">{{ c.component }}</span>
+                <span class="ce-tag">容器</span>
+                <el-input v-model="c.key" size="mini" placeholder="插槽 key" style="width:120px;"></el-input>
+                <el-input v-model="c.label" size="mini" placeholder="显示名" style="width:100px;"></el-input>
+            </div>
+            <div v-if="!compositeForm.openContainers.length" style="color:#909399;font-size:12px;padding:8px;">
+                未发现容器组件，组合组件内部将完全锁定
+            </div>
+        </div>
+
+        <template v-slot:footer>
+            <el-button @@click="showCompositeDialog=false">取消</el-button>
+            <el-button type="primary" @@click="saveAsComposite">保存组合组件</el-button>
+        </template>
+    </el-dialog>
+
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function () {
+                var S = window.LCDesignerStore;
+                var api = window.__lcApi;
+                var EP = window.ElementPlus || {};
+
+                // 本地：复制 Model JSON
+                function copyModelJson() {
+                    try {
+                        navigator.clipboard.writeText(S.modelJsonText.value).then(function () {
+                            if (EP.ElMessage) EP.ElMessage.success('已复制');
+                        }).catch(function () {});
+                    } catch (e) {
+                        if (EP.ElMessage) EP.ElMessage.error('复制失败');
+                    }
+                }
+
+                return {
+                    showJson: S.showJson, configJsonText: S.configJsonText,
+                    showNewPage: S.showNewPage, newPageForm: S.newPageForm,
+                    showModelModal: S.showModelModal, modelJsonText: S.modelJsonText,
+                    showCompositeDialog: S.showCompositeDialog, compositeForm: S.compositeForm,
+                    applyJson: api.applyJson,
+                    confirmNewPage: api.confirmNewPage,
+                    onCompositeSourceChange: api.onCompositeSourceChange,
+                    saveAsComposite: api.saveAsComposite,
+                    copyModelJson: copyModelJson
+                };
+            }
+        };
+    </script>
+</div>

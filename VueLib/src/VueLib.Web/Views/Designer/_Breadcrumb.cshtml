@@ -1,0 +1,24 @@
+<!-- 底部面包屑（独立 dyn-init app，订阅共享 store 的 breadcrumbList/currentCom） -->
+<div id="lc-breadcrumb" dyn-init="{}">
+    <div class="breadcrumb-bar">
+        <span class="breadcrumb-label">路径:</span>
+        <template v-for="(item, idx) in breadcrumbList" :key="idx">
+            <a href="#" class="breadcrumb-link" @@click.prevent="setCurrentCom(item)">{{ item.component }}<b v-if="item.modelname"> ({{ item.modelname }})</b></a>
+            <span v-if="idx < breadcrumbList.length - 1" class="breadcrumb-sep">›</span>
+        </template>
+        <span v-if="!currentCom" class="breadcrumb-empty">未选中组件</span>
+    </div>
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function () {
+                var S = window.LCDesignerStore;
+                var api = window.__lcApi;
+                return {
+                    breadcrumbList: S.breadcrumbList,
+                    currentCom: S.currentCom,
+                    setCurrentCom: api.setCurrentCom
+                };
+            }
+        };
+    </script>
+</div>

@@ -1,0 +1,31 @@
+            <div class="panel panel-center">
+                <!-- 标尺 + 画布 -->
+                <div class="canvas-area" :class="{ 'desktop-mode': canvasPlatform === 'desktop' }">
+                    <div class="ruler ruler-v" v-if="showRuler" ref="rulerVRef"></div>
+                    <div class="canvas-main">
+                        <div class="ruler ruler-h" v-if="showRuler" ref="rulerHRef"></div>
+                        <div class="canvas-scroll">
+                            <div class="canvas-zoom" :style="{ transform: 'scale(' + canvasZoom + ')', transformOrigin: 'top left' }">
+                                <div class="phone-wrapper" v-if="canvasPlatform === 'mobile'">
+                                    <div class="phone-notch"></div>
+                                    <div class="phone-screen designer-canvas" :class="{ 'preview-mode': designMode === 'preview' }"
+                                         @@dragover="onCanvasDragOver" @@drop="onCanvasDrop">
+                                        <n-dynamic-com :jsonconfig="configObj" :parentmodelinfo="modelObj" node-path="root"></n-dynamic-com>
+                                    </div>
+                                    <div class="phone-home-indicator"></div>
+                                </div>
+                                <div class="desktop-canvas designer-canvas" v-else :class="{ 'preview-mode': designMode === 'preview' }" :style="{ width: canvasWidth + 'px', minHeight: canvasHeight + 'px' }"
+                                     @@dragover="onCanvasDragOver" @@drop="onCanvasDrop">
+                                    <n-dynamic-com :jsonconfig="configObj" :parentmodelinfo="modelObj" node-path="root"></n-dynamic-com>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="canvas-info">
+                    <span>画布: {{ canvasPlatform === 'mobile' ? '375 × 667 (手机)' : '自适应宽度 (电脑)' }}</span>
+                    <span>缩放: {{ zoomPercent }}</span>
+                    <span v-if="currentPath">选中: {{ currentPath }}</span>
+                </div>
+            </div>
+

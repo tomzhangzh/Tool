@@ -6,10 +6,22 @@ body {
     overflow: hidden;
 }
 
-#designer-app {
+/* 多 app 布局外壳：toolbar / left / breadcrumb 为独立 dyn-init app，与主 app 平级 */
+.lc-shell {
     display: flex;
     flex-direction: column;
     height: 100vh;
+}
+.lc-main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+#designer-app {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
 }
 
 /* 顶部工具栏 */

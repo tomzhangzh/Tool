@@ -1,0 +1,66 @@
+<!-- 顶部工具栏（独立 dyn-init app，通过 LCDesignerStore / __lcApi 与主 app 通信） -->
+<div id="lc-toolbar" dyn-init="{}">
+    <div class="designer-toolbar">
+        <div class="toolbar-left">
+            <span class="toolbar-title">🎨 低代码设计器</span>
+            <el-select v-model="currentPageCode" placeholder="选择页面" size="small" style="width:200px;margin-left:16px;" @@change="loadPage">
+                <el-option v-for="p in pageList" :key="p.pageCode" :label="p.pageName" :value="p.pageCode"></el-option>
+            </el-select>
+            <el-button size="small" type="primary" @@click="newPage">新建</el-button>
+            <el-button size="small" type="success" @@click="savePage" :loading="saving">保存</el-button>
+            <el-switch v-model="openConfigMode" active-text="开放配置" inactive-text="" size="small" style="margin:0 4px;"></el-switch>
+            <el-button size="small" type="warning" @@click="openCompositeDialog">🧩 存组合</el-button>
+        </div>
+        <div class="toolbar-right">
+            <el-radio-group v-model="canvasPlatform" size="small" style="margin-right:8px;">
+                <el-radio-button label="mobile">手机</el-radio-button>
+                <el-radio-button label="desktop">电脑</el-radio-button>
+            </el-radio-group>
+            <template v-if="canvasPlatform === 'desktop'">
+                <el-input-number v-model="canvasWidth" :min="320" :max="3840" :step="10" size="small" style="width:100px;"></el-input-number>
+                <span style="color:#909399;font-size:12px;margin:0 2px;">×</span>
+                <el-input-number v-model="canvasHeight" :min="240" :max="2160" :step="10" size="small" style="width:100px;margin-right:8px;"></el-input-number>
+            </template>
+            <el-switch v-model="showRuler" active-text="标尺" size="small" style="margin:0 8px;"></el-switch>
+            <span style="font-size:12px;color:#606266;">缩放</span>
+            <el-slider v-model="canvasZoom" :min="0.25" :max="2" :step="0.05" :format-tooltip="v => Math.round(v*100)+'%'" style="width:140px;margin:0 8px;"></el-slider>
+            <span class="zoom-percent-top">{{ zoomPercent }}</span>
+            <el-divider direction="vertical" style="margin:0 8px;"></el-divider>
+            <el-radio-group v-model="designMode" size="small" style="margin-right:8px;">
+                <el-radio-button label="design">设计</el-radio-button>
+                <el-radio-button label="preview">预览</el-radio-button>
+            </el-radio-group>
+            <el-switch v-model="showJson" active-text="JSON" inactive-text="" size="small" style="margin:0 8px;"></el-switch>
+            <el-button size="small" type="info" @@click="showModelData">查看数据</el-button>
+            <el-button size="small" type="warning" @@click="openPreview">新窗口预览</el-button>
+        </div>
+    </div>
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function () {
+                var S = window.LCDesignerStore;
+                var api = window.__lcApi;
+                return {
+                    currentPageCode: S.currentPageCode,
+                    pageList: S.pageList,
+                    saving: S.saving,
+                    openConfigMode: S.openConfigMode,
+                    canvasPlatform: S.canvasPlatform,
+                    canvasWidth: S.canvasWidth,
+                    canvasHeight: S.canvasHeight,
+                    showRuler: S.showRuler,
+                    canvasZoom: S.canvasZoom,
+                    designMode: S.designMode,
+                    showJson: S.showJson,
+                    zoomPercent: S.zoomPercent,
+                    loadPage: api.loadPage,
+                    newPage: api.newPage,
+                    savePage: api.savePage,
+                    openCompositeDialog: api.openCompositeDialog,
+                    showModelData: api.showModelData,
+                    openPreview: api.openPreview
+                };
+            }
+        };
+    </script>
+</div>

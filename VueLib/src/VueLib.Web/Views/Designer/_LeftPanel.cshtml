@@ -1,0 +1,154 @@
+<!-- 左侧组件面板（独立 dyn-init app：组件库 + 组件树 + 折叠浮动菜单） -->
+<div id="lc-left" dyn-init="{}">
+    <div class="panel-left-wrap">
+        <div v-if="leftPanel === 'docked'" class="panel-dock panel-dock-left" title="展开组件面板">
+            <span class="dock-icon" @@click="openLeftPanel('palette')">📦</span>
+            <span class="dock-icon" @@click="openLeftPanel('tree')">🌳</span>
+            <span class="dock-close" @@click="leftPanel = 'closed'">×</span>
+        </div>
+        <div v-else-if="leftPanel === 'open'" class="panel panel-left">
+        <div class="panel-header">
+            <span>组件</span>
+            <span class="panel-header-actions">
+                <button class="panel-btn" title="吸附为窄条" @@click="leftPanel = 'docked'">◀</button>
+                <button class="panel-btn" title="关闭面板" @@click="leftPanel = 'closed'">✕</button>
+            </span>
+        </div>
+        <el-tabs v-model="leftTab" tab-position="top" class="component-tabs">
+            <el-tab-pane label="组件库" name="palette">
+            <palette-content
+                :components="filteredComponents"
+                :categories="categories"
+                :ui-library="activeUiLibrary"
+                :category="activeCategory"
+                :on-drag-start="onPaletteDragStart"
+                :on-drag-end="onPaletteDragEnd"
+                @@update:ui-library="activeUiLibrary = $event"
+                @@update:category="activeCategory = $event">
+            </palette-content>
+            </el-tab-pane>
+            <el-tab-pane label="组件树" name="tree">
+                <div class="tree-inner">
+                    <el-input v-model="treeFilter" placeholder="过滤组件" size="small" clearable style="margin-bottom:8px;"></el-input>
+                    <el-tree ref="treeRef"
+                             :key="treeVersion"
+                             :data="[configObj]"
+                             :props="{ children: 'childrenctrls', label: 'component' }"
+                             draggable
+                             default-expand-all
+                             :filter-node-method="(value, data) => !value || data.component.includes(value)"
+                             @@node-click="selectFromTree">
+                    </el-tree>
+                </div>
+            </el-tab-pane>
+        </el-tabs>
+        </div>
+        <div v-else class="panel-restore panel-restore-left" title="展开组件面板" @@click="leftPanel = 'open'">
+            <span>▶</span>
+        </div>
+    </div>
+
+    <!-- 左侧折叠时：浮动组件入口（悬浮菜单） -->
+    <div v-if="leftPanel === 'docked'" class="palette-float">
+        <el-popover placement="right-start" :width="300" trigger="click" :show-arrow="false" popper-class="palette-float-popper">
+            <template #reference>
+                <div class="palette-float-fab" title="打开组件库">🧩</div>
+            </template>
+            <palette-content
+                :components="filteredComponents"
+                :categories="categories"
+                :ui-library="activeUiLibrary"
+                :category="activeCategory"
+                :on-drag-start="onPaletteDragStart"
+                :on-drag-end="onPaletteDragEnd"
+                @@update:ui-library="activeUiLibrary = $event"
+                @@update:category="activeCategory = $event">
+            </palette-content>
+        </el-popover>
+    </div>
+
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function () {
+                var Vue = window.Vue;
+                var S = window.LCDesignerStore;
+                var api = window.__lcApi;
+                var U = window.LCDesignerUtils;
+                var ref = Vue.ref, computed = Vue.computed;
+
+                // 面板状态（left app 本地）
+                var leftPanel = ref('open');
+                var leftTab = ref('palette');
+                var activeCategory = ref('表单');
+                var activeUiLibrary = ref('all');
+                var treeFilter = ref('');
+
+                // 分类
+                var categories = [
+                    { key: '表单', label: '表单' },
+                    { key: '布局', label: '布局' },
+                    { key: '展示', label: '展示' },
+                    { key: '通用', label: '通用' },
+                    { key: '组合', label: '组合' }
+                ];
+
+                // 过滤组件（组件库）
+                var filteredComponents = computed(function () {
+                    return S.componentMetaList.value.filter(function (c) {
+                        var isComp = !!(c.isComposite || c.IsComposite);
+                        var lib = c.uiLibrary || c.UiLibrary || 'nutui';
+                        var libMatch = activeUiLibrary.value === 'all' || lib === activeUiLibrary.value;
+                        if (activeCategory.value === '组合') return isComp;
+                        if (isComp) return false;
+                        var catMatch = (c.category || c.Category) === activeCategory.value;
+                        return catMatch && libMatch;
+                    });
+                });
+
+                function openLeftPanel(tab) {
+                    if (tab) leftTab.value = tab;
+                    leftPanel.value = 'open';
+                }
+
+                // 拖拽到画布：记录组件元数据 + ghost（与画布 drop 通过共享 dragState 通信）
+                function onPaletteDragStart(evt, comp) {
+                    if (!evt.dataTransfer) return;
+                    try {
+                        evt.dataTransfer.setData('application/x-lc-comp', comp.componentName || comp.ComponentName || '');
+                        evt.dataTransfer.setData('text/plain', comp.componentName || '');
+                    } catch (e) {}
+                    if (evt.dataTransfer) evt.dataTransfer.effectAllowed = 'copy';
+                    U.dragState.draggingFromPalette = true;
+                    U.dragState.sessionId++;
+                    U.dragState.currentMenuCom = comp;
+                    U.removePaletteGhost();
+                    var g = U.createPaletteGhost(comp);
+                    try { evt.dataTransfer.setDragImage(g, 16, 16); } catch (e) {}
+                }
+                function onPaletteDragEnd() {
+                    U.dragState.draggingFromPalette = false;
+                    U.removePaletteGhost();
+                    U.clearDropPlaceholder();
+                    setTimeout(function () { U.dragState.currentMenuCom = null; }, 0);
+                }
+
+                // 组件树点击
+                function selectFromTree(data) {
+                    api.setCurrentCom(data);
+                }
+
+                return {
+                    leftPanel: leftPanel, leftTab: leftTab,
+                    activeCategory: activeCategory, activeUiLibrary: activeUiLibrary,
+                    treeFilter: treeFilter, categories: categories,
+                    filteredComponents: filteredComponents,
+                    openLeftPanel: openLeftPanel,
+                    onPaletteDragStart: onPaletteDragStart, onPaletteDragEnd: onPaletteDragEnd,
+                    selectFromTree: selectFromTree,
+                    configObj: S.configObj, treeVersion: S.treeVersion
+                };
+            },
+            components: { PaletteContent: (window.LCDesignerCore || {}).PaletteContent }
+        };
+    </script>
+</div>

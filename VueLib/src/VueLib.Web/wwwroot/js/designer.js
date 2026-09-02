@@ -6,176 +6,26 @@
     'use strict';
 
     const { createApp, reactive, ref, computed, watch, nextTick, onMounted, provide } = Vue;
+    const S = window.LCDesignerStore;   // 全局共享 store（designer.core.js）
     const { ElMessage, ElMessageBox } = ElementPlus;
 
-    const CONTAINER_COMPONENTS = ['DynNForm', 'DynNCellGroup', 'DynNDivContainer', 'DynNGrid', 'DynElDivContainer', 'DynElCard', 'DynElRow', 'DynElCol', 'DynElTabs'];
-    const isContainerComp = (name) => CONTAINER_COMPONENTS.includes(name);
+    // ===== 拆分出的公共工具（designer.utils.js / dyn-lib.js）=====
+    const {
+        dragState, deepClone, getByPath, setPathVal, isContainerComp, applyCompositeProps,
+        createPaletteGhost, removePaletteGhost,
+        computeInsertIndex, updateDropPlaceholder, clearDropPlaceholder
+    } = (window.LCDesignerUtils || {});
+    const eventBus = (window.dyn && window.dyn.eventBus);
+
     const DRAG_GROUP = 'lc-designer-group';
 
-        // 组合组件配置 map（运行时渲染用）
-    const compositeComponents = {};
+        // 组合组件配置 map（运行时渲染用；与 right 独立 app 共享）
+        // 注意：LCDesignerCore 可能尚未初始化（初始化在其后 PaletteContent 导出处），必须先建容器
+    if (!window.LCDesignerCore) window.LCDesignerCore = {};
+    const compositeComponents = (window.LCDesignerCore.compositeComponents = window.LCDesignerCore.compositeComponents || {});
 
-    // 深拷贝工具
-    function deepClone(obj) {
-        if (window._) return window._.cloneDeep(obj);
-        return JSON.parse(JSON.stringify(obj));
-    }
-
-    // 按路径取值（点号路径）
-    function getByPath(obj, path) {
-        if (!obj || !path) return undefined;
-        return path.split('.').reduce(function (o, k) { return (o == null) ? undefined : o[k]; }, obj);
-    }
-
-    // 应用组合组件的外部属性 + 开放容器到内部树
-    // externalProps: jsonconfig.options.comoptions（开放属性值）
-    // externalSlots: jsonconfig.slots（开放容器内容，拖入的组件数组）
-    function applyCompositeProps(innerTree, compositeConfig, externalProps, externalSlots) {
-        if (!compositeConfig) return innerTree;
-        const tree = deepClone(innerTree);
-        // 0) 组合内部节点默认锁定（禁止拖入/编辑），开放容器在下方单独解锁
-        (function markLocked(n) {
-            if (!n || typeof n !== 'object') return;
-            n.__locked = true;
-            (n.childrenctrls || []).forEach(markLocked);
-        })(tree);
-        // 1) 注入开放属性（支持 target 单路径 / targets 数组路径）
-        if (compositeConfig.exposedProps && externalProps) {
-            for (const prop of compositeConfig.exposedProps) {
-                if (externalProps[prop.key] === undefined) continue;
-                const val = externalProps[prop.key];
-                if (prop.targets && Array.isArray(prop.targets)) {
-                    for (const t of prop.targets) {
-                        if (window._) window._.set(tree, t, val);
-                        else setPathVal(tree, t, val);
-                    }
-                } else if (prop.target) {
-                    if (window._) window._.set(tree, prop.target, val);
-                    else setPathVal(tree, prop.target, val);
-                }
-            }
-        }
-        // 2) 注入开放容器（插槽）：内部固定内容 + 外部拖入内容合并渲染
-        if (compositeConfig.openContainers && externalSlots) {
-            for (const oc of compositeConfig.openContainers) {
-                const node = oc.target ? getByPath(tree, oc.target) : tree;   // 空 target 表示组合根自身开放
-                if (node && typeof node === 'object') {
-                    if (!externalSlots[oc.key]) externalSlots[oc.key] = [];
-                    const internalChildren = node.childrenctrls || [];
-                    node.childrenctrls = internalChildren.concat(externalSlots[oc.key]); // 内部固定内容在前，外部拖入追加在后
-                    node.__openSlot = { key: oc.key, label: oc.label || oc.key, hint: oc.hint || '' };
-                    node.__unlocked = true;                       // 开放容器不锁定
-                    delete node.__locked;   // 开放容器解锁（容器本身可拖入，内部固定内容仍锁定）
-                    node.__fixedLen = internalChildren.length;    // 内部固定内容数量（拖拽同步 slots 用）
-                    node.__slotRef = externalSlots[oc.key];       // 外部拖入内容引用（拖拽持久化目标）
-                }
-            }
-        }
-        return tree;
-    }
-
-    // 手动按路径设置值（lodash 不可用时）
-    function setPathVal(obj, path, value) {
-        const keys = path.split('.');
-        const last = keys.pop();
-        let target = obj;
-        for (const k of keys) {
-            if (target[k] == null || typeof target[k] !== 'object') target[k] = {};
-            target = target[k];
-        }
-        target[last] = value;
-    }
-
-// 当前从左侧菜单拖拽的组件元数据
-    let currentMenuCom = null;
     // 全局 lcDesigner 引用（v-draggable 指令在 setup 外，接收 palette drop 时通过它调用 onPaletteDrop）
     let lcDesignerGlobal = null;
-    // 是否正在从左侧组件库拖拽（模块级，v-draggable 指令的 isPaletteDrag fallback 需要）
-    let draggingFromPalette = false;
-
-    // ===== 左侧 palette 拖拽 ghost（组件 HTML 外观）+ 插入占位符 =====
-    // 模块级：被 v-draggable 指令（setup 外）与 setup 内 onPaletteDragStart/End 共用
-    let activeGhost = null;
-    let dropTargetInfo = null; // { el, insertIndex }
-    const PALETTE_GHOST_SHAPES = {
-        'DynNInput': '<div class="gh-field"><span class="gh-ph">请输入</span></div>',
-        'DynNTextarea': '<div class="gh-field gh-textarea">请输入...</div>',
-        'DynNButton': '<div class="gh-btn">按钮</div>',
-        'DynNRadio': '<div class="gh-radio"><i class="gh-dot"></i><span>选项1</span></div>',
-        'DynNCheckbox': '<div class="gh-check"><i class="gh-dot gh-square"></i><span>选项</span></div>',
-        'DynNSwitch': '<div class="gh-switch is-on"></div>',
-        'DynNCellGroup': '<div class="gh-box">容器 · CellGroup</div>',
-        'DynNForm': '<div class="gh-box">容器 · Form</div>',
-        'DynNDivider': '<div class="gh-divider"></div>',
-        'DynNCell': '<div class="gh-cell">单元格</div>',
-        'DynNSelect': '<div class="gh-field"><span class="gh-ph">请选择</span><span class="gh-arrow">▾</span></div>',
-        'DynNDatePicker': '<div class="gh-field"><span class="gh-ph">选择日期</span><span class="gh-arrow">▾</span></div>',
-        'DynNNumberInput': '<div class="gh-field"><span class="gh-ph">数字</span></div>',
-        'DynNSlider': '<div class="gh-slider"><i class="gh-thumb"></i></div>',
-        'DynNProgress': '<div class="gh-progress"><i></i></div>'
-    };
-    function ghostShape(name, comp) {
-        const icon = (comp && comp.icon) || '📦';
-        const label = (comp && (comp.displayName || comp.label)) || name;
-        const inner = PALETTE_GHOST_SHAPES[name] || '<span class="gh-icon">' + icon + '</span><span class="gh-label">' + label + '</span>';
-        return '<div class="gh-card">' + inner + '</div>';
-    }
-    function createPaletteGhost(comp) {
-        const ghost = document.createElement('div');
-        ghost.className = 'lc-palette-ghost';
-        ghost.innerHTML = ghostShape(comp.componentName || comp.ComponentName || '', comp);
-        ghost.style.cssText = 'position:fixed;top:-2000px;left:-2000px;pointer-events:none;z-index:9999;opacity:0.95;';
-        document.body.appendChild(ghost);
-        return ghost;
-    }
-    function removePaletteGhost() {
-        if (activeGhost) { activeGhost.remove(); activeGhost = null; }
-    }
-    // 根据鼠标在容器内的位置计算插入索引，并在对应位置显示蓝色占位线
-    // 根据鼠标在容器内的位置计算插入索引（基于容器直接子节点 .lc-node 的顺序）
-    function computeInsertIndex(containerEl, evt) {
-        const nodes = Array.from(containerEl.querySelectorAll(':scope > .lc-node'));
-        let idx = nodes.length;
-        for (let i = 0; i < nodes.length; i++) {
-            const r = nodes[i].getBoundingClientRect();
-            if (evt.clientY < r.top + r.height / 2) { idx = i; break; }
-        }
-        return idx;
-    }
-    function updateDropPlaceholder(containerEl, evt) {
-        // dragover 冒泡：只让最内层容器接管占位符（否则外层容器会把占位符/索引覆盖成自己的）
-        if (evt.target && evt.target.closest) {
-            const inner = evt.target.closest('.lc-container, .lc-open-slot');
-            if (inner && inner !== containerEl && containerEl.contains(inner)) return;
-        }
-        const idx = computeInsertIndex(containerEl, evt);
-        const nodes = Array.from(containerEl.querySelectorAll(':scope > .lc-node'));
-        let ph = document.querySelector('.lc-drop-placeholder');
-        if (!ph) {
-            ph = document.createElement('div');
-            ph.className = 'lc-drop-placeholder';
-            document.body.appendChild(ph);
-        }
-        let rect;
-        if (nodes.length > 0 && idx >= nodes.length) {
-            const r = nodes[nodes.length - 1].getBoundingClientRect();
-            rect = { left: r.left, top: r.bottom - 3, width: r.width };
-        } else if (nodes.length > 0) {
-            const r = nodes[idx].getBoundingClientRect();
-            rect = { left: r.left, top: r.top - 3, width: r.width };
-        } else {
-            const r = containerEl.getBoundingClientRect();
-            rect = { left: r.left, top: r.top, width: r.width };
-        }
-        ph.style.cssText = 'position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:6px;background:#409eff;border-radius:3px;z-index:9998;pointer-events:none;box-shadow:0 0 8px rgba(64,158,255,.7);';
-        dropTargetInfo = { el: containerEl, insertIndex: idx };
-    }
-    function clearDropPlaceholder() {
-        const ph = document.querySelector('.lc-drop-placeholder');
-        if (ph) ph.remove();
-        dropTargetInfo = null;
-        document.querySelectorAll('.lc-drop-target').forEach(e => e.classList.remove('lc-drop-target'));
-    }
 
 
     // ===== 组件库面板（可复用：左侧 tab 与浮动弹出层共用）=====
@@ -215,47 +65,39 @@
         </div>`
     };
 
+    // 导出供独立 left 面板 app 注册使用
+    if (!window.LCDesignerCore) window.LCDesignerCore = {};
+    window.LCDesignerCore.PaletteContent = PaletteContent;
+
     const app = createApp({
         components: { PaletteContent },
         setup() {
             // ===== 状态 =====
-            const componentMetaList = ref([]);
-            const pageList = ref([]);
-            const currentPageCode = ref('');
-            const currentPageId = ref(null);
-            const saving = ref(false);
-            const showJson = ref(false);
-            const showNewPage = ref(false);
-            const showModelModal = ref(false);
-            const activeCategory = ref('表单');
-            const activeUiLibrary = ref('all');
-            const leftTab = ref('palette');
-            // 左右侧栏状态：open（展开）| docked（吸附成窄条）| closed（关闭）
-            const leftPanel = ref('open');
+            const componentMetaList = S.componentMetaList;
+            const pageList = S.pageList;
+            const currentPageCode = S.currentPageCode;
+            const currentPageId = S.currentPageId;
+            const saving = S.saving;
+            const showJson = S.showJson;
+            const showNewPage = S.showNewPage;
+            const showModelModal = S.showModelModal;
             const rightPanel = ref('open');
-            const configJsonText = ref('');
-            const designMode = ref('design');
-            const treeFilter = ref('');
-
-            // dock 点击展开左侧面板（可切换 tab）
-            function openLeftPanel(tab) {
-                if (tab) leftTab.value = tab;
-                leftPanel.value = 'open';
-            }
+            const configJsonText = S.configJsonText;
+            const designMode = S.designMode;
             function openRightPanel() {
                 rightPanel.value = 'open';
             }
 
             // ===== 画布视图控制 =====
-            const canvasPlatform = ref('mobile'); // mobile | desktop
-            const canvasZoom = ref(1);
-            const showRuler = ref(true);
-            const canvasWidth = ref(1200);
-            const canvasHeight = ref(800);
+            const canvasPlatform = S.canvasPlatform; // mobile | desktop
+            const canvasZoom = S.canvasZoom;
+            const showRuler = S.showRuler;
+            const canvasWidth = S.canvasWidth;
+            const canvasHeight = S.canvasHeight;
             const zoomIn = () => { canvasZoom.value = Math.min(2, +(canvasZoom.value + 0.1).toFixed(2)); };
             const zoomOut = () => { canvasZoom.value = Math.max(0.25, +(canvasZoom.value - 0.1).toFixed(2)); };
             const zoomReset = () => { canvasZoom.value = 1; };
-            const zoomPercent = computed(() => Math.round(canvasZoom.value * 100) + '%');
+            const zoomPercent = S.zoomPercent;
             // 生成标尺刻度
             const generateRulerMarks = (maxPx, zoom) => {
                 const marks = [];
@@ -285,48 +127,26 @@
             const setRulerZoom = (z) => { if (rulerH) rulerH.zoom = z; if (rulerV) rulerV.zoom = z; resizeRulers(); };
 
             // 选中状态
-            const currentCom = ref(null);
-            const currentContainer = ref(null);
-            const currentPath = ref('');
-            const breadcrumbList = ref([]);
+            const currentCom = S.currentCom;
+            const currentContainer = S.currentContainer;
+            const currentPath = S.currentPath;
+            const breadcrumbList = S.breadcrumbList;
 
-            const newPageForm = reactive({ pageName: '', pageCode: '' });
+            const newPageForm = S.newPageForm;
 
             // 页面配置根节点
-            const configObj = reactive({
-                component: 'DynNDivContainer', modelname: '',
-                options: {
-                    comoptions: {}, comlisteners: {}, labeloptions: {},
-                    itemoptions: { style: { padding: '12px', background: '#fff' }, class: '' }
-                },
-                validators: [], childrenctrls: [], slots: {}, extendinfo: {}
-            });
-            const modelObj = reactive({});
+            const configObj = S.configObj;   // 共享 store（designer.core.js）
+            const modelObj = S.modelObj;
 
-            // 左侧组件库 ref
-            const comListRef = ref(null);
-            const paletteRef = ref(null);
-            const treeRef = ref(null);
-            const treeVersion = ref(0);
+            const treeVersion = S.treeVersion;
 
-            // ===== 分类 =====
-            const categories = [
-                { key: '表单', label: '表单' },
-                { key: '布局', label: '布局' },
-                { key: '展示', label: '展示' },
-                { key: '通用', label: '通用' },
-                { key: '组合', label: '组合' }
-            ];
 
             // ===== 保存为组合组件 =====
-            const showCompositeDialog = ref(false);
-            const compositeForm = reactive({
-                componentName: '', label: '', icon: '📦', source: 'selected', description: '',
-                exposedProps: [], openContainers: []
-            });
+            const showCompositeDialog = S.showCompositeDialog;
+            const compositeForm = S.compositeForm;
 
             // ===== 开放配置模式（所见即所得标记开放属性/容器）=====
-            const openConfigMode = ref(false);
+            const openConfigMode = S.openConfigMode;
             function ensureOpen(node) {
                 if (!node) return null;
                 node.extendinfo = node.extendinfo || {};
@@ -569,19 +389,6 @@
             }
 
             // ===== 计算属性 =====
-            const filteredComponents = computed(() => {
-                return componentMetaList.value.filter(c => {
-                    const isComp = !!(c.isComposite || c.IsComposite);
-                    const lib = c.uiLibrary || c.UiLibrary || 'nutui';
-                    const libMatch = activeUiLibrary.value === 'all' || lib === activeUiLibrary.value;
-                    // 组合组件独立分类显示，不出现在其他分类
-                    if (activeCategory.value === '组合') return isComp;
-                    if (isComp) return false;
-                    const catMatch = (c.category || c.Category) === activeCategory.value;
-                    return catMatch && libMatch;
-                });
-            });
-
             const hasOptionField = computed(() => {
                 if (!currentCom.value) return false;
                 return ['DynNRadio', 'DynNCheckbox', 'DynNPicker'].includes(currentCom.value.component);
@@ -645,7 +452,7 @@
             });
 
             // 当前页面 Model JSON
-            const modelJsonText = computed(() => JSON.stringify(modelObj, null, 2));
+            const modelJsonText = S.modelJsonText;
 
             // 打开 Model 数据查看
             function showModelData() {
@@ -693,15 +500,6 @@
             });
 
             // ===== 工具方法 =====
-            function getComponentsByCategory(cat) {
-                return componentMetaList.value.filter(c => {
-                    const catMatch = (c.category || c.Category) === cat;
-                    const lib = c.uiLibrary || c.UiLibrary || 'nutui';
-                    const libMatch = activeUiLibrary.value === 'all' || lib === activeUiLibrary.value;
-                    return catMatch && libMatch;
-                });
-            }
-
             function deepClone(obj) {
                 return JSON.parse(JSON.stringify(obj));
             }
@@ -759,10 +557,7 @@
                 currentContainer.value = findParent(comConfig);
                 currentPath.value = findNodePath(comConfig);
                 breadcrumbList.value = getAncestors(comConfig);
-            }
-
-            function selectFromTree(data) {
-                setCurrentCom(data);
+                if (eventBus) eventBus.emit('setcurrent', comConfig);
             }
 
             // ===== 组件操作 =====
@@ -877,6 +672,7 @@
                         currentCom.value = null;
                         currentContainer.value = null;
                         ElMessage.success(`已加载: ${result.data.pageName}`);
+                        if (eventBus) eventBus.emit('loaded', { pageCode: code, page: result.data });
                     }
                 } catch (e) { ElMessage.error('加载页面失败: ' + e.message); }
             }
@@ -927,6 +723,7 @@
                         currentPageId.value = result.data;
                         ElMessage.success('保存成功');
                         loadPageList();
+                        if (eventBus) eventBus.emit('saved', { id: result.data, pageCode: currentPageCode.value });
                     } else { ElMessage.error('保存失败: ' + result.message); }
                 } catch (e) { ElMessage.error('保存失败: ' + e.message); }
                 finally { saving.value = false; }
@@ -953,7 +750,6 @@
             // 防重说明：画布容器会嵌套（如 Form ⊃ CellGroup），从左侧拖入组件时 drop 事件
             // 可能同时触发多个容器的 onAdd，导致"表单、布局等多个容器都添加组件"。
             // 这里统一走"延迟提交 + 最深（最内层）容器优先"，同一拖拽会话只添加一次到真正的目标容器。
-            let dragSessionId = 0;     // 拖拽会话计数（每次从左侧拖入自增）
             let pendingAdd = null;     // 当前拖拽待提交的添加（最内层容器）
             function depthOfDom(el) {
                 let d = 0, n = el;
@@ -972,29 +768,29 @@
                 ElMessage.success(`已添加: ${p.newConfig.component}`);
             }
             function onContainerDragAdd(evt, parentConfig) {
-                console.log('[Designer] onContainerDragAdd:', evt.newIndex, currentMenuCom?.componentName, 'session', dragSessionId);
-                if (!currentMenuCom || !parentConfig?.childrenctrls) return;
+                console.log('[Designer] onContainerDragAdd:', evt.newIndex, dragState.currentMenuCom?.componentName, 'session', dragState.sessionId);
+                if (!dragState.currentMenuCom || !parentConfig?.childrenctrls) return;
                 if (parentConfig.__locked) return; // 组合内部锁定容器禁止拖入（组合组件除非开放容器）
                 // 创建正确的配置
                 let config = {};
                 try {
-                    config = JSON.parse(currentMenuCom.defaultConfigJson || currentMenuCom.DefaultConfigJson || '{}');
+                    config = JSON.parse(dragState.currentMenuCom.defaultConfigJson || dragState.currentMenuCom.DefaultConfigJson || '{}');
                 } catch (e) {
-                    config = { component: currentMenuCom.componentName || currentMenuCom.ComponentName, childrenctrls: [] };
+                    config = { component: dragState.currentMenuCom.componentName || dragState.currentMenuCom.ComponentName, childrenctrls: [] };
                 }
                 const newConfig = deepClone(config);
                 // 同一拖拽会话内嵌套容器可能多次回调：只保留 drop 目标 DOM 最深（最内层）的容器，
                 // 更浅（父级）容器回调直接忽略，避免重复添加。
                 const depth = evt && evt.to ? depthOfDom(evt.to) : 0;
-                if (pendingAdd && pendingAdd.session === dragSessionId && pendingAdd.depth > depth) {
+                if (pendingAdd && pendingAdd.session === dragState.sessionId && pendingAdd.depth > depth) {
                     return; // 已有更深的目标容器，父级忽略
                 }
                 if (pendingAdd && pendingAdd.timer) clearTimeout(pendingAdd.timer);
-                pendingAdd = { parentConfig, newConfig, newIndex: evt?.newIndex ?? null, depth, session: dragSessionId };
+                pendingAdd = { parentConfig, newConfig, newIndex: evt?.newIndex ?? null, depth, session: dragState.sessionId };
                 pendingAdd.timer = setTimeout(commitPendingAdd, 20);
             }
             function onContainerDragEnd() {
-                currentMenuCom = null;
+                dragState.currentMenuCom = null;
                 if (pendingAdd && pendingAdd.timer) clearTimeout(pendingAdd.timer);
                 pendingAdd = null;
             }
@@ -1012,42 +808,15 @@
             lcDesignerGlobal = lcProvider;
             provide('lcDesigner', lcProvider);
 
-            // ===== 左侧组件库拖拽 =====
-            // ===== 左侧组件库拖拽（原生 HTML5 DnD，不依赖 Sortable）=====
-            // 方案：dragstart 记录组件元数据并设置 dataTransfer；画布容器通过 dragover/drop 接收并插入；
-            // dragend 清理状态。palette 与画布内部（Sortable 管排序/嵌套）两种实现完全解耦。
-            function onPaletteDragStart(evt, comp) {
-                if (!evt.dataTransfer) return;
-                try {
-                    evt.dataTransfer.setData('application/x-lc-comp', comp.componentName || comp.ComponentName || '');
-                    evt.dataTransfer.setData('text/plain', comp.componentName || '');
-                } catch (e) {}
-                if (evt.dataTransfer) evt.dataTransfer.effectAllowed = 'copy';
-                draggingFromPalette = true;
-                dragSessionId++;
-                currentMenuCom = comp;
-                // 拖拽 ghost：显示组件的 HTML 外观（而非浏览器默认 + 号）
-                removePaletteGhost();
-                activeGhost = createPaletteGhost(comp);
-                try { evt.dataTransfer.setDragImage(activeGhost, 16, 16); } catch (e) {}
-            }
-
-            function onPaletteDragEnd() {
-                draggingFromPalette = false;
-                removePaletteGhost();
-                clearDropPlaceholder();
-                setTimeout(() => { currentMenuCom = null; }, 0);
-            }
-
             // 画布容器收到 palette drop：插入组件到目标容器（组合内部锁定容器除外）
             function onPaletteDrop(parentConfig, evt, insertIndex) {
-                if (!currentMenuCom || !parentConfig) return;
+                if (!dragState.currentMenuCom || !parentConfig) return;
                 if (parentConfig.__locked) return; // 组合内部锁定容器禁止拖入（开放容器已解锁）
                 let config = {};
                 try {
-                    config = JSON.parse(currentMenuCom.defaultConfigJson || currentMenuCom.DefaultConfigJson || '{}');
+                    config = JSON.parse(dragState.currentMenuCom.defaultConfigJson || dragState.currentMenuCom.DefaultConfigJson || '{}');
                 } catch (e) {
-                    config = { component: currentMenuCom.componentName || currentMenuCom.ComponentName, childrenctrls: [] };
+                    config = { component: dragState.currentMenuCom.componentName || dragState.currentMenuCom.ComponentName, childrenctrls: [] };
                 }
                 const newConfig = deepClone(config);
                 if (parentConfig.__openSlot && Array.isArray(parentConfig.__slotRef)) {
@@ -1064,6 +833,7 @@
                 setCurrentCom(newConfig);
                 ElMessage.success('已添加: ' + newConfig.component);
                 window.dispatchEvent(new CustomEvent('lc-tree-refresh'));
+                if (eventBus) eventBus.emit('dropin', { parent: parentConfig, config: newConfig, index: insertIndex });
             }
 
             // ===== 画布级兜底 drop =====
@@ -1073,7 +843,7 @@
                 if (evt.dataTransfer && evt.dataTransfer.types) {
                     return Array.from(evt.dataTransfer.types || []).indexOf('application/x-lc-comp') >= 0;
                 }
-                return draggingFromPalette === true;
+                return dragState.draggingFromPalette === true;
             }
             function onCanvasDragOver(evt) {
                 if (isPaletteDragEvent(evt)) {
@@ -1090,6 +860,15 @@
                     onPaletteDrop(configObj, evt, undefined);
                 }
             }
+
+            // ===== 导出公共 API（供独立面板 app 通过 __lcApi 调用）=====
+            Object.assign(window.__lcApi, {
+                loadComponentMeta, loadPageList, loadPage, savePage, newPage, confirmNewPage,
+                showModelData, openCompositeDialog, onCompositeSourceChange, saveAsComposite,
+                openPreview, applyJson, setCurrentCom, showJsonEditor,
+                deleteCurrent, moveUp, moveDown, copyCurrent,
+                zoomIn, zoomOut, zoomReset
+            });
 
             // ===== 初始化 =====
             onMounted(async () => {
@@ -1118,17 +897,16 @@
 
             return {
                 componentMetaList, pageList, currentPageCode, saving, showJson, showNewPage, showModelModal,
-                activeCategory, activeUiLibrary, leftTab, configJsonText, newPageForm, designMode, treeFilter,
+                configJsonText, newPageForm, designMode,
                 currentCom, currentContainer, currentPath, breadcrumbList,
-                configObj, modelObj, comListRef, treeRef, treeVersion,
-                categories, hasOptionField, canMoveUp, canMoveDown,
+                configObj, modelObj, treeVersion,
+                hasOptionField, canMoveUp, canMoveDown,
                 currentPropertyConfig, modelJsonText, onPropertyUpdate, showJsonEditor, showModelData, copyModelJson,
-                filteredComponents, selectFromTree, setCurrentCom,
+                setCurrentCom,
                 showCompositeDialog, compositeForm, openCompositeDialog, saveAsComposite,
                 onCompositeSourceChange,
                 openConfigMode, currentComOpenMap, currentComOpenContainer, toggleOpenProp,
                 toggleOpenContainer, openSummary, removeOpenItem, isContainerComp,
-                onPaletteDragStart, onPaletteDragEnd,
                 onCanvasDragOver, onCanvasDrop,
                 deleteCurrent, moveUp, moveDown, copyCurrent,
                 addValidator, removeValidator, needsValue, toggleRequired,
@@ -1136,7 +914,7 @@
                 isContainerComp,
                 canvasPlatform, canvasZoom, showRuler, zoomIn, zoomOut, zoomReset, zoomPercent,
                 rulerHRef, rulerVRef, canvasWidth, canvasHeight,
-                leftPanel, rightPanel, openLeftPanel, openRightPanel
+                rightPanel, openRightPanel
             };
         }
     });
@@ -1268,7 +1046,7 @@
                     if (evt.dataTransfer && evt.dataTransfer.types) {
                         return Array.from(evt.dataTransfer.types || []).indexOf('application/x-lc-comp') >= 0;
                     }
-                    return draggingFromPalette === true;
+                    return dragState.draggingFromPalette === true;
                 };
                 el.addEventListener('dragover', (evt) => {
                     if (isPaletteDrag(evt)) {
@@ -1281,7 +1059,7 @@
                 el.addEventListener('dragleave', (evt) => {
                     if (!evt.relatedTarget || !el.contains(evt.relatedTarget)) {
                         el.classList.remove('lc-drop-target');
-                        if (dropTargetInfo && dropTargetInfo.el === el) clearDropPlaceholder();
+                        if (dragState.dropTargetInfo && dragState.dropTargetInfo.el === el) clearDropPlaceholder();
                     }
                 });
                 el.addEventListener('drop', (evt) => {
@@ -1290,7 +1068,7 @@
                     evt.stopPropagation(); // 嵌套容器：只让最深（最内层）容器处理
                     el.classList.remove('lc-drop-target');
                     const parentConfig = binding.instance && binding.instance.props ? binding.instance.props.jsonconfig : null;
-                    // 重算插入索引：dragover 冒泡会污染 dropTargetInfo，drop 时基于当前容器与鼠标位置重算最可靠
+                    // 重算插入索引：dragover 冒泡会污染 dragState.dropTargetInfo，drop 时基于当前容器与鼠标位置重算最可靠
                     const insertIndex = computeInsertIndex(el, evt);
                     if (lcDesignerGlobal && parentConfig) lcDesignerGlobal.onPaletteDrop(parentConfig, evt, insertIndex);
                     clearDropPlaceholder();
@@ -1495,7 +1273,19 @@
                 console.log(`[Designer] 注册了 ${count} 个自定义组件, 其中组合组件: ${Object.keys(compositeComponents).length}`);
             }
         } catch (e) { console.error('[Designer] 加载组件元数据失败:', e); }
-        app.mount('#designer-app');
+        try {
+            app.mount('#designer-app');
+        } catch (e) {
+            console.error('[Designer] MOUNT ERROR:', e);
+            window.__mountErr = (e && e.stack) || String(e);
+        }
+        // 挂载各独立面板 app（dyn-init：toolbar / breadcrumb 等）
+        try {
+            if (window.dyn && window.dyn.initAll) window.dyn.initAll();
+        } catch (e) {
+            console.error('[Designer] initAll ERROR:', e);
+            window.__mountErr = (window.__mountErr ? window.__mountErr + ' | ' : '') + ((e && e.stack) || String(e));
+        }
     })();
 
 })();

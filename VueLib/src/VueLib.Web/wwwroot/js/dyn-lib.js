@@ -593,10 +593,74 @@
         }).observe(document.body, { childList: true, subtree: true });
     }
 
+    /* ---------------- 事件总线（跨组件解耦通信：设计器等场景） ---------------- */
+
+    var _busListeners = {};
+
+    function busOn(type, handler) {
+        if (!type || typeof handler !== 'function') return function () { };
+        (_busListeners[type] = _busListeners[type] || []).push(handler);
+        return function () { busOff(type, handler); };
+    }
+
+    function busOff(type, handler) {
+        var arr = _busListeners[type];
+        if (!arr) return;
+        var i = handler ? arr.indexOf(handler) : -1;
+        if (i >= 0) arr.splice(i, 1);
+        else delete _busListeners[type];
+    }
+
+    function busEmit(type, payload) {
+        var arr = _busListeners[type];
+        if (!arr) return;
+        arr.slice().forEach(function (h) {
+            try { h(payload); } catch (e) { console.error('[dyn.eventBus] 事件处理异常: ' + type, e); }
+        });
+    }
+
+    function busClear(type) {
+        if (type) delete _busListeners[type];
+        else _busListeners = {};
+    }
+
+    var eventBus = { on: busOn, off: busOff, emit: busEmit, clear: busClear };
+
+    /* ---------------- 通用路径 / 组件工具（设计器拆分复用） ---------------- */
+
+    function getByPath(obj, path) {
+        if (!obj || !path) return undefined;
+        return path.split('.').reduce(function (o, k) { return (o == null) ? undefined : o[k]; }, obj);
+    }
+
+    function setPathVal(obj, path, value) {
+        var keys = path.split('.');
+        var last = keys.pop();
+        var target = obj;
+        for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            if (target[k] == null || typeof target[k] !== 'object') target[k] = {};
+            target = target[k];
+        }
+        target[last] = value;
+    }
+
+    var DESIGNER_CONTAINERS = ['DynNForm', 'DynNCellGroup', 'DynNDivContainer', 'DynNGrid', 'DynElDivContainer', 'DynElCard', 'DynElRow', 'DynElCol', 'DynElTabs'];
+
+    function isContainerComp(name) {
+        return DESIGNER_CONTAINERS.indexOf(name) >= 0;
+    }
+
+    // 简单自增 id
+    var _uidSeq = 0;
+    function nextId(prefix) {
+        return (prefix || 'dyn') + (++_uidSeq) + '_' + Date.now().toString(36);
+    }
+
     /* ---------------- 对外 API ---------------- */
 
     var dyn = {
-        VERSION: '1.0.0',
+        VERSION: '1.1.0',
         init: init,
         initAll: initAll,
         mount: mount,
@@ -614,7 +678,13 @@
         deepClone: deepClone,
         json: deepClone,
         showMessage: showMessage,
-        confirmAsync: confirmAsync
+        confirmAsync: confirmAsync,
+        /* --- 拆分复用扩展 --- */
+        eventBus: eventBus,
+        getByPath: getByPath,
+        setPathVal: setPathVal,
+        isContainerComp: isContainerComp,
+        nextId: nextId
     };
 
     global.dyn = dyn;

@@ -1,0 +1,330 @@
+<!-- 右侧属性面板（独立 dyn-init app：属性配置 / 开放项 / 验证器 / 操作） -->
+<div id="lc-right" dyn-init="{}">
+    <div class="panel-right-wrap">
+        <div v-if="rightPanel === 'docked'" class="panel-dock panel-dock-right" title="展开属性面板">
+            <span class="dock-icon" @@click="openRightPanel()">⚙️</span>
+            <span class="dock-close" @@click="rightPanel = 'closed'">×</span>
+        </div>
+        <div v-else-if="rightPanel === 'open'" class="panel panel-right">
+        <div class="panel-header">
+            <span>属性配置</span>
+            <span class="panel-header-actions">
+                <button class="panel-btn" title="吸附为窄条" @@click="rightPanel = 'docked'">▶</button>
+                <button class="panel-btn" title="关闭面板" @@click="rightPanel = 'closed'">✕</button>
+            </span>
+        </div>
+        <div v-if="!currentCom" class="empty-tip">
+            <el-empty description="在左侧点击组件添加，或在画布中选中组件" :image-size="80"></el-empty>
+        </div>
+        <div v-else class="property-form">
+            <!-- 组件信息头部 -->
+            <div class="pp-panel-header">
+                <span class="pp-panel-title">
+                    <el-tag size="small">{{ currentCom.component }}</el-tag>
+                    <span v-if="currentCom.modelname" style="margin-left:6px;font-size:12px;color:#909399;">{{ currentCom.modelname }}</span>
+                </span>
+                <div class="pp-panel-actions">
+                    <el-button size="small" text @@click="showJsonEditor" title="编辑JSON">JSON</el-button>
+                </div>
+            </div>
+
+            <!-- 动态属性面板 -->
+            <!-- 开放此容器开关（开放配置模式 + 选中容器时） -->
+            <div v-if="openConfigMode && isContainerComp(currentCom.component)" class="pp-open-container">
+                <span style="font-size:12px;color:#303133;">开放此容器（允许拖入组件）</span>
+                <el-switch :model-value="currentComOpenContainer" size="small" @@change="toggleOpenContainer" />
+            </div>
+
+            <dynamic-property-panel
+                v-if="currentPropertyConfig"
+                :property-config="currentPropertyConfig"
+                :component-config="currentCom"
+                :component-name="currentCom.component"
+                :open-config-mode="openConfigMode"
+                :open-map="currentComOpenMap"
+                @@update="onPropertyUpdate"
+                @@reset="resetCurrentCom"
+                @@toggle-open="toggleOpenProp">
+            </dynamic-property-panel>
+
+            <!-- 已开放项列表（开放配置模式，面板级始终显示） -->
+            <div v-if="openConfigMode" class="pp-open-summary">
+                <div class="pp-open-summary-title">已开放项 <span style="font-weight:normal;color:#909399;font-size:11px;">（保存为组合组件后外部可配置/可拖入）</span></div>
+                <template v-if="openSummary.props.length || openSummary.containers.length">
+                    <div v-for="(item, i) in openSummary.props" :key="'p'+i" class="pp-open-item">
+                        <el-tag size="mini" type="warning" style="margin-right:4px;">属性</el-tag>
+                        <span class="pp-open-path" :title="item.path">{{ item.path }}</span>
+                        <span class="pp-open-val">{{ item.value }}</span>
+                        <el-button size="mini" text type="danger" @@click="removeOpenItem(item)">移除</el-button>
+                    </div>
+                    <div v-for="(item, i) in openSummary.containers" :key="'c'+i" class="pp-open-item">
+                        <el-tag size="mini" type="success" style="margin-right:4px;">容器</el-tag>
+                        <span class="pp-open-path" :title="item.path">{{ item.path }}</span>
+                        <span class="pp-open-val">{{ item.label }}</span>
+                        <el-button size="mini" text type="danger" @@click="removeOpenItem(item)">移除</el-button>
+                    </div>
+                </template>
+                <div v-else style="color:#909399;font-size:12px;padding:6px;">暂无开放项——选中组件后在属性面板勾选「开放」，或选中容器开启「开放此容器」</div>
+            </div>
+
+            <!-- 无属性配置时的回退 -->
+            <div v-else class="pp-fallback">
+                <el-form label-width="90px" size="small">
+                    <el-form-item label="绑定字段">
+                        <el-input v-model="currentCom.modelname" placeholder="如: user.name" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="标签文字">
+                        <el-input v-model="currentCom.options.labeloptions.label" placeholder="标签名称" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="显示标签">
+                        <el-switch v-model="currentCom.options.labeloptions.show"></el-switch>
+                    </el-form-item>
+                    <el-form-item label="必填">
+                        <el-switch v-model="currentCom.options.labeloptions.required" @@change="toggleRequired"></el-switch>
+                    </el-form-item>
+                    <el-form-item label="占位符">
+                        <el-input v-model="currentCom.options.comoptions.placeholder" placeholder="placeholder" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="选项值">
+                        <el-input v-model="currentCom.options.optionValues" placeholder="逗号分隔，如: 男,女,保密" clearable
+                                  v-if="hasOptionField"></el-input>
+                        <span v-else class="text-muted">—</span>
+                    </el-form-item>
+                </el-form>
+            </div>
+
+            <el-divider content-position="left">验证器</el-divider>
+            <div class="validator-list">
+                <div v-for="(v, idx) in currentCom.validators" :key="idx" class="validator-item">
+                    <el-select v-model="v.type" size="small" style="width:120px;">
+                        <el-option label="必填" value="required"></el-option>
+                        <el-option label="必须为真" value="requiredTrue"></el-option>
+                        <el-option label="最小长度" value="minLength"></el-option>
+                        <el-option label="最大长度" value="maxLength"></el-option>
+                        <el-option label="最小值" value="min"></el-option>
+                        <el-option label="最大值" value="max"></el-option>
+                        <el-option label="正则" value="pattern"></el-option>
+                        <el-option label="邮箱" value="email"></el-option>
+                        <el-option label="手机号" value="phone"></el-option>
+                        <el-option label="URL" value="url"></el-option>
+                        <el-option label="数字" value="number"></el-option>
+                    </el-select>
+                    <el-input v-if="needsValue(v.type)" v-model="v.value" size="small" placeholder="值" style="width:80px;margin:0 6px;"></el-input>
+                    <el-input v-model="v.message" size="small" placeholder="错误提示" style="flex:1;margin-right:6px;"></el-input>
+                    <el-button size="small" type="danger" icon="Delete" @@click="removeValidator(idx)" circle></el-button>
+                </div>
+                <el-button size="small" type="primary" plain icon="Plus" @@click="addValidator">添加验证规则</el-button>
+            </div>
+
+            <el-divider content-position="left">操作</el-divider>
+            <el-form-item>
+                <el-button size="small" @@click="moveUp" :disabled="!canMoveUp">上移</el-button>
+                <el-button size="small" @@click="moveDown" :disabled="!canMoveDown">下移</el-button>
+                <el-button size="small" type="primary" plain @@click="copyCurrent">复制</el-button>
+                <el-button size="small" type="danger" @@click="deleteCurrent">删除</el-button>
+            </el-form-item>
+        </div>
+        </div>
+        <div v-else class="panel-restore panel-restore-right" title="展开属性面板" @@click="rightPanel = 'open'">
+            <span>◀</span>
+        </div>
+    </div>
+
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function () {
+                var Vue = window.Vue;
+                var S = window.LCDesignerStore;
+                var api = window.__lcApi;
+                var U = window.LCDesignerUtils;
+                var Core = window.LCDesignerCore || {};
+                var ref = Vue.ref, computed = Vue.computed;
+                var EP = window.ElementPlus || {};
+                var ElMessage = EP.ElMessage || window.ElMessage || {};
+
+                var rightPanel = ref('open');
+
+                // ===== 开放配置模式辅助 =====
+                function ensureOpen(node) {
+                    if (!node) return null;
+                    node.extendinfo = node.extendinfo || {};
+                    node.extendinfo.__open = node.extendinfo.__open || { props: {}, container: false };
+                    return node.extendinfo.__open;
+                }
+                var currentComOpenMap = computed(function () {
+                    var open = S.currentCom.value && S.currentCom.value.extendinfo && S.currentCom.value.extendinfo.__open;
+                    return open ? (open.props || {}) : {};
+                });
+                var currentComOpenContainer = computed(function () {
+                    return !!(S.currentCom.value && S.currentCom.value.extendinfo && S.currentCom.value.extendinfo.__open && S.currentCom.value.extendinfo.__open.container);
+                });
+                function toggleOpenProp(key, checked, node) {
+                    if (!node) return;
+                    var open = ensureOpen(node);
+                    if (checked) open.props[key] = true;
+                    else delete open.props[key];
+                }
+                function toggleOpenContainer(checked) {
+                    if (!S.currentCom.value) return;
+                    var open = ensureOpen(S.currentCom.value);
+                    open.container = !!checked;
+                }
+                var openSummary = computed(function () {
+                    var props = [], containers = [];
+                    function walk(node, relPath) {
+                        var open = node.extendinfo && node.extendinfo.__open;
+                        if (open) {
+                            if (open.container) {
+                                containers.push({
+                                    kind: 'container', path: relPath || '(组合根)',
+                                    label: (node.options && node.options.labeloptions && node.options.labeloptions.label) || node.component,
+                                    component: node.component, node: node
+                                });
+                            }
+                            if (open.props) {
+                                for (var propKey in open.props) {
+                                    if (!open.props[propKey]) continue;
+                                    var fullPath = relPath ? relPath + '.' + propKey : propKey;
+                                    var curVal = U.getByPath(node, propKey);
+                                    props.push({ kind: 'prop', path: fullPath, field: propKey, label: propKey, value: curVal, node: node, propKey: propKey });
+                                }
+                            }
+                        }
+                        (node.childrenctrls || []).forEach(function (ch, i) {
+                            walk(ch, (relPath ? relPath + '.' : '') + 'childrenctrls[' + i + ']');
+                        });
+                    }
+                    walk(S.configObj, '');
+                    return { props: props, containers: containers };
+                });
+                function removeOpenItem(item) {
+                    if (item.kind === 'container') {
+                        if (item.node.extendinfo && item.node.extendinfo.__open) item.node.extendinfo.__open.container = false;
+                    } else if (item.node.extendinfo && item.node.extendinfo.__open && item.node.extendinfo.__open.props) {
+                        delete item.node.extendinfo.__open.props[item.propKey];
+                    }
+                }
+
+                // ===== 属性面板 =====
+                var hasOptionField = computed(function () {
+                    if (!S.currentCom.value) return false;
+                    return ['DynNRadio', 'DynNCheckbox', 'DynNPicker'].indexOf(S.currentCom.value.component) >= 0;
+                });
+                var currentPropertyConfig = computed(function () {
+                    if (!S.currentCom.value) return null;
+                    var compName = S.currentCom.value.component;
+                    // 组合组件：根据开放属性 + 开放容器动态生成属性配置
+                    if (Core.compositeComponents[compName]) {
+                        var config = Core.compositeComponents[compName];
+                        var groups = [];
+                        if (config.exposedProps && config.exposedProps.length) {
+                            var fields = config.exposedProps.map(function (p) {
+                                return {
+                                    key: '@@' + p.key,
+                                    label: p.label || p.key,
+                                    type: p.type || 'input',
+                                    default: p.default,
+                                    options: p.options,
+                                    placeholder: p.placeholder
+                                };
+                            });
+                            groups.push({ title: '开放属性', fields: fields });
+                        }
+                        if (config.openContainers && config.openContainers.length) {
+                            var slotFields = config.openContainers.map(function (oc) {
+                                return {
+                                    key: '@@slots:' + oc.key, label: oc.label || oc.key,
+                                    type: 'slot', hint: oc.hint || '可拖入组件', readonly: true
+                                };
+                            });
+                            groups.push({ title: '开放容器（可拖入）', fields: slotFields });
+                        }
+                        return { groups: groups };
+                    }
+                    var meta = S.componentMetaList.value.find(function (c) {
+                        return (c.componentName || c.ComponentName) === compName;
+                    });
+                    if (!meta) { return null; }
+                    var propConfig = meta.propertyConfigJson || meta.PropertyConfigJson;
+                    if (!propConfig) return null;
+                    try {
+                        var parsed = typeof propConfig === 'string' ? JSON.parse(propConfig) : propConfig;
+                        return parsed;
+                    } catch (e) { return null; }
+                });
+                function onPropertyUpdate(key, value, localModel) {
+                    if (!S.currentCom.value) return;
+                    if (window.ppSetByPath) window.ppSetByPath(S.currentCom.value, key, value);
+                }
+                function showJsonEditor() {
+                    if (S.currentCom.value) S.configJsonText.value = JSON.stringify(S.currentCom.value, null, 2);
+                    S.showJson.value = true;
+                }
+                function resetCurrentCom() { /* DynamicPropertyPanel 未 emit reset，保留 handler 占位 */ }
+                function openRightPanel() { rightPanel.value = 'open'; }
+
+                // ===== 验证器 =====
+                function addValidator() {
+                    if (!S.currentCom.value) return;
+                    if (!S.currentCom.value.validators) S.currentCom.value.validators = [];
+                    S.currentCom.value.validators.push({ type: 'required', message: '必填', value: '' });
+                }
+                function removeValidator(idx) {
+                    if (S.currentCom.value && S.currentCom.value.validators) S.currentCom.value.validators.splice(idx, 1);
+                }
+                function needsValue(type) {
+                    return ['minLength', 'maxLength', 'min', 'max', 'pattern'].indexOf(type) >= 0;
+                }
+                function toggleRequired(checked) {
+                    if (!S.currentCom.value) return;
+                    if (!S.currentCom.value.options) S.currentCom.value.options = {};
+                    if (!S.currentCom.value.options.labeloptions) S.currentCom.value.options.labeloptions = {};
+                    S.currentCom.value.options.labeloptions.required = checked;
+                    if (checked) {
+                        if (!S.currentCom.value.validators) S.currentCom.value.validators = [];
+                        if (!S.currentCom.value.validators.find(function (v) { return v.type === 'required'; })) {
+                            S.currentCom.value.validators.push({ type: 'required', message: '必填' });
+                        }
+                    } else if (S.currentCom.value.validators) {
+                        S.currentCom.value.validators = S.currentCom.value.validators.filter(function (v) { return v.type !== 'required'; });
+                    }
+                }
+
+                // ===== 上移/下移 =====
+                var canMoveUp = computed(function () {
+                    if (!S.currentContainer.value || !S.currentCom.value) return false;
+                    return S.currentContainer.value.childrenctrls.indexOf(S.currentCom.value) > 0;
+                });
+                var canMoveDown = computed(function () {
+                    if (!S.currentContainer.value || !S.currentCom.value) return false;
+                    var idx = S.currentContainer.value.childrenctrls.indexOf(S.currentCom.value);
+                    return idx >= 0 && idx < S.currentContainer.value.childrenctrls.length - 1;
+                });
+
+                return {
+                    rightPanel: rightPanel, openConfigMode: S.openConfigMode,
+                    currentCom: S.currentCom,
+                    currentPropertyConfig: currentPropertyConfig,
+                    currentComOpenMap: currentComOpenMap,
+                    currentComOpenContainer: currentComOpenContainer,
+                    openSummary: openSummary,
+                    hasOptionField: hasOptionField,
+                    canMoveUp: canMoveUp, canMoveDown: canMoveDown,
+                    isContainerComp: U.isContainerComp,
+                    openRightPanel: openRightPanel,
+                    showJsonEditor: showJsonEditor,
+                    onPropertyUpdate: onPropertyUpdate,
+                    resetCurrentCom: resetCurrentCom,
+                    toggleOpenContainer: toggleOpenContainer,
+                    toggleOpenProp: toggleOpenProp,
+                    removeOpenItem: removeOpenItem,
+                    toggleRequired: toggleRequired,
+                    addValidator: addValidator, removeValidator: removeValidator, needsValue: needsValue,
+                    moveUp: api.moveUp, moveDown: api.moveDown,
+                    copyCurrent: api.copyCurrent, deleteCurrent: api.deleteCurrent
+                };
+            },
+            components: { DynamicPropertyPanel: window.DynamicPropertyPanel }
+        };
+    </script>
+</div>
