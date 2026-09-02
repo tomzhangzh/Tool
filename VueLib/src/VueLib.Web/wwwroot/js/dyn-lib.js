@@ -829,7 +829,7 @@
     }, { events: ['click', 'change'] });
     registerAction('evaljs', function (ctx) {
         var code = ctx.options;
-        if (typeof code === 'object') code = code.selector || code;
+        if (typeof code === 'object') code = code.code || code.selector || code;
         if (!code) return;
         try {
             // 使用 new Function 执行代码

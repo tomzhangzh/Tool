@@ -145,9 +145,25 @@
             <button dyn-click-evaljs='console.log("Hello World")' class="btn">console.log</button>
             <button dyn-click-evaljs='document.title = "已修改"' class="btn">修改标题</button>
         </div>
+        <div class="demo-row">
+            <span class="demo-label">异步操作：</span>
+            <button dyn-click-evaljs='ElementPlus.ElMessageBox.confirm("确定删除？").then(() => { dyn.showMessage("删除成功", "success"); })' class="btn">确认删除并提示</button>
+            <button dyn-click-evaljs='ElementPlus.ElMessageBox.confirm("确定刷新？").then(() => { dyn.reload("#reload-host"); })' class="btn">确认刷新</button>
+            <button dyn-click-evaljs="nutui.showDialog({
+  title: '基础弹框',
+  content: '支持函数调用和组件调用两种方式。',
+  onOk: () => console.log('确定'),
+  onCancel: () => console.log('取消'),
+  beforeClose: (action) => {
+    return new Promise((resolve) => {
+      setTimeout(() => resolve(action === 'ok'), 1000)
+    })
+  }
+})" class="btn">NutUI 确认删除</button>
+        </div>
         <div class="demo-row" style="font-size:12px;color:#909399;">
             说明：属性名 <code>dyn-click-evaljs</code>，属性值是 JavaScript 代码字符串。
-            直接执行代码，无需注册动作。
+            直接执行代码，无需注册动作。支持 Promise 链，可以在异步操作完成后触发别的动作。
         </div>
     </div>
 
