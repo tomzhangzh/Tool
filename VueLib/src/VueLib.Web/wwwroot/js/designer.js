@@ -489,14 +489,18 @@
             }
 
             const canMoveUp = computed(() => {
-                if (!currentContainer.value || !currentCom.value) return false;
-                return currentContainer.value.childrenctrls.indexOf(currentCom.value) > 0;
+                if (!currentCom.value) return false;
+                const arr = findContainingArray(configObj, currentCom.value);
+                if (!arr) return false;
+                return arr.indexOf(currentCom.value) > 0;
             });
 
             const canMoveDown = computed(() => {
-                if (!currentContainer.value || !currentCom.value) return false;
-                const idx = currentContainer.value.childrenctrls.indexOf(currentCom.value);
-                return idx >= 0 && idx < currentContainer.value.childrenctrls.length - 1;
+                if (!currentCom.value) return false;
+                const arr = findContainingArray(configObj, currentCom.value);
+                if (!arr) return false;
+                const idx = arr.indexOf(currentCom.value);
+                return idx >= 0 && idx < arr.length - 1;
             });
 
             // ===== 工具方法 =====
@@ -508,7 +512,22 @@
             function buildParentMapping(root) {
                 const mapping = [];
                 function walk(node, parent) {
-                    if (!node || !node.childrenctrls) return;
+                    if (!node || typeof node !== 'object') return;
+                    // 组合组件：开放容器 slots 中的外部内容也纳入映射（删除/移动/面包屑可用）
+                    const cc = compositeComponents[node.component];
+                    if (cc && cc.openContainers) {
+                        for (const oc of cc.openContainers) {
+                            const slotArr = node.slots ? node.slots[oc.key] : null;
+                            if (Array.isArray(slotArr)) {
+                                slotArr.forEach(child => {
+                                    if (!child) return;
+                                    mapping.push({ child, parent: parent || root, parentObj: node });
+                                    walk(child, node);
+                                });
+                            }
+                        }
+                    }
+                    if (!Array.isArray(node.childrenctrls)) return;
                     node.childrenctrls.forEach(child => {
                         if (!child) return;
                         mapping.push({ child, parent: parent || root, parentObj: node });
@@ -517,6 +536,29 @@
                 }
                 walk(root, null);
                 return mapping;
+            }
+
+            // 查找选中组件所在数组（兼容 childrenctrls 与组合开放容器 slots）
+            function findContainingArray(root, target) {
+                if (!root || !target) return null;
+                const hit = { arr: null };
+                function walk(node) {
+                    if (!node || typeof node !== 'object' || hit.arr) return;
+                    const cc = compositeComponents[node.component];
+                    if (cc && cc.openContainers) {
+                        for (const oc of cc.openContainers) {
+                            const slotArr = node.slots ? node.slots[oc.key] : null;
+                            if (!Array.isArray(slotArr)) continue;
+                            if (slotArr.includes(target)) { hit.arr = slotArr; return; }
+                            slotArr.forEach(walk);
+                        }
+                    }
+                    if (!Array.isArray(node.childrenctrls)) return;
+                    if (node.childrenctrls.includes(target)) { hit.arr = node.childrenctrls; return; }
+                    node.childrenctrls.forEach(walk);
+                }
+                walk(root);
+                return hit.arr;
             }
 
             function findParent(node) {
@@ -562,32 +604,46 @@
 
             // ===== 组件操作 =====
             function deleteCurrent() {
-                if (!currentCom.value || !currentContainer.value) {
+                if (!currentCom.value) {
                     ElMessage.warning('请先选中组件');
                     return;
                 }
-                const idx = currentContainer.value.childrenctrls.indexOf(currentCom.value);
+                const arr = findContainingArray(configObj, currentCom.value);
+                if (!arr) {
+                    ElMessage.warning('未找到选中组件的父容器');
+                    return;
+                }
+                const idx = arr.indexOf(currentCom.value);
                 if (idx >= 0) {
-                    currentContainer.value.childrenctrls.splice(idx, 1);
+                    arr.splice(idx, 1);
                     currentCom.value = null;
                     currentContainer.value = null;
                     currentPath.value = '';
                     ElMessage.success('已删除');
+                    window.dispatchEvent(new CustomEvent('lc-tree-refresh'));
                 }
             }
 
             function moveUp() {
-                if (!canMoveUp.value) return;
-                const arr = currentContainer.value.childrenctrls;
+                if (!currentCom.value) return;
+                const arr = findContainingArray(configObj, currentCom.value);
+                if (!arr) return;
                 const idx = arr.indexOf(currentCom.value);
-                [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                if (idx > 0) {
+                    [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                    window.dispatchEvent(new CustomEvent('lc-tree-refresh'));
+                }
             }
 
             function moveDown() {
-                if (!canMoveDown.value) return;
-                const arr = currentContainer.value.childrenctrls;
+                if (!currentCom.value) return;
+                const arr = findContainingArray(configObj, currentCom.value);
+                if (!arr) return;
                 const idx = arr.indexOf(currentCom.value);
-                [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
+                if (idx >= 0 && idx < arr.length - 1) {
+                    [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
+                    window.dispatchEvent(new CustomEvent('lc-tree-refresh'));
+                }
             }
 
             function copyCurrent() {
@@ -1195,6 +1251,13 @@
                 if (!config?.tree) return null;
                 const externalProps = this.jsonconfig.options?.comoptions || {};
                 const externalSlots = this.jsonconfig.slots || (this.jsonconfig.slots = {});
+                // 建立对开放容器外部内容的响应式依赖：拖入组件 push/splice 改变数组 length 时，
+                // 触发本 computed 重算 → 画布即时刷新（否则拖入后画布无反应）
+                if (config.openContainers) {
+                    for (const oc of config.openContainers) {
+                        if (externalSlots[oc.key]) void externalSlots[oc.key].length;
+                    }
+                }
                 return applyCompositeProps(config.tree, config, externalProps, externalSlots);
             }
         },

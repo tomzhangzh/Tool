@@ -43,10 +43,15 @@
     // 组合组件配置 map
     const compositeComponents = {};
 
-        // 按路径取值
+        // ===== 按路径取值（支持 a.b.c 与 childrenctrls[0].b 混合语法）=====
     function getByPath(obj, path) {
         if (!obj || !path) return undefined;
-        return path.split('.').reduce(function (o, k) { return (o == null) ? undefined : o[k]; }, obj);
+        const keys = [];
+        const re = /[^.[\]]+|\[(\d+)\]/g;
+        let m;
+        while ((m = re.exec(path)) !== null) keys.push(m[1] !== undefined ? Number(m[1]) : m[0]);
+        if (!keys.length) return undefined;
+        return keys.reduce(function (o, k) { return (o == null) ? undefined : o[k]; }, obj);
     }
 
     // 应用组合组件的外部属性 + 开放容器到内部树

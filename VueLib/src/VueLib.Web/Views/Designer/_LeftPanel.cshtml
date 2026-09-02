@@ -32,7 +32,7 @@
                     <el-input v-model="treeFilter" placeholder="过滤组件" size="small" clearable style="margin-bottom:8px;"></el-input>
                     <el-tree ref="treeRef"
                              :key="treeVersion"
-                             :data="[configObj]"
+                             :data="treeData"
                              :props="{ children: 'childrenctrls', label: 'component' }"
                              draggable
                              default-expand-all
@@ -132,16 +132,64 @@
                     setTimeout(function () { U.dragState.currentMenuCom = null; }, 0);
                 }
 
-                // 组件树点击
+                // 组件树点击：组合内部节点 → 选中所属组合根；其余 → 选中真实节点
                 function selectFromTree(data) {
-                    api.setCurrentCom(data);
+                    if (!data) return;
+                    if (data.__compositeInternal && data.__rootRef) {
+                        api.setCurrentCom(data.__rootRef);
+                        return;
+                    }
+                    api.setCurrentCom(data.__src || data);
                 }
+
+                // ===== 组件树数据：展开组合组件内部树（含开放容器 slots 外部内容）=====
+                var compositeComponents = ((window.LCDesignerCore || {}).compositeComponents) || {};
+                function buildTreeData(root) {
+                    function walk(node, rootRef) {
+                        if (!node || typeof node !== 'object') return node;
+                        var out = Object.assign({}, node);
+                        out.__src = node;
+                        var cc = compositeComponents[node.component];
+                        if (cc && cc.tree) {
+                            // 组合根：展开 compositeTree（内部固定 + 开放容器 slots 合并）
+                            var externalProps = (node.options && node.options.comoptions) || {};
+                            var externalSlots = node.slots || (node.slots = {});
+                            if (cc.openContainers) {
+                                for (var oi = 0; oi < cc.openContainers.length; oi++) {
+                                    var oc = cc.openContainers[oi];
+                                    if (externalSlots[oc.key]) void externalSlots[oc.key].length; // 建立 slots 依赖
+                                }
+                            }
+                            var tree = window.LCDesignerUtils.applyCompositeProps(cc.tree, cc, externalProps, externalSlots);
+                            out.__compositeRoot = true;
+                            out.childrenctrls = (tree.childrenctrls || []).map(function (ch) { return walk(ch, node); });
+                        } else {
+                            // 开放容器节点：前 __fixedLen 个为组合内部固定（标记内部），后段为外部 slot 内容（真实可选中）
+                            var fixedLen = node.__openSlot ? (node.__fixedLen || 0) : 0;
+                            out.childrenctrls = (node.childrenctrls || []).map(function (ch, i) {
+                                var inner = !!(node.__openSlot) && i < fixedLen;
+                                return walk(ch, inner ? rootRef : null);
+                            });
+                            if (rootRef) {
+                                out.__compositeInternal = true;
+                                out.__rootRef = rootRef;
+                            }
+                        }
+                        return out;
+                    }
+                    return [walk(root, null)];
+                }
+                var treeData = computed(function () {
+                    void S.treeVersion.value; // 拖入/删除/排序后强制重算
+                    return buildTreeData(S.configObj);
+                });
 
                 return {
                     leftPanel: leftPanel, leftTab: leftTab,
                     activeCategory: activeCategory, activeUiLibrary: activeUiLibrary,
                     treeFilter: treeFilter, categories: categories,
                     filteredComponents: filteredComponents,
+                    treeData: treeData,
                     openLeftPanel: openLeftPanel,
                     onPaletteDragStart: onPaletteDragStart, onPaletteDragEnd: onPaletteDragEnd,
                     selectFromTree: selectFromTree,

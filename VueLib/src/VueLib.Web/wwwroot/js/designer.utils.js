@@ -21,15 +21,23 @@
         return JSON.parse(JSON.stringify(obj));
     }
 
-    // ===== 按点号路径取值 =====
+    // ===== 按路径取值（支持 a.b.c 与 childrenctrls[0].b 混合语法）=====
     function getByPath(obj, path) {
         if (!obj || !path) return undefined;
-        return path.split('.').reduce(function (o, k) { return (o == null) ? undefined : o[k]; }, obj);
+        const keys = [];
+        const re = /[^.[\]]+|\[(\d+)\]/g;
+        let m;
+        while ((m = re.exec(path)) !== null) keys.push(m[1] !== undefined ? Number(m[1]) : m[0]);
+        if (!keys.length) return undefined;
+        return keys.reduce(function (o, k) { return (o == null) ? undefined : o[k]; }, obj);
     }
 
-    // ===== 按点号路径设置值（lodash 不可用时） =====
+    // ===== 按路径设置值（lodash 不可用时，支持 a.b[0].c） =====
     function setPathVal(obj, path, value) {
-        const keys = path.split('.');
+        const keys = [];
+        const re = /[^.[\]]+|\[(\d+)\]/g;
+        let m;
+        while ((m = re.exec(path)) !== null) keys.push(m[1] !== undefined ? Number(m[1]) : m[0]);
         const last = keys.pop();
         let target = obj;
         for (const k of keys) {
