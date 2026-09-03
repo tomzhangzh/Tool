@@ -95,30 +95,6 @@
         return 'HTTP ' + (xhr.status || 0);
     }
 
-    // 全局对象解析：把 'ElementPlus.ElMessageBox.alert' 解析为 window.ElementPlus.ElMessageBox.alert
-    // 不区分大小写（HTML 属性名总是小写）
-    function resolveGlobal(path) {
-        var parts = path.split('.');
-        var obj = window;
-        for (var i = 0; i < parts.length; i++) {
-            if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) return undefined;
-            // 不区分大小写查找
-            var found = null;
-            for (var key in obj) {
-                if (key.toLowerCase() === parts[i].toLowerCase()) {
-                    found = key;
-                    break;
-                }
-            }
-            if (found) {
-                obj = obj[found];
-            } else {
-                return undefined;
-            }
-        }
-        return obj;
-    }
-
     function showMessage(msg, type) {
         if (!msg) return;
         try {
@@ -651,7 +627,7 @@
     // 注册一个运行时动作：注册后自动进入委托选择器
     function registerAction(name, fn, meta) {
         if (!name || typeof fn !== 'function') { console.error('[dyn-lib] registerAction 参数错误', name); return; }
-        _actions[name] = { fn: fn, events: (meta && meta.events) || ['click'] };
+        _actions[name] = fn;
         if (meta && meta.events) {
             meta.events.forEach(function (ev) { if (ACTION_EVENTS.indexOf(ev) < 0) ACTION_EVENTS.push(ev); });
         }
@@ -668,10 +644,6 @@
 
     // 构造统一上下文（动作方法的唯一入参）
     function buildCtx(el, eventName, $event, options, actionName) {
-        // 处理字符串类型的 options（如 evalJS 动作）
-        if (typeof options === 'string') {
-            options = { code: options };
-        }
         options = options || {};
         var params = {};
         if (el && el.attributes) {
@@ -700,33 +672,23 @@
     // 为某事件生成委托选择器（由注册表动态生成，注册动作时失效缓存）
     function selectorFor(eventName) {
         if (_selCache[eventName]) return _selCache[eventName];
-        var parts = [];
-        for (var name in _actions) {
-            if (_actions[name].events.indexOf(eventName) !== -1) {
-                parts.push('[dyn-' + eventName + '-' + name + ']');
-            }
-        }
-        // 所有 dyn-{event}-* 属性（全局对象路径）
-        parts.push('[dyn-' + eventName + '-]');
-        _selCache[eventName] = parts.join(',');
+        var sels = [];
+        Object.keys(_actions).forEach(function (name) {
+            sels.push('[dyn-' + eventName + '-' + name + ']');
+        });
+        _selCache[eventName] = sels.join(',');
         return _selCache[eventName];
     }
 
     // 解析元素属性：找 dyn-{event}-{action}，返回 { action, raw }
     function resolveActionAttr(el, eventName) {
-        var attr = 'dyn-' + eventName + '-';
-        for (var i = 0; i < el.attributes.length; i++) {
-            var a = el.attributes[i];
-            if (a.name.indexOf(attr) === 0) {
-                var action = a.name.substring(attr.length);
-                // 先查注册表
-                if (_actions[action]) return { action: action, raw: a.value };
-                // 尝试解析为全局对象路径
-                var fn = resolveGlobal(action);
-                if (typeof fn === 'function') return { action: action, raw: a.value };
-            }
-        }
-        return null;
+        var prefix = 'dyn-' + eventName + '-';
+        if (!el || !el.attributes) return null;
+        var hit = null;
+        [].forEach.call(el.attributes, function (a) {
+            if (a.name.indexOf(prefix) === 0) hit = { action: a.name.substring(prefix.length), raw: a.value };
+        });
+        return hit;
     }
 
     // 解析 options：JSON 优先；裸字符串兼容旧 dyn-click-reload 的选择器写法
@@ -737,18 +699,29 @@
         return { selector: t };
     }
 
+    // 大小写不敏感查找动作：HTML 属性名会被浏览器转成小写（如 dyn-click-setVueModel → setvuemodel），
+    // 而动作可能以驼峰注册（setVueModel），这里做兼容匹配。
+    function resolveAction(name) {
+        if (_actions[name]) return _actions[name];
+        var lower = name.toLowerCase();
+        var keys = Object.keys(_actions);
+        for (var i = 0; i < keys.length; i++) {
+            if (keys[i].toLowerCase() === lower) return _actions[keys[i]];
+        }
+        return null;
+    }
+
     // 通用事件委托：每个事件一个 document capture 监听器，覆盖动态渲染出的所有元素
     ACTION_EVENTS.forEach(function (ev) {
         document.addEventListener(ev, function (e) {
-            // 手动遍历父元素找 dyn-{event}-* 属性（不用 closest，因为属性名可能包含点号）
-            var el = e.target;
-            var hit = null;
-            while (el && el.attributes) {
-                hit = resolveActionAttr(el, ev);
-                if (hit) break;
-                el = el.parentNode;
-            }
+            var sel = selectorFor(ev);
+            if (!sel) return;
+            var el = e.target && e.target.closest ? e.target.closest(sel) : null;
+            if (!el) return;
+            var hit = resolveActionAttr(el, ev);
             if (!hit) return;
+            var fn = resolveAction(hit.action);
+            if (!fn) return;
             var ctx = buildCtx(el, ev, e, parseActionOptions(hit.raw), hit.action);
             // P5: 提供 prevent 选项（默认阻止）
             var prevent = ctx.options.prevent !== false;
@@ -756,39 +729,7 @@
                 e.preventDefault();
                 e.stopPropagation();
             }
-            try {
-                // 先查注册表
-                if (_actions[hit.action]) {
-                    _actions[hit.action].fn(ctx);
-                } else {
-                    // 全局对象路径
-                    var fn = resolveGlobal(hit.action);
-                    if (typeof fn === 'function') {
-                        var opts = ctx.options;
-                        if (typeof opts === 'string') {
-                            fn(opts);
-                        } else if (opts.args && Array.isArray(opts.args)) {
-                            fn.apply(null, opts.args);
-                        } else {
-                            // 把 text 改为 message（ElementPlus 的约定）
-                            if (opts.text && !opts.message) {
-                                opts.message = opts.text;
-                                delete opts.text;
-                            }
-                            // 判断参数类型：如果有 message 字段，把 message 作为第一个参数传入
-                            // （适用于 ElMessage.success / ElMessageBox.alert / showToast.success 等）
-                            // 否则把 opts 作为对象参数传入（适用于 showDialog 等）
-                            if (opts.message) {
-                                fn(opts.message);
-                            } else {
-                                fn(opts);
-                            }
-                        }
-                    } else {
-                        console.error('[dyn-lib] 动作不存在: ' + hit.action);
-                    }
-                }
-            }
+            try { fn(ctx); }
             catch (err) {
                 console.error('[dyn-lib] 动作执行失败: ' + hit.action, err);
                 showMessage('操作失败：' + ((err && err.message) || err), 'error');
@@ -827,7 +768,7 @@
         var o = ctx.options || {};
         return updateEl(o.selector || ctx.element, o.url, o.params);
     }, { events: ['click', 'change'] });
-    registerAction('evaljs', function (ctx) {
+registerAction('evaljs', function (ctx) {
         var code = ctx.options;
         if (typeof code === 'object') code = code.code || code.selector || code;
         if (!code) return;
@@ -841,7 +782,6 @@
             showMessage('执行失败：' + ((err && err.message) || err), 'error');
         }
     }, { events: ['click', 'change'] });
-
     // ===== 内置初始化动作（dyn-init-{action}：页面/Vue 初始化完毕立即执行） =====
     // dyn-init-load='{"url":"/x"}'：请求后端，由后端 HTML 填充本 div，随后 init(div)，
     // 并将 url 写入 div 的 data-url（后续可被 reload 动作读取，作为数据源）。
@@ -868,6 +808,67 @@
             showMessage('加载失败：' + ((err && err.message) || err), 'error');
             return null;
         });
+    });
+
+    // dyn-init-evaljs='alert("Hello World")'：页面/Vue 初始化完毕立即执行 JavaScript 代码
+    registerInitAction('evaljs', function (ctx) {
+        var code = ctx.options;
+        if (typeof code === 'object') code = code.code || code.selector|| code;
+        if (!code) return;
+        try {
+            // 使用 new Function 执行代码
+            // eslint-disable-next-line no-new-func
+            var result = new Function("ctx", `return ${code}`)(ctx);
+            return result;
+        } catch (err) {
+            console.error('[dyn-lib] evalJS 初始化动作执行失败', err);
+            showMessage('初始化动作执行失败：' + ((err && err.message) || err), 'error');
+        }
+    });
+
+    // ===== setVueModel：设置 Vue model 值（支持 dyn-init/click/change-setVueModel） =====
+    // 属性约定：
+    //   dyn-click-setVueModel='{"modelName":"user.name","model":"张三","settimeout":100}'
+    //   dyn-change-setVueModel='{"modelName":"user.age","model":30}'
+    //   dyn-init-setVueModel='{"modelName":"page.title","model":"首页"}'
+    //   dyn-click-setVueModel='{"TargetEl":"#other-container","modelName":"items[0].name","model":"x"}'
+    // 参数：
+    //   modelName  —— model 路径，支持点路径与数组下标（如 "user.name"、"items[0].name"）
+    //   model      —— 要设置的值（JSON 字符串自动解析为对象/数组）；change 事件缺省时取元素 value
+    //   TargetEl   —— 可选，指定目标 Vue 容器（选择器字符串或 DOM 元素）；缺省用当前元素向上找最近的 VueApp
+    //   settimeout —— 延迟毫秒（可选）
+    function setVueModel(ctx, modelName, value, delay) {
+        var o = ctx.options || {};
+        if (modelName == null) modelName = o.modelName || o.name || o.path;
+        // change/input 事件且未显式给 model 时，从元素取值（input/select/textarea 等）
+        if (value === undefined) {
+            value = ('model' in o) ? o.model : o.value;
+            if (value === undefined && ctx.element && 'value' in ctx.element) {
+                value = ctx.element.value;
+            }
+        }
+        if (delay == null) delay = o.settimeout || o.delay || 0;
+        if (!modelName) { console.warn('[dyn-lib] setVueModel 缺少 modelName', ctx.element); return; }
+        // 定位目标 Vue model：TargetEl 指定容器；缺省用当前元素向上查找
+        var target = getVueModel(ctx.element, o.TargetEl || o.targetEl || o.target);
+        if (!target) { console.warn('[dyn-lib] setVueModel 未找到 Vue model（需在 dyn-init 容器内或指定 TargetEl）', ctx.element); return; }
+        // value 若是 JSON 字符串则尝试解析为对象/数组（失败保持原字符串）
+        if (typeof value === 'string') {
+            var t = value.trim();
+            if (t.charAt(0) === '{' || t.charAt(0) === '[') {
+                try { value = JSON.parse(t); } catch (e) { /* 保持字符串 */ }
+            }
+        }
+        var doSet = function () { setPathVal(target, modelName, value); };
+        if (delay > 0) { setTimeout(doSet, delay); return; }
+        doSet();
+        return target;
+    }
+    registerAction('setVueModel', function (ctx) {
+        return setVueModel(ctx);
+    }, { events: ['click', 'change'] });
+    registerInitAction('setVueModel', function (ctx) {
+        return setVueModel(ctx);
     });
 
     // ===== 初始化动作扫描 =====
@@ -933,16 +934,28 @@
         return path.split('.').reduce(function (o, k) { return (o == null) ? undefined : o[k]; }, obj);
     }
 
+    // 路径设置统一走 lodash 的 _.set（原生支持点路径与数组下标：a.b.c、a[0].b）
     function setPathVal(obj, path, value) {
-        var keys = path.split('.');
-        var last = keys.pop();
-        var target = obj;
-        for (var i = 0; i < keys.length; i++) {
-            var k = keys[i];
-            if (target[k] == null || typeof target[k] !== 'object') target[k] = {};
-            target = target[k];
+        if (global._ && typeof global._.set === 'function') {
+            global._.set(obj, path, value);
+            return;
         }
-        target[last] = value;
+        console.warn('[dyn-lib] setPathVal 需要 lodash（_.set）支持路径设置', path);
+    }
+
+    // 查找目标 VueApp 的 model：
+    //   - targetEl 传入时（选择器字符串或 DOM 元素），从该容器向上找 dyn-init 祖先取 model；
+    //   - 缺省用 el 本身向上查找。内部经 getModel → getProxy：Vue 3.5+ 走 __dynProxy，旧版走 app._instance.proxy。
+    function getVueModel(el, targetEl) {
+        var src = null;
+        if (targetEl) {
+            src = (typeof targetEl === 'string') ? document.querySelector(targetEl) : targetEl;
+        }
+        if (!src) src = el;
+        if (!src) return null;
+        var anc = src.closest ? src.closest('[dyn-init]') : null;
+        var host = anc || src;
+        return getModel(host);
     }
 
     var DESIGNER_CONTAINERS = ['DynNForm', 'DynNCellGroup', 'DynNDivContainer', 'DynNGrid', 'DynElDivContainer', 'DynElCard', 'DynElRow', 'DynElCol', 'DynElTabs'];
@@ -990,14 +1003,14 @@
         registerInitAction: registerInitAction,
         initActions: initActions,
         actions: _actions,
+        initActionList: _initActions,
         buildCtx: buildCtx,
+        resolveAction: resolveAction,
         actionEvents: ACTION_EVENTS.slice(),
         updateEl: updateEl,
         serializeForm: serializeForm,
         setDynCfg: setDynCfg,
-        resolveGlobal: resolveGlobal,
-        selectorFor: selectorFor,
-        resolveActionAttr: resolveActionAttr
+        setVueModel: setVueModel
     };
 
     global.dyn = dyn;
