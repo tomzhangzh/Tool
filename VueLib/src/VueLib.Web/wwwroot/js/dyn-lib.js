@@ -46,6 +46,24 @@
         return null;
     }
 
+    // ===== 祖先查找统一入口 =====
+    // 沿祖先链向上找第一个匹配选择器的元素（含自身）。原生 closest 优先，jQuery 兜底。
+    function findAncestor(el, selector) {
+        el = resolve(el);
+        if (!el) return null;
+        if (el.closest) return el.closest(selector) || null;
+        if ($) { var r = $(el).closest(selector); return r.length ? r.get(0) : null; }
+        return null;
+    }
+    // 找最近的 [dyn-init] 祖先（含自身）
+    function closestDynInit(el) {
+        return findAncestor(el, '[dyn-init]');
+    }
+    // 找最近的 [data-url],[data-dyn-url] 祖先（含自身）
+    function closestDataUrl(el) {
+        return findAncestor(el, '[data-url],[data-dyn-url]');
+    }
+
     function deepClone(o) {
         try { return JSON.parse(JSON.stringify(o)); } catch (e) { return {}; }
     }
@@ -295,7 +313,7 @@
         if (!el) return null;
         var a = getAppByEl(el);
         if (a) return a;
-        var anc = el.closest ? el.closest('[dyn-init]') : null;
+        var anc = closestDynInit(el);
         return anc ? getAppByEl(anc) : null;
     }
 
@@ -322,7 +340,7 @@
         all.forEach(function (el) {
             if (el.__dynApp || el.__dynMounting) return;
             // 只处理“当前扫描范围内”的顶层：其 dyn-init 祖先若也在本集合内则跳过（由外层应用递归处理）
-            var anc = el.parentElement ? el.parentElement.closest('[dyn-init]') : null;
+            var anc = el.parentElement ? closestDynInit(el.parentElement) : null;
             if (anc && all.indexOf(anc) >= 0) return;
             result.push(el);
         });
@@ -418,11 +436,9 @@
             return Promise.resolve(null);
         }
 
-        var $t;
-        if (el.hasAttribute('dyn-init')) $t = $(el);
-        else if (el.hasAttribute('data-dyn-url') || el.hasAttribute('data-url')) $t = $(el);
-        else $t = $(el).closest('[dyn-init]');
-        var targetEl = $t && $t.length ? $t.get(0) : null;
+        var targetEl = null;
+        if (el.hasAttribute('dyn-init') || el.hasAttribute('data-dyn-url') || el.hasAttribute('data-url')) targetEl = el;
+        else targetEl = closestDynInit(el);
         if (!targetEl) return Promise.resolve(null);
 
         // url 读取优先级：显式 opts.url → __dynCfg.url → data-dyn-url → data-url
@@ -467,8 +483,7 @@
     function updateEl(selector, url, params) {
         var el = resolve(selector);
         if (!el) return Promise.resolve(null);
-        var $anc = $(el).closest('[data-url],[data-dyn-url]');
-        var target = $anc.length ? $anc.get(0) : null;
+        var target = closestDataUrl(el);
         if (!target) return Promise.resolve(null);
         return reload(target, { url: url, params: params });
     }
@@ -488,8 +503,7 @@
         el = resolve(el) || (opts.target ? resolve(opts.target) : null);
         if (!el) return $.Deferred().reject().promise();
 
-        var $anc = $(el).closest('[dyn-init]');
-        var ancEl = $anc.length ? $anc.get(0) : el;
+        var ancEl = closestDynInit(el) || el;
         var model = getModel(ancEl) || parseModel(ancEl) || {};
         if (opts.resetPage && model.PageInfo) model.PageInfo.CurrentPage = 1;
 
@@ -596,7 +610,7 @@
     function close(el) {
         el = resolve(el);
         if (!el) return;
-        var host = el.closest ? el.closest('.dyn-modal-host') : null;
+        var host = findAncestor(el, '.dyn-modal-host');
         if (!host) return;
         var app = host.__dynApp;
         if (app && app._instance) app._instance.proxy.visible = false;
@@ -654,8 +668,7 @@
             });
         }
         options.params = Object.assign({}, params, options.params || {});
-        var $anc = $(el).closest('[dyn-init]');
-        var ancEl = $anc && $anc.length ? $anc.get(0) : el;
+        var ancEl = closestDynInit(el) || el;
         var app = getApp(ancEl);
         return {
             element: el, el: el,
@@ -795,7 +808,7 @@ registerAction('evaljs', function (ctx) {
         if (o.writeUrl !== false) el.setAttribute('data-url', url);
 
         // P0: 检测是否在 Vue 管理下（dyn-init app 内部）
-        var isVueManaged = el.closest('[dyn-init]');
+        var isVueManaged = closestDynInit(el);
         if (isVueManaged) {
             console.warn('[dyn-lib] dyn-init-load 元素在 Vue 管理下，建议用 Vue 方式更新（通过 model 数据驱动）', el);
             // 仍然尝试 innerHTML，但可能破坏 Vue
@@ -953,8 +966,7 @@ registerAction('evaljs', function (ctx) {
         }
         if (!src) src = el;
         if (!src) return null;
-        var anc = src.closest ? src.closest('[dyn-init]') : null;
-        var host = anc || src;
+        var host = closestDynInit(src) || src;
         return getModel(host);
     }
 
@@ -998,6 +1010,10 @@ registerAction('evaljs', function (ctx) {
         setPathVal: setPathVal,
         isContainerComp: isContainerComp,
         nextId: nextId,
+        /* --- 祖先查找统一入口 --- */
+        findAncestor: findAncestor,
+        closestDynInit: closestDynInit,
+        closestDataUrl: closestDataUrl,
         /* --- 动作注册表 + 通用委托 --- */
         registerAction: registerAction,
         registerInitAction: registerInitAction,
