@@ -625,7 +625,7 @@
      *   dyn-change-reload（change 事件）
      *   dyn-{action}-init                          初始化动作（initActions 扫描执行）
      *
-     * 动作通过 registerAction(name, fn, {events}) 注册，注册后自动进入委托选择器，
+     * 动作统一挂在 actionHelper 上（挂方法即动作），自动进入委托选择器，
      * 扩展新动作无需改委托代码。动作统一收一个 ctx 上下文对象（比 common.js 的函数
      * 签名反射更安全、更显式）：
      *   ctx = { element, event, $event, targetInfo, action, options, params,
@@ -638,22 +638,34 @@
     var _initActions = {};
     var _selCache = {};
 
-    // 注册一个运行时动作：注册后自动进入委托选择器
-    function registerAction(name, fn, meta) {
-        if (!name || typeof fn !== 'function') { console.error('[dyn-lib] registerAction 参数错误', name); return; }
-        _actions[name] = fn;
-        if (meta && meta.events) {
-            meta.events.forEach(function (ev) { if (ACTION_EVENTS.indexOf(ev) < 0) ACTION_EVENTS.push(ev); });
-        }
+    // ===== 约定式动作（actionHelper）：唯一的动作注册方式，无需 registerAction / registerInitAction =====
+    // 用法（参考 common.js 的「挂方法即动作」）：
+    //   dyn.actionHelper.post = function (ctx) { ... }      → 自动支持 dyn-click-post / dyn-change-post / ...
+    //   fn._events = ['click']                              → 限定事件（缺省全部 ACTION_EVENTS；[] 表示不绑事件，仅作 init 用）
+    //   fn._init   = true                                   → 同时注册为初始化动作（dyn-init-{name}）
+    //   fn._skip   = true                                   → 跳过（辅助方法用下划线前缀或此标记隔离）
+    // 运行时新增动作后调用 dyn.rebind()（= autoBindActions()）重新生成委托选择器。
+    var actionHelper = {};
+    function autoBindActions() {
+        Object.keys(actionHelper).forEach(function (name) {
+            var fn = actionHelper[name];
+            if (typeof fn !== 'function' || fn._skip) return;
+            var evs = fn._events ? fn._events.slice() : ACTION_EVENTS.slice();
+            if (evs.length) {
+                _actions[name] = fn;
+                evs.forEach(function (ev) { if (ACTION_EVENTS.indexOf(ev) < 0) ACTION_EVENTS.push(ev); });
+            }
+            if (fn._init) _initActions[name] = fn;
+        });
         _selCache = {};
         return dyn;
     }
-
-    // 注册一个初始化动作（dyn-{name}-init 属性，initActions 扫描执行）
-    function registerInitAction(name, fn) {
-        if (!name || typeof fn !== 'function') { console.error('[dyn-lib] registerInitAction 参数错误', name); return; }
-        _initActions[name] = fn;
-        return dyn;
+    // 内置/自定义动作的便捷定义：挂到 actionHelper 并标注事件与 init 标记
+    function defineAction(name, fn, events, init) {
+        fn._events = events || [];
+        if (init) fn._init = true;
+        actionHelper[name] = fn;
+        return fn;
     }
 
     // 构造统一上下文（动作方法的唯一入参）
@@ -687,7 +699,8 @@
         if (_selCache[eventName]) return _selCache[eventName];
         var sels = [];
         Object.keys(_actions).forEach(function (name) {
-            sels.push('[dyn-' + eventName + '-' + name + ']');
+            // DOM 属性名一律被 HTML 解析器小写化，这里用小写生成选择器保证匹配
+            sels.push('[dyn-' + eventName + '-' + name.toLowerCase() + ']');
         });
         _selCache[eventName] = sels.join(',');
         return _selCache[eventName];
@@ -750,38 +763,39 @@
         }, true);
     });
 
-    // ===== 内置动作（兼容旧 dyn-click-postback/open/close/reload） =====
-    registerAction('postback', function (ctx) {
+    // ===== 内置动作（全部挂 actionHelper，约定式自动绑定；兼容旧 dyn-click-postback/open/close/reload） =====
+    defineAction('postback', function (ctx) {
         var o = ctx.options || {};
         if (o.confirm) {
             var msg = o.confirm === true ? '确定执行该操作吗？' : o.confirm;
             return confirmAsync(msg).then(function (ok) { if (ok) return postback(ctx.element, o); });
         }
         return postback(ctx.element, o);
-    }, { events: ['click', 'change'] });
-    registerAction('postdata', function (ctx) {
+    }, ['click', 'change']);
+    defineAction('postdata', function (ctx) {
         return _actions.postback(ctx);
-    }, { events: ['click', 'change'] });
-    registerAction('confirm-postdata', function (ctx) {
+    }, ['click', 'change']);
+    defineAction('confirm-postdata', function (ctx) {
         var o = Object.assign({}, ctx.options || {});
         if (!o.confirm) o.confirm = true;
         return _actions.postback(Object.assign({}, ctx, { options: o }));
-    }, { events: ['click', 'change'] });
-    registerAction('reload', function (ctx) {
+    }, ['click', 'change']);
+    defineAction('reload', function (ctx) {
         var o = ctx.options || {};
         return reload(o.selector || ctx.element);
-    }, { events: ['click', 'change'] });
-    registerAction('open', function (ctx) {
+    }, ['click', 'change']);
+    defineAction('open', function (ctx) {
         return open(ctx.options || {}, ctx.element);
-    }, { events: ['click'] });
-    registerAction('close', function (ctx) {
+    }, ['click']);
+    defineAction('close', function (ctx) {
         return close(ctx.element);
-    }, { events: ['click'] });
-    registerAction('updateel', function (ctx) {
+    }, ['click']);
+    defineAction('updateel', function (ctx) {
         var o = ctx.options || {};
         return updateEl(o.selector || ctx.element, o.url, o.params);
-    }, { events: ['click', 'change'] });
-registerAction('evaljs', function (ctx) {
+    }, ['click', 'change']);
+    // evaljs：事件动作 + 初始化动作共用同一实现
+    defineAction('evaljs', function (ctx) {
         var code = ctx.options;
         if (typeof code === 'object') code = code.code || code.selector || code;
         if (!code) return;
@@ -794,11 +808,11 @@ registerAction('evaljs', function (ctx) {
             console.error('[dyn-lib] evalJS 执行失败', err);
             showMessage('执行失败：' + ((err && err.message) || err), 'error');
         }
-    }, { events: ['click', 'change'] });
+    }, ['click', 'change'], true);
     // ===== 内置初始化动作（dyn-init-{action}：页面/Vue 初始化完毕立即执行） =====
     // dyn-init-load='{"url":"/x"}'：请求后端，由后端 HTML 填充本 div，随后 init(div)，
     // 并将 url 写入 div 的 data-url（后续可被 reload 动作读取，作为数据源）。
-    registerInitAction('load', function (ctx) {
+    defineAction('load', function (ctx) {
         var o = ctx.options || {};
         var url = o.url || ctx.url;
         if (!url) { console.warn('[dyn-lib] dyn-init-load 缺少 url', ctx.element); return; }
@@ -821,23 +835,10 @@ registerAction('evaljs', function (ctx) {
             showMessage('加载失败：' + ((err && err.message) || err), 'error');
             return null;
         });
-    });
+    }, [], true);
 
     // dyn-init-evaljs='alert("Hello World")'：页面/Vue 初始化完毕立即执行 JavaScript 代码
-    registerInitAction('evaljs', function (ctx) {
-        var code = ctx.options;
-        if (typeof code === 'object') code = code.code || code.selector|| code;
-        if (!code) return;
-        try {
-            // 使用 new Function 执行代码
-            // eslint-disable-next-line no-new-func
-            var result = new Function("ctx", `return ${code}`)(ctx);
-            return result;
-        } catch (err) {
-            console.error('[dyn-lib] evalJS 初始化动作执行失败', err);
-            showMessage('初始化动作执行失败：' + ((err && err.message) || err), 'error');
-        }
-    });
+    // （evaljs 的事件 + init 双注册已在上方 defineAction('evaljs', ..., true) 完成，这里仅保留说明）
 
     // ===== setVueModel：设置 Vue model 值（支持 dyn-init/click/change-setVueModel） =====
     // 属性约定：
@@ -877,21 +878,22 @@ registerAction('evaljs', function (ctx) {
         doSet();
         return target;
     }
-    registerAction('setVueModel', function (ctx) {
+    // setVueModel：事件动作（click/change）+ 初始化动作（dyn-init-setVueModel）共用同一实现
+    defineAction('setVueModel', function (ctx) {
         return setVueModel(ctx);
-    }, { events: ['click', 'change'] });
-    registerInitAction('setVueModel', function (ctx) {
-        return setVueModel(ctx);
-    });
+    }, ['click', 'change'], true);
 
     // ===== 初始化动作扫描 =====
     // 属性约定：dyn-init-{action}（页面/Vue 初始化完毕立即执行，推荐）
     //           兼容旧命名 dyn-{action}-init
+    // 注意：DOM 属性名一律被 HTML 解析器小写化，且部分环境 qsa/hasAttribute 大小写敏感，
+    //       因此用 name.toLowerCase() 生成属性名保证匹配；动作名大小写由 _initActions 直接命中。
     function initActions(root) {
         root = resolve(root) || document.body;
         if (!root) return;
         Object.keys(_initActions).forEach(function (name) {
-            ['dyn-init-' + name, 'dyn-' + name + '-init'].forEach(function (attrName) {
+            var lower = name.toLowerCase();
+            ['dyn-init-' + lower, 'dyn-' + lower + '-init'].forEach(function (attrName) {
                 var targets = [];
                 if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute(attrName)) targets.push(root);
                 if (root.querySelectorAll) targets = targets.concat([].slice.call(root.querySelectorAll('[' + attrName + ']')));
@@ -1014,15 +1016,17 @@ registerAction('evaljs', function (ctx) {
         findAncestor: findAncestor,
         closestDynInit: closestDynInit,
         closestDataUrl: closestDataUrl,
-        /* --- 动作注册表 + 通用委托 --- */
-        registerAction: registerAction,
-        registerInitAction: registerInitAction,
+        /* --- 动作注册表 + 通用委托（约定式：挂 actionHelper 即注册） --- */
         initActions: initActions,
         actions: _actions,
         initActionList: _initActions,
         buildCtx: buildCtx,
         resolveAction: resolveAction,
         actionEvents: ACTION_EVENTS.slice(),
+        /* --- 约定式动作（actionHelper）：挂方法即动作 --- */
+        actionHelper: actionHelper,
+        autoBindActions: autoBindActions,
+        rebind: autoBindActions,
         updateEl: updateEl,
         serializeForm: serializeForm,
         setDynCfg: setDynCfg,
@@ -1030,5 +1034,8 @@ registerAction('evaljs', function (ctx) {
     };
 
     global.dyn = dyn;
+
+    // 内置动作注册完成后，把 actionHelper 上的约定式动作批量绑定
+    autoBindActions();
 
 })(window);

@@ -1,4 +1,4 @@
-@{
+﻿@{
     Layout = null;
 }
 <!DOCTYPE html>
@@ -25,7 +25,7 @@
 </head>
 <body>
 
-    <div id="demo-app" dyn-init='{"count":0,"msg":"初始状态"}'>
+    <div id="demo-app" dyn-init='{"count":0,"msg":"初始状态","user":{"name":"","age":0},"items":[{"name":"item0"},{"name":"item1"}]}'>
         <div class="demo-card">
             <h3>① 内置动作 postdata（POST Model → 后端返回 JSON 合并进 Model）</h3>
             <div class="demo-row">
@@ -41,16 +41,16 @@
         </div>
 
         <div class="demo-card">
-            <h3>③ 自定义动作（registerAction）+ 初始化动作（registerInitAction）</h3>
+            <h3>③ 自定义动作（挂 actionHelper 即动作）+ 初始化动作（_init 标记）</h3>
             <div class="demo-row">
                 <span class="demo-label">自定义 toast：</span>
                 <button dyn-click-toast='{"text":"这是自定义动作，参数来自属性 JSON","type":"success"}' class="btn">toast 自定义动作</button>
-                <span style="font-size:12px;color:#909399;">（dyn-click-toast 由页面 registerAction 注册，自动进入委托）</span>
+                <span style="font-size:12px;color:#909399;">（dyn-click-toast 挂在 dyn.actionHelper.toast 上，自动进入委托）</span>
             </div>
             <div class="demo-row">
                 <span class="demo-label">init 动作：</span>
                 <span dyn-init-badge='{"text":"初始化完成 ✔"}' class="badge-init" style="opacity:.4">待初始化…</span>
-                <span style="font-size:12px;color:#909399;">（初始化完毕 dyn.init 立即执行 dyn-init-badge）</span>
+                <span style="font-size:12px;color:#909399;">（actionHelper.badge 加 _init=true，初始化完毕 dyn.init 立即执行 dyn-init-badge）</span>
             </div>
         </div>
 
@@ -61,6 +61,73 @@
             初始化动作 <code>dyn-init-{action}='{JSON options}'</code>：页面/Vue 初始化完毕立即执行；
             <code>dyn-init-load</code> 请求后端 HTML 填充本容器 + init + 写 data-url + __dynCfg（固定参数/method）。
             reload/updateEl 刷新时参数三层合并：固定参数(__dynCfg.params) → Vue model → 容器内 form 序列化。
+        </div>
+
+        <div class="demo-card">
+            <h3>⑦ setVueModel 动作（设置 Vue model 值：dyn-init/click/change-setVueModel）</h3>
+            <div class="demo-row">
+                <span class="demo-label">当前 Model：</span>
+                <span class="model-view">user.name = "{{ model.user.name }}" ，user.age = {{ model.user.age }}</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">click 设置：</span>
+                <button dyn-click-setVueModel='{"modelName":"user.name","model":"张三","settimeout":0}' class="btn">设置 name=张三</button>
+                <button dyn-click-setVueModel='{"modelName":"user.age","model":30}' class="btn">设置 age=30</button>
+                <button dyn-click-setVueModel='{"modelName":"user.name","model":"李四","settimeout":1000}' class="btn">延迟 1s 设置 name=李四</button>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">change 设置：</span>
+                <input dyn-change-setVueModel='{"modelName":"user.name"}' placeholder="输入后失焦/回车 → 设置 user.name" style="padding:4px 8px;" />
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">init 设置：</span>
+                <span dyn-init-setVueModel='{"modelName":"user.age","model":18,"settimeout":500}' class="badge-init">初始化后 0.5s 设 user.age=18</span>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">数组下标：</span>
+                <span class="model-view">items[0].name = "{{ model.items[0].name }}"</span>
+                <button dyn-click-setVueModel='{"modelName":"items[0].name","model":"改过的item0"}' class="btn">设置 items[0].name</button>
+            </div>
+            <div class="demo-row">
+                <span class="demo-label">TargetEl 跨容器：</span>
+                <span style="font-size:12px;color:#909399;">下方按钮位于 #demo-app 之外，通过 TargetEl 指向本容器设置 model</span>
+            </div>
+            <div class="demo-row" style="font-size:12px;color:#909399;">
+                说明：<code>dyn-click-setVueModel</code> / <code>dyn-change-setVueModel</code> / <code>dyn-init-setVueModel</code>，
+                参数 JSON <code>{"modelName":"user.name","model":"值","settimeout":毫秒}</code>。
+                modelName 支持点路径与数组下标（如 "user.name"、"items[0].name"）；
+                model 为要设置的值（JSON 字符串自动解析为对象/数组）；
+                TargetEl 可选，指定目标 Vue 容器（选择器或元素），缺省用当前元素向上找最近的 VueApp 改其 model；settimeout 可选延迟执行。
+            </div>
+        </div>
+    </div>
+
+    <div class="demo-card">
+        <h3>⑦-2 TargetEl 跨容器设置（按钮在 #demo-app 外，通过 TargetEl 指向目标容器）</h3>
+        <div class="demo-row">
+            <button dyn-click-setVueModel='{"TargetEl":"#demo-app","modelName":"msg","model":"来自外部 TargetEl 设置"}' class="btn">TargetEl 设置 #demo-app 的 msg</button>
+            <button dyn-click-setVueModel='{"TargetEl":"#demo-app","modelName":"items[1].name","model":"外部改item1"}' class="btn">TargetEl 设置 items[1].name</button>
+            <span style="font-size:12px;color:#909399;">点击后回到上方 ⑦ 卡片查看 msg / items[1].name 变化</span>
+        </div>
+    </div>
+
+    <div class="demo-card">
+        <h3>⑧ 约定式动作（actionHelper 挂方法即动作，无需 registerAction）</h3>
+        <div class="demo-row">
+            <span class="demo-label">自动绑定：</span>
+            <button dyn-click-hello='{"text":"hello 自动绑定"}' class="btn">dyn-click-hello</button>
+            <span style="font-size:12px;color:#909399;">hello 挂在 dyn.actionHelper 上，未调用 registerAction，委托自动识别</span>
+        </div>
+        <div class="demo-row">
+            <span class="demo-label">限事件+init：</span>
+            <button dyn-click-helloinit='{"text":"helloInit click"}' class="btn">dyn-click-helloInit（仅 click 生效）</button>
+            <span dyn-init-helloinit='{"text":"helloInit 初始化执行"}' class="badge-init" style="opacity:.4">待 init…</span>
+            <span style="font-size:12px;color:#909399;">helloInit 用 _events=['click'] 限定事件 + _init=true 同时注册初始化动作</span>
+        </div>
+        <div class="demo-row" style="font-size:12px;color:#909399;">
+            说明：<code>dyn.actionHelper.xxx = fn</code> 自动支持 dyn-click-xxx / dyn-change-xxx 等；
+            方法挂 <code>fn._events</code> 限定事件范围、<code>fn._init=true</code> 同时注册初始化动作；
+            运行时新增动作后调用 <code>dyn.rebind()</code> 重新生成委托选择器。
         </div>
     </div>
 
@@ -87,7 +154,7 @@
         </div>
     </div>
 
-    <div class="demo-card">
+    @* <div class="demo-card">
         <h3>⑤ 全局对象调用（直接调用 ElementUI/NutUI 方法，无需注册）</h3>
         <div class="demo-row">
             <span class="demo-label">ElementUI：</span>
@@ -123,7 +190,7 @@
             说明：属性名 <code>dyn-click-{全局对象路径}</code>，如 <code>dyn-click-ElementPlus.ElMessage.success</code>。
             全局对象解析不区分大小写（HTML 属性名总是小写）。参数 <code>{"text":"..."}</code> 或 <code>{"args":[...]}</code>。
         </div>
-    </div>
+    </div> *@
 
     <div class="demo-card">
         <h3>⑥ evalJS 动作（直接执行 JavaScript 代码）</h3>
@@ -144,6 +211,7 @@
             <button dyn-click-evaljs='alert("Hello World")' class="btn">alert</button>
             <button dyn-click-evaljs='console.log("Hello World")' class="btn">console.log</button>
             <button dyn-click-evaljs='document.title = "已修改"' class="btn">修改标题</button>
+               @* <button dyn-init-evaljs='alert("Hello World")' class="btn">alert</button> *@
         </div>
         <div class="demo-row">
             <span class="demo-label">异步操作：</span>
@@ -175,26 +243,57 @@
     <script src="~/js/nutui.umd.min.js"></script>
     <script src="~/js/dyn-lib.js"></script>
     <script>
-        // 注册自定义运行时动作：dyn-click-toast
-        window.dyn.registerAction('toast', function (ctx) {
-            var o = ctx.options || {};
-            window.dyn.showMessage(o.text || 'toast', o.type || 'success');
-            console.log('[dyn-demo] toast ctx =', {
-                action: ctx.action, event: ctx.event, url: ctx.url,
-                model: ctx.model, options: ctx.options
-            });
-        }, { events: ['click', 'change'] });
+        // ===== 约定式动作（actionHelper）：挂方法即动作，无需 registerAction / registerInitAction =====
+        // dyn.actionHelper.xxx = function(ctx){...} → 自动支持 dyn-click-xxx / dyn-change-xxx 等
+        // fn._events 限定事件范围（缺省全部；[] 表示仅作 init 不绑事件）；fn._init = true 同时注册初始化动作 dyn-init-xxx
+        (function () {
+            // 自定义 toast：挂在 actionHelper 上即注册（对应 dyn-click-toast / dyn-change-toast）
+            window.dyn.actionHelper.toast = function (ctx) {
+                var o = ctx.options || {};
+                window.dyn.showMessage(o.text || 'toast', o.type || 'success');
+                console.log('[dyn-demo] toast ctx =', {
+                    action: ctx.action, event: ctx.event, url: ctx.url,
+                    model: ctx.model, options: ctx.options
+                });
+            };
+            window.dyn.actionHelper.toast._events = ['click', 'change'];
 
-        // 注册自定义初始化动作：dyn-badge-init
-        window.dyn.registerInitAction('badge', function (ctx) {
-            var o = ctx.options || {};
-            ctx.element.textContent = (o.text || '已初始化');
-            ctx.element.style.opacity = '1';
-            console.log('[dyn-demo] init badge =', o.text, 'on', ctx.element);
-        });
+            // 自定义 badge：_init = true + _events = [] → 仅作初始化动作（dyn-init-badge）
+            window.dyn.actionHelper.badge = function (ctx) {
+                var o = ctx.options || {};
+                ctx.element.textContent = (o.text || '已初始化');
+                ctx.element.style.opacity = '1';
+                console.log('[dyn-demo] init badge =', o.text, 'on', ctx.element);
+            };
+            window.dyn.actionHelper.badge._init = true;
+            window.dyn.actionHelper.badge._events = [];
+
+            // 全新动作 hello：缺省绑定全部 ACTION_EVENTS
+            window.dyn.actionHelper.hello = function (ctx) {
+                var o = ctx.options || {};
+                window.dyn.showMessage((o.text || 'hello') + '（来自 actionHelper 自动绑定，event=' + ctx.event + '）', 'success');
+                console.log('[dyn-demo] actionHelper.hello', ctx.options, 'event=' + ctx.event);
+            };
+            // 限定只绑 click + 同时作为 init 动作
+            window.dyn.actionHelper.helloInit = function (ctx) {
+                var o = ctx.options || {};
+                if (ctx.event === 'init') {
+                    ctx.element.textContent = (o.text || 'init 执行');
+                    ctx.element.style.opacity = '1';
+                } else {
+                    window.dyn.showMessage((o.text || 'helloInit') + '（click）', 'success');
+                }
+                console.log('[dyn-demo] actionHelper.helloInit', ctx.options, 'event=' + ctx.event);
+            };
+            window.dyn.actionHelper.helloInit._events = ['click'];
+            window.dyn.actionHelper.helloInit._init = true;
+            // 新增动作后调用 rebind 重新生成委托选择器（此处脚本在 dyn-lib 加载后执行，仍需手动 rebind 一次）
+            window.dyn.rebind();
+        })();
 
         // 启动：扫描 dyn-init 应用 + 初始化动作
         window.dyn.initAll();
     </script>
 </body>
 </html>
+
