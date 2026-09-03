@@ -1,4 +1,4 @@
-/* ============================================================================
+﻿/* ============================================================================
  * dyn-lib.js  —— 属性驱动的动态 UI jsLib（Vue3 UMD + jQuery + lodash + Element Plus）
  * ----------------------------------------------------------------------------
  * 一句话：把"服务器渲染的 HTML + 属性标记"变成"可交互的 Vue 应用"，并让局部
@@ -635,35 +635,31 @@
 
     var ACTION_EVENTS = ['change', 'click', 'dblclick', 'error', 'focus', 'select', 'mouseover'];
     var _actions = {};
-    var _initActions = {};
     var _selCache = {};
 
     // ===== 约定式动作（actionHelper）：唯一的动作注册方式，无需 registerAction / registerInitAction =====
     // 用法（参考 common.js 的「挂方法即动作」）：
-    //   dyn.actionHelper.post = function (ctx) { ... }      → 自动支持 dyn-click-post / dyn-change-post / ...
-    //   fn._events = ['click']                              → 限定事件（缺省全部 ACTION_EVENTS；[] 表示不绑事件，仅作 init 用）
-    //   fn._init   = true                                   → 同时注册为初始化动作（dyn-init-{name}）
+    //   dyn.actionHelper.post = function (ctx) { ... }      → 挂上即可：
+    //       1) 被任意 dyn-{event}-post 属性触发（事件由属性名决定）
+    //       2) 被 dyn-init-post 属性在初始化（页面/Vue init 或 innerHTML 更新）时触发
+    //   fn._events = ['click']                              → 可选白名单：事件委托只认这些事件（不设 = 全部事件属性均可）
     //   fn._skip   = true                                   → 跳过（辅助方法用下划线前缀或此标记隔离）
+    // 触发规则：事件是否触发由元素上的 dyn-{event}-{action} 属性名决定（与 common.js 的 t-{event}-{fn} 一致）；
+    //           初始化是否触发由 dyn-init-{action} / dyn-{action}-init 属性决定；没有对应动作函数时静默忽略。
     // 运行时新增动作后调用 dyn.rebind()（= autoBindActions()）重新生成委托选择器。
     var actionHelper = {};
     function autoBindActions() {
         Object.keys(actionHelper).forEach(function (name) {
             var fn = actionHelper[name];
             if (typeof fn !== 'function' || fn._skip) return;
-            var evs = fn._events ? fn._events.slice() : ACTION_EVENTS.slice();
-            if (evs.length) {
-                _actions[name] = fn;
-                evs.forEach(function (ev) { if (ACTION_EVENTS.indexOf(ev) < 0) ACTION_EVENTS.push(ev); });
-            }
-            if (fn._init) _initActions[name] = fn;
+            // 挂上即注册：同一函数既可用于事件委托（dyn-{event}-{name}），也可用于初始化扫描（dyn-init-{name}）
+            _actions[name] = fn;
         });
         _selCache = {};
         return dyn;
     }
-    // 内置/自定义动作的便捷定义：挂到 actionHelper 并标注事件与 init 标记
-    function defineAction(name, fn, events, init) {
-        fn._events = events || [];
-        if (init) fn._init = true;
+    // 内置/自定义动作的便捷定义：挂到 actionHelper。事件与初始化均由属性名驱动，无需任何标记。
+    function defineAction(name, fn) {
         actionHelper[name] = fn;
         return fn;
     }
@@ -699,6 +695,9 @@
         if (_selCache[eventName]) return _selCache[eventName];
         var sels = [];
         Object.keys(_actions).forEach(function (name) {
+            var fn = _actions[name];
+            // 动作声明了 _events 白名单时只认这些事件；未声明 = 全部事件属性均可触发
+            if (fn && fn._events && fn._events.indexOf(eventName) < 0) return;
             // DOM 属性名一律被 HTML 解析器小写化，这里用小写生成选择器保证匹配
             sels.push('[dyn-' + eventName + '-' + name.toLowerCase() + ']');
         });
@@ -771,29 +770,29 @@
             return confirmAsync(msg).then(function (ok) { if (ok) return postback(ctx.element, o); });
         }
         return postback(ctx.element, o);
-    }, ['click', 'change']);
+    });
     defineAction('postdata', function (ctx) {
         return _actions.postback(ctx);
-    }, ['click', 'change']);
+    });
     defineAction('confirm-postdata', function (ctx) {
         var o = Object.assign({}, ctx.options || {});
         if (!o.confirm) o.confirm = true;
         return _actions.postback(Object.assign({}, ctx, { options: o }));
-    }, ['click', 'change']);
+    });
     defineAction('reload', function (ctx) {
         var o = ctx.options || {};
         return reload(o.selector || ctx.element);
-    }, ['click', 'change']);
+    });
     defineAction('open', function (ctx) {
         return open(ctx.options || {}, ctx.element);
-    }, ['click']);
+    });
     defineAction('close', function (ctx) {
         return close(ctx.element);
-    }, ['click']);
+    });
     defineAction('updateel', function (ctx) {
         var o = ctx.options || {};
         return updateEl(o.selector || ctx.element, o.url, o.params);
-    }, ['click', 'change']);
+    });
     // evaljs：事件动作 + 初始化动作共用同一实现
     defineAction('evaljs', function (ctx) {
         var code = ctx.options;
@@ -808,8 +807,8 @@
             console.error('[dyn-lib] evalJS 执行失败', err);
             showMessage('执行失败：' + ((err && err.message) || err), 'error');
         }
-    }, ['click', 'change'], true);
-    // ===== 内置初始化动作（dyn-init-{action}：页面/Vue 初始化完毕立即执行） =====
+    });
+    // ===== 内置动作（含初始化动作，均挂 actionHelper，事件/初始化均由属性名驱动） =====
     // dyn-init-load='{"url":"/x"}'：请求后端，由后端 HTML 填充本 div，随后 init(div)，
     // 并将 url 写入 div 的 data-url（后续可被 reload 动作读取，作为数据源）。
     defineAction('load', function (ctx) {
@@ -835,10 +834,10 @@
             showMessage('加载失败：' + ((err && err.message) || err), 'error');
             return null;
         });
-    }, [], true);
+    });
 
     // dyn-init-evaljs='alert("Hello World")'：页面/Vue 初始化完毕立即执行 JavaScript 代码
-    // （evaljs 的事件 + init 双注册已在上方 defineAction('evaljs', ..., true) 完成，这里仅保留说明）
+    // （evaljs 已在上方 defineAction 挂载，init 扫描自动命中 dyn-init-evaljs）
 
     // ===== setVueModel：设置 Vue model 值（支持 dyn-init/click/change-setVueModel） =====
     // 属性约定：
@@ -878,20 +877,22 @@
         doSet();
         return target;
     }
-    // setVueModel：事件动作（click/change）+ 初始化动作（dyn-init-setVueModel）共用同一实现
+    // setVueModel：挂上即支持 dyn-{event}-setVueModel（事件）+ dyn-init-setVueModel（初始化）
     defineAction('setVueModel', function (ctx) {
         return setVueModel(ctx);
-    }, ['click', 'change'], true);
+    });
 
     // ===== 初始化动作扫描 =====
     // 属性约定：dyn-init-{action}（页面/Vue 初始化完毕立即执行，推荐）
     //           兼容旧命名 dyn-{action}-init
+    // 说明：初始化动作与事件动作共用 actionHelper（挂上即注册），扫描所有已挂载动作，
+    //       命中 dyn-init-{name} / dyn-{name}-init 属性即执行，无需 _init 标记。
     // 注意：DOM 属性名一律被 HTML 解析器小写化，且部分环境 qsa/hasAttribute 大小写敏感，
-    //       因此用 name.toLowerCase() 生成属性名保证匹配；动作名大小写由 _initActions 直接命中。
+    //       因此用 name.toLowerCase() 生成属性名保证匹配。
     function initActions(root) {
         root = resolve(root) || document.body;
         if (!root) return;
-        Object.keys(_initActions).forEach(function (name) {
+        Object.keys(_actions).forEach(function (name) {
             var lower = name.toLowerCase();
             ['dyn-init-' + lower, 'dyn-' + lower + '-init'].forEach(function (attrName) {
                 var targets = [];
@@ -902,7 +903,7 @@
                     el.__dynInitDone = true;
                     var raw = el.getAttribute(attrName);
                     var ctx = buildCtx(el, 'init', null, parseActionOptions(raw), name);
-                    try { _initActions[name](ctx); }
+                    try { _actions[name](ctx); }
                     catch (err) { console.error('[dyn-lib] 初始化动作失败: ' + name, err); }
                 });
             });
@@ -1019,7 +1020,7 @@
         /* --- 动作注册表 + 通用委托（约定式：挂 actionHelper 即注册） --- */
         initActions: initActions,
         actions: _actions,
-        initActionList: _initActions,
+        initActionList: _actions, // 初始化动作与事件动作共用 _actions（属性驱动）
         buildCtx: buildCtx,
         resolveAction: resolveAction,
         actionEvents: ACTION_EVENTS.slice(),
@@ -1039,3 +1040,4 @@
     autoBindActions();
 
 })(window);
+

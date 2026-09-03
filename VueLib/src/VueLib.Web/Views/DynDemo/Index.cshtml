@@ -41,7 +41,7 @@
         </div>
 
         <div class="demo-card">
-            <h3>③ 自定义动作（挂 actionHelper 即动作）+ 初始化动作（_init 标记）</h3>
+            <h3>③ 自定义动作（挂 actionHelper 即动作）+ 初始化动作（dyn-init 属性驱动）</h3>
             <div class="demo-row">
                 <span class="demo-label">自定义 toast：</span>
                 <button dyn-click-toast='{"text":"这是自定义动作，参数来自属性 JSON","type":"success"}' class="btn">toast 自定义动作</button>
@@ -50,7 +50,7 @@
             <div class="demo-row">
                 <span class="demo-label">init 动作：</span>
                 <span dyn-init-badge='{"text":"初始化完成 ✔"}' class="badge-init" style="opacity:.4">待初始化…</span>
-                <span style="font-size:12px;color:#909399;">（actionHelper.badge 加 _init=true，初始化完毕 dyn.init 立即执行 dyn-init-badge）</span>
+                <span style="font-size:12px;color:#909399;">（actionHelper.badge 挂上即可，初始化完毕 dyn.init 自动扫描 dyn-init-badge 执行，无需任何标记）</span>
             </div>
         </div>
 
@@ -122,12 +122,12 @@
             <span class="demo-label">限事件+init：</span>
             <button dyn-click-helloinit='{"text":"helloInit click"}' class="btn">dyn-click-helloInit（仅 click 生效）</button>
             <span dyn-init-helloinit='{"text":"helloInit 初始化执行"}' class="badge-init" style="opacity:.4">待 init…</span>
-            <span style="font-size:12px;color:#909399;">helloInit 用 _events=['click'] 限定事件 + _init=true 同时注册初始化动作</span>
+            <span style="font-size:12px;color:#909399;">helloInit 用 _events=['click'] 限定事件委托，dyn-init-helloinit 初始化照常触发</span>
         </div>
         <div class="demo-row" style="font-size:12px;color:#909399;">
-            说明：<code>dyn.actionHelper.xxx = fn</code> 自动支持 dyn-click-xxx / dyn-change-xxx 等；
-            方法挂 <code>fn._events</code> 限定事件范围、<code>fn._init=true</code> 同时注册初始化动作；
-            运行时新增动作后调用 <code>dyn.rebind()</code> 重新生成委托选择器。
+            说明：<code>dyn.actionHelper.xxx = fn</code> 挂上即可被任意 <code>dyn-{event}-xxx</code> 属性触发，
+            也可被 <code>dyn-init-xxx</code> 在初始化时自动执行（事件与初始化均由属性名驱动，无需任何标记）；
+            <code>fn._events</code> 是可选白名单；运行时新增动作后调用 <code>dyn.rebind()</code> 重新生成委托选择器。
         </div>
     </div>
 
@@ -243,11 +243,13 @@
     <script src="~/js/nutui.umd.min.js"></script>
     <script src="~/js/dyn-lib.js"></script>
     <script>
-        // ===== 约定式动作（actionHelper）：挂方法即动作，无需 registerAction / registerInitAction =====
-        // dyn.actionHelper.xxx = function(ctx){...} → 自动支持 dyn-click-xxx / dyn-change-xxx 等
-        // fn._events 限定事件范围（缺省全部；[] 表示仅作 init 不绑事件）；fn._init = true 同时注册初始化动作 dyn-init-xxx
+        // ===== 约定式动作（actionHelper）：挂方法即动作，无需 registerAction / registerInitAction / _init 标记 =====
+        // dyn.actionHelper.xxx = function(ctx){...} → 挂上即注册：
+        //   1) 任意 dyn-{event}-xxx 属性触发（事件由属性名决定）
+        //   2) dyn-init-xxx 属性在初始化（init/initAll/innerHTML 更新）时自动执行，无需任何标记
+        // fn._events 是可选白名单（限定事件委托只认这些事件；不设 = 全部事件属性均可）
         (function () {
-            // 自定义 toast：挂在 actionHelper 上即注册（对应 dyn-click-toast / dyn-change-toast）
+            // 自定义 toast：挂上即注册（对应 dyn-click-toast / dyn-change-toast）
             window.dyn.actionHelper.toast = function (ctx) {
                 var o = ctx.options || {};
                 window.dyn.showMessage(o.text || 'toast', o.type || 'success');
@@ -256,25 +258,22 @@
                     model: ctx.model, options: ctx.options
                 });
             };
-            window.dyn.actionHelper.toast._events = ['click', 'change'];
 
-            // 自定义 badge：_init = true + _events = [] → 仅作初始化动作（dyn-init-badge）
+            // 自定义 badge：挂上即可被 dyn-init-badge 在初始化时自动执行（无需 _init 标记）
             window.dyn.actionHelper.badge = function (ctx) {
                 var o = ctx.options || {};
                 ctx.element.textContent = (o.text || '已初始化');
                 ctx.element.style.opacity = '1';
                 console.log('[dyn-demo] init badge =', o.text, 'on', ctx.element);
             };
-            window.dyn.actionHelper.badge._init = true;
-            window.dyn.actionHelper.badge._events = [];
 
-            // 全新动作 hello：缺省绑定全部 ACTION_EVENTS
+            // 全新动作 hello：挂上即注册
             window.dyn.actionHelper.hello = function (ctx) {
                 var o = ctx.options || {};
                 window.dyn.showMessage((o.text || 'hello') + '（来自 actionHelper 自动绑定，event=' + ctx.event + '）', 'success');
                 console.log('[dyn-demo] actionHelper.hello', ctx.options, 'event=' + ctx.event);
             };
-            // 限定只绑 click + 同时作为 init 动作
+            // helloInit：演示 _events 白名单（事件委托只认 click），但 dyn-init-helloinit 初始化照样触发
             window.dyn.actionHelper.helloInit = function (ctx) {
                 var o = ctx.options || {};
                 if (ctx.event === 'init') {
@@ -286,7 +285,6 @@
                 console.log('[dyn-demo] actionHelper.helloInit', ctx.options, 'event=' + ctx.event);
             };
             window.dyn.actionHelper.helloInit._events = ['click'];
-            window.dyn.actionHelper.helloInit._init = true;
             // 新增动作后调用 rebind 重新生成委托选择器（此处脚本在 dyn-lib 加载后执行，仍需手动 rebind 一次）
             window.dyn.rebind();
         })();
