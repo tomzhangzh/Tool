@@ -239,6 +239,45 @@ dyn-click-download='{"url":"/files/x.pdf","filename":"x.pdf"}'
 dyn-click-setattr='{"selector":"#x","attr":{"title":"新标题"},"style":{"color":"red"},"text":"新文本","html":"<b>x</b>"}'
 ```
 
+### chain —— 动作链（按序 await，返回值驱动，异步）
+
+```
+dyn-click-chain='{"steps":[
+  {"action":"confirm","options":{"message":"确定？"}},
+  {"action":"openwindow","options":{"url":"/x","type":"window"}},
+  {"action":"reload","options":{"selector":"#grid"}},
+  {"action":"setwindow","options":{"close":true}}
+]}'
+```
+
+- 按序 `await` 执行每一步骤；步骤可写 `{action, options}`、`{action,...直接 options}` 或字符串动作名
+- **返回值约定**（串联的关键）：
+  - `undefined` / `true` → 继续下一步
+  - `false` → **中止链**（如 confirm 点取消）
+  - 抛错 → 中止链 + 统一提示
+  - 其它值 → 作为上一步结果注入下一步 `ctx.$result`
+- 链上下文：`ctx.$step`（索引）、`ctx.$result`（上一步返回值）、`ctx.$chain`（steps）、`ctx.$chainAction`
+- 每步 target 由各自 `options.selector` 决定，不依赖链起点（可"窗体里更新 + 窗体外的 grid 刷新"）
+- 委托层已 async 化：事件委托与初始化扫描均 `Promise.resolve(fn(ctx)).catch(...)`，现有同步动作零改动
+
+### confirm —— 确认框（chain 的分支点）
+
+```
+dyn-click-confirm='{"message":"确定执行？"}'
+```
+
+返回 `Promise<true|false>`（点确定 true / 取消 false），单独用仅弹确认框、无副作用
+
+### 动作返回值（供 chain 串联）
+
+| 动作 | 返回值 |
+|---|---|
+| `confirm` | `true`(确定) / `false`(取消) |
+| `openwindow` | 窗口宿主：modal→`.dyn-modal-host`、layer→`layerIndex`、window→`.dyn-window` |
+| `reload` / `updateel` / `postdata` | Promise（请求结果） |
+| `setdyncom` | `{target, config, model}` |
+| `close` / `setwindow` / `setattr` | `true` |
+
 ## 扩展动作的写法（让 actionHelper 极易扩展）
 
 1. 直接挂方法即可（事件与初始化均自动识别，无需 registerAction / registerInitAction / _init 标记）：

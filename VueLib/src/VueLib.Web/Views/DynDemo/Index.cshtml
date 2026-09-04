@@ -178,6 +178,47 @@
     </div>
 
     <div class="demo-card">
+        <h3>⑩ chain 动作链（confirm → openwindow → reload → setwindow 关闭，返回值驱动）</h3>
+
+        <div class="demo-row">
+            <span class="demo-label">三步链：</span>
+            <button dyn-click-chain='{"steps":[
+                {"action":"confirm","options":{"message":"确定执行三步链？"}},
+                {"action":"openwindow","options":{"url":"/DynDemo","title":"链打开的窗口","type":"window","width":520,"height":340}},
+                {"action":"toast","options":{"text":"窗体已打开，刷新 grid","type":"success"}},
+                {"action":"reload","options":{"selector":"#reload-host"}},
+                {"action":"setwindow","options":{"close":true}},
+                {"action":"toast","options":{"text":"链执行完成：确认→打开→刷新→关闭","type":"success"}}
+            ]}' class="btn">chain 确认→打开→刷新→关闭</button>
+            <span style="font-size:12px;color:#909399;">confirm 点确定返回 true 继续；点取消返回 false 中止整条链</span>
+        </div>
+
+        <div class="demo-row">
+            <span class="demo-label">取消中止：</span>
+            <button dyn-click-chain='{"steps":[
+                {"action":"confirm","options":{"message":"点取消则中止，不执行后续"}},
+                {"action":"toast","options":{"text":"你不会看到这条：被 confirm 取消中止","type":"success"}}
+            ]}' class="btn">chain 取消中止演示</button>
+            <span style="font-size:12px;color:#909399;">confirm 是分支点：false → 链 break，后续步骤不执行</span>
+        </div>
+
+        <div class="demo-row">
+            <span class="demo-label">步骤返回值：</span>
+            <button dyn-click-chain='{"steps":[
+                {"action":"setdyncom","options":{"selector":"#dyncom-demo","configjson":{"label":"链写入"},"modeljson":{"value":"来自 chain"}}},
+                {"action":"setattr","options":{"selector":"#dyncom-demo","text":"上一步返回值被传给了本步（见 data-*）"}}
+            ]}' class="btn">chain 步骤间传值</button>
+            <span style="font-size:12px;color:#909399;">上一步返回值注入下一步 <code>ctx.$result</code>；<code>ctx.$step / ctx.$chain</code> 提供链上下文</span>
+        </div>
+
+        <div class="demo-row" style="font-size:12px;color:#909399;">
+            说明：<code>dyn-click-chain='{"steps":[{action,options},...]}'</code> 按序 await 执行；
+            步骤返回 <code>false</code> 中止链、抛错中止、其余返回值进 <code>ctx.$result</code>。
+            委托层已 async 化（<code>Promise.resolve(fn(ctx)).catch</code>），现有同步动作零改动。
+        </div>
+    </div>
+
+    <div class="demo-card">
         <h3>② reload 动作（data-dyn-url 容器局部刷新，容器位于 dyn-init 之外）</h3>
         <div class="demo-row">
             <button dyn-click-reload='{"selector":"#reload-host"}' class="btn">reload 刷新容器</button>

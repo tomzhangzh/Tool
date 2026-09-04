@@ -598,6 +598,7 @@
         if (global.ElementPlus) app.use(ElementPlus);
         holder.__dynApp = app;
         app.mount(holder);
+        return holder;   // 返回模态宿主（供 chain 步骤拿到窗口宿主）
     }
 
     function close(el) {
@@ -755,11 +756,11 @@
                 e.preventDefault();
                 e.stopPropagation();
             }
-            try { fn(ctx); }
-            catch (err) {
+            // 异步执行动作（支持 async / 返回 Promise）；reject 统一提示，不阻断后续
+            Promise.resolve(fn(ctx)).catch(function (err) {
                 console.error('[dyn-lib] 动作执行失败: ' + hit.action, err);
                 showMessage('操作失败：' + ((err && err.message) || err), 'error');
-            }
+            });
         }, true);
     });
 
@@ -788,7 +789,8 @@
         return open(ctx.options || {}, ctx.element);
     });
     defineAction('close', function (ctx) {
-        return close(ctx.element);
+        close(ctx.element);
+        return true;
     });
     defineAction('updateel', function (ctx) {
         var o = ctx.options || {};
@@ -904,8 +906,9 @@
                     el.__dynInitDone = true;
                     var raw = el.getAttribute(attrName);
                     var ctx = buildCtx(el, 'init', null, parseActionOptions(raw), name);
-                    try { _actions[name](ctx); }
-                    catch (err) { console.error('[dyn-lib] 初始化动作失败: ' + name, err); }
+                    Promise.resolve(_actions[name](ctx)).catch(function (err) {
+                        console.error('[dyn-lib] 初始化动作失败: ' + name, err);
+                    });
                 });
             });
         });
@@ -993,14 +996,17 @@
         if (type === 'newtab') { window.open(o.url || o.href || 'about:blank', '_blank'); return; }
         if (type === 'layer') {
             if (window.layui && layui.layer) {
-                layui.use(['layer'], function () {
-                    layui.layer.open({
-                        type: 2, title: o.title || '窗口',
-                        area: [(o.width || 800) + 'px', (o.height || 600) + 'px'],
-                        content: o.url || 'about:blank'
+                // 返回 Promise<layerIndex>，供 chain 步骤拿到弹层索引
+                return new Promise(function (resolve) {
+                    layui.use(['layer'], function () {
+                        var idx = layui.layer.open({
+                            type: 2, title: o.title || '窗口',
+                            area: [(o.width || 800) + 'px', (o.height || 600) + 'px'],
+                            content: o.url || 'about:blank'
+                        });
+                        resolve(idx);
                     });
                 });
-                return;
             }
             showMessage('LayUI layer 不可用，已回退模态', 'warning');
         }
@@ -1157,7 +1163,57 @@
     setattr._label = '设置元素';
     setattr._doc = '设置元素：attr(属性)/style(样式)/text/html(内容)，selector 定位';
 
+    // ---- confirm：确认框（供 chain 链做分支；返回 Promise<true|false>） ----
+    // dyn-click-confirm='{"message":"确定执行？"}'   （单独用仅弹确认框，无副作用）
+    function confirmAction(ctx) {
+        var o = ctx.options || {};
+        var msg = o.message || o.msg || o.text || '确定执行该操作吗？';
+        return confirmAsync(msg);
+    }
+    confirmAction._events = ['click'];
+    confirmAction._label = '确认框';
+    confirmAction._doc = '确认框：message/msg/text，返回 true(确定)/false(取消)——供 chain 链做中止分支';
+
+    // ---- chain：动作链（按序 await 执行 steps；步骤返回 false 中止；上一步返回值注入 ctx.$result） ----
+    // dyn-click-chain='{"steps":[{"action":"confirm","options":{...}},{"action":"openwindow","options":{...}},...]}'
+    // 每个步骤可写 {action, options}；options 缺省时步骤对象本身即 options；字符串步骤 = {action: 字符串}
+    function chain(ctx) {
+        var steps = ctx.options && ctx.options.steps;
+        if (Array.isArray(ctx.options)) steps = ctx.options;
+        if (!Array.isArray(steps)) { showMessage('chain 需要 steps 数组', 'warning'); return; }
+        var last;
+        var run = function (i) {
+            if (i >= steps.length) return Promise.resolve(last);
+            var s = steps[i];
+            if (!s) return run(i + 1);
+            var actionName = (typeof s === 'string') ? s : (s.action || '');
+            var opt = (typeof s === 'object' && s.options) ? s.options : (typeof s === 'string' ? {} : s);
+            if (!actionName) { console.warn('[dyn-lib] chain 步骤缺少 action: ', i, s); return run(i + 1); }
+            var fn = resolveAction(actionName);
+            if (!fn) { showMessage('chain 步骤动作不存在: ' + actionName, 'error'); return run(i + 1); }
+            // 步骤 ctx：以链起点元素为上下文，注入链信息 $step/$result/$chain
+            var stepCtx = buildCtx(ctx.element, 'chain', ctx.$event || null, opt, actionName);
+            stepCtx.$step = i;
+            stepCtx.$result = last;
+            stepCtx.$chain = steps;
+            stepCtx.$chainAction = actionName;
+            if (ctx.$event) stepCtx.$event = ctx.$event;
+            return Promise.resolve(fn(stepCtx)).then(function (r) {
+                if (r === false) { console.log('[dyn-lib] chain 中止于步骤 ' + i + ' (' + actionName + ')'); return last; }
+                last = r;
+                return run(i + 1);
+            });
+        };
+        return run(0);
+    }
+    chain._events = ['click'];
+    chain._label = '动作链';
+    chain._doc = '动作链：steps 数组按序 await 执行；步骤返回 false 中止；上一步返回值注入下一步 ctx.$result，返回最后一步结果';
+
+
     // 注册扩展动作到 actionHelper（挂方法即动作，autoBindActions 自动纳入委托与元数据登记）
+    actionHelper.confirm = confirmAction;
+    actionHelper.chain = chain;
     actionHelper.openwindow = openwindow;
     actionHelper.setwindow = setwindow;
     actionHelper.setdyncom = setdyncom;
