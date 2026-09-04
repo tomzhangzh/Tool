@@ -450,27 +450,20 @@
         var params = collectParams(targetEl, opts.params);
 
         // P0: 检测是否是 dyn-init app 本身（Vue 管理下）
-        var isDynInitApp = targetEl.hasAttribute('dyn-init');
-        if (isDynInitApp) {
-            // dyn-init app：用 JSON 方式更新（model 数据驱动，Vue 自动重新渲染）
-            return fetchPartial(url, params, opts.method || cfg.method || 'POST', 'json').then(function (data) {
-                if (data && typeof data === 'object') {
-                    var app = getApp(targetEl);
-                    if (app && app._instance) {
-                        Object.assign(app._instance.proxy.model, data);
-                    }
+        // 自适应刷新：响应能解析为 JSON 对象 → 合并进 model（Vue 自动重渲染）；
+        // 否则视为 HTML 片段 → 卸载旧 app 后整段替换并重新 init
+        return fetchPartial(url, params, opts.method || cfg.method || 'POST', 'text').then(function (text) {
+            var data = null;
+            try { data = JSON.parse(text); } catch (e) { }
+            if (data && typeof data === 'object') {
+                var app = getApp(targetEl);
+                if (app && app._instance) {
+                    Object.assign(app._instance.proxy.model, data);
                 }
                 return init(targetEl);
-            }).catch(function (err) {
-                showMessage('刷新失败：' + ((err && err.message) || err), 'error');
-                return null;
-            });
-        }
-
-        // 纯 HTML 容器：直接 innerHTML
-        return fetchPartial(url, params, opts.method || cfg.method || 'POST').then(function (html) {
+            }
             unmount(targetEl);
-            targetEl.innerHTML = html;
+            targetEl.innerHTML = text;
             return init(targetEl);
         }).catch(function (err) {
             showMessage('刷新失败：' + ((err && err.message) || err), 'error');
@@ -580,7 +573,7 @@
             methods: {
                 load: function () {
                     var self = this;
-                    fetchPartial(url, opts.params || {}, 'GET').then(function (html) {
+                    fetchPartial(url, opts.params || {}, opts.method || 'GET').then(function (html) {
                         self.html = html;
                         self.loading = false;
                         self.$nextTick(function () {
@@ -636,6 +629,7 @@
     var ACTION_EVENTS = ['change', 'click', 'dblclick', 'error', 'focus', 'select', 'mouseover'];
     var _actions = {};
     var _selCache = {};
+    var _actionMeta = {};
 
     // ===== 约定式动作（actionHelper）：唯一的动作注册方式，无需 registerAction / registerInitAction =====
     // 用法（参考 common.js 的「挂方法即动作」）：
@@ -654,6 +648,13 @@
             if (typeof fn !== 'function' || fn._skip) return;
             // 挂上即注册：同一函数既可用于事件委托（dyn-{event}-{name}），也可用于初始化扫描（dyn-init-{name}）
             _actions[name] = fn;
+            // 登记自描述元数据（供 dyn.actionList() 枚举 / 工具面板 / 自动生成文档）
+            _actionMeta[name] = {
+                name: name,
+                label: fn._label || name,
+                doc: fn._doc || '',
+                events: fn._events ? fn._events.slice() : ACTION_EVENTS.slice()
+            };
         });
         _selCache = {};
         return dyn;
@@ -910,6 +911,266 @@
         });
     }
 
+    /* ============================================================================
+     * 扩展动作集：openwindow / setwindow / setdyncom / toast / copy / download / setattr
+     * 全部挂 actionHelper（挂方法即动作、属性驱动），零注册自动进入委托与初始化扫描。
+     * 触发：dyn-click-openwindow='{...}'（事件）、dyn-init-openwindow='{...}'（初始化）
+     * 每个动作带 _doc 自描述（dyn.actionList() 可枚举，便于工具面板/自动生成文档）。
+     * ============================================================================ */
+
+    // ---- 轻量独立窗口（无桌面系统时 openwindow type=window 使用；setwindow 可控制） ----
+    function createDynWindow(o) {
+        var win = document.createElement('div');
+        win.className = 'dyn-window';
+        var width = o.width || 800, height = o.height || 600;
+        var x = Math.max(20, Math.round((window.innerWidth - width) / 2));
+        var y = Math.max(20, Math.round((window.innerHeight - height) / 2));
+        win.style.cssText = 'position:fixed;z-index:3000;left:' + x + 'px;top:' + y + 'px;width:' + width + 'px;height:' + height + 'px;'
+            + 'background:#fff;border:1px solid #dcdfe6;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.18);'
+            + 'display:flex;flex-direction:column;overflow:hidden;';
+        win.innerHTML =
+            '<div class="dyn-window-bar" style="display:flex;align-items:center;height:36px;background:#f5f7fa;border-bottom:1px solid #e4e7ed;cursor:move;flex:0 0 auto;user-select:none;">'
+            + '<span class="dyn-window-title" style="flex:1;padding:0 12px;font-size:13px;color:#303133;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (o.title || '窗口') + '</span>'
+            + '<span class="dyn-window-btn" data-act="fullscreen" title="最大化" style="padding:0 8px;cursor:pointer;color:#909399;">⛶</span>'
+            + '<span class="dyn-window-btn" data-act="min" title="最小化" style="padding:0 8px;cursor:pointer;color:#909399;">—</span>'
+            + '<span class="dyn-window-btn" data-act="close" title="关闭" style="padding:0 10px;cursor:pointer;color:#909399;">✕</span>'
+            + '</div>'
+            + '<div class="dyn-window-body" style="flex:1;position:relative;overflow:hidden;background:#fff;">'
+            + (o.url ? '<iframe src="' + o.url + '" style="width:100%;height:100%;border:none;"></iframe>' : '')
+            + '</div>';
+        document.body.appendChild(win);
+        var bar = win.querySelector('.dyn-window-bar');
+        var dragging = false, dx = 0, dy = 0;
+        bar.addEventListener('mousedown', function (e) {
+            if (e.target.closest && e.target.closest('.dyn-window-btn')) return;
+            dragging = true; dx = e.clientX - win.offsetLeft; dy = e.clientY - win.offsetTop;
+            var onMove = function (ev) { if (!dragging) return; win.style.left = (ev.clientX - dx) + 'px'; win.style.top = (ev.clientY - dy) + 'px'; };
+            var onUp = function () { dragging = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+            document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+        });
+        win.querySelectorAll('.dyn-window-btn').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var act = b.getAttribute('data-act');
+                if (act === 'close') win.remove();
+                else if (act === 'fullscreen') {
+                    var full = win.classList.toggle('dyn-window-full');
+                    if (full) { win.style.width = '100vw'; win.style.height = '100vh'; win.style.left = '0'; win.style.top = '0'; }
+                    else { win.style.width = width + 'px'; win.style.height = height + 'px'; }
+                } else if (act === 'min') { win.style.display = (win.style.display === 'none') ? 'flex' : 'none'; }
+            });
+        });
+        win.__dynWin = { width: width, height: height };
+        return win;
+    }
+
+    // 查找窗体宿主：轻量窗口 → ElementUI 模态 → LayUI 弹层 → 桌面窗口
+    // 优先从元素向上找（元素在窗口内部时）；否则回退取页面最上层（最后创建的）窗口宿主，
+    // 便于窗口外的按钮也能控制"当前活动窗口"。
+    function findWindowHost(el) {
+        if (el) {
+            var up = findAncestor(el, '.dyn-window') || findAncestor(el, '.dyn-modal-host')
+                || findAncestor(el, '.layui-layer') || findAncestor(el, '.window');
+            if (up) return up;
+        }
+        if (typeof document === 'undefined') return null;
+        var wins = document.querySelectorAll('.dyn-window');
+        if (wins.length) return wins[wins.length - 1];
+        var dlgs = document.querySelectorAll('.dyn-modal-host');
+        if (dlgs.length) return dlgs[dlgs.length - 1];
+        var layers = document.querySelectorAll('.layui-layer');
+        if (layers.length) return layers[layers.length - 1];
+        var desk = document.querySelectorAll('.window');
+        if (desk.length) return desk[desk.length - 1];
+        return null;
+    }
+
+    // ---- openwindow：打开窗体（自动探测可用 UI 库） ----
+    // dyn-click-openwindow='{"url":"/x","title":"标题","type":"auto|modal|layer|newtab|window","width":800,"height":600,"params":{}}'
+    function openwindow(ctx) {
+        var o = ctx.options || {};
+        var type = (o.type || 'auto').toLowerCase();
+        if (type === 'auto') type = (window.layui && layui.layer) ? 'layer' : (window.ElementPlus ? 'modal' : 'window');
+        if (type === 'newtab') { window.open(o.url || o.href || 'about:blank', '_blank'); return; }
+        if (type === 'layer') {
+            if (window.layui && layui.layer) {
+                layui.use(['layer'], function () {
+                    layui.layer.open({
+                        type: 2, title: o.title || '窗口',
+                        area: [(o.width || 800) + 'px', (o.height || 600) + 'px'],
+                        content: o.url || 'about:blank'
+                    });
+                });
+                return;
+            }
+            showMessage('LayUI layer 不可用，已回退模态', 'warning');
+        }
+        if (type === 'window') { return createDynWindow(o); }
+        // modal（默认）：复用 el-dialog 模态
+        return open({ url: o.url, title: o.title, width: (o.width || 800) + 'px', params: o.params, method: o.method }, ctx.element);
+    }
+    openwindow._events = ['click'];
+    openwindow._label = '打开窗体';
+    openwindow._doc = '打开窗体：type=auto(自动)/modal(ElementPlus 模态)/layer(LayUI 弹层)/newtab(新标签)/window(轻量窗口)，支持 url/title/width/height/params';
+
+    // ---- setwindow：设置所在窗体的标题/尺寸/全屏/最小化/关闭 ----
+    // dyn-click-setwindow='{"title":"新标题","width":1000,"height":700,"fullscreen":true,"minimize":false,"close":false}'
+    function setwindow(ctx) {
+        var o = ctx.options || {};
+        var host = findWindowHost(ctx.element);
+        if (!host) { showMessage('未找到所在窗口', 'warning'); return; }
+        if (host.classList.contains('dyn-window')) {
+            if (o.title) { var t = host.querySelector('.dyn-window-title'); if (t) t.textContent = o.title; }
+            if (o.width || o.height) { if (o.width) host.style.width = o.width + 'px'; if (o.height) host.style.height = o.height + 'px'; }
+            if (o.fullscreen) { host.style.width = '100vw'; host.style.height = '100vh'; host.style.left = '0'; host.style.top = '0'; }
+            if (o.close) host.remove();
+            return;
+        }
+        if (host.classList.contains('dyn-modal-host') && host.__dynApp && host.__dynApp._instance) {
+            var p = host.__dynApp._instance.proxy;
+            if (o.title) p.title = o.title;
+            if (o.width) p.width = (typeof o.width === 'number' ? o.width + 'px' : o.width);
+            if (o.close) p.visible = false;
+            return;
+        }
+        if (host.classList.contains('layui-layer') && window.layui && layui.layer) {
+            if (o.close) { layui.layer.close(layui.layer.index || 0); return; }
+            if (o.title) { var tt = host.querySelector('.layui-layer-title'); if (tt) tt.textContent = o.title; }
+            if (o.width) host.style.width = o.width + 'px';
+            return;
+        }
+        // 桌面窗口（DOM 兜底）
+        if (o.title) { var t2 = host.querySelector('.window-title, .title'); if (t2) t2.textContent = o.title; }
+        if (o.width || o.height) { if (o.width) host.style.width = o.width + 'px'; if (o.height) host.style.height = o.height + 'px'; }
+        if (o.close) host.remove();
+    }
+    setwindow._events = ['click'];
+    setwindow._label = '设置窗口';
+    setwindow._doc = '设置所在窗口：title/width/height/fullscreen/minimize/close（支持轻量窗口/ElementPlus 模态/LayUI 弹层/桌面窗口）';
+
+    // ---- setdyncom：设置目标 DynCom 组件配置（configjson/modeljson） ----
+    // dyn-click-setdyncom='{"configjson":{...},"modeljson":{...},"selector":"#com","mode":"merge|replace"}'
+    function setdyncom(ctx) {
+        var o = ctx.options || {};
+        var target = o.selector ? (typeof o.selector === 'string' ? document.querySelector(o.selector) : o.selector) : ctx.element;
+        if (!target) { showMessage('setdyncom 未找到目标组件', 'warning'); return; }
+        var parse = function (v) {
+            if (v === undefined || v === null) return null;
+            if (typeof v === 'string') { var t = v.trim(); if (t.charAt(0) === '{' || t.charAt(0) === '[') { try { return JSON.parse(t); } catch (e) { return v; } } return v; }
+            return v;
+        };
+        var cfg = parse(o.configjson);
+        var mdl = parse(o.modeljson);
+        var mode = o.mode || 'merge';
+        // 1) 更新 data-* 属性（声明式，供宿主读取）
+        if (cfg !== null) target.setAttribute('data-config', (typeof cfg === 'object' ? JSON.stringify(cfg) : String(cfg)));
+        if (mdl !== null) target.setAttribute('data-model', (typeof mdl === 'object' ? JSON.stringify(mdl) : String(mdl)));
+        // 2) 更新元素上的组件节点存储（__dyncom）
+        if (target.__dyncom && typeof target.__dyncom === 'object') {
+            if (cfg !== null) target.__dyncom.config = mode === 'replace' ? cfg : Object.assign(target.__dyncom.config || {}, cfg);
+            if (mdl !== null) target.__dyncom.model = mode === 'replace' ? mdl : Object.assign(target.__dyncom.model || {}, mdl);
+        }
+        // 3) 尝试更新 Vue 组件实例（__vueParentComponent.props / setupState）
+        var inst = target.__vueParentComponent;
+        if (inst) {
+            try {
+                if (cfg !== null && inst.props) {
+                    if (mode === 'replace') Object.keys(inst.props).forEach(function (k) { delete inst.props[k]; });
+                    Object.assign(inst.props, cfg);
+                }
+                if (mdl !== null && inst.setupState) Object.assign(inst.setupState, mdl);
+                if (inst.update) inst.update();
+            } catch (e) { console.warn('[dyn-lib] setdyncom 更新 Vue 实例失败', e); }
+        }
+        // 4) 派发自定义事件，宿主可监听重渲染
+        target.dispatchEvent(new CustomEvent('dyn:comchange', { detail: { config: cfg, model: mdl, mode: mode }, bubbles: true }));
+        return { target: target, config: cfg, model: mdl };
+    }
+    setdyncom._events = ['click'];
+    setdyncom._label = '设置组件配置';
+    setdyncom._doc = '设置目标 DynCom 组件配置：configjson/modeljson（对象或 JSON 字符串）+ selector 定位，更新 data-config/data-model/组件实例并派发 dyn:comchange';
+
+    // ---- toast：统一提示（ElementPlus.ElMessage / NutUI.toast / layui layer.msg 自动探测） ----
+    function toast(ctx) {
+        var o = ctx.options || {};
+        var text = o.text || o.message || o.msg || '';
+        var type = o.type || 'success';
+        if (!text) return;
+        if (window.layui && layui.layer && layui.use && (!window.ElementPlus || o.layui)) {
+            try { layui.use(['layer'], function () { layui.layer.msg(text); }); return; } catch (e) { }
+        }
+        showMessage(text, type);
+    }
+    toast._events = ['click'];
+    toast._label = '提示消息';
+    toast._doc = '统一提示：text/message + type(success/error/warning)，ElementPlus/NutUI/layui 自动探测';
+
+    // ---- copy：复制文本到剪贴板 ----
+    // dyn-click-copy='{"text":"要复制的文本"}'；不带 text 时取元素 value/textContent
+    function copy(ctx) {
+        var o = ctx.options || {};
+        var text = o.text;
+        if (text === undefined) text = (ctx.element && 'value' in ctx.element) ? ctx.element.value : (ctx.element ? ctx.element.textContent : '');
+        if (text === undefined || text === null) return;
+        var s = String(text);
+        function done() { showMessage('已复制：' + s.slice(0, 20) + (s.length > 20 ? '…' : ''), 'success'); }
+        function fallbackCopy() {
+            var ta = document.createElement('textarea');
+            ta.value = s; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy'); } catch (e) { }
+            document.body.removeChild(ta);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(s).then(done).catch(function () { fallbackCopy(); done(); });
+        } else { fallbackCopy(); done(); }
+    }
+    copy._events = ['click'];
+    copy._label = '复制文本';
+    copy._doc = '复制文本到剪贴板：text 选项，或取元素 value/textContent';
+
+    // ---- download：下载文件 ----
+    // dyn-click-download='{"url":"/files/x.pdf","filename":"x.pdf"}'
+    function download(ctx) {
+        var o = ctx.options || {};
+        var url = o.url || (ctx.element && (ctx.element.href || ctx.element.getAttribute('data-url')));
+        if (!url) { showMessage('download 缺少 url', 'warning'); return; }
+        var a = document.createElement('a');
+        a.href = url; a.download = o.filename || o.name || '';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    download._events = ['click'];
+    download._label = '下载文件';
+    download._doc = '下载文件：url + filename/name';
+
+    // ---- setattr：设置元素属性/样式/文本/HTML ----
+    // dyn-click-setattr='{"selector":"#x","attr":{"title":"新标题"},"style":{"color":"red"},"text":"新文本","html":"<b>x</b>"}'
+    function setattr(ctx) {
+        var o = ctx.options || {};
+        var el = o.selector ? (typeof o.selector === 'string' ? document.querySelector(o.selector) : o.selector) : ctx.element;
+        if (!el) { showMessage('setattr 未找到元素', 'warning'); return; }
+        if (o.attr) Object.keys(o.attr).forEach(function (k) { el.setAttribute(k, o.attr[k]); });
+        if (o.style) Object.keys(o.style).forEach(function (k) { el.style[k] = o.style[k]; });
+        if (o.text !== undefined) el.textContent = o.text;
+        if (o.html !== undefined) el.innerHTML = o.html;
+    }
+    setattr._events = ['click'];
+    setattr._label = '设置元素';
+    setattr._doc = '设置元素：attr(属性)/style(样式)/text/html(内容)，selector 定位';
+
+    // 注册扩展动作到 actionHelper（挂方法即动作，autoBindActions 自动纳入委托与元数据登记）
+    actionHelper.openwindow = openwindow;
+    actionHelper.setwindow = setwindow;
+    actionHelper.setdyncom = setdyncom;
+    actionHelper.toast = toast;
+    actionHelper.copy = copy;
+    actionHelper.download = download;
+    actionHelper.setattr = setattr;
+    // 动作清单函数：返回所有已注册动作的 {name,label,doc,events}
+    function actionList() {
+        return Object.keys(_actionMeta).map(function (k) { return Object.assign({}, _actionMeta[k]); });
+    }
+
+
     /* ---------------- 事件总线（跨组件解耦通信：设计器等场景） ---------------- */
 
     var _busListeners = {};
@@ -1026,6 +1287,7 @@
         actionEvents: ACTION_EVENTS.slice(),
         /* --- 约定式动作（actionHelper）：挂方法即动作 --- */
         actionHelper: actionHelper,
+        actionList: actionList, // 动作清单：{name,label,doc,events}
         autoBindActions: autoBindActions,
         rebind: autoBindActions,
         updateEl: updateEl,

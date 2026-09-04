@@ -1,4 +1,4 @@
-@model VueLib.Web.Models.DynRunSummaryModel
+﻿@model VueLib.Web.Models.DynRunSummaryModel
 @using VueLib.Web.Models
 @using Newtonsoft.Json
 @using VueLib.Web.Controllers
@@ -78,8 +78,15 @@
 
             <el-button type="primary"
                        dyn-click-postback='{"url":"@summaryUrl","resetPage":true}'>查询</el-button>
-            <el-button type="success"
-                       dyn-click-open='{"url":"@detailUrl","params":{"id":0},"title":"新增","width":"640px"}'>新增</el-button>
+            @if (!string.IsNullOrWhiteSpace(def.AddUrl))
+{
+    <a class="el-button el-button--success" href="@def.AddUrl" target="_blank">新增</a>
+}
+else
+{
+    <el-button type="success"
+               dyn-click-open='{"url":"@detailUrl","params":{"id":0},"title":"新增","width":"640px"}'>新增</el-button>
+}
         </div>
     </div>
 

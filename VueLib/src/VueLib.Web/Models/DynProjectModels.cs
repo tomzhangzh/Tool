@@ -1,4 +1,4 @@
-using SqlSugar;
+﻿using SqlSugar;
 
 namespace VueLib.Web.Models;
 
@@ -110,6 +110,8 @@ public class DynPageDefinition
     public string? OrderBy { get; set; }
     /// <summary>默认排序方向 asc/desc</summary>
     public string OrderDir { get; set; } = "desc";
+    /// <summary>自定义"新增"入口 url（如跳转打卡页）；空 → 默认打开详情新增表单</summary>
+    public string? AddUrl { get; set; }
     public List<DynColumnDef> Columns { get; set; } = new();
 
     /// <summary>外键导航配置（列表/详情时按外键注入关联数据）</summary>
