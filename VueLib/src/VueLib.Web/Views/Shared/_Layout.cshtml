@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8" />
@@ -29,5 +29,7 @@
     <script src="~/js/app.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)
+    <!-- ExecJS 注册的 dyn 动作（控制器 this.ExecJS(...) 输出，dyn-lib 初始化时自动执行） -->
+    @Html.RenderDynActions()
 </body>
 </html>

@@ -250,7 +250,8 @@ var comConfig = {
             },
             onDragAdd(evt) {
                 if (lcDesigner?.onContainerDragAdd) lcDesigner.onContainerDragAdd(evt, props.jsonconfig);
-            }
+            },
+            ...(typeof comExtra !== 'undefined' ? comExtra : {})
         };
     }
 };

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * preview.js - 手机预览页面逻辑
  * 支持设计模式拖拽：拖到指定容器、容器内排序、从左侧添加新组件
  */
@@ -109,6 +109,10 @@ function getUrlParam(name) {
         if (window.nutui) {
             const nutuiObj = window.nutui.default || window.nutui;
             app.use(nutuiObj);
+        if (window.ElementPlus) app.use(ElementPlus);
+        if (window.ElementPlusIconsVue) {
+            Object.keys(window.ElementPlusIconsVue).forEach(function (k) { app.component(k, window.ElementPlusIconsVue[k]); });
+        }
             for (const key in nutuiObj) {
                 const comp = nutuiObj[key];
                 if (comp && (typeof comp === 'object' || typeof comp === 'function') && comp.name && comp.render) {

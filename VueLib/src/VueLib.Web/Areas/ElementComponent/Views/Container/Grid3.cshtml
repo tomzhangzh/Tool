@@ -1,0 +1,95 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <!-- 3 屏管理组件（Filter + Grid + Detail）ElementUI 版：标题 + 搜索/清除/添加按钮 + Filter 面板 + List 面板 -->
+    <div v-if="isDesignFE" class="dyn-grid lc-container"
+         style="border:1px dashed #dcdfe6;border-radius:6px;padding:14px 16px;background:#fafafa;">
+        <div style="font-size:13px;color:#303133;margin-bottom:8px;">
+            <b style="color:#409eff;">3 屏管理组件（Filter + Grid + Detail）</b>
+        </div>
+        <div style="font-size:12px;color:#909399;line-height:1.8;">
+            属性：pageTitle / featureUrl（未单独配置时 filterUrl·listUrl·editUrl·addUrl·deleteUrl 自动取 功能URL/FilterPanel、功能URL/ListPanel、功能URL/Detail、功能URL/Data/Delete）/ projectId / pageId / detailPageId / defaultLoad（默认加载汇总）
+        </div>
+    </div>
+    <div v-else class="dyn-grid"
+         :data-filter-url="filterUrl"
+         :data-list-url="listUrl"
+         :data-add-url="addUrl"
+         :data-edit-url="editUrl"
+         :data-delete-url="deleteUrl">
+        <!-- 头部：标题 + 操作按钮 -->
+        <div class="dyn-grid-head"
+             style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+            <h3 class="dyn-grid-title" style="margin:0;font-size:17px;color:#303133;">{{ title }}</h3>
+            <div class="dyn-grid-actions" style="display:flex;gap:8px;">
+                <el-button v-if="showSearch" type="primary" dyn-click-grid='{"action":"search"}'>
+                    <el-icon><Search /></el-icon><span style="margin-left:4px;">搜索</span>
+                </el-button>
+                <el-button v-if="showClear" dyn-click-grid='{"action":"clear"}'>
+                    <el-icon><RefreshLeft /></el-icon><span style="margin-left:4px;">清除</span>
+                </el-button>
+                <el-button v-if="showAdd" type="success" dyn-click-grid='{"action":"add","title":"新增","width":"720px"}'>
+                    <el-icon><Plus /></el-icon><span style="margin-left:4px;">添加</span>
+                </el-button>
+            </div>
+        </div>
+        <!-- Filter 面板（dyn-lib 从 filterUrl 加载并挂载） -->
+        <div ref="filterEl" class="dyn-grid-filter" :data-dyn-url="filterUrl"
+             style="background:#fff;border:1px solid #ebeef5;border-radius:6px;padding:12px 16px;margin-bottom:12px;"></div>
+        <!-- List 面板（dyn-lib 从 listUrl 加载并挂载） -->
+        <div ref="listEl" class="dyn-grid-list" :data-dyn-url="listUrl"
+             style="background:#fff;border:1px solid #ebeef5;border-radius:6px;padding:12px 16px;"></div>
+    </div>
+</template>
+
+@section setupScripts{
+    // ===== 3 屏管理组件（Filter + Grid + Detail）ElementUI 版 =====
+    // options.comoptions: { pageTitle, featureUrl, projectId, pageId, detailPageId,
+    //   filterUrl, listUrl, editUrl, addUrl, deleteUrl, defaultLoad, showSearch, showClear, showAdd }
+    const isDesignFE = computed(() => !!(designShared));
+    const gOpts = computed(() => jc.options?.comoptions || {});
+
+    const title = computed(() => gOpts.value.pageTitle || '数据管理');
+    const featureUrl = computed(() => gOpts.value.featureUrl || '');
+    const projectId = computed(() => gOpts.value.projectId || '');
+    const pageId = computed(() => gOpts.value.pageId || '');
+    const detailPageId = computed(() => gOpts.value.detailPageId || gOpts.value.pageId || '');
+    const defaultLoad = computed(() => gOpts.value.defaultLoad !== false);
+    const showSearch = computed(() => gOpts.value.showSearch !== false);
+    const showClear = computed(() => gOpts.value.showClear !== false);
+    const showAdd = computed(() => gOpts.value.showAdd !== false);
+
+    // 功能 URL 模式：featureUrl + 固定动作后缀；各 URL 可单独覆盖
+    function u(base, extra) {
+        const q = String(base).indexOf('?') >= 0 ? '&' : '?';
+        return base + q + 'projectId=' + projectId.value + '&pageId=' + (extra || pageId.value);
+    }
+    const filterUrl = computed(() => gOpts.value.filterUrl || (featureUrl.value ? u(featureUrl.value + '/FilterPanel') : ''));
+    const listUrl = computed(() => gOpts.value.listUrl || (featureUrl.value ? u(featureUrl.value + '/ListPanel') : ''));
+    const editUrl = computed(() => gOpts.value.editUrl || (featureUrl.value ? u(featureUrl.value + '/Detail', detailPageId.value) : ''));
+    const addUrl = computed(() => gOpts.value.addUrl || (featureUrl.value ? u(featureUrl.value + '/Detail', detailPageId.value) : ''));
+    const deleteUrl = computed(() => gOpts.value.deleteUrl || (featureUrl.value ? u(featureUrl.value + '/Data/Delete') : ''));
+
+    const filterEl = ref(null);
+    const listEl = ref(null);
+
+    function gridLoad(el, url) {
+        if (!el || !url) return;
+        try {
+            el.setAttribute('data-dyn-url', url);
+            if (window.dyn && window.dyn.updateEl) window.dyn.updateEl(el, url, {});
+        } catch (e) { console.error('[Grid3] 面板加载失败', e); }
+    }
+    onMounted(() => {
+        if (isDesignFE.value) return;
+        // 加载 Filter 面板（查询条件）
+        gridLoad(filterEl.value, filterUrl.value);
+        // 默认加载 List 面板（汇总数据）
+        if (defaultLoad.value) gridLoad(listEl.value, listUrl.value);
+    });
+
+    // 暴露组件特有变量给模板（_ElementLayout 展开 comExtra）；filterEl/listEl 必须返回供模板 ref 绑定
+    const comExtra = { isDesignFE, title, filterUrl, listUrl, editUrl, addUrl, deleteUrl, defaultLoad, showSearch, showClear, showAdd, filterEl, listEl };
+}

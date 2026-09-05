@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using System.Text.Json;
+using VueLib.Web.Infrastructure;
 
 namespace VueLib.Web.Controllers;
 
@@ -79,5 +80,37 @@ public class DynDemoController : Controller
                     + "<div style=\"font-size:12px;color:#909399;\">reload 收到参数：<code>" + WebUtility.HtmlEncode(recv) + "</code></div>"
                     + "</div>";
         return Content(html, "text/html");
+    }
+
+    /// <summary>
+    /// ExecJS 机制 Demo：控制器用 this.ExecJS(...) 注册 dyn 动作，
+    /// 视图末尾 @Html.RenderDynActions() 输出为隐藏 div（dyn-init-*），dyn-lib 页面初始化时自动执行。
+    /// </summary>
+    public IActionResult ExecJsDemo()
+    {
+        this.ExecJS(
+            new FlashMessageJavaScript { Message = "ExecJS 演示：页面加载后自动执行", Type = "success", Title = "dyn-lib" },
+            new SetWindowJavaScript { Title = "ExecJS 演示（DynCommon 公共接口）", Width = 1150, Height = 780 }
+        );
+        return View();
+    }
+
+    /// <summary>
+    /// JSON 携带 actions 指令（Shapeless 模式）：返回 { success, message, actions:[...] }，
+    /// dyn-lib 的 postback/postdata 收到 JSON 后自动逐个执行 actions（此处演示 showmessage + setwindow）。
+    /// </summary>
+    [HttpPost]
+    public IActionResult SaveWithActions([FromBody] JsonElement model)
+    {
+        return Json(new
+        {
+            success = true,
+            message = "保存成功",
+            actions = new object[]
+            {
+                new { action = "showmessage", options = new { message = "保存成功！(JSON actions 自动执行)", type = "success", title = "提示" } },
+                new { action = "setwindow", options = new { title = "已保存 - " + DateTime.Now.ToString("HH:mm:ss"), close = false } }
+            }
+        });
     }
 }

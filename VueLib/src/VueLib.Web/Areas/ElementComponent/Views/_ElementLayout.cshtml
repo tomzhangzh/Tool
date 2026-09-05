@@ -134,7 +134,8 @@ var comConfig = {
         return {
             modelinfo, comInnerInfo, validate, resetValidation,
             getStyle, getClass, getComlisteners, safeChildren, jc, props, context,
-            designShared, parentConfig, parentCom, DVALUE, fullModelName
+            designShared, parentConfig, parentCom, DVALUE, fullModelName,
+            ...(typeof comExtra !== 'undefined' ? comExtra : {})
         };
     }
 };

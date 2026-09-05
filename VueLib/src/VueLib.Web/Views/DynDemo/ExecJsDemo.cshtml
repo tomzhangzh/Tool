@@ -1,0 +1,113 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <title>ExecJS 机制 & DynCommon 公共接口 Demo</title>
+    <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/nutui.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/nutui-icons.css" asp-append-version="true" />
+    <style>
+        body { font-family: 'Segoe UI', 'PingFang SC', Arial, sans-serif; margin: 0; background: #f4f4f5; padding: 20px; }
+        .demo-card { background: #fff; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+        .demo-card h3 { margin: 0 0 10px; font-size: 15px; color: #303133; }
+        .demo-card p.desc { margin: 0 0 12px; font-size: 12px; color: #909399; }
+        .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        input.txt { height: 30px; padding: 0 8px; border: 1px solid #dcdfe6; border-radius: 4px; min-width: 320px; font-size: 13px; }
+        .btn { display: inline-block; padding: 7px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; background: #409eff; color: #fff; }
+        .btn.success { background: #67c23a; }
+        code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div dyn-init>
+    <div class="demo-card">
+        <h3>① ExecJS 机制（Controller 注册 → 布局输出 dyn-init-* → dyn-lib 自动执行）</h3>
+        <p class="desc">
+            控制器 <code>this.ExecJS(new FlashMessageJavaScript{...}, new SetWindowJavaScript{...})</code>，
+            视图末尾 <code>@@Html.RenderDynActions()</code> 输出隐藏 div。
+            本页加载后已自动弹出「保存成功」消息并设置窗口标题/尺寸（由 ExecJS 注册的 dyn-init-showmessage / dyn-init-setwindow 触发）。
+        </p>
+        <div class="row">
+            <a href="/DynDemo/ExecJsDemo" class="btn">刷新页面（重新触发 ExecJS）</a>
+        </div>
+    </div>
+
+    <div class="demo-card">
+        <h3>② 公共 SQL 下拉接口（DynCommon/Project/Options）</h3>
+        <p class="desc">接受一条 SQL，返回 <code>[{value,text}]</code> 下拉选项（取结果集第 1、2 列；可指定 valueField/textField）。</p>
+        <div class="row">
+            <input class="txt" id="sqlInput" value="SELECT Id, Name FROM [Customer] ORDER BY Id" style="min-width:420px" />
+            <button class="btn" id="btnLoadSql" onclick="loadSqlOptions()">加载下拉</button>
+        </div>
+        <div class="row" style="margin-top:12px;">
+            <label style="font-size:13px;">下拉（value=Id, text=Name）：</label>
+            <el-select id="sqlSelect" v-model="model.sel" placeholder="选择客户" clearable style="width:220px">
+                <el-option v-for="o in model.sqlOpts" :key="o.value" :label="o.text" :value="o.value"></el-option>
+            </el-select>
+        </div>
+    </div>
+
+    <div class="demo-card">
+        <h3>③ JSON 携带 actions 指令（Shapeless 模式）</h3>
+        <p class="desc">
+            点击按钮 postdata 到后端，后端返回 <code>{ success, message, actions:[...] }</code>，
+            dyn-lib 的 postback 处理 JSON 时自动执行 actions（本例：showmessage + setwindow 改标题）。
+        </p>
+        <div class="row">
+            <el-button type="primary"
+                       dyn-click-postdata='{"url":"/DynDemo/SaveWithActions"}'>保存（触发 JSON actions）</el-button>
+        </div>
+    </div>
+
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function ({ model }) {
+                model.sel = '';
+                model.sqlOpts = [];
+                return {
+                    // 供 onclick 使用：加载 SQL 下拉
+                    loadSqlOptions: function () {
+                        var sql = document.getElementById('sqlInput').value || '';
+                        var url = '/DynCommon/Project/Options?projectId=1&sql=' + encodeURIComponent(sql);
+                        fetch(url).then(function (r) { return r.json(); }).then(function (res) {
+                            if (!res || !res.success) { alert((res && res.message) || '加载失败'); return; }
+                            model.sqlOpts = res.data || [];
+                            alert('已加载 ' + model.sqlOpts.length + ' 个选项');
+                        }).catch(function (e) { alert('请求失败: ' + e); });
+                    }
+                };
+            }
+        };
+    </script>
+</div>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/js/vue.global.prod.js"></script>
+<script src="~/js/lodash.min.js"></script>
+<script src="~/js/element-plus.full.min.js"></script>
+<script src="~/js/element-plus-icons.min.js"></script>
+<script src="~/js/nutui.umd.min.js"></script>
+<script src="~/js/dyn-lib.js"></script>
+<script>
+    // 演示：onclick 调用 dynConfig 暴露的 loadSqlOptions（dyn-init 挂载后可用）
+    function loadSqlOptions() {
+        var hosts = document.querySelectorAll('[dyn-init]');
+        if (hosts.length && hosts[0].__dynApp && hosts[0].__dynApp._instance) {
+            var proxy = hosts[0].__dynApp._instance.proxy;
+            if (proxy && proxy.loadSqlOptions) { proxy.loadSqlOptions(); return; }
+        }
+        // 未挂载完成则重试
+        setTimeout(loadSqlOptions, 300);
+    }
+</script>
+@Html.RenderDynActions()
+<script>
+    // dyn-lib 是工具库，由页面决定启动时机：初始化全部 dyn-init 应用 + 执行 dyn-init-* 动作（含 ExecJS 注册的）
+    dyn.initAll();
+</script>
+</body>
+</html>

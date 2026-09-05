@@ -10,4 +10,7 @@ public class ContainerController : Controller
     public IActionResult Row() => View();
     public IActionResult Col() => View();
     public IActionResult Tabs() => View();
+    public IActionResult ForEach() => View();
+    public IActionResult Fragment() => View();
+    public IActionResult Grid3() => View();
 }

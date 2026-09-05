@@ -1,4 +1,4 @@
-﻿/* ============================================================================
+/* ============================================================================
  * dyn-lib.js  —— 属性驱动的动态 UI jsLib（Vue3 UMD + jQuery + lodash + Element Plus）
  * ----------------------------------------------------------------------------
  * 一句话：把"服务器渲染的 HTML + 属性标记"变成"可交互的 Vue 应用"，并让局部
@@ -444,7 +444,7 @@
         // url 读取优先级：显式 opts.url → __dynCfg.url → data-dyn-url → data-url
         var cfg = targetEl.__dynCfg || {};
         var url = opts.url || cfg.url || targetEl.getAttribute('data-dyn-url') || targetEl.getAttribute('data-url');
-        if (!url) { console.warn('[dyn-lib] reload 目标缺少 url（data-url / data-dyn-url / __dynCfg.url）', targetEl); return Promise.resolve(null); }
+        if (!url) { if (opts.url === undefined && !cfg.url) return Promise.resolve(null); console.warn('[dyn-lib] reload 目标缺少 url（data-url / data-dyn-url / __dynCfg.url）', targetEl); return Promise.resolve(null); }
 
         // 参数三层合并：固定(__dynCfg.params) → Vue model → form；显式 opts.params 最后覆盖
         var params = collectParams(targetEl, opts.params);
@@ -543,10 +543,45 @@
             if (proxy && proxy.model) Object.assign(proxy.model, res);
             if (opts.reload) reload(opts.reload);
             if (opts.message) showMessage(opts.message, 'success');
+            // Shapeless 模式：JSON 顶层 actions 指令 → 逐个执行（showmessage/setwindow/chain/reload 等）
+            runJsonActions(res, ancEl);
             return;
         }
 
         if (opts.message) showMessage(opts.message, 'success');
+    }
+
+    /* ---------------- JSON 动作指令（Shapeless 模式） ----------------
+     * 后端返回 JSON 时可在顶层携带 actions 数组，dyn-lib 拿到后自动执行：
+     *   { action: 'setwindow', options: {...} }        → 调用已注册动作
+     *   { action: 'chain', options: { steps: [...] } } → 动作链
+     *   { script: 'window.location=...' }               → 直接执行 JS
+     */
+    function runJsonActions(res, rootEl) {
+        if (!res || typeof res !== 'object' || !Array.isArray(res.actions) || !res.actions.length) return;
+        var root = rootEl || document.body;
+        res.actions.forEach(function (item) {
+            if (!item || typeof item !== 'object') return;
+            try {
+                if (item.script) {
+                    // eslint-disable-next-line no-new-func
+                    new Function('ctx', 'return (' + item.script + ')')({});
+                    return;
+                }
+                var name = item.action;
+                var fn = resolveAction(name);
+                if (!fn) { console.warn('[dyn-lib] JSON 动作未注册: ' + name, item); return; }
+                var fakeEl = document.createElement('div');
+                fakeEl.style.display = 'none';
+                if (root && root.nodeType === 1) root.appendChild(fakeEl);
+                var ctx = buildCtx(fakeEl, 'init', null, item.options || {}, name);
+                Promise.resolve(fn(ctx)).catch(function (err) {
+                    console.error('[dyn-lib] JSON 动作执行失败: ' + name, err);
+                });
+            } catch (err) {
+                console.error('[dyn-lib] JSON 动作执行异常', err);
+            }
+        });
     }
 
     /* ---------------- 模态 ---------------- */
@@ -1221,6 +1256,112 @@
     actionHelper.copy = copy;
     actionHelper.download = download;
     actionHelper.setattr = setattr;
+    // ---- showmessage：显示消息提示（复用 dyn 内部 showMessage，自动探测 ElementPlus/NutUI/LayUI） ----
+    // dyn-click-showmessage='{"message":"保存成功","type":"success","title":"提示"}'
+    function showmessage(ctx) {
+        var o = ctx.options || {};
+        showMessage(o.message || '操作成功', o.type || 'success');
+    }
+    showmessage._events = ['click'];
+    showmessage._label = '消息提示';
+    showmessage._doc = '显示消息提示：message / type(success|error|warning|info)';
+
+    // ---- redirect：页面跳转 ----
+    // dyn-click-redirect='{"url":"/Home/Index"}'
+    function redirect(ctx) {
+        var o = ctx.options || {};
+        var url = o.url || o.href;
+        if (url) window.location.href = url;
+    }
+    redirect._events = ['click'];
+    redirect._label = '页面跳转';
+    redirect._doc = '跳转到指定 URL：url';
+
+    actionHelper.showmessage = showmessage;
+    actionHelper.redirect = redirect;
+
+    // ---- grid：3屏管理组件动作（Filter + Grid + Detail） ----
+    // 用法：dyn-click-grid='{"action":"search|clear|add|edit|delete|load","confirm":"..","title":"..","width":"..","id":1}'
+    // 容器约定：组件根元素 class="dyn-grid"，并带 data-filter-url / data-list-url / data-add-url / data-edit-url / data-delete-url
+    // 行为：search=序列化 filter 区域 → 设置到 list 的 model.Filter → list 重新 load；clear=清空 filter 后同上；
+    //       add=open 模态加载 addUrl（带 id=0）；edit=open 模态加载 editUrl（带行 id）；
+    //       delete=confirm 后 POST deleteUrl 并刷新 list；load=仅刷新 list
+    function grid(ctx) {
+        var o = ctx.options || {};
+        var el = ctx.element;
+        var host = el && el.closest ? el.closest('.dyn-grid') : null;
+        if (!host) { showMessage('未找到 3 屏管理组件容器（.dyn-grid）', 'error'); return; }
+        var act = String(o.action || 'search').toLowerCase();
+        function attr(n) { return host.getAttribute('data-' + n + '-url') || ''; }
+        var urls = { filter: attr('filter'), list: attr('list'), add: attr('add'), edit: attr('edit'), del: attr('delete') };
+        var filterEl = host.querySelector('.dyn-grid-filter');
+        var listEl = host.querySelector('.dyn-grid-list');
+        var rowId = o.id != null ? o.id
+            : (ctx.params && ctx.params.id != null ? ctx.params.id
+                : (ctx.params && ctx.params['data-id'] != null ? ctx.params['data-id'] : null));
+
+        // 序列化 filter 区域输入（name 驱动）→ 过滤空值 → 设置到 list 的 model.Filter
+        function applyFilter() {
+            var f = {};
+            if (filterEl) {
+                var ser = serializeForm(filterEl) || {};
+                Object.keys(ser).forEach(function (k) {
+                    var v = ser[k];
+                    if (v !== '' && v != null && !(Array.isArray(v) && v.length === 0)) f[k] = v;
+                });
+            }
+            if (listEl) setVueModel({ element: listEl, options: {} }, 'Filter', f);
+            return f;
+        }
+        function loadList(f) {
+            if (!urls.list) { showMessage('未配置 listUrl（data-list-url）', 'error'); return; }
+            // 筛选值包成 { Filter: f } 匹配后端 DynSummaryPost.Filter；无筛选时传空对象触发默认查询
+            return reload(listEl, { url: urls.list, params: f && Object.keys(f).length ? { Filter: f } : {} });
+        }
+        function clearFilterInputs(root) {
+            if (!root) return;
+            var inputs = [].slice.call(root.querySelectorAll('input, select, textarea'));
+            inputs.forEach(function (inp) {
+                var t = (inp.type || '').toLowerCase();
+                if (t === 'checkbox' || t === 'radio') { inp.checked = false; }
+                else if (inp.tagName === 'SELECT') { inp.selectedIndex = 0; }
+                else { inp.value = ''; }
+            });
+            inputs.forEach(function (inp) {
+                inp.dispatchEvent(new Event('input', { bubbles: true }));
+                inp.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+
+        if (act === 'search') return loadList(applyFilter());
+        if (act === 'clear') { clearFilterInputs(filterEl); return loadList(applyFilter()); }
+        if (act === 'load') return loadList();
+        if (act === 'add') {
+            if (!urls.add) { showMessage('未配置 addUrl（data-add-url）', 'error'); return; }
+            return open({ url: urls.add, params: { id: 0 }, title: o.title || '新增', width: o.width || '720px' }, el);
+        }
+        if (act === 'edit') {
+            if (!urls.edit) { showMessage('未配置 editUrl（data-edit-url）', 'error'); return; }
+            if (rowId == null) { showMessage('缺少记录 ID', 'warning'); return; }
+            return open({ url: urls.edit, params: { id: rowId }, title: o.title || '编辑', width: o.width || '720px' }, el);
+        }
+        if (act === 'delete') {
+            if (!urls.del) { showMessage('未配置 deleteUrl（data-delete-url）', 'error'); return; }
+            if (rowId == null) { showMessage('缺少记录 ID', 'warning'); return; }
+            var doDel = function () {
+                // id 走 URL query（后端 int id 参数从 query 绑定），body 仅保留筛选参数
+                var delUrl = urls.del + (urls.del.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(rowId);
+                return postback(el, { url: delUrl, reload: listEl, message: o.message || '已删除' });
+            };
+            if (o.confirm) return confirmAsync(o.confirm).then(function (ok) { if (ok) return doDel(); });
+            return doDel();
+        }
+        showMessage('未知 grid 动作: ' + act, 'error');
+    }
+    grid._events = ['click'];
+    grid._label = '3屏管理';
+    grid._doc = '3屏管理组件（Filter+Grid+Detail）：action=search|clear|add|edit|delete|load；容器需 .dyn-grid + data-filter/list/add/edit/delete-url；行 id 取 data-id';
+    actionHelper.grid = grid;
     // 动作清单函数：返回所有已注册动作的 {name,label,doc,events}
     function actionList() {
         return Object.keys(_actionMeta).map(function (k) { return Object.assign({}, _actionMeta[k]); });
@@ -1286,7 +1427,11 @@
         }
         if (!src) src = el;
         if (!src) return null;
-        var host = closestDynInit(src) || src;
+        // 优先命中自身或后代最近的 dyn-init（面板类容器 app 常挂在内部 div 上），再向上找祖先
+        var host = null;
+        if (src.hasAttribute && src.hasAttribute('dyn-init')) host = src;
+        else if (src.querySelector) host = src.querySelector('[dyn-init]');
+        if (!host) host = closestDynInit(src) || src;
         return getModel(host);
     }
 

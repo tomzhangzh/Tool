@@ -1,0 +1,57 @@
+@model VueLib.Web.Models.DynRunSummaryModel
+@using VueLib.Web.Models
+@using Newtonsoft.Json
+@using VueLib.Web.Controllers
+@{
+    var def = Model.Def ?? new DynPageDefinition();
+    var modelJson = DynRunController.JsonModel(new { Filter = Model.Filter });
+}
+
+<!-- 3 屏组件 · 筛选面板：仅查询条件控件（按钮由 3 屏组件头部提供），控件带 name 供 dyn-lib serializeForm 序列化 -->
+<div class="dyn-filter-panel" dyn-init='{}'>
+    <script type="application/json" tag="dynmodel">@Html.Raw(modelJson)</script>
+    <div class="dyn-filter">
+        @foreach (var c in def.Columns.Where(x => x.IsFilter && x.Control != "switch").OrderBy(x => x.Order))
+        {
+            if (c.Control == "select")
+            {
+                <el-form-item label="@c.Label" class="dyn-f-item">
+                    <el-select v-model="model.Filter.@c.Name" name="@c.Name" placeholder="请选择@(c.Label)" clearable style="width:150px">
+                        @foreach (var o in c.Options)
+                        {
+                            <el-option label="@o.Label" value="@o.Value"></el-option>
+                        }
+                    </el-select>
+                </el-form-item>
+            }
+            else if (c.Control == "input-number")
+            {
+                <el-form-item label="@c.Label" class="dyn-f-item">
+                    <el-input-number v-model="model.Filter.@c.Name" name="@c.Name" :controls="false" style="width:140px"></el-input-number>
+                </el-form-item>
+            }
+            else if (c.Control == "date")
+            {
+                <el-form-item label="@c.Label" class="dyn-f-item">
+                    <el-date-picker v-model="model.Filter.@c.Name" name="@c.Name" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:150px"></el-date-picker>
+                </el-form-item>
+            }
+            else if (c.Control == "datetime")
+            {
+                <el-form-item label="@c.Label" class="dyn-f-item">
+                    <el-date-picker v-model="model.Filter.@c.Name" name="@c.Name" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="选择时间" style="width:170px"></el-date-picker>
+                </el-form-item>
+            }
+            else
+            {
+                <el-form-item label="@c.Label" class="dyn-f-item">
+                    <el-input v-model="model.Filter.@c.Name" name="@c.Name" placeholder="请输入@(c.Label)" clearable style="width:150px"></el-input>
+                </el-form-item>
+            }
+        }
+        @if (!def.Columns.Any(x => x.IsFilter && x.Control != "switch"))
+        {
+            <span style="font-size:12px;color:#909399;">该页面未配置筛选列（DynPage 定义中 IsFilter=true 的列）</span>
+        }
+    </div>
+</div>

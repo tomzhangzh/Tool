@@ -1,0 +1,116 @@
+@model VueLib.Web.Models.DynRunSummaryModel
+@using VueLib.Web.Models
+@using Newtonsoft.Json
+@using VueLib.Web.Controllers
+@{
+    var def = Model.Def ?? new DynPageDefinition();
+    var projId = Model.Project!.Id;
+    var pageId = Model.Page!.Id;
+    var pk = def.PrimaryKey;
+    var pageSize = def.PageSize > 0 ? def.PageSize : 10;
+
+    var listUrl = $"/DynCommon/DynCommon/ListPanel?projectId={projId}&pageId={pageId}";
+    var listUrlJs = JsonConvert.SerializeObject(listUrl);
+
+    var modelJson = DynRunController.JsonModel(new
+    {
+        Filter = Model.Filter,
+        Rows = Model.Result?.Rows ?? new List<Dictionary<string, object?>>(),
+        PageInfo = new
+        {
+            CurrentPage = Model.Result?.PageIndex ?? 1,
+            PageSize = Model.Result?.PageSize ?? pageSize,
+            TotalCount = Model.Result?.TotalCount ?? 0,
+            TotalPages = Model.Result?.TotalPages ?? 0
+        }
+    });
+}
+
+<!-- 3 屏组件 · 列表面板：仅表格 + 分页 + 操作列（操作按钮用 dyn-click-grid，行 id 通过 data-id 传递） -->
+<div class="dyn-list-panel" dyn-init='{}'>
+    <script type="application/json" tag="dynmodel">@Html.Raw(modelJson)</script>
+    <el-table ref="tableRef" :data="model.Rows" border stripe size="default" v-loading="loading"
+              :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }"
+              empty-text="暂无数据">
+        @foreach (var c in def.Columns.Where(x => x.IsGrid).OrderBy(x => x.Order))
+        {
+            if (c.DbType == "bool")
+            {
+                <el-table-column label="@c.Label" width="@(c.Width > 0 ? c.Width : 90)" align="center">
+                    <template #default="scope">
+                        <el-tag :type="scope.row.@c.Name ? 'success' : 'info'" size="small">{{ scope.row.@c.Name ? '是' : '否' }}</el-tag>
+                    </template>
+                </el-table-column>
+            }
+            else
+            {
+                <el-table-column prop="@c.Name" label="@c.Label" width="@(c.Width > 0 ? c.Width : 130)" show-overflow-tooltip></el-table-column>
+            }
+        }
+        <el-table-column label="操作" width="150" fixed="right">
+            <template #default="scope">
+                <el-button type="primary" size="small" link
+                           dyn-click-grid='{"action":"edit","title":"编辑","width":"720px"}'
+                           :data-id="scope.row.@pk">
+                    <el-icon><Edit /></el-icon>编辑
+                </el-button>
+                <el-button type="danger" size="small" link
+                           dyn-click-grid='{"action":"delete","confirm":"确定删除该记录吗？"}'
+                           :data-id="scope.row.@pk">
+                    <el-icon><Delete /></el-icon>删除
+                </el-button>
+            </template>
+        </el-table-column>
+    </el-table>
+
+    <!-- 分页 -->
+    <div class="dyn-pager" style="margin-top:12px;text-align:right;">
+        <el-pagination
+            v-model:current-page="model.PageInfo.CurrentPage"
+            v-model:page-size="model.PageInfo.PageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="model.PageInfo.TotalCount"
+            layout="total, sizes, prev, pager, next, jumper"
+            background
+            @@current-change="onPageChange"
+            @@size-change="onSizeChange"></el-pagination>
+    </div>
+
+    <!-- 组件配置：分页回调（更新 model 后重新 POST 到 ListPanel 刷新） -->
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function ({ model, element }) {
+                return {
+                    onPageChange: function (page) {
+                        model.PageInfo.CurrentPage = page || 1;
+                        dyn.postback(element, { url: @Html.Raw(listUrlJs) });
+                    },
+                    onSizeChange: function (size) {
+                        model.PageInfo.PageSize = size || 10;
+                        model.PageInfo.CurrentPage = 1;
+                        dyn.postback(element, { url: @Html.Raw(listUrlJs) });
+                    }
+                };
+            },
+            mounted: function () {
+                var self = this;
+                var timer = null;
+                var relayout = function () {
+                    if (timer) clearTimeout(timer);
+                    timer = setTimeout(function () {
+                        var t = self.$refs.tableRef;
+                        if (t && t.doLayout) t.doLayout();
+                    }, 100);
+                };
+                this.__dynRelayout = relayout;
+                window.addEventListener('resize', relayout);
+            },
+            unmounted: function () {
+                if (this.__dynRelayout) {
+                    window.removeEventListener('resize', this.__dynRelayout);
+                    this.__dynRelayout = null;
+                }
+            }
+        };
+    </script>
+</div>

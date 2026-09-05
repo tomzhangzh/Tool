@@ -27,6 +27,23 @@
 <body>
 
     <div id="demo-app" dyn-init='{"count":0,"msg":"初始状态","user":{"name":"","age":0},"items":[{"name":"item0"},{"name":"item1"}]}'>
+
+        <!-- ============ Demo 总目录 ============ -->
+        <div class="demo-card" style="border:1px solid #409eff;background:#f5f9ff;">
+            <h3 style="color:#409eff;">📂 VueLib Demo 总目录</h3>
+            <div class="demo-row" style="gap:8px;">
+                <a href="/DynDemo/Index" class="btn" style="text-decoration:none;">① dyn-lib 动作委托 Demo（本页）</a>
+                <a href="/DynDemo/ExecJsDemo" class="btn" style="text-decoration:none;background:#67c23a;">② ExecJS 机制 &amp; DynCommon 公共接口</a>
+                <a href="/designer/preview?code=foreach-demo" class="btn" style="text-decoration:none;background:#e6a23c;" target="_blank">③ ForEach / Fragment 组件 Demo</a>
+                <a href="/DynRun/Index?projectId=1" class="btn" style="text-decoration:none;background:#909399;" target="_blank">④ 动态运行（工程路由）</a>
+                <a href="/designer" class="btn" style="text-decoration:none;background:#9c27b0;" target="_blank">⑤ 页面设计器</a>
+            </div>
+            <div style="font-size:12px;color:#909399;margin-top:6px;">
+                每个 Demo 独立可访问；<code>dyn-lib</code> 是工具库，页面自行调用 <code>dyn.initAll()</code> 启动。
+            </div>
+        </div>
+        <!-- ============ Demo 总目录 End ============ -->
+
         <div class="demo-card">
             <h3>① 内置动作 postdata（POST Model → 后端返回 JSON 合并进 Model）</h3>
             <div class="demo-row">

@@ -1,0 +1,179 @@
+﻿@model VueLib.Web.Models.DynRunSummaryModel
+@using VueLib.Web.Models
+@using Newtonsoft.Json
+@using VueLib.Web.Controllers
+@{
+    var def = Model.Def ?? new DynPageDefinition();
+    var projId = Model.Project!.Id;
+    var pageId = Model.Page!.Id;
+    var pageSize = def.PageSize > 0 ? def.PageSize : 10;
+
+    var filterUrl = $"/DynCommon/DynCommon/Filter?projectId={projId}&pageId={pageId}";
+    // script 块内嵌入 JS 字符串：Razor 默认 HTML 编码会把 & 变成 &amp; 破坏 URL 查询串
+    var filterUrlJs = JsonConvert.SerializeObject(filterUrl);
+
+    var modelJson = DynRunController.JsonModel(new
+    {
+        Filter = Model.Filter,
+        Rows = Model.Result?.Rows ?? new List<Dictionary<string, object?>>(),
+        PageInfo = new
+        {
+            CurrentPage = Model.Result?.PageIndex ?? 1,
+            PageSize = Model.Result?.PageSize ?? pageSize,
+            TotalCount = Model.Result?.TotalCount ?? 0,
+            TotalPages = Model.Result?.TotalPages ?? 0
+        }
+    });
+}
+<script type="application/json" tag="dynmodel">@Html.Raw(modelJson)</script>
+
+<div class="dyn-summary">
+    <!-- ============ 查询条件（由页面定义的筛选列驱动） ============ -->
+    <div class="dyn-card">
+        <div class="dyn-card-title">查询条件</div>
+        <div class="dyn-filter">
+            @foreach (var c in def.Columns.Where(x => x.IsFilter && x.Control != "switch").OrderBy(x => x.Order))
+            {
+                if (c.Control == "select")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-select v-model="model.Filter.@c.Name" placeholder="请选择@(c.Label)" clearable style="width:150px">
+                            @foreach (var o in c.Options)
+                            {
+                                <el-option label="@o.Label" value="@o.Value"></el-option>
+                            }
+                        </el-select>
+                    </el-form-item>
+                }
+                else if (c.Control == "input-number")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-input-number v-model="model.Filter.@c.Name" :controls="false" style="width:140px"></el-input-number>
+                    </el-form-item>
+                }
+                else if (c.Control == "date")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-date-picker v-model="model.Filter.@c.Name" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:150px"></el-date-picker>
+                    </el-form-item>
+                }
+                else if (c.Control == "datetime")
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-date-picker v-model="model.Filter.@c.Name" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="选择时间" style="width:170px"></el-date-picker>
+                    </el-form-item>
+                }
+                else
+                {
+                    <el-form-item label="@c.Label" class="dyn-f-item">
+                        <el-input v-model="model.Filter.@c.Name" placeholder="请输入@(c.Label)" clearable style="width:150px"></el-input>
+                    </el-form-item>
+                }
+            }
+
+            <el-button type="primary"
+                       dyn-click-postback='{"url":"@filterUrl","resetPage":true}'>查询</el-button>
+        </div>
+    </div>
+
+    <!-- ============ 数据表格（只读查询，无增删改操作列） ============ -->
+    <div class="dyn-card">
+        <el-table ref="tableRef" :data="model.Rows" border stripe size="default" v-loading="loading"
+                  :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
+            @if (def.Navs != null && def.Navs.Count > 0)
+            {
+                <el-table-column type="expand">
+                    <template #default="scope">
+                        <div v-if="scope.row._nav" class="dyn-nav-panel">
+                            <div v-for="(v, k) in scope.row._nav" :key="k" class="dyn-nav-item">
+                                <div class="dyn-nav-title">{{ k }}<span class="dyn-nav-type">（{{ Array.isArray(v) ? '一对多' : '多对一' }}）</span></div>
+                                <el-table v-if="Array.isArray(v)" :data="v" size="small" border style="width:100%">
+                                    <el-table-column v-for="col in navCols(v)" :key="col.prop" :prop="col.prop" :label="col.label" :width="col.width" show-overflow-tooltip></el-table-column>
+                                </el-table>
+                                <el-descriptions v-else-if="v" :column="4" size="small" border class="dyn-nav-obj">
+                                    <el-descriptions-item v-for="(vv, kk) in v" :key="kk" :label="kk">{{ vv }}</el-descriptions-item>
+                                </el-descriptions>
+                                <div v-else class="dyn-nav-empty">无关联数据</div>
+                            </div>
+                        </div>
+                    </template>
+                </el-table-column>
+            }
+            @foreach (var c in def.Columns.Where(x => x.IsGrid).OrderBy(x => x.Order))
+            {
+                if (c.DbType == "bool")
+                {
+                    <el-table-column label="@c.Label" width="@(c.Width > 0 ? c.Width : 90)" align="center">
+                        <template #default="scope">
+                            <el-tag :type="scope.row.@c.Name ? 'success' : 'info'" size="small">{{ scope.row.@c.Name ? '是' : '否' }}</el-tag>
+                        </template>
+                    </el-table-column>
+                }
+                else
+                {
+                    <el-table-column prop="@c.Name" label="@c.Label" width="@(c.Width > 0 ? c.Width : 130)" show-overflow-tooltip></el-table-column>
+                }
+            }
+        </el-table>
+
+        <!-- ============ 分页 ============ -->
+        <div class="dyn-pager">
+            <el-pagination
+                v-model:current-page="model.PageInfo.CurrentPage"
+                v-model:page-size="model.PageInfo.PageSize"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="model.PageInfo.TotalCount"
+                layout="total, sizes, prev, pager, next, jumper"
+                background
+                @@current-change="onPageChange"
+                @@size-change="onSizeChange"></el-pagination>
+        </div>
+    </div>
+
+    <!-- 组件配置：分页回调 + 导航列构建 + 窗口 resize 重排表格 -->
+    <script tag="dynconfig">
+        var dynConfig = {
+            setup: function ({ model, element }) {
+                return {
+                    // 由导航数组首行字段动态生成列定义
+                    navCols: function (rows) {
+                        if (!rows || !rows.length) return [];
+                        return Object.keys(rows[0]).map(function (k) {
+                            return { prop: k, label: k, width: Math.max(110, Math.min(220, k.length * 20 + 60)) };
+                        });
+                    },
+                    onPageChange: function (page) {
+                        model.PageInfo.CurrentPage = page || 1;
+                        dyn.postback(element, { url: @Html.Raw(filterUrlJs) });
+                    },
+                    onSizeChange: function (size) {
+                        model.PageInfo.PageSize = size || 10;
+                        model.PageInfo.CurrentPage = 1;
+                        dyn.postback(element, { url: @Html.Raw(filterUrlJs) });
+                    }
+                };
+            },
+            // 桌面窗口最大化/还原/拖拽缩放后重排表格，防止表头/表体错位
+            mounted: function () {
+                var self = this;
+                var timer = null;
+                var relayout = function () {
+                    if (timer) clearTimeout(timer);
+                    timer = setTimeout(function () {
+                        var t = self.$refs.tableRef;
+                        if (t && t.doLayout) t.doLayout();
+                    }, 100);
+                };
+                this.__dynRelayout = relayout;
+                window.addEventListener('resize', relayout);
+            },
+            unmounted: function () {
+                if (this.__dynRelayout) {
+                    window.removeEventListener('resize', this.__dynRelayout);
+                    this.__dynRelayout = null;
+                }
+            }
+        };
+    </script>
+</div>
+@Html.RenderDynActions()
