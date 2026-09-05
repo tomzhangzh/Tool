@@ -1,0 +1,67 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <!-- ForEach 循环容器：设计模式保留容器 div + 占位便于拖入子组件；运行模式无外层 div 按数据源循环渲染 -->
+    <div v-if="isDesignFE" class="lc-container t_foreach lc-foreach"
+         v-draggable="[safeChildren, dragOptions]"
+         :style="getStyle(props.jsonconfig.options.itemoptions)"
+         :class="getClass(props.jsonconfig.options.itemoptions)">
+        <div v-if="loopItems.length === 0" class="lc-foreach-empty"
+             style="padding:10px;text-align:center;color:#999;font-size:12px;border:1px dashed #ccc;border-radius:4px;margin:4px;">
+            {{ emptyText || 'ForEach 循环容器：将子组件拖入，配置数据源（如 items）后按数组循环渲染' }}
+        </div>
+        <n-dynamic-for-item v-for="(item, i) in displayItems"
+                            :key="i"
+                            :prefix="itemPrefix(i)"
+                            :items="safeChildren"
+                            :parentmodelinfo="props.parentmodelinfo"
+                            :node-path="props.nodePath + '.loop[' + i + ']'">
+        </n-dynamic-for-item>
+    </div>
+    <template v-else>
+        <div v-if="loopItems.length === 0 && emptyText" class="t_foreach_empty">{{ emptyText }}</div>
+        <n-dynamic-for-item v-for="(item, i) in displayItems"
+                            :key="i"
+                            :prefix="itemPrefix(i)"
+                            :items="safeChildren"
+                            :parentmodelinfo="props.parentmodelinfo"
+                            :node-path="props.nodePath + '.loop[' + i + ']'">
+        </n-dynamic-for-item>
+    </template>
+</template>
+
+@section setupScripts{
+    // ===== ForEach 循环容器 =====
+    // options.comoptions: { dataSource: 'items', itemVar: 'item', indexVar: 'index', emptyText: '' }
+    const isDesignFE = computed(() => !!(lcDesigner || designShared));
+    const feOpts = computed(() => props.jsonconfig.options?.comoptions || {});
+    const dataSource = computed(() => feOpts.value.dataSource || 'items');
+    const itemVar = computed(() => feOpts.value.itemVar || 'item');
+    const indexVar = computed(() => feOpts.value.indexVar || 'index');
+    const emptyText = computed(() => feOpts.value.emptyText || '');
+    // 数组在 model 中的完整路径：父前缀 + dataSource
+    function feBase() {
+        const base = fullModelName.value;
+        if (!dataSource.value) return base;
+        return base ? base + '.' + dataSource.value : dataSource.value;
+    }
+    const loopItems = computed(() => {
+        if (!dataSource.value) return [];
+        const v = getByPath(props.parentmodelinfo, feBase());
+        return Array.isArray(v) ? v : [];
+    });
+    // 设计模式：无数据时渲染 1 项占位，保证子组件可编辑
+    const displayItems = computed(() => {
+        if (isDesignFE.value) return loopItems.value.length ? loopItems.value : [null];
+        return loopItems.value;
+    });
+    // 每项子组件的 modelname 前缀 = 数组路径[i]，如 form.items[0]
+    function itemPrefix(i) {
+        const b = feBase();
+        return b ? b + '[' + i + ']' : ('[' + i + ']');
+    }
+    // 暴露组件特有变量给模板（_NutLayout 会展开 comExtra）
+    const comExtra = { isDesignFE, dataSource, itemVar, indexVar, emptyText, loopItems, displayItems, itemPrefix, feBase };
+}

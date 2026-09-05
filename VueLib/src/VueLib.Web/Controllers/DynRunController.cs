@@ -65,9 +65,7 @@ public class DynRunController : Controller
         if (def == null) return BadRequest("页面定义无效");
 
         using var db = _svc.CreateProjectClient(project);
-        var row = id > 0
-            ? _crud.GetByPk(db, page.TableName ?? "", id, def.PrimaryKey, QuerySource(page))
-            : BuildEmptyRow(def);
+        var row = _crud.GetByPk(db, page.TableName, id, def.PrimaryKey);
         // 新增时模板预填参数（addParams）：合并进空行
         if (id <= 0 && !string.IsNullOrWhiteSpace(_params))
         {
@@ -376,21 +374,30 @@ public class DynRunController : Controller
         catch { return null; }
     }
 
-    /// <summary>新增时按列定义生成空行模板（保证控件初始值类型正确）</summary>
-    private static Dictionary<string, object?> BuildEmptyRow(DynPageDefinition def)
-    {
-        var row = new Dictionary<string, object?>();
-        foreach (var c in def.Columns)
-        {
-            row[c.Name] = c.DbType switch
-            {
-                "bool" => false,
-                "int" or "long" or "decimal" => 0,
-                _ => ""
-            };
-        }
-        return row;
-    }
+    ///// <summary>新增时按列定义生成空行模板（保证控件初始值类型正确）</summary>
+    //private static Dictionary<string, object?> BuildEmptyRow(DynPageDefinition def)
+    //{
+    //    var row = new Dictionary<string, object?>();
+    //    foreach (var c in def.Columns)
+    //    {
+    //        if (c.IsNullable)
+    //        {
+    //            row[c.Name] = null; // ✅可空字段直接null
+    //        }
+    //        else
+    //        {
+    //            row[c.Name] = c.DbType switch
+    //            {
+    //                "bool" => false,
+    //                "int" or "long" or "decimal" => 0,
+    //                "datetime" => (DateTime?)null,
+    //                "guid" => (Guid?)null,
+    //                _ => string.Empty
+    //            };
+    //        }
+    //    }
+    //    return row;
+    //}
 
     public static string JsonModel(object model)
     {

@@ -40,14 +40,57 @@ public class DynCrudService
     }
 
     /// <summary>按主键取单条（返回字典）；sourceName 为空则用 table，否则按真实视图/其它源读取</summary>
-    public Dictionary<string, object?> GetByPk(ISqlSugarClient db, string table, object? pk, string pkName, string? sourceName = null)
+    public Dictionary<string, object?> GetByPk(ISqlSugarClient db, string table, object? pk, string pkName="Id")
     {
         if (pk == null || string.IsNullOrEmpty(pk.ToString())) return new();
-        var from = string.IsNullOrWhiteSpace(sourceName) ? table : sourceName;
+        var from = table;
         var row = db.Queryable(from, "t").Where($"[{pkName}]=@pk", new { pk }).First();
-        return row == null ? new() : ToDict(row);
+        return row == null ? BuildEmptyRowByTableMeta(db,from) : ToDict(row);
     }
+    // <summary>根据数据库表/视图元信息生成空字典，不依赖页面定义</summary>
+    private Dictionary<string, object?> BuildEmptyRowByTableMeta(ISqlSugarClient db, string tableOrView)
+    {
+        var cols = GetColumns(db, tableOrView);
+        var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
+        foreach (var c in cols)
+        {
+            var sqlType = (c.DataType ?? "").ToLowerInvariant();
+            object? val;
+
+            if (c.IsNullable)
+            {
+                val = null;
+            }
+            else if (sqlType == "bit")
+            {
+                val = false;
+            }
+            else if (sqlType.Contains("int") || sqlType.Contains("bigint") || sqlType.Contains("smallint") || sqlType.Contains("tinyint"))
+            {
+                val = 0L;
+            }
+            else if (sqlType.Contains("decimal") || sqlType.Contains("numeric") || sqlType.Contains("money") || sqlType.Contains("float") || sqlType.Contains("real"))
+            {
+                val = 0m;
+            }
+            else if (sqlType.Contains("datetime") || sqlType == "date" || sqlType.Contains("time"))
+            {
+                val = (DateTime?)null;
+            }
+            else if (sqlType.Contains("uniqueidentifier"))
+            {
+                val = (Guid?)null;
+            }
+            else
+            {
+                val = string.Empty;
+            }
+
+            dict[c.DbColumnName] = val;
+        }
+        return dict;
+    }
     /// <summary>按页面定义 + 筛选字典分页查询；sourceName 为空则用 table，否则按真实视图/其它源读取</summary>
     public PagedResult<Dictionary<string, object?>> ListPaged(
         ISqlSugarClient db, string table, DynPageDefinition? def,
@@ -166,16 +209,93 @@ public class DynCrudService
     }
 
     /// <summary>更新，按主键条件</summary>
+    /// <summary>
+    /// 更新：对比数据库原值，只更新发生变化的字段
+    /// </summary>
+    /// <param name="db">数据库会话</param>
+    /// <param name="table">表名</param>
+    /// <param name="data">前端传入待更新字典（包含主键）</param>
+    /// <param name="def">页面定义，用于获取主键列</param>
+    /// <returns>受影响行数，0=数据无变化不需要更新</returns>
     public int Update(ISqlSugarClient db, string table, Dictionary<string, object?> data, DynPageDefinition? def)
     {
-        var clean = NormalizeForWrite(db, table, data);
-        var pkName = def != null ? def.PrimaryKey : "Id";
-        if (!clean.ContainsKey(pkName) || clean[pkName] == null) return 0;
-        var pkVal = clean[pkName];
-        clean.Remove(pkName);
-        if (clean.Count == 0) return 1;
-        return db.Updateable(clean).AS(table).Where($"[{pkName}]=@pk", new { pk = pkVal }).ExecuteCommand();
+        if (def == null || string.IsNullOrEmpty(def.PrimaryKey))
+            throw new InvalidOperationException("更新必须指定主键字段 DynPageDefinition.PrimaryKey");
+
+        string pkName = def.PrimaryKey;
+        if (!data.ContainsKey(pkName))
+            throw new ArgumentException($"data字典必须包含主键字段:{pkName}");
+
+        object? pkValue = data[pkName];
+        if (pkValue == null)
+            throw new ArgumentException("主键值不能为null");
+
+        //1. 查询数据库中当前这条记录
+        var row = db.Queryable(table, "t").Where($"[{pkName}]=@pk", new { pkValue }).First();
+        var oldRow= row == null ? new() : ToDict(row);
+  
+        if (oldRow == null)
+        {
+            //记录不存在，返回0
+            return 0;
+        }
+
+        //2.对比：只收集值发生变化的字段
+        Dictionary<string, object?> changedFields = new Dictionary<string, object?>();
+
+        foreach (var kvp in data)
+        {
+            string field = kvp.Key;
+            object? newVal = kvp.Value;
+
+            //主键不放到更新set里面
+            if (field.Equals(pkName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            //数据库旧值
+            oldRow.TryGetValue(field, out object? oldVal);
+
+            //判断是否相等，要处理DBNull、null的边界
+            bool isEqual;
+            if (newVal == null && oldVal == null)
+            {
+                isEqual = true;
+            }
+            else if (newVal == null || oldVal == null)
+            {
+                isEqual = false;
+            }
+            else if (oldVal is DBNull)
+            {
+                isEqual = newVal == null;
+            }
+            else
+            {
+                //值类型 Equals对比；不同类型（比如int/long）统一ToString对比
+                isEqual = object.Equals(newVal, oldVal);
+            }
+
+            if (!isEqual)
+            {
+                changedFields[field] = newVal;
+            }
+        }
+
+        //没有任何字段发生变化，直接返回0，不执行SQL
+        if (changedFields.Count == 0)
+        {
+            return 0;
+        }
+
+        //3.执行只更新变化字段
+        var updateable = db.Updateable(changedFields)
+            .AS(table)
+            .Where($"[{pkName}]=@pk", new { pk = pkValue });
+
+        int rows = updateable.ExecuteCommand();
+        return rows;
     }
+
 
     /// <summary>按主键删除</summary>
     public int Delete(ISqlSugarClient db, string table, object pk, string pkName)

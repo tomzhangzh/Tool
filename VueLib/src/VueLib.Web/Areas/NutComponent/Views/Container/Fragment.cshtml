@@ -1,0 +1,31 @@
+@{
+    Layout = "~/Areas/NutComponent/Views/_NutLayout.cshtml";
+}
+
+<template>
+    <!-- 透明容器（Fragment）：设计模式保留容器 div 便于拖拽/选中；运行模式无外层 div 直接透出子组件 -->
+    <div v-if="isDesignFrag" class="lc-container t_fragment lc-fragment"
+         v-draggable="[safeChildren, dragOptions]"
+         :style="getStyle(props.jsonconfig.options.itemoptions)"
+         :class="getClass(props.jsonconfig.options.itemoptions)">
+        <n-dynamic-com v-for="(child, idx) in safeChildren"
+                       :key="child.component + '_' + idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
+        </n-dynamic-com>
+    </div>
+    <n-dynamic-com v-else
+                   v-for="(child, idx) in safeChildren"
+                   :key="child.component + '_' + idx"
+                   :jsonconfig="child"
+                   :parentmodelinfo="props.parentmodelinfo"
+                   :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
+    </n-dynamic-com>
+</template>
+
+@section setupScripts{
+    // 透明容器（Fragment）：运行时不产生外层 div，直接透出子组件
+    const isDesignFrag = computed(() => !!(lcDesigner || designShared));
+    const comExtra = { isDesignFrag };
+}
