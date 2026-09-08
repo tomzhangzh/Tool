@@ -195,6 +195,7 @@
         // 2) 解析 Model：优先容器内 dynmodel 脚本，其次 dyn-init 属性
         //    注意：必须先读 dynmodel 再移除脚本，否则会把数据源一起删掉，Model 变空。
         var model = readModelScript(el) || parseModel(el) || {};
+        var reactiveModel = Vue.reactive(model);
         $(el).find('script').remove();
 
         // 3) 遮蔽嵌套 dyn-init（先于读取模板，外层不会编译到子应用内容）
@@ -206,10 +207,9 @@
             template: el.innerHTML,
             data: function () { return {}; },
             setup: function () {
-                var m = Vue.reactive(model);
-                var exposed = { model: m, element: el, dyn: dyn };
+                var exposed = { model: reactiveModel, element: el, dyn: dyn };
                 if (cfg && typeof cfg.setup === 'function') {
-                    var extra = cfg.setup({ model: m, element: el }) || {};
+                    var extra = cfg.setup({ model: reactiveModel, element: el }) || {};
                     Object.keys(extra).forEach(function (k) {
                         if (k !== 'model') exposed[k] = extra[k];
                     });
@@ -235,11 +235,15 @@
         }
         app.config.globalProperties.$dyn = dyn;
         el.__dynApp = app;
-        el.__dynModel = model;
+        el.__dynModel = reactiveModel;
+        app.__dynModel = reactiveModel;   // getApp(el) 返回的 app 上可直接取 model
         el.__dynLoaded = true;
         storeApp(el, app);
         // Vue 3.5 起 app._instance 不再被填充，直接取 mount 返回的 proxy 供 getModel 使用
         try { el.__dynProxy = app.mount(el) || null; } catch (e) { el.__dynProxy = null; throw e; }
+        // getApp(el) 返回的 app 上挂响应式 model（__dynModel 是原始对象，改它不触发视图；model 是 Vue.reactive 代理）
+        app.__dynProxy = el.__dynProxy;
+        app.model = el.__dynProxy ? el.__dynProxy.model : Vue.reactive(model);
 
         // 6) 恢复嵌套子树并递归挂载
         nested.forEach(function (item) {
@@ -301,6 +305,13 @@
     function render(el, html) {
         el = resolve(el);
         if (!el) return Promise.resolve(null);
+        // 根套根防护：el 自身是 dyn-init 根，且 html 首个元素也是 dyn-init 根 → 只取内部内容，避免嵌套 mount 删掉内层 dynmodel
+        if (el.hasAttribute && el.hasAttribute('dyn-init') && typeof html === 'string') {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            var root = tmp.firstElementChild;
+            if (root && root.hasAttribute && root.hasAttribute('dyn-init')) html = root.innerHTML;
+        }
         unmount(el);
         el.innerHTML = html || '';
         return mount(el);
@@ -326,6 +337,11 @@
     }
 
     function getModel(el) {
+        // 兼容直接传入 getApp(el) 返回的 app 实例
+        if (el && !el.nodeType) {
+            if (el.__dynProxy && el.__dynProxy.model) return el.__dynProxy.model;
+            if (el.__dynModel) return el.__dynModel;
+        }
         var p = getProxy(el);
         return p ? p.model : null;
     }
@@ -498,7 +514,7 @@
 
         var ancEl = closestDynInit(el) || el;
         var model = getModel(ancEl) || parseModel(ancEl) || {};
-        if (opts.resetPage && model.PageInfo) model.PageInfo.CurrentPage = 1;
+        
 
         var url = opts.url || ancEl.getAttribute('data-dyn-url') || '';
         if (!url) { console.error('[dyn-lib] dyn-click-postback 缺少 url', el); return $.Deferred().reject().promise(); }
@@ -702,6 +718,22 @@
     }
 
     // 构造统一上下文（动作方法的唯一入参）
+    // 占位符替换：把 options（已解析 JSON）所有字符串中的 {{key}} 用 params（按钮 data-* 属性）替换
+    function applyTpl(val, params) {
+        if (typeof val === 'string') {
+            return val.replace(/\{\{([\w.-]+)\}\}/g, function (_, k) {
+                return params && params[k] !== undefined ? params[k] : _;
+            });
+        }
+        if (val && typeof val === 'object') {
+            Object.keys(val).forEach(function (k) {
+                var v = val[k];
+                if (typeof v === 'string' || (v && typeof v === 'object')) val[k] = applyTpl(v, params);
+            });
+        }
+        return val;
+    }
+
     function buildCtx(el, eventName, $event, options, actionName) {
         options = options || {};
         var params = {};
@@ -712,6 +744,8 @@
                 }
             });
         }
+        // 先替换占位符（用 data-* 原始值），再合并显式 options.params（显式值覆盖占位符结果）
+        applyTpl(options, params);
         options.params = Object.assign({}, params, options.params || {});
         var ancEl = closestDynInit(el) || el;
         var app = getApp(ancEl);
@@ -893,7 +927,7 @@
         if (modelName == null) modelName = o.modelName || o.name || o.path;
         // change/input 事件且未显式给 model 时，从元素取值（input/select/textarea 等）
         if (value === undefined) {
-            value = ('model' in o) ? o.model : o.value;
+            value = ('model' in o) ? getVueModel(ctx.element, o.model) : o.value;
             if (value === undefined && ctx.element && 'value' in ctx.element) {
                 value = ctx.element.value;
             }
