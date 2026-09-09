@@ -1,0 +1,19 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<el-button :type="jc.options.comoptions.type || 'default'"
+           :size="jc.options.comoptions.size || 'default'"
+           :icon="jc.options.comoptions.icon"
+           :disabled="jc.options.comoptions.disabled"
+           @@click="onClick">
+    {{ jc.options.comoptions.text || '按钮' }}
+</el-button>
+@section setupScripts{
+    let DVALUE = null;
+    const comExtra = {
+        onClick() {
+            // 优先执行 extendinfo.actions.chain（动作链），否则触发 comlisteners 中的 click
+            return runActionChain();
+        }
+    };
+}

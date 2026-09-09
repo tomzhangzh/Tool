@@ -1,0 +1,230 @@
+/* ============================================================================
+ * VueLib 专用 CSS（所有 .lc-* 类均为本框架保留类）
+ *  - .lc-design*  设计器专用
+ *  - .lc-node*    画布节点装饰
+ *  - .lc-runtime* 运行时
+ *  - .lc-window*  窗口
+ *  - .lc-lay-*    LayUI 风格窗口
+ * ============================================================================ */
+
+/* ---------- 运行时 ---------- */
+.lc-runtime-root { min-height: 0; }
+.lc-embedded-page,
+.lc-embedded-component { min-height: 40px; }
+.lc-loading { animation: lc-blink 1s ease-in-out infinite; }
+.lc-error { word-break: break-all; }
+@keyframes lc-blink { 50% { opacity: 0.5; } }
+
+/* ---------- 画布节点（设计器） ---------- */
+.lc-node {
+    position: relative;
+    outline: 1px dashed transparent;
+    min-height: 18px;
+    transition: outline-color 0.15s, box-shadow 0.15s;
+}
+.lc-node:hover { outline-color: #93c5fd; }
+.lc-selected { outline: 2px solid #2563eb !important; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12); }
+.lc-locked { outline: 2px solid #f59e0b !important; }
+.lc-node-toolbar {
+    position: absolute;
+    top: -26px;
+    left: -2px;
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1;
+    padding: 3px 4px;
+    border-radius: 3px 3px 0 0;
+    white-space: nowrap;
+}
+.lc-node-toolbar button {
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 1px 3px;
+    border-radius: 2px;
+}
+.lc-node-toolbar button:hover { background: rgba(255, 255, 255, 0.25); }
+.lc-node-toolbar .lc-btn-danger:hover { background: #dc2626; }
+.lc-node-name { padding: 0 4px; opacity: 0.9; }
+.lc-lock-mask {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    background: rgba(245, 158, 11, 0.10);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.lc-lock-mask span {
+    background: #f59e0b;
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 8px;
+    border-radius: 3px;
+}
+.lc-dropzone {
+    border: 1.5px dashed #cbd5e1;
+    border-radius: 4px;
+    margin: 4px 0;
+    min-height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+.lc-dropzone:hover { border-color: #2563eb; background: rgba(37, 99, 235, 0.04); }
+.lc-dropzone-hint { color: #94a3b8; font-size: 11px; }
+.lc-depth-error { color: #dc2626; font-size: 12px; padding: 8px; border: 1px dashed #dc2626; }
+
+/* ---------- 设计器布局 ---------- */
+.lc-designer { font-size: 13px; }
+.lc-palette-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 5px 6px;
+    cursor: grab;
+    background: #fff;
+    transition: all 0.12s;
+    user-select: none;
+}
+.lc-palette-item:hover { border-color: #2563eb; color: #2563eb; box-shadow: 0 1px 4px rgba(37, 99, 235, 0.15); }
+.lc-palette-item:active { cursor: grabbing; }
+.lc-left-tabs .el-tabs__content { overflow: hidden; }
+.lc-panel { border: 1px solid #f1f5f9; border-radius: 6px; padding: 8px; background: #fafbfc; }
+.lc-panel-title { font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.lc-field { margin-bottom: 6px; }
+.lc-field label { display: block; font-size: 11px; color: #64748b; margin-bottom: 2px; }
+
+/* ---------- 左侧面板：折叠 / 分类折叠 / 网格卡片 ---------- */
+.lc-left-panel { transition: width 0.18s ease; }
+.lc-panel-toggle {
+    width: 22px; height: 22px; border: 1px solid #e5e7eb; border-radius: 4px;
+    background: #f8fafc; color: #64748b; cursor: pointer; font-size: 12px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+}
+.lc-panel-toggle:hover { background: #eef2ff; color: #2563eb; border-color: #2563eb; }
+.lc-left-collapsed {
+    width: 30px; background: #f8fafc; border-right: 1px solid #e5e7eb; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; user-select: none;
+}
+.lc-left-collapsed span { writing-mode: vertical-rl; font-size: 12px; color: #64748b; letter-spacing: 2px; }
+.lc-left-collapsed:hover { background: #eef2ff; color: #2563eb; }
+.lc-left-collapsed:hover span { color: #2563eb; }
+.lc-cat-radio .el-radio-button__inner { padding: 4px 8px; font-size: 11px; }
+.lc-cat-title {
+    display: flex; align-items: center; gap: 4px; padding: 4px 2px; cursor: pointer;
+    font-size: 11px; color: #64748b; font-weight: 600; border-radius: 4px; user-select: none;
+}
+.lc-cat-title:hover { background: #f1f5f9; color: #334155; }
+.lc-cat-arrow { display: inline-block; transition: transform 0.15s; font-size: 10px; }
+.lc-cat-arrow.open { transform: rotate(90deg); }
+.lc-cat-count { margin-left: auto; font-size: 10px; background: #f1f5f9; color: #94a3b8; border-radius: 8px; padding: 0 6px; }
+.lc-palette-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.lc-palette-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 6px 4px;
+    cursor: grab;
+    background: #fff;
+    transition: all 0.12s;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+.lc-palette-item:hover { border-color: #2563eb; color: #2563eb; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15); transform: translateY(-1px); }
+.lc-palette-item:active { cursor: grabbing; }
+.lc-palette-icon { font-size: 18px; line-height: 1.2; }
+.lc-palette-label { font-size: 11px; color: #475569; text-align: center; line-height: 1.2; }
+.lc-palette-item:hover .lc-palette-label { color: #2563eb; }
+
+/* ---------- 拖拽 ghost（clone 占位）+ 插入占位线 ---------- */
+.lc-palette-ghost {
+    background: #fff;
+    border: 1px solid #2563eb;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.25);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.95;
+    font-size: 13px;
+    color: #334155;
+    max-width: 220px;
+}
+.lc-palette-ghost .gh-icon { font-size: 20px; }
+.lc-palette-ghost .gh-label { font-weight: 600; white-space: nowrap; }
+.lc-palette-ghost .gh-add { color: #2563eb; font-weight: 700; font-size: 14px; }
+.lc-drop-placeholder {
+    position: fixed;
+    height: 6px;
+    background: #2563eb;
+    border-radius: 3px;
+    z-index: 9998;
+    pointer-events: none;
+    box-shadow: 0 0 8px rgba(37, 99, 235, 0.7);
+    animation: lcPhPulse 1s ease infinite;
+}
+@@keyframes lcPhPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+.lc-drop-target { outline: 1.5px dashed #2563eb; outline-offset: -1px; background: rgba(37, 99, 235, 0.03); }
+
+/* ---------- 组件树节点操作 ---------- */
+.lc-tree-node { display: flex; align-items: center; gap: 2px; width: 100%; cursor: grab; }
+.lc-tree-node:active { cursor: grabbing; }
+.lc-tree-icon { flex: none; font-size: 14px; line-height: 1; margin-right: 2px; }
+.lc-ghost { opacity: .45; background: #eff6ff !important; border: 1px dashed #3b82f6 !important; }
+.lc-drag { background: #fff !important; box-shadow: 0 4px 16px rgba(0,0,0,.18) !important; }
+.lc-chosen { }
+.lc-tree-ops { display: inline-flex; gap: 1px; opacity: 0; transition: opacity 0.1s; flex-shrink: 0; }
+.lc-tree-node:hover .lc-tree-ops { opacity: 1; }
+.lc-tree-btn {
+    width: 18px; height: 18px; line-height: 1; font-size: 11px; border: 1px solid #e5e7eb;
+    background: #fff; border-radius: 3px; color: #64748b; cursor: pointer; padding: 0;
+}
+.lc-tree-btn:hover { background: #eef2ff; color: #2563eb; border-color: #2563eb; }
+
+/* ---------- 窗口 ---------- */
+.lc-window-content { min-height: 60px; }
+.lc-lay-window {
+    position: fixed;
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+.lc-lay-window-header {
+    background: linear-gradient(180deg, #f8fafc, #eef2f7);
+    padding: 8px 12px;
+    cursor: move;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #e2e8f0;
+    user-select: none;
+}
+.lc-lay-window-title { font-weight: 600; font-size: 13px; color: #1e293b; }
+.lc-lay-window-close {
+    cursor: pointer;
+    color: #94a3b8;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 4px;
+}
+.lc-lay-window-close:hover { color: #dc2626; }
+.lc-lay-window-body { flex: 1; overflow: auto; }

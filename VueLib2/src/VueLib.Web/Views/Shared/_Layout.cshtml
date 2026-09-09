@@ -1,0 +1,43 @@
+﻿@{
+    var V = "20260909r";
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - VueLib2</title>
+    <link rel="stylesheet" href="~/lib/element-plus/index.css?v=@V" />
+    <link rel="stylesheet" href="~/css/tailwind.css?v=@V" />
+    <link rel="stylesheet" href="~/css/vue-lib.css?v=@V" />
+</head>
+<body>
+    @RenderBody()
+
+    @RenderSection("setupScripts", required: false)
+
+    <script src="~/lib/vue/vue.global.prod.js?v=@V"></script>
+    <script src="~/lib/vue-router/vue-router.global.prod.js?v=@V"></script>
+    <script src="~/lib/element-plus/index.full.min.js?v=@V"></script>
+    <script src="~/lib/lodash/lodash.min.js?v=@V"></script>
+    <script src="~/lib/sortable/Sortable.min.js?v=@V"></script>
+    <script src="~/lib/axios/axios.min.js?v=@V"></script>
+
+    <script src="~/js/vuelib/config.js?v=@V"></script>
+    <script src="~/js/vuelib/core/utils.js?v=@V"></script>
+    <script src="~/js/vuelib/core/eventbus.js?v=@V"></script>
+    <script src="~/js/vuelib/core/dyn-init.js?v=@V"></script>
+    <script src="~/js/vuelib/actions/registry.js?v=@V"></script>
+    <script src="~/js/vuelib/actions/builtin.js?v=@V"></script>
+    <script src="~/js/vuelib/services/component-service.js?v=@V"></script>
+    <script src="~/js/vuelib/services/options-service.js?v=@V"></script>
+    <script src="~/js/vuelib/services/page-service.js?v=@V"></script>
+    <script src="~/js/vuelib/debug/debug.js?v=@V"></script>
+    <script src="~/js/vuelib/runtime/ndynamic-com.js?v=@V"></script>
+    <script src="~/js/vuelib/runtime/nut-runtime.js?v=@V"></script>
+    <script src="~/js/vuelib/designer/designer.js?v=@V"></script>
+    <script src="~/js/vuelib/vue-lib.js?v=@V"></script>
+
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

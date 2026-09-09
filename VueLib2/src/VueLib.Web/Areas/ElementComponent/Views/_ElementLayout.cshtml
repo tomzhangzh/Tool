@@ -1,0 +1,259 @@
+﻿@* ============================================================================
+   ElementUI 组件公共 Layout（VueLib2 重构版）
+   职责：
+     - 默认值合并（副本，绝不修改 props.jsonconfig）
+     - modelname 相对/绝对/数组路径绑定（parentModelPrefix 链）
+     - modelinfo 双向计算属性 + 校验体系（与 VueLib 全局校验同源）
+     - 下拉选项多源解析（static / dict / sql / ajax）
+     - comlisteners 字符串方法名 → setup 导出方法映射
+     - 子节点渲染上下文（safeChildren / slotChildren / childPath / slotChildPath）
+     - 动作链 runActionChain（复用 VueLib.actions）
+     - 设计器注入（designShared / lcDesigner，可空，运行时不报错）
+   业务组件规范：
+     @section setupScripts{ let DVALUE = 初始值; const comExtra = {...}; }
+   ============================================================================ *@
+<template>
+@RenderBody()
+</template>
+
+<script tag='comconfig'>
+var comConfig = {
+    props: {
+        jsonconfig: { type: Object, required: true },
+        parentmodelinfo: { type: Object, required: false },
+        extensioninfo: { type: Object, required: false },
+        nodePath: { type: String, default: 'root' },
+        design: { type: Boolean, default: false },
+        designApi: { type: Object, default: null },
+        depth: { type: Number, default: 0 }
+    },
+    setup(props, context) {
+        const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted, onUnmounted } = Vue;
+        const _ = window._;
+
+        // ---- 设计器注入（可空，运行时为 null） ----
+        const designShared = inject('design_ShareData', null);
+        const lcDesigner = inject('lcDesigner', null);
+        const parentConfig = inject('parent_jsonconfig', null);
+        const parentCom = inject('parent_com', null);
+        const parentModelPrefix = inject('parentModelPrefix', computed(() => ''));
+
+        // ---- 默认值合并（副本，不修改 props.jsonconfig） ----
+        const defaults = {
+            component: null, modelname: null,
+            options: {
+                comoptions: {}, comlisteners: {},
+                labeloptions: { label: '', required: false, show: true },
+                itemoptions: { style: {}, class: '' }, wrapperoptions: {}
+            },
+            validators: [], childrenctrls: [], slots: {}, extendinfo: {}
+        };
+        function deepMerge(dst) {
+            dst = dst || {};
+            for (var i = 1; i < arguments.length; i++) {
+                var src = arguments[i];
+                if (!src || typeof src !== 'object') continue;
+                for (var k in src) {
+                    var sv = src[k];
+                    if (sv && typeof sv === 'object' && !Array.isArray(sv)) {
+                        dst[k] = deepMerge(_.isObject(dst[k]) ? dst[k] : {}, sv);
+                    } else if (dst[k] === undefined) {
+                        dst[k] = sv;
+                    }
+                }
+            }
+            return dst;
+        }
+        const jc = props.jsonconfig || {};
+        // 默认值合并：直接补到原配置对象上（保持响应式共享，设计器属性面板修改可即时反映到渲染）
+        deepMerge(jc, defaults);
+
+        // ---- 容器级表单布局（labelWidth / labelPosition，组件级可覆盖） ----
+        // 容器（如 DivContainer）在 comoptions.formLayout 设置 { labelWidth:'120px', labelPosition:'right' }，
+        // 子表单项未设置时自动继承；表单项自己设置 labeloptions.labelWidth/labelPosition 时覆盖。
+        const parentFormLayout = inject('parent_formLayout', null);
+        const formLayout = computed(() => {
+            const mine = jc.options && jc.options.comoptions && jc.options.comoptions.formLayout;
+            if (mine && (mine.labelWidth || mine.labelPosition)) return mine;
+            return parentFormLayout && parentFormLayout.value ? parentFormLayout.value : null;
+        });
+        provide('parent_formLayout', formLayout);
+        const labelStyle = computed(() => {
+            const lo = (jc.options && jc.options.labeloptions) || {};
+            const fl = formLayout.value || {};
+            const s = {};
+            const w = lo.labelWidth || fl.labelWidth;
+            if (w) s.width = w;
+            const pos = lo.labelPosition || fl.labelPosition;
+            if (pos === 'right') s.textAlign = 'right';
+            else if (pos === 'left') s.textAlign = 'left';
+            return s;
+        });
+
+        // ---- 内部状态 ----
+        const comInnerInfo = reactive({ options: [], validation: { valid: true, errors: [], touched: false } });
+        @RenderSection("setupScripts", false)
+
+        // ---- modelname 路径（继承/绝对~ / 数组[） ----
+        const fullModelName = computed(() => {
+            const raw = jc.modelname || '';
+            if (!raw) return parentModelPrefix.value;
+            if (raw.startsWith('~')) return raw.slice(1);
+            const prefix = parentModelPrefix.value;
+            if (prefix) return raw.startsWith('[') ? prefix + raw : prefix + '.' + raw;
+            return raw;
+        });
+        provide('parentModelPrefix', fullModelName);
+        provide('parent_jsonconfig', jc.value);
+        provide('parent_com', { parent_Config: parentConfig, parent_Com: parentCom });
+
+        // ---- modelinfo 双向绑定 ----
+        const innerValue = ref(typeof DVALUE !== 'undefined' ? DVALUE : null);
+        const modelinfo = computed({
+            get() {
+                if (props.parentmodelinfo && fullModelName.value) {
+                    const v = _.get(props.parentmodelinfo, fullModelName.value);
+                    return v === undefined ? (typeof DVALUE !== 'undefined' ? DVALUE : null) : v;
+                }
+                return innerValue.value;
+            },
+            set(val) {
+                if (props.parentmodelinfo && fullModelName.value) _.set(props.parentmodelinfo, fullModelName.value, val);
+                else innerValue.value = val;
+                if (comInnerInfo.validation.touched) validate();
+            }
+        });
+
+        // ---- 校验体系（与 VueLib 全局校验同源） ----
+        const validators = {
+            required: (v) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0),
+            requiredTrue: (v) => v === true,
+            minLength: (v, m) => typeof v === 'string' && v.length >= m,
+            maxLength: (v, m) => typeof v === 'string' && v.length <= m,
+            min: (v, m) => Number(v) >= m,
+            max: (v, m) => Number(v) <= m,
+            pattern: (v, p) => new RegExp(p).test(String(v || '')),
+            email: (v) => /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(String(v || '')),
+            phone: (v) => /^1[3-9]\d{9}$/.test(String(v || '')),
+            url: (v) => /^https?:\/\/.+/.test(String(v || '')),
+            number: (v) => v !== '' && !isNaN(Number(v))
+        };
+        function validate() {
+            const rules = jc.validators || [];
+            const val = modelinfo.value;
+            const errors = [];
+            for (const rule of rules) {
+                const fn = validators[rule.type];
+                if (!fn) continue;
+                if (!fn(val, rule.value)) errors.push(rule.message || `验证失败: ${rule.type}`);
+            }
+            comInnerInfo.validation.valid = errors.length === 0;
+            comInnerInfo.validation.errors = errors;
+            comInnerInfo.validation.touched = true;
+            return comInnerInfo.validation.valid;
+        }
+        function resetValidation() {
+            comInnerInfo.validation.valid = true;
+            comInnerInfo.validation.errors = [];
+            comInnerInfo.validation.touched = false;
+        }
+        provide('component_validate', validate);
+        provide('component_resetValidation', resetValidation);
+
+        // ---- 选项多源解析（static / dict / sql / ajax） ----
+        const optionSource = computed(() => (jc.options.comoptions || {}).optionSource || null);
+        async function loadOptions() {
+            const src = optionSource.value;
+            if (src && src.kind) {
+                try {
+                    const items = await VueLib.services.resolveOptions(src, props.parentmodelinfo);
+                    if (Array.isArray(items)) { comInnerInfo.options = items; return; }
+                } catch (e) { console.error('[VueLib] 选项解析失败', src, e); }
+                return;
+            }
+            const optStr = (jc.options.comoptions || {}).optionValues;
+            if (typeof optStr === 'string') {
+                comInnerInfo.options = optStr.split(',').map(v => ({ label: v.trim(), value: v.trim() }));
+            } else {
+                comInnerInfo.options = [];
+            }
+        }
+        watch(optionSource, loadOptions, { deep: true });
+        onMounted(loadOptions);
+
+        // ---- 监听器：comlisteners 存字符串方法名 → setup 导出方法 ----
+        function getComlisteners() {
+            const listeners = jc.options.comlisteners || {};
+            const result = {};
+            for (const key in listeners) {
+                const val = listeners[key];
+                if (typeof val === 'function') { result[key] = val; continue; }
+                if (typeof val === 'string' && val) {
+                    const fn = exportObj[val];
+                    if (typeof fn === 'function') {
+                        result[key] = (...args) => fn.apply(exportObj, args);
+                    }
+                }
+            }
+            return result;
+        }
+
+        // ---- 子节点渲染上下文 ----
+        const safeChildren = computed(() => (jc.childrenctrls || []).filter(c => c && c.component));
+        function slotChildren(name) {
+            return computed(() => {
+                const slot = jc.slots && jc.slots[name];
+                return ((slot && slot.childrenctrls) || []).filter(c => c && c.component);
+            });
+        }
+        function childPath(i) {
+            const base = props.nodePath && props.nodePath !== 'root' ? props.nodePath + '.childrenctrls' : 'childrenctrls';
+            return base + '[' + i + ']';
+        }
+        function slotChildPath(name, i) {
+            const base = props.nodePath && props.nodePath !== 'root'
+                ? props.nodePath + '.slots.' + name + '.childrenctrls'
+                : 'slots.' + name + '.childrenctrls';
+            return base + '[' + i + ']';
+        }
+
+        // ---- 动作链（extendinfo.actions.chain） ----
+        function runActionChain(extra) {
+            const chain = jc.extendinfo && jc.extendinfo.actions && jc.extendinfo.actions.chain;
+            if (!chain) return;
+            return VueLib.actions.run(chain, { model: props.parentmodelinfo, el: null }, extra);
+        }
+
+        // ---- 工具 ----
+        function getStyle() {
+            const out = {};
+            for (let i = 0; i < arguments.length; i++) {
+                const o = arguments[i];
+                if (o && o.style) Object.assign(out, o.style);
+            }
+            return out;
+        }
+        function getClass() {
+            const arr = [];
+            for (let i = 0; i < arguments.length; i++) {
+                const o = arguments[i];
+                if (!o || !o.class) continue;
+                String(o.class).split(' ').forEach(c => { const t = c.trim(); if (t) arr.push(t); });
+            }
+            return arr;
+        }
+
+        // ---- 导出（comExtra 由 setupScripts 定义） ----
+        const exportObj = {
+            jc, modelinfo, comInnerInfo, validate, resetValidation,
+            getStyle, getClass, getComlisteners, safeChildren, slotChildren,
+            childPath, slotChildPath, runActionChain, fullModelName,
+            formLayout, labelStyle,
+            props, context, designShared, lcDesigner, parentConfig, parentCom,
+            ...(typeof DVALUE !== 'undefined' ? { DVALUE } : {}),
+            ...(typeof comExtra !== 'undefined' ? comExtra : {})
+        };
+        return exportObj;
+    }
+};
+</script>

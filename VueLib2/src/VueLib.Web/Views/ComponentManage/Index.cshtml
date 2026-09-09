@@ -1,0 +1,188 @@
+@{
+    ViewBag.Title = "组件管理 - VueLib2";
+}
+@* 组件管理：左侧组件列表（搜索/分类）+ 右侧详情（快照/版本/操作） *@
+<div id="cm-app" class="h-screen flex flex-col">
+    <!-- 顶部 -->
+    <div class="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-200">
+        <span class="font-bold text-gray-800">🧩 组件管理</span>
+        <el-input v-model="keyword" placeholder="搜索组件名 / 显示名" size="small" class="!w-56" clearable></el-input>
+        <el-radio-group v-model="cat" size="small">
+            <el-radio-button label="">全部</el-radio-button>
+            <el-radio-button v-for="c in categories" :key="c" :label="c">{{ c }}</el-radio-button>
+        </el-radio-group>
+        <div class="flex-1"></div>
+        <span class="text-xs text-gray-400">共 {{ filtered.length }} 个组件</span>
+        <el-button type="primary" size="small" :loading="refreshing" @@click="refreshAll">刷新组件（扫描 Razor）</el-button>
+        <el-button size="small" @@click="openDesigner">打开设计器</el-button>
+    </div>
+
+    <div class="flex flex-1 min-h-0">
+        <!-- 左：列表 -->
+        <div class="w-72 border-r border-gray-200 bg-white overflow-auto">
+            <div v-for="c in filtered" :key="c.name"
+                 class="px-3 py-2 border-b border-gray-50 cursor-pointer hover:bg-gray-50"
+                 :class="{ 'bg-blue-50': current && current.name === c.name }"
+                 @@click="select(c)">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium">{{ c.displayName }}</span>
+                    <el-tag size="small" type="info">{{ c.sourceType === 'razor' ? 'Razor' : '组合' }}</el-tag>
+                </div>
+                <div class="text-[11px] text-gray-400 mt-0.5">
+                    {{ c.name }} · {{ c.category }} · v{{ c.currentVersion }} · {{ c.updatedAtText }}
+                </div>
+            </div>
+            <div v-if="!filtered.length" class="p-8 text-center text-gray-400 text-sm">无匹配组件</div>
+        </div>
+
+        <!-- 右：详情 -->
+        <div class="flex-1 overflow-auto bg-gray-50 p-4">
+            <div v-if="!current" class="h-full flex items-center justify-center text-gray-400">
+                从左侧选择一个组件查看详情
+            </div>
+            <div v-else class="max-w-3xl mx-auto space-y-4">
+                <el-card>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-lg font-bold">{{ current.displayName }}</div>
+                            <div class="text-xs text-gray-400 mt-0.5">
+                                {{ current.name }} · {{ current.category }} · {{ current.sourceType === 'razor' ? 'Razor 视图' : '组合组件' }} · 当前 v{{ current.currentVersion }}
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <el-button type="danger" plain size="small" @@click="remove">删除组件</el-button>
+                        </div>
+                    </div>
+                </el-card>
+
+                <el-card>
+                    <template #header><span class="text-sm font-bold">版本历史（{{ versions.length }}）</span></template>
+                    <el-table :data="versions" size="small" border>
+                        <el-table-column prop="version" label="版本" width="70"></el-table-column>
+                        <el-table-column label="当前" width="80">
+                            <template #default="{ row }">
+                                <el-tag v-if="row.isCurrent" type="success" size="small">当前</el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column prop="updatedAtText" label="更新时间" width="160"></el-table-column>
+                        <el-table-column prop="sourceType" label="来源" width="90"></el-table-column>
+                        <el-table-column label="操作">
+                            <template #default="{ row }">
+                                <el-button link type="primary" size="small" @@click="viewSnapshot(row.version)">查看快照</el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </el-card>
+
+                <el-card v-if="snapshot">
+                    <template #header>
+                        <span class="text-sm font-bold">快照 v{{ snapshot.version }} <span v-if="snapshot.sourceType === 'composite'" class="text-blue-500">（组合配置）</span></span>
+                        <span class="float-right"><el-button link type="primary" size="small" @@click="copyText(snapshotTemplate)">复制</el-button></span>
+                    </template>
+                    <div class="max-h-[50vh] overflow-auto">
+                        <pre v-if="snapshot.sourceType === 'composite'" class="text-xs font-mono bg-gray-50 p-3 rounded whitespace-pre-wrap">{{ snapshot.compositeConfigJson }}</pre>
+                        <pre v-else class="text-xs font-mono bg-gray-50 p-3 rounded whitespace-pre-wrap">{{ snapshotTemplate }}</pre>
+                    </div>
+                </el-card>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    var app = Vue.createApp({
+        data: function () {
+            return { list: [], keyword: '', cat: '', current: null, versions: [], snapshot: null, refreshing: false };
+        },
+        computed: {
+            categories: function () {
+                var set = {};
+                this.list.forEach(function (c) { set[c.category] = 1; });
+                return Object.keys(set).sort();
+            },
+            filtered: function () {
+                var self = this, kw = this.keyword.trim().toLowerCase();
+                return this.list.filter(function (c) {
+                    var okCat = !self.cat || c.category === self.cat;
+                    var okKw = !kw || (c.name + c.displayName).toLowerCase().indexOf(kw) >= 0;
+                    return okCat && okKw;
+                });
+            },
+            snapshotTemplate: function () {
+                return this.snapshot ? (this.snapshot.componentText || '') : '';
+            }
+        },
+        mounted: function () { this.load(); },
+        methods: {
+            load: function () {
+                var self = this;
+                fetch('/api/lowcode/components').then(function (r) { return r.json(); }).then(function (j) {
+                    self.list = (j.data || []).map(function (c) {
+                        var vs = c.versions || [];
+                        var cur = vs.find(function (v) { return v.isCurrent; }) || vs[vs.length - 1] || {};
+                        return {
+                            name: c.name, displayName: c.displayName, category: c.category,
+                            sourceType: c.sourceType || 'razor',
+                            versions: vs,
+                            currentVersion: cur.version || 0,
+                            updatedAt: cur.updatedAt,
+                            updatedAtText: cur.updatedAt ? new Date(cur.updatedAt).toLocaleString('zh-CN') : ''
+                        };
+                    });
+                    if (self.current) {
+                        var keep = self.list.find(function (c) { return c.name === self.current.name; });
+                        self.current = keep || null;
+                        if (keep) self.versions = keep.versions.map(function (v) {
+                            return { version: v.version, isCurrent: v.isCurrent, sourceType: v.sourceType, updatedAtText: v.updatedAt ? new Date(v.updatedAt).toLocaleString('zh-CN') : '' };
+                        });
+                    }
+                });
+            },
+            select: function (c) {
+                this.current = c;
+                this.versions = c.versions.map(function (v) {
+                    return { version: v.version, isCurrent: v.isCurrent, sourceType: v.sourceType, updatedAtText: v.updatedAt ? new Date(v.updatedAt).toLocaleString('zh-CN') : '' };
+                });
+                this.snapshot = null;
+                this.viewSnapshot(c.currentVersion);
+            },
+            viewSnapshot: function (version) {
+                var self = this;
+                fetch('/api/lowcode/component/snapshot?name=' + encodeURIComponent(this.current.name) + '&version=' + version)
+                    .then(function (r) { return r.json(); }).then(function (j) {
+                        if (j.success) self.snapshot = j.data;
+                    });
+            },
+            refreshAll: function () {
+                var self = this;
+                this.refreshing = true;
+                fetch('/api/lowcode/component/refresh', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (j) {
+                    self.refreshing = false;
+                    window.VueLib.actions.helpers.notify({ type: j.changed > 0 ? 'success' : 'info', message: '刷新完成，变更 ' + j.changed + ' 个组件' }, {});
+                    self.load();
+                });
+            },
+            remove: function () {
+                var self = this;
+                if (!confirm('删除组件「' + this.current.displayName + '」（含全部版本）？')) return;
+                fetch('/api/lowcode/component/' + encodeURIComponent(this.current.name), { method: 'DELETE' })
+                    .then(function (r) { return r.json(); }).then(function (j) {
+                        window.VueLib.actions.helpers.notify({ type: 'success', message: '已删除 ' + j.deleted + ' 条' }, {});
+                        self.current = null; self.snapshot = null; self.load();
+                    });
+            },
+            copyText: function (txt) {
+                navigator.clipboard.writeText(txt).then(function () {
+                    window.VueLib.actions.helpers.notify({ type: 'success', message: '已复制' }, {});
+                });
+            },
+            openDesigner: function () { location.href = '/designer'; }
+        }
+    });
+    app.use(window.ElementPlus);
+    app.mount('#cm-app');
+})();
+</script>
+}

@@ -1,0 +1,27 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<div class="lc-window" :class="getClass(jc.options.itemoptions)">
+    <el-button :type="jc.options.comoptions.buttonType || 'primary'"
+               :size="jc.options.comoptions.size || 'default'"
+               @@click="openWindow">
+        {{ jc.options.comoptions.text || '打开窗口' }}
+    </el-button>
+    <div v-if="designShared" class="text-xs text-gray-400 mt-1">窗口组件（Element/Lay），运行时可配置 URL 内容</div>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+    const comExtra = {
+        openWindow() {
+            const o = jc.options.comoptions;
+            VueLib.services.window.open({
+                mode: o.mode || 'element',
+                url: o.url,
+                title: o.title || '窗口',
+                width: o.width,
+                height: o.height,
+                params: VueLib.utils.resolvePlaceholders(o.params || {}, props.parentmodelinfo)
+            });
+        }
+    };
+}

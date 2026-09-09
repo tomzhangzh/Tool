@@ -1,0 +1,29 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+@* Fragment 透明容器：设计器显示外层容器 div，运行时直接透出子节点（无额外 DOM） *@
+<template v-if="designShared">
+    <div class="lc-container lc-fragment" :class="getClass(jc.options.itemoptions)" :style="getStyle(jc.options.itemoptions)">
+        <lc-node v-for="(child, i) in safeChildren"
+                 :key="child._id || childPath(i)"
+                 :jsonconfig="child"
+                 :parentmodelinfo="parentmodelinfo"
+                 :node-path="childPath(i)"
+                 :design="design"
+                 :design-api="designApi"
+                 :depth="depth + 1"></lc-node>
+    </div>
+</template>
+<template v-else>
+    <lc-node v-for="(child, i) in safeChildren"
+             :key="child._id || childPath(i)"
+             :jsonconfig="child"
+             :parentmodelinfo="parentmodelinfo"
+             :node-path="childPath(i)"
+             :design="false"
+             :design-api="null"
+             :depth="depth + 1"></lc-node>
+</template>
+@section setupScripts{
+    let DVALUE = null;
+}

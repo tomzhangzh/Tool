@@ -1,0 +1,22 @@
+﻿@* ============================================================================
+   版本演示组件（参照文件）
+   说明：本组件的两个版本（v1/v2）由 DemoPageFactory 手工写入数据库
+   （SourceType='demo'），用于演示“页面锁定旧组件版本”。
+   若想改为 Razor 注册驱动，把本文件加入 appsettings RazorComponents 并在
+   DemoPageFactory 中移除 VersionDemo 手工种子即可。
+   ============================================================================ *@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<div class="border rounded p-4" :class="versionClass">
+    <div class="font-bold mb-2">VersionDemo <span>{{ versionBadge }}</span></div>
+    <div class="text-sm text-gray-600">此组件来自 Razor 注册版（演示用），可通过 setupScripts 返回 comExtra 渲染。</div>
+    <el-input v-model="modelinfo" placeholder="绑定模型" class="mt-2"></el-input>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+    const comExtra = {
+        versionBadge: 'v(razor)',
+        versionClass: 'border-blue-300 bg-blue-50'
+    };
+}

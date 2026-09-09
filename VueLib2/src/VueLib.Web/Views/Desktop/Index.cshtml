@@ -1,0 +1,254 @@
+@{
+    ViewBag.Title = "桌面 - VueLib2";
+}
+@* 桌面工作台：渐变背景 + 快捷方式 + 任务栏 + 开始菜单 + 窗口系统（iframe） *@
+<style>
+    /* 桌面专用样式（.lc-desktop-* 前缀） */
+    .lc-desktop-root {
+        height: 100vh; position: relative; overflow: hidden;
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #6a11cb 100%);
+        background-size: 400% 400%; animation: lcDeskGrad 15s ease infinite;
+        user-select: none;
+    }
+    @@keyframes lcDeskGrad { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    .lc-desktop-icon { width: 84px; padding: 10px 4px; border-radius: 8px; cursor: pointer; transition: background .15s; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .lc-desktop-icon:hover { background: rgba(255,255,255,.15); }
+    .lc-desktop-icon.selected { background: rgba(255,255,255,.25); outline: 1px solid rgba(255,255,255,.4); }
+    .lc-desktop-icon .ic { font-size: 34px; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)); }
+    .lc-desktop-icon .lb { color: #fff; font-size: 12px; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,.85); line-height: 1.3; max-height: 30px; overflow: hidden; word-break: break-all; }
+    .lc-taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: 46px; background: rgba(25,25,28,.88); backdrop-filter: blur(18px); display: flex; align-items: center; padding: 0 6px; z-index: 1000; border-top: 1px solid rgba(255,255,255,.08); }
+    .lc-task-item { height: 34px; min-width: 150px; max-width: 210px; padding: 0 10px; display: flex; align-items: center; gap: 7px; border-radius: 6px; cursor: pointer; color: #fff; font-size: 12px; background: rgba(255,255,255,.08); transition: background .15s; }
+    .lc-task-item:hover { background: rgba(255,255,255,.16); }
+    .lc-task-item.active { background: rgba(255,255,255,.24); box-shadow: inset 0 -2px 0 #4fc3f7; }
+    .lc-window { position: absolute; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.45); display: flex; flex-direction: column; min-width: 420px; min-height: 300px; }
+    .lc-window.minimized { display: none; }
+    .lc-window.maximized { top: 0 !important; left: 0 !important; width: 100% !important; height: calc(100% - 46px) !important; border-radius: 0; }
+    .lc-win-header { height: 36px; background: linear-gradient(to bottom, #f6f6f6, #e6e6e6); display: flex; align-items: center; padding: 0 8px; cursor: move; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+    .lc-win-header .tt { flex: 1; font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-left: 6px; }
+    .lc-win-btn { width: 30px; height: 26px; border: none; background: none; cursor: pointer; border-radius: 4px; font-size: 13px; color: #666; display: flex; align-items: center; justify-content: center; }
+    .lc-win-btn:hover { background: rgba(0,0,0,.08); }
+    .lc-win-btn.close:hover { background: #e81123; color: #fff; }
+    .lc-win-body { flex: 1; overflow: hidden; position: relative; }
+    .lc-win-body iframe { width: 100%; height: 100%; border: none; }
+    .lc-win-resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 10; background: linear-gradient(135deg, transparent 50%, #999 50%, #999 60%, transparent 60%, transparent 70%, #999 70%, #999 80%, transparent 80%); }
+    .lc-start-menu { position: absolute; left: 8px; bottom: 52px; width: 380px; max-height: 70vh; background: rgba(38,38,42,.94); backdrop-filter: blur(24px); border-radius: 12px; border: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; z-index: 999; box-shadow: 0 10px 40px rgba(0,0,0,.5); animation: lcMenuIn .18s ease; overflow: hidden; }
+    @@keyframes lcMenuIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .lc-context-menu { position: absolute; background: rgba(45,45,50,.95); backdrop-filter: blur(10px); border-radius: 8px; padding: 5px; min-width: 170px; z-index: 2000; box-shadow: 0 4px 20px rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.1); }
+    .lc-context-item { padding: 7px 13px; color: #fff; font-size: 13px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .lc-context-item:hover { background: rgba(255,255,255,.14); }
+    .lc-modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 5000; display: flex; align-items: center; justify-content: center; }
+    .lc-modal-mask .lc-window { position: relative; }
+</style>
+
+<div id="desktop-app" class="lc-desktop-root" @@contextmenu.prevent="showCtx($event)">
+    <!-- 快捷方式 -->
+    <div class="absolute top-0 left-0 right-0 bottom-[46px] p-4 flex flex-col flex-wrap content-start gap-1.5">
+        <div v-for="sc in shortcuts" :key="sc.id" class="lc-desktop-icon"
+             :class="{ selected: selectedId === sc.id }"
+             @@click.stop="selectedId = sc.id" @@dblclick="openApp(sc)">
+            <div class="ic">{{ sc.icon || '📄' }}</div>
+            <div class="lb">{{ sc.name }}</div>
+        </div>
+    </div>
+
+    <!-- 窗口 -->
+    <div v-for="win in windows" :key="win.id" class="lc-window"
+         :class="{ minimized: win.minimized, maximized: win.maximized }"
+         :style="{ left: win.x + 'px', top: win.y + 'px', width: win.width + 'px', height: win.height + 'px', zIndex: win.zIndex }"
+         @@mousedown="focusWin(win.id)">
+        <div class="lc-win-header" @@mousedown="startDrag($event, win)" @@dblclick="toggleMax(win)">
+            <span>{{ win.icon }}</span><span class="tt">{{ win.title }}</span>
+            <div class="flex gap-1">
+                <button class="lc-win-btn" @@click.stop="minimizeWin(win)" title="最小化">─</button>
+                <button class="lc-win-btn" @@click.stop="toggleMax(win)" title="最大化">{{ win.maximized ? '❐' : '☐' }}</button>
+                <button class="lc-win-btn close" @@click.stop="closeWin(win.id)" title="关闭">✕</button>
+            </div>
+        </div>
+        <div class="lc-win-body"><iframe :src="win.url"></iframe></div>
+        <div v-if="!win.maximized && win.openType !== 'modal'" class="lc-win-resize" @@mousedown.stop="startResize($event, win)"></div>
+    </div>
+
+    <!-- 模态遮罩 -->
+    <div v-if="modalWin" class="lc-modal-mask" @@click.self="closeWin(modalWin.id)"></div>
+
+    <!-- 开始菜单 -->
+    <div v-if="showStart" class="lc-start-menu" @@click.stop>
+        <div class="px-4 py-3 text-white border-b border-white/10">
+            <div class="font-bold">VueLib2 Desktop</div>
+            <div class="text-[11px] text-white/50 mt-0.5">所有应用</div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2">
+            <div v-for="sol in solutions" :key="sol.id" class="mb-3">
+                <div class="px-2 py-1 text-[11px] text-white/50 uppercase">{{ sol.icon }} {{ sol.name }}</div>
+                <div v-for="sc in bySolution(sol.id)" :key="sc.id" class="lc-context-item" @@click="openApp(sc); showStart = false;">
+                    <span>{{ sc.icon || '📄' }}</span><span>{{ sc.name }}</span>
+                </div>
+            </div>
+            <div v-if="bySolution(null).length">
+                <div class="px-2 py-1 text-[11px] text-white/50 uppercase">未分组</div>
+                <div v-for="sc in bySolution(null)" :key="sc.id" class="lc-context-item" @@click="openApp(sc); showStart = false;">
+                    <span>{{ sc.icon || '📄' }}</span><span>{{ sc.name }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="px-3 py-2 border-t border-white/10 flex justify-between">
+            <button class="lc-context-item !py-1" @@click="openManage('shortcut')">🖥️ 快捷方式管理</button>
+            <button class="lc-context-item !py-1" @@click="openManage('solution')">📁 解决方案管理</button>
+        </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div v-if="ctx.show" class="lc-context-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+        <div class="lc-context-item" @@click="refreshAll">🔄 刷新</div>
+        <div class="h-px bg-white/10 my-1"></div>
+        <div class="lc-context-item" @@click="openManage('page')">📄 页面管理</div>
+        <div class="lc-context-item" @@click="openManage('component')">🧩 组件管理</div>
+        <div class="lc-context-item" @@click="openManage('shortcut')">🖥️ 快捷方式管理</div>
+        <div class="lc-context-item" @@click="openManage('solution')">📁 解决方案管理</div>
+    </div>
+
+    <!-- 任务栏 -->
+    <div class="lc-taskbar">
+        <button class="lc-context-item !py-1.5" @@click.stop="showStart = !showStart" title="开始">🏠</button>
+        <div class="flex-1 flex gap-1.5 px-2 overflow-x-auto">
+            <div v-for="win in windows" :key="win.id" class="lc-task-item"
+                 :class="{ active: activeWinId === win.id && !win.minimized }"
+                 @@click="taskbarClick(win)">
+                <span>{{ win.icon }}</span><span class="flex-1 truncate">{{ win.title }}</span>
+            </div>
+        </div>
+        <div class="px-3 text-white text-xs text-right leading-tight">
+            <div>{{ now }}</div>
+            <div class="text-[11px] opacity-60">{{ date }}</div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    var app = Vue.createApp({
+        data: function () {
+            return {
+                shortcuts: [], solutions: [], windows: [],
+                showStart: false, selectedId: null, activeWinId: null,
+                now: '', date: '', ctx: { show: false, x: 0, y: 0 }, modalWin: null,
+                winSeq: 0, zSeq: 100
+            };
+        },
+        mounted: function () {
+            var self = this;
+            this.loadData();
+            this.tick(); setInterval(this.tick, 1000);
+            document.addEventListener('click', this.globalClick);
+            window.dynOpenUrl = function (url, title) {
+                self.openApp({ id: 0, name: title || '预览', icon: '🖥️', url: url, openType: 'iframe' });
+            };
+        },
+        beforeUnmount: function () { document.removeEventListener('click', this.globalClick); },
+        methods: {
+            loadData: function () {
+                var self = this;
+                Promise.all([
+                    fetch('/api/desktop/shortcuts').then(function (r) { return r.json(); }),
+                    fetch('/api/desktop/solutions').then(function (r) { return r.json(); })
+                ]).then(function (rs) {
+                    self.shortcuts = rs[0].data || [];
+                    self.solutions = rs[1].data || [];
+                }).catch(function (e) { console.error('桌面数据加载失败', e); });
+            },
+            bySolution: function (id) {
+                return this.shortcuts.filter(function (s) { return (s.solutionId || null) === id; });
+            },
+            openApp: function (sc) {
+                var self = this;
+                var t = sc.openType || 'iframe';
+                if (t === 'newtab') { window.open(sc.url, '_blank'); return; }
+                if (t === 'modal' && this.modalWin) this.closeWin(this.modalWin.id);
+                if (t !== 'modal') {
+                    var ex = this.windows.find(function (w) { return w.url === sc.url; });
+                    if (ex) { ex.minimized = false; this.focusWin(ex.id); return; }
+                }
+                var full = t === 'fullscreen';
+                var w = sc.width > 0 ? sc.width : (t === 'modal' ? 860 : 960);
+                var h = sc.height > 0 ? sc.height : 620;
+                var x = sc.posX > 0 ? sc.posX : (t === 'modal' ? (window.innerWidth - w) / 2 : 60 + (this.windows.length * 28) % 180);
+                var y = sc.posY > 0 ? sc.posY : (t === 'modal' ? (window.innerHeight - h - 46) / 2 : 46 + (this.windows.length * 26) % 140);
+                var win = {
+                    id: ++this.winSeq, shortcutId: sc.id, title: sc.name, icon: sc.icon || '📄',
+                    url: sc.url, openType: t, x: x, y: y, width: w, height: h,
+                    minimized: false, maximized: full, zIndex: t === 'modal' ? 6000 : ++this.zSeq
+                };
+                this.windows.push(win);
+                this.activeWinId = win.id;
+                if (t === 'modal') this.modalWin = win;
+            },
+            focusWin: function (id) {
+                var w = this.windows.find(function (x) { return x.id === id; });
+                if (w) { w.zIndex = ++this.zSeq; this.activeWinId = id; }
+            },
+            minimizeWin: function (w) { w.minimized = true; },
+            toggleMax: function (w) { w.maximized = !w.maximized; },
+            closeWin: function (id) {
+                var i = this.windows.findIndex(function (x) { return x.id === id; });
+                if (i >= 0) {
+                    if (this.modalWin && this.modalWin.id === id) this.modalWin = null;
+                    this.windows.splice(i, 1);
+                }
+            },
+            taskbarClick: function (w) {
+                if (w.minimized) { w.minimized = false; this.focusWin(w.id); }
+                else if (this.activeWinId === w.id) w.minimized = true;
+                else this.focusWin(w.id);
+            },
+            startDrag: function (e, w) {
+                if (w.maximized || w.openType === 'modal') return;
+                this.focusWin(w.id);
+                var self = this, sx = e.clientX, sy = e.clientY, ox = w.x, oy = w.y;
+                function mv(ev) { w.x = ox + (ev.clientX - sx); w.y = Math.max(0, oy + (ev.clientY - sy)); }
+                function up() { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); self.saveWin(w); }
+                document.addEventListener('mousemove', mv);
+                document.addEventListener('mouseup', up);
+            },
+            startResize: function (e, w) {
+                if (w.maximized || w.openType === 'modal') return;
+                this.focusWin(w.id);
+                var self = this, sx = e.clientX, sy = e.clientY, ow = w.width, oh = w.height;
+                function mv(ev) { w.width = Math.max(420, ow + (ev.clientX - sx)); w.height = Math.max(300, oh + (ev.clientY - sy)); }
+                function up() { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); self.saveWin(w); }
+                document.addEventListener('mousemove', mv);
+                document.addEventListener('mouseup', up);
+            },
+            saveWin: function (w) {
+                if (!w.shortcutId || w.openType === 'modal' || w.openType === 'newtab') return;
+                fetch('/api/desktop/shortcut/' + w.shortcutId + '/window', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ posX: Math.round(w.x), posY: Math.round(w.y), width: Math.round(w.width), height: Math.round(w.height) })
+                }).catch(function () { });
+            },
+            showCtx: function (e) { this.ctx = { show: true, x: e.clientX, y: e.clientY }; },
+            refreshAll: function () { this.ctx.show = false; this.loadData(); },
+            openManage: function (type) {
+                this.ctx.show = false; this.showStart = false;
+                var map = {
+                    page: { name: '页面管理', icon: '📄', url: '/#/pages' },
+                    component: { name: '组件管理', icon: '🧩', url: '/component-manage' },
+                    shortcut: { name: '快捷方式管理', icon: '🖥️', url: '/desktop/manage?type=shortcut' },
+                    solution: { name: '解决方案管理', icon: '📁', url: '/desktop/manage?type=solution' }
+                };
+                var m = map[type];
+                if (m) this.openApp({ id: 0, name: m.name, icon: m.icon, url: m.url, openType: 'iframe' });
+            },
+            globalClick: function () { this.showStart = false; this.ctx.show = false; this.selectedId = null; },
+            tick: function () {
+                var d = new Date();
+                this.now = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                this.date = d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+            }
+        }
+    });
+    app.mount('#desktop-app');
+})();
+</script>
+}

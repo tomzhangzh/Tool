@@ -1,0 +1,31 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<div class="lc-foreach" :class="getClass(jc.options.itemoptions)">
+    <template v-for="(item, idx) in loopItems" :key="idx">
+        <lc-node v-for="(child, i) in safeChildren"
+                 :key="child._id || childPath(i)"
+                 :jsonconfig="child"
+                 :parentmodelinfo="item"
+                 :node-path="itemChildPath(idx, i)"
+                 :design="design"
+                 :design-api="designApi"
+                 :depth="depth + 1"></lc-node>
+    </template>
+    <div v-if="design && (!loopItems || !loopItems.length)" class="lc-container-empty text-gray-400 text-xs p-2 text-center">循环 [{{ jc.options.comoptions.itemPath || 'items' }}] 为空</div>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+    const comExtra = {
+        loopItems: computed(() => {
+            const path = jc.options.comoptions.itemPath || 'items';
+            return _.get(props.parentmodelinfo, path) || [];
+        }),
+        itemChildPath(idx, i) {
+            const base = props.nodePath && props.nodePath !== 'root'
+                ? props.nodePath + '.childrenctrls'
+                : 'childrenctrls';
+            return base + '[' + i + ']';
+        }
+    };
+}

@@ -1,0 +1,15 @@
+﻿@{
+    ViewBag.Title = "设计器 - VueLib2";
+}
+@* 设计器外壳：单一 Vue App（palette / canvas / property / tree / toolbar） *@
+<div id="designer-app" class="h-screen"></div>
+
+@section Scripts {
+<script>
+(function () {
+    if (!window.VueLib) { console.error('VueLib 未加载'); return; }
+    var q = new URLSearchParams(location.search);
+    VueLib.designer.mount('#designer-app', { page: q.get('page') });
+})();
+</script>
+}

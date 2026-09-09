@@ -1,0 +1,33 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<div :class="containerClass" :style="getStyle(jc.options.itemoptions, jc.options.wrapperoptions)">
+    <lc-node v-for="(child, i) in safeChildren"
+             :key="child._id || childPath(i)"
+             :jsonconfig="child"
+             :parentmodelinfo="parentmodelinfo"
+             :node-path="childPath(i)"
+             :design="design"
+             :design-api="designApi"
+             :depth="depth + 1"></lc-node>
+    <div v-if="design && !safeChildren.length" class="lc-container-empty text-gray-400 text-xs p-2 text-center">空容器 - 从左侧拖入组件</div>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+    const comExtra = {
+        containerClass: computed(() => {
+            const f = jc.options.comoptions.flexbox;
+            const base = jc.options.itemoptions.class || '';
+            if (!f || !f.enabled) return base;
+            const cls = ['flex'];
+            cls.push(f.direction === 'col' ? 'flex-col' : 'flex-row');
+            cls.push('justify-' + (f.justify || 'start'));
+            cls.push('items-' + (f.align || 'stretch'));
+            cls.push(f.wrap === 'nowrap' ? 'flex-nowrap' : 'flex-wrap');
+            if (f.gap) cls.push('gap-' + f.gap);
+            if (f.className) cls.push(f.className);
+            if (base) cls.push(base);
+            return cls.join(' ');
+        })
+    };
+}

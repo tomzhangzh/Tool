@@ -1,0 +1,27 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<div class="lc-tabs" :class="getClass(jc.options.itemoptions)">
+    <el-tabs v-model="activeTab">
+        <el-tab-pane v-for="key in slotKeys"
+                     :key="key"
+                     :label="(jc.slots[key] && jc.slots[key].label) || key"
+                     :name="key">
+            <lc-node v-for="(child, i) in slotChildren(key).value"
+                     :key="child._id || childPath(i)"
+                     :jsonconfig="child"
+                     :parentmodelinfo="parentmodelinfo"
+                     :node-path="slotChildPath(key, i)"
+                     :design="design"
+                     :design-api="designApi"
+                     :depth="depth + 1"></lc-node>
+        </el-tab-pane>
+    </el-tabs>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+    const comExtra = {
+        slotKeys: computed(() => Object.keys(jc.slots || {})),
+        activeTab: ref(Object.keys(jc.slots || {})[0] || '')
+    };
+}

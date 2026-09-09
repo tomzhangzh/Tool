@@ -1,0 +1,20 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<div class="lc-slot" :class="getClass(jc.options.itemoptions)" :style="getStyle(jc.options.itemoptions)">
+    <lc-node v-for="(child, i) in slotChildren(slotName).value"
+             :key="child._id || childPath(i)"
+             :jsonconfig="child"
+             :parentmodelinfo="parentmodelinfo"
+             :node-path="slotChildPath(slotName, i)"
+             :design="design"
+             :design-api="designApi"
+             :depth="depth + 1"></lc-node>
+    <div v-if="design && !slotChildren(slotName).value.length" class="lc-container-empty text-gray-400 text-xs p-2 text-center">插槽 [{{ slotName }}] 为空</div>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+    const comExtra = {
+        slotName: computed(() => jc.options.comoptions.slotname || 'body')
+    };
+}

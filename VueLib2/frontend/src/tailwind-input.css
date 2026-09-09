@@ -1,0 +1,5 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 设计器/运行时使用的自定义组件类（在 vue-lib.css 中），此处仅保留 tailwind 基础 */

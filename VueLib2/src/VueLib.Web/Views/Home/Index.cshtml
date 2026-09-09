@@ -1,0 +1,64 @@
+﻿@{
+    ViewBag.Title = ViewBag.Title ?? "VueLib2";
+}
+@* 首页：页面列表 + 低代码页面预览（hash 路由 /#/page/{code}）+ TagHelper 演示 *@
+<div id="home-app" class="min-h-screen">
+    <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div class="text-lg font-bold text-gray-800">VueLib2 低代码平台</div>
+        <div class="flex items-center gap-3 text-sm">
+            <a href="/desktop" class="px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700">🖥️ 桌面</a>
+            <a id="link-designer" href="/designer" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700">打开设计器</a>
+            <a href="/component-manage" class="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50">组件管理</a>
+            <a href="/#/pages" class="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50">页面列表</a>
+        </div>
+    </header>
+
+    <div id="preview-root" class="p-4"></div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    if (!window.VueLib) { console.error('VueLib 未加载'); return; }
+    var root = document.getElementById('preview-root');
+
+    // 监听 hash：/#/page/{code} 渲染低代码页面；其它显示页面列表
+    function route() {
+        var m = location.hash.match(/^#\/page\/(.+)$/);
+        if (m) {
+            VueLib.runtime.bootPage(root, decodeURIComponent(m[1]));
+        } else {
+            renderPageList(root);
+        }
+    }
+
+    function renderPageList(container) {
+        VueLib.services.pages().then(function (res) {
+            var html = '<div class="max-w-3xl mx-auto mt-8">' +
+                '<h2 class="text-xl font-bold mb-4">演示页面</h2><div class="space-y-2">';
+            (res.data || []).forEach(function (p) {
+                html += '<div class="flex items-center justify-between bg-white border border-gray-200 rounded px-4 py-3">' +
+                    '<div><div class="font-medium">' + p.name + '</div>' +
+                    '<div class="text-xs text-gray-500">' + p.code + '</div></div>' +
+                    '<div class="flex gap-2"><a href="/#/page/' + p.code + '" class="text-blue-600 hover:underline text-sm">预览</a>' +
+                    '<a href="/designer?page=' + p.code + '" class="text-green-600 hover:underline text-sm">设计</a></div></div>';
+            });
+            html += '</div></div>';
+            container.innerHTML = html;
+        });
+    }
+
+    // TagHelper 演示：<lc-page> / <lc-component>
+    // 预览页时"打开设计器"带上当前页面编码
+    function syncDesignerLink() {
+        var m = location.hash.match(/^#\/page\/(.+)$/);
+        var link = document.getElementById('link-designer');
+        if (link) link.href = m ? '/designer?page=' + encodeURIComponent(decodeURIComponent(m[1])) : '/designer';
+    }
+    window.addEventListener('hashchange', route);
+    syncDesignerLink();
+    window.addEventListener('hashchange', syncDesignerLink);
+    route();
+})();
+</script>
+}

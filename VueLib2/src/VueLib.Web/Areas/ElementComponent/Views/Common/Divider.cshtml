@@ -1,0 +1,11 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<div :class="getClass(jc.options.itemoptions)" :style="getStyle(jc.options.itemoptions, jc.options.wrapperoptions)">
+    <el-divider :direction="jc.options.comoptions.direction || 'horizontal'">
+        <span v-if="jc.options.comoptions.text">{{ jc.options.comoptions.text }}</span>
+    </el-divider>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+}

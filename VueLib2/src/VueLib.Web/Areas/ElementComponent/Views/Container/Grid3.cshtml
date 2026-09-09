@@ -1,0 +1,78 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+@* Grid3 三屏管理：Filter-Grid-Detail（通过 VueLib.dyn.updateEl 加载服务端分部视图） *@
+<div class="lc-grid3 space-y-2" :class="getClass(jc.options.itemoptions)">
+    <div v-if="!designShared && (jc.options.comoptions.showToolbar !== false)" class="lc-grid3-header flex items-center justify-between bg-white border border-gray-200 rounded px-3 py-2">
+        <div class="font-bold text-sm">{{ jc.options.comoptions.title || '数据管理' }}</div>
+        <div class="flex gap-2">
+            <el-button size="small" type="primary" @@click="doSearch">查询</el-button>
+            <el-button size="small" @@click="doReset">重置</el-button>
+            <el-button size="small" type="success" plain @@click="doNew">新增</el-button>
+        </div>
+    </div>
+    <div v-if="designShared" class="lc-grid3-design placeholder border border-dashed border-gray-300 rounded p-6 text-center text-gray-400 text-sm">
+        Grid3 三屏管理组件（设计态不加载数据）：{{ jc.options.comoptions.title || '' }}
+    </div>
+    <template v-else>
+        <div id="grid3-filter" ref="filterEl" class="lc-grid3-filter bg-white border border-gray-200 rounded"></div>
+        <div id="grid3-list" ref="listEl" class="lc-grid3-list bg-white border border-gray-200 rounded"></div>
+        <div id="grid3-detail" ref="detailEl" class="lc-grid3-detail bg-white border border-gray-200 rounded"></div>
+    </template>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+    const comExtra = {
+        filterEl: ref(null),
+        listEl: ref(null),
+        detailEl: ref(null),
+        gridUrls() {
+            const o = jc.options.comoptions;
+            const base = o.featureUrl || '';
+            return {
+                filter: base + (o.filterUrl || '/partial/filter'),
+                list: base + (o.listUrl || '/partial/list'),
+                detail: base + (o.detailUrl || '/partial/detail')
+            };
+        },
+        async loadPanels() {
+            const urls = this.gridUrls();
+            await VueLib.dyn.updateEl(this.filterEl.value, urls.filter);
+            await VueLib.dyn.updateEl(this.listEl.value, urls.list, {
+                keyword: _.get(props.parentmodelinfo, 'filter.keyword') || '',
+                category: _.get(props.parentmodelinfo, 'filter.category') || ''
+            });
+        },
+        async doSearch() {
+            await VueLib.dyn.updateEl(this.listEl.value, this.gridUrls().list, {
+                keyword: _.get(props.parentmodelinfo, 'filter.keyword') || '',
+                category: _.get(props.parentmodelinfo, 'filter.category') || ''
+            });
+            if (this.detailEl.value) this.detailEl.value.innerHTML = '';
+        },
+        async doReset() {
+            if (props.parentmodelinfo) {
+                _.set(props.parentmodelinfo, 'filter', { keyword: '', category: '' });
+            }
+            await this.doSearch();
+        },
+        doNew() {
+            // 打开 Element 窗口加载新增表单（演示 openwindow + url）
+            VueLib.services.window.open({
+                mode: 'element',
+                title: '新增商品',
+                url: '/api/demo/window-content',
+                params: { from: 'grid3-new' }
+            });
+        }
+    };
+    onMounted(() => {
+        if (designShared) return;
+        comExtra.loadPanels();
+    });
+    onUnmounted(() => {
+        [comExtra.filterEl, comExtra.listEl, comExtra.detailEl].forEach(function (r) {
+            if (r && r.value) r.value.innerHTML = '';
+        });
+    });
+}

@@ -1,0 +1,20 @@
+{
+  "name": "vuelib2-frontend",
+  "private": true,
+  "version": "2.0.0",
+  "description": "VueLib2 前端第三方依赖（lodash / vue3 / element-plus / tailwind / axios / sortable）",
+  "scripts": {
+    "build:libs": "node scripts/copy-libs.js && npx tailwindcss -i ./src/tailwind-input.css -o ../src/VueLib.Web/wwwroot/css/tailwind.css --minify"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "element-plus": "^2.9.1",
+    "lodash": "^4.17.21",
+    "sortablejs": "^1.15.6",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

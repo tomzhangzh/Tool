@@ -1,0 +1,21 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+<div class="lc-label-wrapper" :class="getClass(jc.options.itemoptions)" :style="getStyle(jc.options.itemoptions, jc.options.wrapperoptions)">
+    <div v-if="jc.options.labeloptions.show !== false" class="lc-label-wrapper-label" :class="{ 'lc-required': jc.options.labeloptions.required }">
+        {{ jc.options.labeloptions.label }}
+    </div>
+    <div class="lc-label-wrapper-content">
+        <lc-node v-for="(child, i) in safeChildren"
+                 :key="i"
+                 :jsonconfig="child"
+                 :parentmodelinfo="parentmodelinfo"
+                 :node-path="childPath(i)"
+                 :design="design"
+                 :design-api="designApi"
+                 :depth="depth + 1"></lc-node>
+    </div>
+</div>
+@section setupScripts{
+    let DVALUE = null;
+}

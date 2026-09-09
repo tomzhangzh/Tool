@@ -1,0 +1,11 @@
+﻿@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementFormItemLayout.cshtml";
+}
+<el-date-picker v-model="modelinfo"
+                v-bind="jc.options.comoptions"
+                type="date"
+                value-format="YYYY-MM-DD"
+                v-on="getComlisteners()"></el-date-picker>
+@section setupScripts{
+    let DVALUE = null;
+}
