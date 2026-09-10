@@ -1,0 +1,188 @@
+@{
+    Layout = null;
+    var stepsJson = (string?)ViewBag.StepsJson ?? "[]";
+}
+<div dyn-init class="ce-root"
+     style="padding:0; font-family:'Segoe UI','Microsoft YaHei',sans-serif;"
+     data-ce-title="动作链编辑器">
+    <script type="application/json" tag="dynmodel">@Html.Raw(stepsJson)</script>
+
+    <div class="ce-header" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1f2937;color:#fff;border-radius:6px 6px 0 0;">
+        <b style="font-size:14px;">🔗 动作链编辑器</b>
+        <span style="font-size:11px;color:#9ca3af;">步骤按序 await 执行 · 返回 false 中止 · 上一步结果注入 {{$result}}</span>
+    </div>
+
+    <div style="padding:12px;">
+        <el-table :data="steps" border size="small" max-height="340" style="width:100%;">
+            <el-table-column label="#" type="index" width="44" align="center"></el-table-column>
+            <el-table-column label="动作" width="170">
+                <template #default="{row}">
+                    <el-select v-model="row.action" size="small" filterable style="width:100%">
+                        <el-option v-for="a in actionOptions" :key="a.name" :label="a.label + ' (' + a.name + ')'" :value="a.name"></el-option>
+                    </el-select>
+                </template>
+            </el-table-column>
+            <el-table-column label="选项 JSON（options）">
+                <template #default="{row}">
+                    <el-input v-model="row.optionsText" type="textarea" :rows="2" size="small"
+                              placeholder='{"url":"/Detail","title":"详情"}' class="mono"></el-input>
+                </template>
+            </el-table-column>
+            <el-table-column label="onEvent" width="170">
+                <template #default="{row}">
+                    <el-button size="small" text type="primary" v-on:click="editOnEvent(row)">onopen / onclose</el-button>
+                    <span v-if="row.hasOnEvent" style="color:#16a34a;font-size:11px;">已配置</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" align="center">
+                <template #default="{row,$index}">
+                    <el-button size="small" text :disabled="$index===0" v-on:click="move($index,-1)">↑</el-button>
+                    <el-button size="small" text :disabled="$index===steps.length-1" v-on:click="move($index,1)">↓</el-button>
+                    <el-button size="small" text type="danger" v-on:click="steps.splice($index,1)">✕</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+
+        <div style="margin-top:10px;display:flex;gap:8px;">
+            <el-button size="small" type="primary" plain v-on:click="addStep()">➕ 添加步骤</el-button>
+            <el-button size="small" v-on:click="addStep('delay')">⏳ 延时</el-button>
+            <el-button size="small" v-on:click="addStep('notify')">🔔 通知</el-button>
+            <el-button size="small" v-on:click="addStep('openwindow')">🪟 打开窗体</el-button>
+            <el-button size="small" v-on:click="addStep('setvar')">📝 设置变量</el-button>
+            <span style="flex:1"></span>
+            <el-button size="small" v-on:click="cancel()">取消</el-button>
+            <el-button size="small" type="success" v-on:click="save()">✔ 保存动作链</el-button>
+        </div>
+
+        <div style="margin-top:8px;font-size:11px;color:#6b7280;line-height:1.7;">
+            <b>可用动作：</b>
+            <span v-for="a in actionOptions" :key="a.name" style="margin-right:6px;">
+                <code style="background:#f3f4f6;border-radius:3px;padding:0 4px;">{{a.name}}</code>
+            </span>
+            <br>
+            <b>内置动作助手：</b>postback / openwindow / chain / switch / setvar / delay / notify / triggerevent /
+            close / reload / evaljs / setVueModel / setwindow / setdyncom / toast / copy / download / grid / confirm / showmessage / redirect
+            <br>
+            <b>DB 自定义助手：</b>confirmpost / opendetail / statusflow / saveflush（可在「动作助手管理」中维护）
+        </div>
+    </div>
+
+    <script tag="dynconfig">
+        var dynConfig = {
+            data: function () {
+                return {
+                    steps: [],
+                    actionOptions: []
+                };
+            },
+            mounted: function () {
+                var self = this;
+                // 初始 steps 从 dynmodel 注入
+                var init = (this.model && Array.isArray(this.model.steps)) ? this.model.steps : [];
+                self.steps = init.map(function (s) {
+                    return self.normalizeStep(s);
+                });
+                // 动作下拉：内置 + DB 已注册
+                var list = [];
+                try { list = (window.dyn && dyn.actionList) ? dyn.actionList() : []; } catch (e) { }
+                self.actionOptions = list;
+                this.$nextTick(function () {
+                    var el = self.$el && self.$el.closest ? self.$el.closest('.ce-root') : null;
+                    var body = el ? el.closest('.dyn-modal-body') : null;
+                    if (body) body.style.padding = '0';
+                });
+            },
+            methods: {
+                normalizeStep: function (s) {
+                    if (typeof s === 'string') return { action: s, options: {}, optionsText: '', onEvent: null, hasOnEvent: false };
+                    var opt = (s && s.options) ? s.options : (typeof s === 'object' ? s : {});
+                    var evt = (s && s.onEvent) || null;
+                    return {
+                        action: (s && s.action) || 'notify',
+                        options: opt,
+                        optionsText: (opt && Object.keys(opt).length) ? JSON.stringify(opt, null, 2) : '',
+                        onEvent: evt,
+                        hasOnEvent: !!evt
+                    };
+                },
+                addStep: function (preset) {
+                    var row = { action: preset || 'notify', optionsText: '', options: {}, onEvent: null, hasOnEvent: false };
+                    if (preset === 'delay') row.optionsText = '{\n  "ms": 500\n}';
+                    if (preset === 'notify') row.optionsText = '{\n  "type": "success",\n  "message": "操作成功"\n}';
+                    if (preset === 'openwindow') row.optionsText = '{\n  "url": "/Detail",\n  "title": "详情",\n  "type": "modal",\n  "width": "60%"\n}';
+                    if (preset === 'setvar') row.optionsText = '{\n  "modelName": "form.name",\n  "value": "张三"\n}';
+                    this.steps.push(row);
+                },
+                move: function (idx, dir) {
+                    var arr = this.steps;
+                    var j = idx + dir;
+                    if (j < 0 || j >= arr.length) return;
+                    var t = arr[idx]; arr[idx] = arr[j]; arr[j] = t;
+                },
+                editOnEvent: function (row) {
+                    var self = this;
+                    var evt = row.onEvent || { onopen: [], onclose: [] };
+                    // 用 openwindow 弹一个 onEvent 编辑小窗体（复用同一编辑器视图思路，简化用 prompt 链）
+                    if (window.dyn && dyn.openwindow) {
+                        dyn.openwindow({
+                            url: '/Designer/ActionChainEditor?steps=' + encodeURIComponent(JSON.stringify(evt.onopen || [])) + '&mode=onopen',
+                            title: '编辑 onopen 子链（关闭子链编辑器后回到主编辑器）',
+                            type: 'modal', width: '70%'
+                        }, row.element || null);
+                        window.__dynChainSubEditor = {
+                            target: row,
+                            apply: function (steps, mode) {
+                                if (!row.onEvent) row.onEvent = { onopen: [], onclose: [] };
+                                row.onEvent[mode] = steps || [];
+                                row.hasOnEvent = (row.onEvent.onopen && row.onEvent.onopen.length) || (row.onEvent.onclose && row.onEvent.onclose.length);
+                                self.$forceUpdate();
+                            }
+                        };
+                        return;
+                    }
+                    // 兜底：控制台编辑
+                    var txt = window.prompt('onopen/onclose JSON（数组），示例：\n{"onopen":[],"onclose":[]}', JSON.stringify(evt));
+                    if (txt) { try { row.onEvent = JSON.parse(txt); row.hasOnEvent = true; } catch (e) { window.alert('JSON 无效'); } }
+                },
+                save: function () {
+                    var self = this;
+                    var out = [];
+                    for (var i = 0; i < this.steps.length; i++) {
+                        var s = this.steps[i];
+                        var opt = {};
+                        if (s.optionsText && s.optionsText.trim()) {
+                            try { opt = JSON.parse(s.optionsText); } catch (e) { self.$message.error('步骤 ' + (i + 1) + ' 的 options JSON 无效'); return; }
+                        }
+                        var step = { action: s.action, options: opt };
+                        if (s.hasOnEvent && s.onEvent) step.onEvent = s.onEvent;
+                        out.push(step);
+                    }
+                    var cb = window.__dynChainEditor;
+                    if (cb && typeof cb.callback === 'function') cb.callback(out);
+                    if (cb && cb.mode === 'sub') { /* 子链编辑器：由父编辑器接管 */ }
+                    var root = self.$el && self.$el.closest ? self.$el.closest('[dyn-init]') : null;
+                    if (window.dyn && dyn.close) { if (root) dyn.close(root); else dyn.close(self.$el); }
+                },
+                cancel: function () {
+                    var root = this.$el && this.$el.closest ? this.$el.closest('[dyn-init]') : null;
+                    if (window.dyn && dyn.close) { if (root) dyn.close(root); else dyn.close(this.$el); }
+                }
+            }
+        };
+    </script>
+</div>
+<!-- 独立打开时的基础依赖（正常流程由父页 modal 提供，此处兜底） -->
+<script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
+<script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
+<script src="~/js/lodash.min.js" asp-append-version="true"></script>
+<script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
+<script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
+<script src="~/js/dyn-core.js" asp-append-version="true"></script>
+<script src="~/js/dyn-actionhelper.js" asp-append-version="true"></script>
+<script src="~/js/dyn-lib.js" asp-append-version="true"></script>
+<script>
+    // 独立打开时自启动（modal 流程由父页 initAll 扫描，幂等安全）
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.dyn && window.dyn.initAll) window.dyn.initAll();
+    });
+</script>

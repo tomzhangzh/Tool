@@ -133,6 +133,10 @@
 
                 // 缓存
                 componentCache.set(componentName, options);
+                // 统一注册表：加载成功后回注 dynCom（dyn-com.js），实现"一个地方管理"
+                if (global.dynCom && typeof global.dynCom.register === "function") {
+                    global.dynCom.register(componentName, options);
+                }
                 console.log(`[vueLoadCom] 组件 [${componentName}] 加载成功`);
                 return options;
             } catch (err) {

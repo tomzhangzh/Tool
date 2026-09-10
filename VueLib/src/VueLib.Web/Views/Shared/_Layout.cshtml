@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8" />
@@ -23,8 +23,12 @@
     <script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
     <!-- Vue Router 4 UMD 全局构建 -->
     <script src="~/js/vue-router.global.prod.js" asp-append-version="true"></script>
+    <!-- 组件注册表（dyncom 统一管理，服务端 view 渲染） -->
+    @await Component.InvokeAsync("DynComRegistry")
     <!-- 核心：vueLoadCom 动态组件加载器 -->
     <script src="~/js/vue-loader.js" asp-append-version="true"></script>
+    <!-- 统一组件注册表客户端（dyncom 统一管理） -->
+    <script src="~/js/dyn-com.js" asp-append-version="true"></script>
     <!-- 应用入口 -->
     <script src="~/js/app.js" asp-append-version="true"></script>
 

@@ -1,0 +1,312 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动作助手管理</title>
+    <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true">
+    <link rel="stylesheet" href="~/css/tailwind.css" asp-append-version="true">
+    <style>
+        body { margin: 0; background: #f3f4f6; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+        .page-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 20px; background: #fff; border-bottom: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .page-header h1 { font-size: 18px; margin: 0; color: #1f2937; display: flex; align-items: center; gap: 8px; }
+        .page-header .sub { font-size: 12px; color: #9ca3af; font-weight: normal; margin-left: 8px; }
+        .toolbar { display: flex; align-items: center; gap: 12px; }
+        .table-wrap { padding: 16px 20px; }
+        .mono { font-family: Consolas, Monaco, monospace; }
+        .code-tag { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+        .builtin-tag { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+        .custom-tag { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+        .el-textarea textarea { font-family: Consolas, Monaco, monospace; font-size: 12px; }
+        .meta-preview { max-height: 220px; overflow: auto; background: #0f172a; color: #7dd3fc; border-radius: 6px; padding: 10px; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+    </style>
+</head>
+<body>
+<div id="app" v-cloak>
+    <div class="page-header">
+        <h1>🧩 动作助手管理
+            <span class="sub">dyn-click-{code} 动作注册表 · META + 脚本入库，前端自动注册</span>
+        </h1>
+        <div class="toolbar">
+            <el-input v-model="query.keyword" placeholder="搜索名称/Code/分类" clearable style="width:220px"
+                      v-on:keyup.enter="load()" size="small"></el-input>
+            <el-select v-model="query.category" placeholder="全部分类" clearable style="width:130px" size="small">
+                <el-option label="流程 flow" value="flow"></el-option>
+                <el-option label="数据 data" value="data"></el-option>
+                <el-option label="窗体 window" value="window"></el-option>
+                <el-option label="界面 ui" value="ui"></el-option>
+                <el-option label="系统 system" value="system"></el-option>
+            </el-select>
+            <el-button type="primary" size="small" v-on:click="load()">查询</el-button>
+            <el-button type="success" size="small" v-on:click="openEdit(null)">➕ 新增动作</el-button>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <el-table :data="rows" border stripe size="small" v-loading="loading" max-height="calc(100vh - 140px)">
+            <el-table-column prop="id" label="ID" width="60"></el-table-column>
+            <el-table-column prop="name" label="名称" min-width="140">
+                <template #default="{row}">
+                    <span :class="row.isBuiltin ? 'builtin-tag' : 'custom-tag'">{{ row.isBuiltin ? '内置' : '自定义' }}</span>
+                    <span style="margin-left:6px">{{ row.name }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column prop="code" label="Code" width="150">
+                <template #default="{row}"><span class="code-tag">dyn-click-{{ row.code }}</span></template>
+            </el-table-column>
+            <el-table-column prop="category" label="分类" width="90"></el-table-column>
+            <el-table-column label="META" min-width="220">
+                <template #default="{row}">
+                    <div class="meta-preview" v-if="row.metaJson">{{ shortMeta(row.metaJson) }}</div>
+                    <span v-else style="color:#9ca3af">—</span>
+                </template>
+            </el-table-column>
+            <el-table-column prop="sortOrder" label="排序" width="60"></el-table-column>
+            <el-table-column label="启用" width="70">
+                <template #default="{row}">
+                    <el-switch :model-value="!!row.isEnabled" :disabled="true"></el-switch>
+                </template>
+            </el-table-column>
+            <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+                <template #default="{row}">
+                    <el-button size="small" text type="primary" v-on:click="openEdit(row)">编辑</el-button>
+                    <el-button size="small" text type="warning" v-on:click="openTest(row)">测试</el-button>
+                    <el-button size="small" text type="danger" :disabled="row.isBuiltin" v-on:click="remove(row)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+        <div style="margin-top:10px; color:#6b7280; font-size:12px;">
+            共 {{ total }} 条 · 内置动作只读（可改排序/备注/启用）· 自定义动作脚本 function(ctx){...} 可编辑
+        </div>
+    </div>
+
+    <!-- 编辑对话框 -->
+    <el-dialog v-model="edit.visible" :title="edit.form.id ? '编辑动作助手' : '新增动作助手'" width="760px" top="4vh">
+        <el-form :model="edit.form" label-width="110px" size="small">
+            <el-row :gutter="12">
+                <el-col :span="12">
+                    <el-form-item label="名称" required>
+                        <el-input v-model="edit.form.name" placeholder="显示名，如：确认后提交"></el-input>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                    <el-form-item label="Code" required>
+                        <el-input v-model="edit.form.code" :disabled="edit.form.isBuiltin" placeholder="dyn-click-{code}，如 confirmpost"></el-input>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+            <el-row :gutter="12">
+                <el-col :span="12">
+                    <el-form-item label="分类">
+                        <el-select v-model="edit.form.category" placeholder="选择分类" clearable style="width:100%">
+                            <el-option label="流程 flow" value="flow"></el-option>
+                            <el-option label="数据 data" value="data"></el-option>
+                            <el-option label="窗体 window" value="window"></el-option>
+                            <el-option label="界面 ui" value="ui"></el-option>
+                            <el-option label="系统 system" value="system"></el-option>
+                        </el-select>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                    <el-form-item label="排序">
+                        <el-input-number v-model="edit.form.sortOrder" :min="0" style="width:100%"></el-input-number>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+            <el-row :gutter="12">
+                <el-col :span="12">
+                    <el-form-item label="启用">
+                        <el-switch v-model="edit.form.isEnabled"></el-switch>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                    <el-form-item label="备注">
+                        <el-input v-model="edit.form.remark" placeholder="备注说明"></el-input>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+            <el-form-item label="META JSON">
+                <el-input v-model="edit.form.metaJson" type="textarea" :rows="5"
+                          placeholder='{"label":"..","doc":"..","events":["click"],"defaults":{},"params":[{"name":"url","type":"string","label":"URL"}]}'></el-input>
+            </el-form-item>
+            <el-form-item label="脚本 function(ctx)">
+                <el-input v-model="edit.form.scriptContent" type="textarea" :rows="7"
+                          :disabled="edit.form.isBuiltin"
+                          placeholder="function (ctx) { var o = ctx.options || {}; return dyn.postback(ctx.element, { url: o.url }); }"></el-input>
+                <div style="color:#9ca3af; font-size:12px; line-height:1.6; margin-top:4px;">
+                    ctx = { element, event, options, params, model(最近 dyn-init 祖先的 Model), vm, url }；
+                    可用 dyn.postback / dyn.openwindow / dyn.showMessage / dyn.confirmAsync / dyn.reload / dyn.actionHelper.* 等；
+                    返回 Promise 可被 chain 链 await。
+                </div>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button size="small" v-on:click="edit.visible=false">取消</el-button>
+            <el-button size="small" type="primary" :loading="edit.saving" v-on:click="save()">保存</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 测试对话框 -->
+    <el-dialog v-model="test.visible" title="动作助手测试" width="640px" top="8vh">
+        <div style="margin-bottom:8px; font-size:12px; color:#374151;">
+            选择「浏览器控制台测试」：在控制台执行下面的 JS 即可以当前页面环境运行该动作脚本
+            （页面已加载 dyn-core + dyn-actionhelper，window.dyn 可用）。
+        </div>
+        <div class="meta-preview">{{ test.js }}</div>
+        <div style="margin-top:10px; font-size:12px; color:#9ca3af;">
+            样例 ctx：<pre class="meta-preview" style="margin-top:4px;">{{ test.sampleCtx }}</pre>
+        </div>
+        <template #footer>
+            <el-button size="small" v-on:click="copyTest()">复制测试代码</el-button>
+            <el-button size="small" type="primary" v-on:click="runTest()">浏览器控制台测试</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
+<script src="~/js/vue.global.prod.js" asp-append-version="true"></script>
+<script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
+<script src="~/js/lodash.min.js" asp-append-version="true"></script>
+<script src="~/js/dyn-core.js" asp-append-version="true"></script>
+<script src="~/js/dyn-actionhelper.js" asp-append-version="true"></script>
+<script src="~/js/dyn-lib.js" asp-append-version="true"></script>
+<script>
+(function () {
+    var app = Vue.createApp({
+        data: function () {
+            return {
+                loading: false,
+                rows: [],
+                total: 0,
+                query: { keyword: '', category: '' },
+                edit: {
+                    visible: false, saving: false,
+                    form: { id: 0, name: '', code: '', category: '', metaJson: '', scriptContent: '', isBuiltin: false, isEnabled: true, sortOrder: 0, remark: '' }
+                },
+                test: { visible: false, js: '', sampleCtx: '' }
+            };
+        },
+        mounted: function () {
+            this.load();
+            var self = this;
+            // 用 dyn 框架注册一个演示动作，验证整体链路
+            if (window.dyn && dyn.actionHelper) {
+                dyn.actionHelper.pagegreet = function (ctx) {
+                    var o = ctx.options || {};
+                    dyn.showMessage('来自动作助手管理页的自定义动作：' + (o.msg || 'hello'), 'success');
+                };
+                dyn.rebind();
+                console.log('[ActionHelperManage] dyn 已就绪，v' + (dyn.VERSION || '?') + '，动作数=' + dyn.actionList().length);
+            }
+        },
+        methods: {
+            load: function () {
+                var self = this;
+                self.loading = true;
+                fetch('/api/dynactionhelper/all').then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.success) {
+                        self.rows = res.data || [];
+                        self.total = res.count || 0;
+                    } else {
+                        self.$message.error((res && res.message) || '加载失败');
+                    }
+                }).finally(function () { self.loading = false; });
+            },
+            shortMeta: function (meta) {
+                if (!meta) return '';
+                var o = meta;
+                try { o = typeof meta === 'string' ? JSON.parse(meta) : meta; } catch (e) { return String(meta); }
+                var label = o.label || o.doc || '';
+                return (o.label ? 'label: ' + o.label + '\n' : '') + (o.doc ? 'doc: ' + o.doc : '');
+            },
+            openEdit: function (row) {
+                if (row) {
+                    this.edit.form = {
+                        id: row.id, name: row.name, code: row.code, category: row.category || '',
+                        metaJson: row.metaJson || '', scriptContent: row.scriptContent || '',
+                        isBuiltin: !!row.isBuiltin, isEnabled: !!row.isEnabled,
+                        sortOrder: row.sortOrder || 0, remark: row.remark || ''
+                    };
+                } else {
+                    this.edit.form = { id: 0, name: '', code: '', category: 'flow', metaJson: '', scriptContent: 'function (ctx) {\n    var o = ctx.options || {};\n    // TODO: 在此实现动作\n    dyn.showMessage("动作执行：" + (o.msg || "ok"), "success");\n}', isBuiltin: false, isEnabled: true, sortOrder: 0, remark: '' };
+                }
+                this.edit.visible = true;
+            },
+            save: function () {
+                var self = this;
+                var f = self.edit.form;
+                if (!f.name || !f.code) { self.$message.warning('名称与 Code 必填'); return; }
+                self.edit.saving = true;
+                fetch('/api/dynactionhelper/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(f)
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.success) {
+                        self.$message.success('已保存');
+                        self.edit.visible = false;
+                        self.load();
+                    } else {
+                        self.$message.error((res && res.message) || '保存失败');
+                    }
+                }).finally(function () { self.edit.saving = false; });
+            },
+            remove: function (row) {
+                var self = this;
+                self.$confirm('确定删除动作助手 [' + row.name + ']？', '提示', { type: 'warning' }).then(function () {
+                    return fetch('/api/dynactionhelper/' + row.id, { method: 'DELETE' });
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.success) { self.$message.success('已删除'); self.load(); }
+                    else { self.$message.error((res && res.message) || '删除失败'); }
+                }).catch(function (e) { if (e !== 'cancel' && e !== 'close') self.$message.error('删除失败: ' + (e && e.message || e)); });
+            },
+            openTest: function (row) {
+                var self = this;
+                var script = (row.scriptContent || '').trim();
+                if (!script) { self.$message.info('该动作无脚本（内置动作已在 dyn-actionhelper.js 编译）'); return; }
+                self.test.sampleCtx = JSON.stringify({
+                    element: '当前元素', event: 'click', action: row.code,
+                    options: {}, params: { id: 1, name: 'demo' },
+                    model: { id: 1, name: 'demo', status: 'draft', amount: 100 }
+                }, null, 2);
+                self.test.js = '(function () {\n' +
+                    '    var fn = (' + script + ');\n' +
+                    '    var ctx = { element: document.body, event: "click", $event: null, action: "' + row.code + '",\n' +
+                    '        options: {}, params: { id: 1, name: "demo" }, model: { id: 1, name: "demo", status: "draft" } };\n' +
+                    '    Promise.resolve(fn(ctx)).then(function (r) { console.log("动作执行结果:", r); });\n' +
+                    '})();';
+                self.test.visible = true;
+            },
+            copyTest: function () {
+                var self = this;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(self.test.js).then(function () { self.$message.success('已复制'); });
+                } else {
+                    self.$message.info('请手动复制');
+                }
+            },
+            runTest: function () {
+                var self = this;
+                try {
+                    eval(self.test.js);
+                    self.$message.success('已在控制台执行，请查看 F12 Console');
+                } catch (e) {
+                    self.$message.error('执行异常: ' + e.message);
+                }
+            }
+        }
+    });
+    app.use(ElementPlus);
+    app.mount('#app');
+})();
+</script>
+</body>
+</html>

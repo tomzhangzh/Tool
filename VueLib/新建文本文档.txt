@@ -1,0 +1,35 @@
+优化代码
+
+1.添加tailwind.css，默认的加载lodash，elementplus，
+
+2.默认的都使用dyn-lib.js 分割出来dyn-core,dyn-actionhelper.
+
+3.扩展actionhelper。属性编辑器中可以配置actionhelper，可以使用dyn-click-chain，dyn-click-chain添加onEvent，比如打开窗体，onclose，onopen中做另外一些事情
+
+4.actionhelper中添加META =给出demo数据，actionhelper保存到数据库中，有一个controller返回所有的actionhelper。需要管理页面。
+
+5.添加swithaction
+
+6.dyncom在view中而不是在js中定义的，动态加载组件应该是有统一的地方管理，而不是各各地方都有
+
+7.容器组件，可以设置容器的一些属性比如标签宽度，标签对齐方式，可以下探到容器中的组件上
+
+8.对于组件定义，在设计时，可以在组件外部包裹wrapper用于拖拽，高亮，显示边框，在顶部显示组件类型，复杂，删除等
+
+对于容器，style.{
+
+  "grid-template-columns": "1fr 1fr",
+
+  "gap": "16px 24px",
+
+  "display": "grid"
+
+} 对于容器中的子组件可以 col-span-2 来控制显示的宽度
+
+9.remove无用的和重复的数据和文件
+
+10.js不要hardcode，所有的静态变量都应该放在js的头部
+
+11.需要多语言的支持，最少在js端
+
+12.属性框编辑动作链的时候使用弹出窗体，可以使用dyn-lib中的openwindow. 窗体内部是另外一个view。而不是把所有的都写在一个js里面。很难维护，能分离出来的都分离出来

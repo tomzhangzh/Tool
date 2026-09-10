@@ -25,6 +25,9 @@ public class DesktopController : Controller
     // 页面管理
     public IActionResult PageManage() => View();
 
+    // 动作助手管理
+    public IActionResult ActionHelperManage() => View();
+
     // ===== API =====
 
     // 获取快捷方式（支持分页和筛选）

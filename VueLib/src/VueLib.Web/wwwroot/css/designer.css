@@ -836,3 +836,94 @@ body {
 .html-code-dialog .html-code-pre::-webkit-scrollbar { width: 8px; height: 8px; }
 .html-code-dialog .html-code-pre::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
 .html-code-dialog .html-code-pre::-webkit-scrollbar-track { background: #2d2d2d; }
+
+/* ============================================================
+ * 设计态组件工具条（重构第 8 项）：拖拽手柄 + 组件类型 + 删除
+ * ============================================================ */
+.lc-node-toolbar {
+    position: absolute;
+    top: -22px;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 20px;
+    padding: 0 4px;
+    background: #409eff;
+    color: #fff;
+    font-size: 10px;
+    line-height: 1;
+    border-radius: 4px 4px 0 0;
+    z-index: 30;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: auto !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    user-select: none;
+}
+.lc-node:hover > .lc-node-toolbar,
+.lc-node.lc-selected > .lc-node-toolbar {
+    opacity: 1;
+}
+.lc-node-tb-drag {
+    cursor: grab;
+    font-size: 10px;
+    letter-spacing: -1px;
+    padding: 0 2px;
+    opacity: 0.85;
+}
+.lc-node-tb-drag:active { cursor: grabbing; }
+.lc-node-tb-label {
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 4px;
+    font-weight: 600;
+}
+.lc-node-tb-del {
+    cursor: pointer;
+    padding: 0 3px;
+    font-size: 10px;
+    border-radius: 2px;
+    opacity: 0.85;
+}
+.lc-node-tb-del:hover { background: rgba(255,255,255,0.25); opacity: 1; }
+
+/* 设计态下工具条可交互（默认 .lc-design * 禁用了 pointer-events） */
+.lc-design .lc-node-toolbar,
+.lc-design .lc-node-toolbar * {
+    pointer-events: auto !important;
+}
+
+/* ============================================================
+ * 容器属性下探（重构第 7 项）：--lc-label-width / --lc-label-align
+ * 容器子组件的 label 宽度/对齐由容器统一控制
+ * ============================================================ */
+.lc-node[style*="--lc-label-width"] .el-form-item__label,
+.lc-node[style*="--lc-label-width"] .nut-form-item__label {
+    width: var(--lc-label-width) !important;
+}
+.lc-node[style*="--lc-label-align"] .el-form-item__label,
+.lc-node[style*="--lc-label-align"] .nut-form-item__label {
+    text-align: var(--lc-label-align) !important;
+}
+
+/* 设计画布内 grid 容器：子组件 col-span-N 占列（配合容器 style.grid-template-columns） */
+.lc-container[style*="grid-template-columns"] > .lc-node {
+    min-width: 0;
+}
+/* ===== 组件树（_LeftPanel）：图标 + 名称 + 锁定徽标 ===== */
+.lc-tree-item { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.lc-tree-icon { font-size: 13px; width: 16px; text-align: center; flex-shrink: 0; }
+.lc-tree-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.lc-tree-badge { font-size: 9px; line-height: 1.4; color: #909399; border: 1px solid #dcdfe6; border-radius: 2px; padding: 0 2px; flex-shrink: 0; }
+
+/* ===== 节点工具条操作按钮（上移/下移/复制/删除） ===== */
+.lc-node-tb-ops { display: inline-flex; align-items: center; gap: 1px; padding-left: 2px; margin-left: 2px; border-left: 1px solid rgba(255,255,255,.35); }
+.lc-node-tb-btn { cursor: pointer; padding: 0 3px; font-size: 11px; line-height: 18px; border-radius: 2px; opacity: .9; color: inherit; }
+.lc-node-tb-btn:hover { background: rgba(255,255,255,.25); opacity: 1; }
+.lc-node-tb-del:hover { background: #e81123 !important; }
+
+/* ===== 工具条贴近画布顶部时翻转到节点下方（避免显示不全） ===== */
+.lc-node-toolbar.lc-tb-below { top: auto; bottom: -22px; border-radius: 0 0 4px 4px; }

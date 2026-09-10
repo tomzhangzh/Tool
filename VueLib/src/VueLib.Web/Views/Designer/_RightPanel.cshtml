@@ -1,4 +1,42 @@
 <!-- 右侧属性面板（独立 dyn-init app：属性配置 / 开放项 / 验证器 / 操作） -->
+<style>
+    #lc-right {
+/* 整体字号 14 → 12.5px */
+  --el-font-size-base: 12.5px;
+  --el-font-size-small: 12px;
+  --el-font-size-extra-small: 11px;
+  /* 标题全部缩小 */
+  --el-font-size-h1: 20px;
+  --el-font-size-h2: 18px;
+  --el-font-size-h3: 16px;
+  --el-font-size-h4: 15px;
+  --el-font-size-h5: 14px;
+  --el-font-size-h6: 13px;
+  /* 通用内边距 16 → 10px */
+  --el-padding: 10px;
+  --el-padding-sm: 6px;
+  --el-padding-lg: 14px;
+  /* 卡片 / 弹窗 */
+  --el-card-padding: 10px;
+  --el-dialog-padding-primary: 10px;
+  --el-dialog-header-padding: 10px;
+  --el-dialog-footer-padding: 10px;
+  /* 表格行高 */
+  --el-table-cell-padding: 6px 8px;
+  /* 表单项间距 */
+  --el-form-item-margin-bottom: 12px;
+  --el-form-item-label-height: 26px;
+  /* 按钮 / 输入框高度 */
+  --el-button-height: 30px;
+  --el-button-height-small: 26px;
+  --el-input-height: 30px;
+  --el-input-height-small: 26px;
+}
+ #lc-right .el-collapse {
+
+    --el-collapse-header-height: 36px;
+    }
+</style>
 <div id="lc-right" dyn-init="{}">
     <div class="panel-right-wrap">
         <div v-if="rightPanel === 'docked'" class="panel-dock panel-dock-right" title="展开属性面板">

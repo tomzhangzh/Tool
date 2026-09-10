@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="~/css/mobile.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/designer.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/property-panel.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/tailwind.css" asp-append-version="true">
 </head>
 <body>
     <div class="lc-shell">
@@ -43,7 +44,11 @@
     <script src="~/lib/ruler/ruler.min.js" asp-append-version="true"></script>
     <script src="~/js/vue-draggable-plus.umd.min.js" asp-append-version="true"></script>
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
-    <script src="~/js/dyn-lib.js" asp-append-version="true"></script>
+    <script src="~/js/dyn-core.js" asp-append-version="true"></script>
+<script src="~/js/dyn-actionhelper.js" asp-append-version="true"></script>
+<script src="~/js/dyn-lib.js" asp-append-version="true"></script>
+    @await Component.InvokeAsync("DynComRegistry")
+    <script src="~/js/dyn-com.js" asp-append-version="true"></script>
     <script src="~/js/designer.core.js" asp-append-version="true"></script>
     <script src="~/js/designer.utils.js" asp-append-version="true"></script>
     <script src="~/js/html-code-generator.js" asp-append-version="true"></script>

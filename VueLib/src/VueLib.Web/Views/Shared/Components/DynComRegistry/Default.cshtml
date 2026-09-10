@@ -1,0 +1,6 @@
+@model List<object>
+@{
+    // 组件注册表（dyncom 统一注册数据源）：由服务端渲染进页面，dyn-com.js 消费
+    var json = System.Text.Json.JsonSerializer.Serialize(Model ?? new List<object>());
+}
+<script type="application/json" id="dyncom-registry">@Html.Raw(json)</script>

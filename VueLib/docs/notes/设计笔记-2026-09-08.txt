@@ -1,0 +1,28 @@
+Js抽离全部配置常量放文件头部；专用的css class也标识出来
+默认所有的js都有lodash，vue3，ElementUI 类库，tailwind-css
+动态组件:通过.net Razor`<template>` + `<script tag="comconfig">`，数据库配置 当请求这个组件没有注册的时候去服务器端加载，或者一次全部加载可以在js顶部配置，增加组件版本机制，可选锁定页面使用旧组件版本，避免组件更新破坏历史页面。
+VueLib ：需要actionhelper支持声明式模板占位（完全兼容 JSON 配置，可以放在`<div style="display:none"></div>`）为了可以通过vue替代model中的value，比如params
+需要新的actionhelper
+ `setVar` 设置变量
+ `delay` 延时
+`notify` 消息提示
+`triggerEvent`
+1. 全局开关 `window.__DYN_DEBUG = true`
+2. 每条 dyn‑click‑chain 执行输出结构化日志：
+
+> 
+> `[DynChain] step0 confirm ok → output: {...}`
+> `[DynChain] step1 openwindow start`
+
+3. DOM 元素增加调试属性 `dyn‑debug`，打开该元素详细解析信息。
+优化分成core，actions，services，debug，dyn-init需要注意的问题app嵌套，可以使用div
+design和组件定义：可以先开发ElementUI组件，form组件-》默认添加LabelWrapper（Validator），和容器组件，button,wrapper,solt，Fragment，，一个组件里面可以有过个solt，可以有组合组件（开放属性，开放容器）
+需要结合实际 比如 dropdown可以是items输入，也可以是一个sql语句，后台需要支持，或者ajax，请查看E:\Tom\SunnySystem\SunnySystem.Admin\Views\Shared\EditorTemplates
+对应容器是不是可以使用tailwind-css类似于https://www.designtoolshub.com/tailwind-css/flexbox-generator 来设置child在容器中的显示
+需要定义window组件，elementdialog 和LayUI的windows，可以配置window中url，和参数 自动的在body中加载通过updateEl（更新window的内容）
+设计器画布：`NDynamicCom`（带选中、锁定、开放插槽、组合组件解析）
+理想做法：**运行时 NDynamicCom 作为基础，设计时版本只是做一层包装，增加选中、拖拽装饰，不要重写一遍渲染逻辑**
+如果能用VueLib actionhelper 就使用vueLib actionhelper 减少代码
+C#后端如何需要定义TagHelper就定义
+
+

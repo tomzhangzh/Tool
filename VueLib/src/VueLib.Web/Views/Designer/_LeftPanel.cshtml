@@ -37,7 +37,16 @@
                              draggable
                              default-expand-all
                              :filter-node-method="(value, data) => !value || data.component.includes(value)"
-                             @@node-click="selectFromTree">
+                             :allow-drop="treeAllowDrop"
+                             @@node-click="selectFromTree"
+                             @@node-drop="onTreeDrop">
+                        <template #default="{ data }">
+                            <span class="lc-tree-item">
+                                <span class="lc-tree-icon">{{ treeIcon(data) }}</span>
+                                <span class="lc-tree-label">{{ treeLabel(data) }}</span>
+                                <span v-if="data.__compositeInternal" class="lc-tree-badge" title="组合内部固定节点">锁</span>
+                            </span>
+                        </template>
                     </el-tree>
                 </div>
             </el-tab-pane>
@@ -132,6 +141,72 @@
                     setTimeout(function () { U.dragState.currentMenuCom = null; }, 0);
                 }
 
+                // ===== 组件树图标/名称（优先 META，其次 options 配置，兜底占位）=====
+                function treeIcon(data) {
+                    var name = (data && data.component) || '';
+                    var meta = (window.dynCom && dynCom.get) ? dynCom.get(name) : null;
+                    if (meta && meta.icon) return meta.icon;
+                    var cc = compositeComponents[name];
+                    if (cc && cc.icon) return cc.icon;
+                    if (data && data.options && data.options.icon) return data.options.icon;
+                    return '📦';
+                }
+                function treeLabel(data) {
+                    var name = (data && data.component) || '';
+                    var lab = (data && data.options && data.options.labeloptions && data.options.labeloptions.label);
+                    if (lab) return lab;
+                    var meta = (window.dynCom && dynCom.get) ? dynCom.get(name) : null;
+                    return (meta && meta.label) ? (meta.label + ' · ' + name) : name;
+                }
+
+                // 在真实 configObj 中查找 target 所属 childrenctrls 数组
+                function findRealArray(root, target) {
+                    if (!root || typeof root !== 'object') return null;
+                    var arr = root.childrenctrls;
+                    if (Array.isArray(arr)) {
+                        for (var i = 0; i < arr.length; i++) {
+                            if (arr[i] === target) return { arr: arr, index: i };
+                            var inner = findRealArray(arr[i], target);
+                            if (inner) return inner;
+                        }
+                    }
+                    return null;
+                }
+
+                // el-tree 拖拽落点：把新顺序写回 configObj → 画布随之更新
+                function onTreeDrop(draggingNode, dropNode, dropType) {
+                    if (!draggingNode || !dropNode) return;
+                    var dragSrc = draggingNode.data.__src || draggingNode.data;
+                    if (draggingNode.data.__compositeInternal) { S.treeVersion.value++; return; }
+                    var holder = findRealArray(S.configObj, dragSrc);
+                    if (!holder) return;
+                    var targetNode = dropNode.data.__src || dropNode.data;
+                    var targetArr, insertIdx;
+                    if (dropType === 'inner') {
+                        if (!Array.isArray(targetNode.childrenctrls)) targetNode.childrenctrls = [];
+                        targetArr = targetNode.childrenctrls;
+                        insertIdx = targetArr.length;
+                    } else {
+                        var th = findRealArray(S.configObj, targetNode);
+                        if (!th) return;
+                        targetArr = th.arr;
+                        insertIdx = th.index + (dropType === 'after' ? 1 : 0);
+                    }
+                    holder.arr.splice(holder.index, 1);
+                    if (targetArr === holder.arr && insertIdx > holder.index) insertIdx--;
+                    targetArr.splice(Math.max(0, insertIdx), 0, dragSrc);
+                    S.treeVersion.value++;
+                    window.dispatchEvent(new CustomEvent('lc-tree-refresh'));
+                    if (window.dyn && dyn.eventBus) dyn.eventBus.emit('treechange', { target: dragSrc });
+                }
+
+                // 禁止拖拽组合内部固定节点 / 拖入组合内部固定节点
+                function treeAllowDrop(draggingNode, dropNode, type) {
+                    if (draggingNode.data && draggingNode.data.__compositeInternal) return false;
+                    if (type === 'inner' && dropNode.data && dropNode.data.__compositeInternal) return false;
+                    return true;
+                }
+
                 // 组件树点击：组合内部节点 → 选中所属组合根；其余 → 选中真实节点
                 function selectFromTree(data) {
                     if (!data) return;
@@ -193,6 +268,8 @@
                     openLeftPanel: openLeftPanel,
                     onPaletteDragStart: onPaletteDragStart, onPaletteDragEnd: onPaletteDragEnd,
                     selectFromTree: selectFromTree,
+                    onTreeDrop: onTreeDrop, treeAllowDrop: treeAllowDrop,
+                    treeIcon: treeIcon, treeLabel: treeLabel,
                     configObj: S.configObj, treeVersion: S.treeVersion
                 };
             },

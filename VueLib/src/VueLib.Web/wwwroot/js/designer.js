@@ -1,4 +1,4 @@
-﻿/**
+/**
  * designer.js - 低代码设计器核心逻辑
  * 参考 TUI.Web.Entry 架构：useDraggable + el-tree + provide/inject
  */
@@ -884,7 +884,9 @@
                 onContainerDragAdd,
                 onContainerDragEnd,
                 onPaletteDrop,
-                dragGroup: DRAG_GROUP
+                dragGroup: DRAG_GROUP,
+                deleteCurrent,
+                moveUp, moveDown, copyCurrent
             };
             lcDesignerGlobal = lcProvider;
             provide('lcDesigner', lcProvider);
@@ -1191,13 +1193,17 @@
         inject: {
             lcDesigner: { default: null },
             lcLocked: { default: null },
-            lcCompositeRoot: { default: null }
+            lcCompositeRoot: { default: null },
+            lcLabelCtx: { default: null }
         },
+        data() { return { tbNearTop: false }; },
         provide() {
             return {
                 lcLocked: computed(() => this.isLocked),
                 // 组合组件根实例：供内部开放容器/节点点击时选中组合组件本身
-                lcCompositeRoot: this.isComposite ? this.jsonconfig : null
+                lcCompositeRoot: this.isComposite ? this.jsonconfig : null,
+                // 容器属性下探（重构第 7 项）：容器节点提供 labelWidth/labelAlign，子组件继承
+                lcLabelCtx: computed(() => this.effectiveLabel)
             };
         },
         template: `
@@ -1210,7 +1216,19 @@
             <div v-else class="lc-node"
                  :class="{ 'lc-selected': isSelected, 'lc-container': isContainer, 'lc-design': isDesign, 'lc-composite': isComposite, 'lc-wrapper': hasWrapper, 'lc-locked': isLocked, 'lc-open-slot': isOpenSlot }"
                  @click.stop="onClick"
-                 @lc-sort-end="onSortEnd">
+                 @lc-sort-end="onSortEnd"
+                 :style="nodeStyle">
+                <!-- 设计态工具条（重构第 8 项）：拖拽手柄 + 组件类型 + 删除 -->
+                <div v-if="isDesign" class="lc-node-toolbar" :class="{ 'lc-tb-below': tbNearTop }" v-on:mousedown.stop.prevent="onToolbarDown" v-on:click.stop>
+                    <span class="lc-node-tb-drag" title="拖拽移动">⋮⋮</span>
+                    <span class="lc-node-tb-label">{{ componentLabel }}</span>
+                    <span v-if="isSelected" class="lc-node-tb-ops">
+                        <span class="lc-node-tb-btn" title="上移" v-on:click.stop="moveNode(-1)">↑</span>
+                        <span class="lc-node-tb-btn" title="下移" v-on:click.stop="moveNode(1)">↓</span>
+                        <span class="lc-node-tb-btn" title="复制" v-on:click.stop="copyNode">⧉</span>
+                        <span class="lc-node-tb-btn lc-node-tb-del" title="删除组件" v-on:click.stop="removeNode">✕</span>
+                    </span>
+                </div>
                 <!-- 开放容器插槽标签条 -->
                 <div v-if="isOpenSlot" class="lc-open-slot-tag" @click.stop="onClick">
                     <span class="lc-open-slot-icon">⊕</span>{{ openSlotLabel }}
@@ -1268,6 +1286,45 @@
             // 锁定：自身 locked 或父级锁定，且不是开放容器
             isLocked() { return (this.locked || this.parentLocked) && !this.jsonconfig?.__unlocked; },
             isOpenSlot() { return !!(this.jsonconfig?.__openSlot); },
+            // 容器属性下探：自身是容器且配置了 labelWidth/labelAlign 时以自身为准，否则继承父级
+            ownLabel() {
+                if (!this.isContainer) return null;
+                const o = this.jsonconfig?.options || {};
+                // 属性面板写 options.labelcontext.{width,align}（兼容 labelWidth 直配）
+                const lc = o.labelcontext || {};
+                const w = o.labelWidth ?? o.labelwidth ?? lc.width;
+                const a = o.labelAlign ?? o.labelalign ?? lc.align;
+                if (w === undefined && a === undefined) return null;
+                return { width: w, align: a };
+            },
+            effectiveLabel() {
+                const own = this.ownLabel;
+                if (own) return own;
+                const p = this.lcLabelCtx;
+                if (p && typeof p === "object" && "value" in p) return p.value || null;
+                return p || null;
+            },
+            // 设计态工具条：组件显示名（优先 META label）
+            componentLabel() {
+                const name = this.jsonconfig?.component || "";
+                const meta = (window.dynCom && dynCom.get) ? dynCom.get(name) : null;
+                if (meta && meta.label) return meta.label + " · " + name;
+                return name;
+            },
+            // col-span 支持（重构第 8 项）：容器子组件 options.colspan=2 → col-span-2
+            colspan() {
+                const v = Number(this.jsonconfig?.options?.colspan ?? 0);
+                return (v >= 2 && v <= 12) ? v : 0;
+            },
+            // 节点样式：容器标签下探变量 + col-span 类
+            nodeStyle() {
+                const st = {};
+                const lb = this.effectiveLabel;
+                if (lb && lb.width !== undefined) st["--lc-label-width"] = lb.width;
+                if (lb && lb.align !== undefined) st["--lc-label-align"] = lb.align;
+                if (this.colspan) st.gridColumn = "span " + this.colspan;
+                return st;
+            },
             openSlotLabel() { return this.jsonconfig?.__openSlot?.label || ''; },
             openSlotHint() { return this.jsonconfig?.__openSlot?.hint || ''; },
             compositeTree() {
@@ -1286,7 +1343,52 @@
                 return applyCompositeProps(config.tree, config, externalProps, externalSlots);
             }
         },
+        mounted() { this._observeTb(); },
+        updated() { this._observeTb(); },
+        beforeUnmount() {
+            if (this._tbScrollEl) { this._tbScrollEl.removeEventListener('scroll', this._tbHandler, true); this._tbScrollEl = null; }
+        },
         methods: {
+            // 工具条贴近画布顶部时翻转到节点下方，避免显示不全
+            _observeTb() {
+                var el = this.$el; if (!el) return;
+                var scrollEl = el.closest('.canvas-scroll') || el.parentElement;
+                if (this._tbScrollEl !== scrollEl) {
+                    if (this._tbScrollEl) this._tbScrollEl.removeEventListener('scroll', this._tbHandler, true);
+                    this._tbScrollEl = scrollEl;
+                    if (scrollEl) scrollEl.addEventListener('scroll', this._tbHandler, true);
+                }
+                this._tbUpdate();
+            },
+            _tbUpdate() {
+                var el = this.$el; if (!el) return;
+                var scrollEl = this._tbScrollEl || (el.closest('.canvas-scroll') || el.parentElement);
+                if (!scrollEl) return;
+                var sr = scrollEl.getBoundingClientRect();
+                var er = el.getBoundingClientRect();
+                var near = (er.top - sr.top) < 26;
+                if (near !== this.tbNearTop) this.tbNearTop = near;
+            },
+            _tbHandler() { this._tbUpdate(); },
+            removeNode() {
+                const d = this.lcDesigner;
+                if (!d) return;
+                d.setCurrentCom(this.jsonconfig);
+                if (typeof d.deleteCurrent === "function") d.deleteCurrent();
+                else if (typeof window.__lcDeleteCurrent === "function") window.__lcDeleteCurrent();
+            },
+            moveNode(dir) {
+                const d = this.lcDesigner; if (!d) return;
+                d.setCurrentCom(this.jsonconfig);
+                if (dir < 0 && typeof d.moveUp === "function") d.moveUp();
+                else if (dir > 0 && typeof d.moveDown === "function") d.moveDown();
+            },
+            copyNode() {
+                const d = this.lcDesigner; if (!d) return;
+                d.setCurrentCom(this.jsonconfig);
+                if (typeof d.copyCurrent === "function") d.copyCurrent();
+            },
+            onToolbarDown() { /* 拖拽由容器 Sortable 处理；手柄仅提供视觉与选中提示 */ },
             onClick() {
                 // 锁定节点不可选中（点击穿透由 CSS pointer-events 处理，这里兜底）
                 if (this.isLocked) return;

@@ -15,6 +15,7 @@
     <title>@(project?.DisplayName ?? project?.Name) - 预览</title>
     <link rel="stylesheet" href="~/css/element-plus.css" asp-append-version="true">
     <link rel="stylesheet" href="~/css/dyn.css" asp-append-version="true">
+<link rel="stylesheet" href="~/css/tailwind.css" asp-append-version="true">
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
@@ -80,7 +81,9 @@
     <script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
     <script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
     <script src="~/js/lodash.min.js" asp-append-version="true"></script>
-    <script src="~/js/dyn-lib.js" asp-append-version="true"></script>
+    <script src="~/js/dyn-core.js" asp-append-version="true"></script>
+<script src="~/js/dyn-actionhelper.js" asp-append-version="true"></script>
+<script src="~/js/dyn-lib.js" asp-append-version="true"></script>
     <script>
         $(function () {
             if (window.dynLib) { dynLib.initAll(); }

@@ -18,4 +18,13 @@ public class DesignerController : Controller
     {
         return View();
     }
+    /// <summary>
+    /// 动作链编辑器（弹窗独立 view，经 dyn.openwindow 打开）
+    /// GET /Designer/ActionChainEditor?steps=[...json...]
+    /// </summary>
+    public IActionResult ActionChainEditor(string? steps)
+    {
+        ViewBag.StepsJson = steps ?? "[]";
+        return View();
+    }
 }
