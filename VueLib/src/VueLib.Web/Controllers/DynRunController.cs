@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using SqlSugar;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
+using VueLib.Web.Data;
 using VueLib.Web.Models;
 using VueLib.Web.Services;
 
@@ -14,11 +17,13 @@ public class DynRunController : Controller
 {
     private readonly DynProjectService _svc;
     private readonly DynCrudService _crud;
+    private readonly AppDbContext _appDb;
 
-    public DynRunController(DynProjectService svc, DynCrudService crud)
+    public DynRunController(DynProjectService svc, DynCrudService crud, AppDbContext appDb)
     {
         _svc = svc;
         _crud = crud;
+        _appDb = appDb;
     }
 
     // ==================== 预览外壳 ====================
@@ -56,7 +61,7 @@ public class DynRunController : Controller
     }
 
     [HttpGet]
-    public IActionResult Detail(int projectId, int pageId, int id = 0, string? _params = null)
+    public IActionResult Detail(int projectId, int pageId, int id = 0, int settingId = 0, string? _params = null)
     {
         var project = _svc.GetProject(projectId);
         var page = _svc.GetPage(pageId);
@@ -82,11 +87,48 @@ public class DynRunController : Controller
         // 外键导航注入（多对一 object / 一对多 array）
         if (id > 0 && row.Count > 0) _crud.LoadNavs(db, def, new[] { row });
 
+        // 显示层 PageSetting（Detail 屏用其 ConfigJson 渲染表单，数据仍由 DynPage 提供）
         var model = new DynRunDetailModel { Project = project, Page = page, Def = def, Row = row };
+        if (settingId > 0)
+        {
+            model.PageSetting = _svc.GetPageSetting(settingId);
+            if (model.PageSetting != null)
+                return PartialView("_DetailSetting", model);
+        }
         return PartialView("_Detail", model);
     }
 
     // ==================== 路由页面运行时（模板驱动） ====================
+
+    /// <summary>字典下拉数据源（POST，避免 GET 缓存）：从设计库 DynDict 按 DictType 读取 {label,value} 选项</summary>
+    [HttpPost("/DynRun/Dict")]
+    public IActionResult Dict([FromBody] JObject? body, [FromQuery] string? dictType)
+    {
+        var dt = dictType;
+        if (string.IsNullOrWhiteSpace(dt) && body != null && body["dictType"] is JValue jv)
+            dt = jv.ToString();
+        if (string.IsNullOrWhiteSpace(dt)) return Ok(new { success = false, message = "dictType 不能为空" });
+        try
+        {
+            using var db = _appDb.Create();
+            var rows = db.Ado.SqlQuery<DynDictOption>(
+                "SELECT DictText, DictValue FROM DynDict WHERE DictType=@dt AND (IsEnabled=1 OR IsEnabled IS NULL) ORDER BY SortOrder, Id",
+                new { dt = dt.Trim() });
+            var items = rows.Select(r => new { label = r.DictText ?? "", value = r.DictValue ?? "" }).ToList();
+            return Ok(new { success = true, items });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    /// <summary>字典选项（SqlSugar 强类型映射列）</summary>
+    private class DynDictOption
+    {
+        public string? DictText { get; set; }
+        public string? DictValue { get; set; }
+    }
 
     /// <summary>按"路由"渲染页面：路由 → 模板（List=Filter+Summary+Detail / Home=主页）</summary>
     [HttpGet("/DynRun/Route")]
@@ -132,7 +174,77 @@ public class DynRunController : Controller
             return View("RouteHome", homeModel);
         }
 
+        // ===== 新架构：模板关联三屏 PageSetting（显示层）→ 专用视图 RouteListSetting =====
         if (renderView == "RouteList")
+        {
+            var (fps, lps, dps) = DynProjectService.EffectivePageSettingIds(wp, template);
+            if (fps != null || lps != null || dps != null)
+            {
+                var psModel = new DynRouteListModel
+                {
+                    Project = project,
+                    WebPage = wp,
+                    Template = template,
+                    TemplateConfig = tcfg,
+                    PageConfig = DynProjectService.ParseWebPageConfig(wp),
+                    Params = DynProjectService.ParseParams(wp),
+                    FilterPageSettingId = fps,
+                    ListPageSettingId = lps,
+                    DetailPageSettingId = dps,
+                    FilterPageSetting = fps != null ? _svc.GetPageSetting(fps) : null,
+                    ListPageSetting = lps != null ? _svc.GetPageSetting(lps) : null,
+                    DetailPageSetting = dps != null ? _svc.GetPageSetting(dps) : null
+                };
+                return View("RouteListSetting", psModel);
+            }
+        }
+
+        if (renderView == "RouteList")
+
+        // RouteCrud 模板：由设计器组件 DynCrudPage（Filter+List+Detail 三页 ID 可配置）渲染
+        if (renderView == "RouteCrud")
+        {
+            var fp2 = fp > 0 ? _svc.GetPage(fp.Value) : null;
+            var sp2 = sp > 0 ? _svc.GetPage(sp.Value) : null;
+            var dp2 = dp > 0 ? _svc.GetPage(dp.Value) : null;
+            if (sp2 == null) return BadRequest("模板未配置汇总屏(ListPageId)");
+            var crudModel = new DynRouteListModel
+            {
+                Project = project,
+                WebPage = wp,
+                Template = template,
+                FilterPage = fp2,
+                SummaryPage = sp2,
+                DetailPage = dp2,
+                TemplateConfig = tcfg,
+                PageConfig = DynProjectService.ParseWebPageConfig(wp),
+                Params = DynProjectService.ParseParams(wp)
+            };
+            return View("RouteCrud", crudModel);
+        }
+
+        // RouteTreeList 模板：左树右列表（DynTreeList 组件，如 年级树→班级列表）
+        if (renderView == "RouteTreeList")
+        {
+            var ft = fp > 0 ? _svc.GetPage(fp.Value) : null;
+            var st = sp > 0 ? _svc.GetPage(sp.Value) : null;
+            var dt = dp > 0 ? _svc.GetPage(dp.Value) : null;
+            if (st == null) return BadRequest("模板未配置列表页(ListPageId)");
+            var tlModel = new DynRouteListModel
+            {
+                Project = project,
+                WebPage = wp,
+                Template = template,
+                FilterPage = ft,
+                SummaryPage = st,
+                DetailPage = dt,
+                TemplateConfig = tcfg,
+                PageConfig = DynProjectService.ParseWebPageConfig(wp),
+                Params = DynProjectService.ParseParams(wp)
+            };
+            return View("RouteTreeList", tlModel);
+        }
+
         {
         // List 模板（默认）
         var filterPage = fp > 0 ? _svc.GetPage(fp.Value) : null;
@@ -210,12 +322,92 @@ public class DynRunController : Controller
                 filter[kv.Key] = kv.Value is System.Text.Json.JsonElement je ? JsonElementToObject(je) : kv.Value;
         var pageIndex = post?.PageInfo?.CurrentPage ?? 1;
         var pageSize = post?.PageInfo?.PageSize ?? (summaryDef.PageSize > 0 ? summaryDef.PageSize : 10);
+        // 前端可传排序（DynCrudPage 组件表头排序）
+        if (!string.IsNullOrWhiteSpace(post?.PageInfo?.OrderBy))
+        {
+            summaryDef.OrderBy = post.PageInfo.OrderBy.Trim();
+            summaryDef.OrderDir = string.Equals(post.PageInfo.OrderDir, "asc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc";
+        }
 
         using var db = _svc.CreateProjectClient(project);
         var qd = DynCrudService.BuildQueryDef(summaryDef, filterDef);
         var result = _crud.ListPaged(db, summaryPage.TableName ?? "", qd, filter, pageIndex, pageSize, QuerySource(summaryPage));
         _crud.LoadNavs(db, summaryDef, result.Rows);
         return Json(result);
+    }
+
+    /// <summary>
+    /// 新架构：三屏 PageSetting 数据接口（显示层组件树 + 数据源注入）
+    /// GET /DynRun/Screen?projectId=&amp;route=&amp;screen=filter|list|detail&amp;id=&amp;page=&amp;size=
+    /// 返回 { success, config(PageSetting.ConfigJson 组件树), model(数据), pageSetting }
+    /// </summary>
+    [HttpGet("/DynRun/Screen")]
+    public IActionResult Screen(int projectId, string route, string screen, int? id = 0, int? page = 1, int? size = null)
+    {
+        var project = _svc.GetProject(projectId);
+        var wp = _svc.FindWebPage(projectId, route);
+        if (project == null || wp == null) return Json(new { success = false, message = "路由页面不存在" });
+        var template = _svc.GetTemplate(wp.TemplateId);
+        var (fps, lps, dps) = DynProjectService.EffectivePageSettingIds(wp, template);
+        var psId = (screen ?? "").ToLower() switch
+        {
+            "filter" => fps,
+            "list" => lps,
+            _ => dps
+        };
+        var ps = _svc.GetPageSetting(psId);
+        if (ps == null) return Json(new { success = false, message = "该屏未配置 PageSetting" });
+
+        // 数据源：DynPage（旧字段兼容，模板/页面仍关联数据源定义）
+        var (fp, sp, dp) = DynProjectService.EffectivePageIds(wp, template);
+        object? model = null;
+        if (screen == "list" && sp != null)
+        {
+            var spage = _svc.GetPage(sp.Value);
+            var sdef = spage != null ? ParseDef(spage) : null;
+            if (spage != null && sdef != null)
+            {
+                using var db = _svc.CreateProjectClient(project);
+                var qd = DynCrudService.BuildQueryDef(sdef, null);
+                var ps2 = page ?? 1;
+                var ss2 = size ?? (sdef.PageSize > 0 ? sdef.PageSize : 10);
+                var result = _crud.ListPaged(db, spage.TableName ?? "", qd, null, ps2, ss2, QuerySource(spage));
+                _crud.LoadNavs(db, sdef, result.Rows);
+                model = new
+                {
+                    Filter = new Dictionary<string, object?>(),
+                    Rows = result.Rows,
+                    PageInfo = new
+                    {
+                        CurrentPage = result.PageIndex,
+                        PageSize = result.PageSize,
+                        TotalCount = result.TotalCount,
+                        TotalPages = result.TotalPages
+                    }
+                };
+            }
+        }
+        else if (screen == "detail" && dp != null)
+        {
+            var dpage = _svc.GetPage(dp.Value);
+            var ddef = dpage != null ? ParseDef(dpage) : null;
+            if (dpage != null && ddef != null)
+            {
+                using var db = _svc.CreateProjectClient(project);
+                var row = _crud.GetByPk(db, dpage.TableName ?? "", id ?? 0, ddef.PrimaryKey);
+                if (id > 0 && row.Count > 0) _crud.LoadNavs(db, ddef, new[] { row });
+                model = new { Row = row };
+            }
+        }
+        model ??= new Dictionary<string, object?>();
+        return Json(new
+        {
+            success = true,
+            screen = screen,
+            config = ps.ConfigJson, // 原始 JSON 字符串（JObject 经 System.Text.Json 序列化会损坏嵌套结构）
+            model = model,
+            pageSetting = new { ps.Id, ps.PageName, ps.PageCode }
+        });
     }
 
     [HttpPost]
@@ -314,6 +506,146 @@ public class DynRunController : Controller
         return Json(row);
     }
 
+    /// <summary>
+    /// 页面定义接口（DynCrudPage 等前端组合组件使用）
+    /// GET /DynRun/PageDef?projectId=4&amp;pageId=10
+    /// 返回页面定义 + 表名 + 关联细节页
+    /// </summary>
+    [HttpGet("/DynRun/PageDef")]
+    public IActionResult PageDef(int projectId, int pageId)
+    {
+        var project = _svc.GetProject(projectId);
+        var page = _svc.GetPage(pageId);
+        if (project == null || page == null) return BadRequest("工程或页面不存在");
+        var def = ParseDef(page);
+        if (def == null) return BadRequest("页面定义无效");
+        var detailId = page.DetailPageId ?? 0;
+        if (detailId == 0)
+        {
+            detailId = _svc.GetPages(projectId)
+                .FirstOrDefault(p => p.PageType == "Detail" && p.TableName == page.TableName && p.IsEnabled)?.Id ?? 0;
+        }
+        return Json(new
+        {
+            success = true,
+            pageId,
+            tableName = page.TableName,
+            pageType = page.PageType,
+            detailPageId = detailId,
+            title = page.Title ?? page.Name,
+            def
+        });
+    }
+
+    /// <summary>
+    /// 树形数据接口（DynTree / DynTreeList 组件使用）
+    /// POST /DynRun/Data/Tree  body: { projectId, table, idField, parentIdField, nameField, rootId }
+    /// 返回树节点 [{ id, label, value, children: [...] }]
+    /// </summary>
+    [HttpPost("/DynRun/Data/Tree")]
+    public IActionResult DataTree([FromBody] DynTreeRequest? req)
+    {
+        if (req == null) return BadRequest("参数错误");
+        var project = _svc.GetProject(req.ProjectId);
+        if (project == null) return BadRequest("工程不存在");
+        if (string.IsNullOrWhiteSpace(req.Table)) return BadRequest("table 必填");
+        var idField = string.IsNullOrWhiteSpace(req.IdField) ? "Id" : req.IdField!.Trim();
+        var parentField = string.IsNullOrWhiteSpace(req.ParentIdField) ? "ParentId" : req.ParentIdField!.Trim();
+        var nameField = string.IsNullOrWhiteSpace(req.NameField) ? "Name" : req.NameField!.Trim();
+        var rootId = req.RootId ?? 0;
+
+        try
+        {
+            using var db = _svc.CreateProjectClient(project);
+            var valueField = string.IsNullOrWhiteSpace(req.ValueField) ? idField : req.ValueField!.Trim();
+            var sql = $"SELECT [{idField}] AS \"id\", [{parentField}] AS \"pid\", [{nameField}] AS \"label\", [{valueField}] AS \"value\" FROM [{req.Table}]";
+            var dt = db.Ado.GetDataTable(sql);
+            var rows = dt.Rows.Cast<System.Data.DataRow>();
+            var nodes = new List<Dictionary<string, object?>>();
+            foreach (var r in rows)
+            {
+                nodes.Add(new Dictionary<string, object?>
+                {
+                    ["id"] = Convert.ToInt64(r["id"]),
+                    ["pid"] = r["pid"] != DBNull.Value ? Convert.ToInt64(r["pid"]) : 0L,
+                    ["label"] = Convert.ToString(r["label"]) ?? "",
+                    ["value"] = Convert.ToInt64(r["value"])
+                });
+            }
+            var tree = BuildTree(nodes, rootId);
+            return Json(new { success = true, data = tree, count = nodes.Count });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    /// <summary>把扁平列表按 pid 构造成树（rootId=0 表示根）</summary>
+    private static List<object> BuildTree(List<Dictionary<string, object?>> nodes, long rootId)
+    {
+        // 父节点缺失（如 pid 指向其他表/不存在的 id）时提升为根，保证任意父子配置都能成树
+        var byPid = new Dictionary<long, List<Dictionary<string, object?>>>();
+        var ids = new HashSet<long>();
+        foreach (var n in nodes)
+        {
+            var id = (long)(n["id"] ?? 0L);
+            var pid = (long)(n["pid"] ?? 0L);
+            ids.Add(id);
+            if (!byPid.TryGetValue(pid, out var list)) { list = new List<Dictionary<string, object?>>(); byPid[pid] = list; }
+            list.Add(n);
+        }
+        // visited 防环：父子字段数值冲突（如外键与 id 撞号）时避免无限递归
+        List<object> children(long pid, HashSet<long> visited)
+        {
+            var result = new List<object>();
+            if (!byPid.TryGetValue(pid, out var kids)) return result;
+            foreach (var k in kids.OrderBy(k => (long)(k["id"] ?? 0L)))
+            {
+                var cid = (long)(k["id"] ?? 0L);
+                if (!visited.Add(cid)) continue;
+                result.Add(new
+                {
+                    id = k["id"],
+                    value = k["value"],
+                    label = k["label"],
+                    children = children(cid, visited)
+                });
+            }
+            return result;
+        }
+        // 根：rootId 指定，或父 id 不在节点集合中（提升为根）
+        var roots = new List<object>();
+        if (rootId != 0) return children(rootId, new HashSet<long>());
+        foreach (var n in nodes)
+        {
+            var pid = (long)(n["pid"] ?? 0L);
+            var id = (long)(n["id"] ?? 0L);
+            if (pid == 0 || !ids.Contains(pid)) roots.Add(new
+            {
+                id = n["id"],
+                value = n["value"],
+                label = n["label"],
+                children = children(id, new HashSet<long>())
+            });
+        }
+        // 兜底：若提升后仍无根（父键为外键且数值与 id 冲突），全部平铺为根
+        if (roots.Count == 0)
+        {
+            foreach (var n in nodes.OrderBy(k => (long)(k["id"] ?? 0L)))
+            {
+                var id = (long)(n["id"] ?? 0L);
+                roots.Add(new
+                {
+                    id = n["id"],
+                    value = n["value"],
+                    label = n["label"],
+                    children = children(id, new HashSet<long>())
+                });
+            }
+        }
+        return roots;
+    }
     // ==================== 内部 ====================
 
     private IActionResult BuildSummaryModel(int projectId, int pageId, DynSummaryPost? post)

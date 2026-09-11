@@ -124,6 +124,34 @@
                 setByPath(this.componentConfig, field.key, val);
                 this.$emit('update', field.key, val, this.componentConfig);
             },
+            remoteOptions: function (field) {
+                if (!field) return [];
+                if (field._remoteOptions) return field._remoteOptions;
+                return [];
+            },
+            remoteLoading: function (field) {
+                if (!field) return false;
+                // 首次访问触发加载（缓存到 field._remoteLoaded）
+                if (!field._remoteLoaded) {
+                    var f = field;
+                    f._remoteLoaded = true;
+                    f._remoteLoading = true;
+                    var url = (f.type === 'dict' && f.dictType)
+                        ? '/DynRun/Dict?dictType=' + encodeURIComponent(f.dictType)
+                        : (f.type === 'dbquery' && f.queryUrl) ? f.queryUrl : '';
+                    if (!url) { f._remoteLoading = false; f._remoteOptions = []; return false; }
+                    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (j) {
+                            var arr = (j && (j.items || j.rows || j.data)) || [];
+                            f._remoteOptions = arr.map(function (v) {
+                                return { label: v.label ?? v.text ?? v.name ?? String(v.value ?? ''), value: v.value ?? v.code ?? String(v.label ?? '') };
+                            });
+                            f._remoteLoading = false;
+                        }).catch(function () { f._remoteLoading = false; f._remoteOptions = []; });
+                }
+                return !!f._remoteLoading;
+            },
             needsValue: function (type) {
                 return ['minLength', 'maxLength', 'min', 'max', 'pattern'].indexOf(type) >= 0;
             },
@@ -175,6 +203,17 @@
                                         :placeholder="field.placeholder || '请选择'"
                                         filterable clearable size="small" style="width:100%">
                                         <el-option v-for="opt in field.options" :key="opt.value"
+                                            :label="opt.label" :value="opt.value" :disabled="opt.disabled" />
+                                    </el-select>
+
+                                    <!-- dict / dbquery：远程选项（DynDict 字典 / 数据库查询） -->
+                                    <el-select v-else-if="field.type === 'dict' || field.type === 'dbquery'"
+                                        :model-value="getFieldValue(field)"
+                                        @update:model-value="setFieldValue(field, $event)"
+                                        :placeholder="field.placeholder || '请选择'"
+                                        filterable clearable size="small" style="width:100%">
+                                        <el-option v-if="remoteLoading(field)" label="加载中..." value="__loading" disabled />
+                                        <el-option v-for="opt in remoteOptions(field)" :key="opt.value"
                                             :label="opt.label" :value="opt.value" :disabled="opt.disabled" />
                                     </el-select>
 

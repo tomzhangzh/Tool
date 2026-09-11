@@ -50,7 +50,11 @@ var comConfig = {
 
         const fullModelName = computed(() => {
             const raw = jc.modelname || '';
-            if (!raw) return parentModelPrefix.value;
+            if (!raw) {
+                // 无自身 modelname：继承父级前缀；~ 前缀 = 直接用路径（属性框 DynPropItem 传入）
+                const p = parentModelPrefix.value || '';
+                return p.startsWith('~') ? p.slice(1) : p;
+            }
             if (raw.startsWith('~')) return raw.slice(1);
             const prefix = parentModelPrefix.value;
             if (prefix) {
@@ -120,13 +124,51 @@ var comConfig = {
             return result;
         }
         function initOptionsFromConfig() {
-            const optStr = jc.options?.optionValues;
-            if (optStr && typeof optStr === 'string') {
-                comInnerInfo.options = optStr.split(',').map(v => ({ label: v.trim(), value: v.trim() }));
+            const co = jc.options?.comoptions || {};
+            const src = jc.options?.sourceType ?? co.sourceType;
+            const staticRaw = jc.options?.optionValues ?? co.optionValues;
+            // 数据源类型：dict（字典表）/ ajax（自定义 URL，POST 请求，避免 GET 缓存）
+            if (src === 'dict' || src === 'ajax') {
+                const dictType = jc.options?.dictType ?? co.dictType;
+                const dataUrl = jc.options?.dataUrl ?? co.dataUrl ?? (src === 'dict' ? '/DynRun/Dict' : '');
+                if (!dataUrl) { comInnerInfo.options = []; return; }
+                // dict 走 POST + query（后端 body 绑定与 Newtonsoft 输入格式化器不兼容）；ajax 走 POST + JSON body
+                const sep = dataUrl.indexOf('?') >= 0 ? '&' : '?';
+                const reqUrl = (src === 'dict' && dictType) ? dataUrl + sep + 'dictType=' + encodeURIComponent(dictType) : dataUrl;
+                const body = src === 'dict' ? '{}' : JSON.stringify(jc.options?.ajaxParams ?? co.ajaxParams ?? {});
+                fetch(reqUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body
+                }).then(r => r.json()).then(j => {
+                    const arr = Array.isArray(j) ? j : (j.items || j.rows || j.data || []);
+                    comInnerInfo.options = arr.map(v => (typeof v === 'object' && v !== null)
+                        ? { label: v.label ?? v.text ?? v.name ?? String(v.value ?? ''), value: v.value ?? v.code ?? String(v.label ?? '') }
+                        : { label: String(v).trim(), value: String(v).trim() });
+                }).catch(e => {
+                    console.error('[dyn-lib] 下拉选项加载失败', e);
+                    comInnerInfo.options = [];
+                });
+                return;
+            }
+            // 静态选项：兼容两种配置位 options.optionValues / options.comoptions.optionValues
+            if (Array.isArray(staticRaw)) {
+                comInnerInfo.options = staticRaw.map(v => (typeof v === 'object' && v !== null)
+                    ? { label: v.label ?? v.value, value: v.value ?? v.label }
+                    : { label: String(v).trim(), value: String(v).trim() });
+            } else if (staticRaw != null && staticRaw !== '') {
+                comInnerInfo.options = String(staticRaw).split(',').map(v => ({ label: v.trim(), value: v.trim() }));
+            } else {
+                comInnerInfo.options = [];
             }
         }
         initOptionsFromConfig();
-        watch(() => jc.options?.optionValues, initOptionsFromConfig);
+        watch(() => [
+            jc.options?.optionValues, jc.options?.comoptions?.optionValues,
+            jc.options?.sourceType, jc.options?.comoptions?.sourceType,
+            jc.options?.dictType, jc.options?.comoptions?.dictType,
+            jc.options?.dataUrl, jc.options?.comoptions?.dataUrl
+        ], initOptionsFromConfig, { deep: true });
 
         // 过滤 childrenctrls 中的 undefined/null 元素
         const safeChildren = computed(() => (jc.childrenctrls || []).filter(c => c && typeof c === 'object'));

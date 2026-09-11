@@ -1,0 +1,41 @@
+@model VueLib.Web.Models.DynRunDetailModel
+@using VueLib.Web.Controllers
+@{
+    var projId = Model.Project!.Id;
+    var pageId = Model.Page!.Id;
+    var saveUrl = $"/DynRun/Save?projectId={projId}&pageId={pageId}";
+    var modelJson = DynRunController.JsonModel(Model.Row);
+}
+@* Detail 屏使用 PageSetting 的 ConfigJson 渲染（显示层），数据由 DynPage 提供（Row） *@
+<div dyn-init class="dyn-detail">
+    <script type="application/json" tag="dynmodel">@Html.Raw(modelJson)</script>
+    <div id="detail-setting-root" class="dyn-screen"></div>
+    <div class="dyn-detail-actions" style="margin-top:12px;text-align:right;">
+        <el-button @@click="cancel">取消</el-button>
+        <el-button type="primary"
+                   dyn-click-postback='{"url":"@saveUrl","close":true,"reload":"#dynHost","message":"保存成功"}'>保存</el-button>
+    </div>
+    <script tag="dynconfig">
+        var dynConfig = {
+            pageConfig: @Html.Raw(Model.PageSetting!.ConfigJson),
+            setup: function ({ model, element }) {
+                // 注意：不能在此处直接渲染 PageSetting 组件树——Vue 尚未完成挂载，
+                // renderPageConfig 是异步的，会渲染进随后被 Vue 替换掉的旧节点。改为 mounted 后渲染。
+                // 捕获 element（当前 dyn-init 容器），mounted 用它精确定位 root，避免多对话框时 getElementById 串扰
+                return {
+                    __dynRoot: element,
+                    cancel: function () { dyn.close(element); }
+                };
+            },
+            mounted: function () {
+                var host = (this.__dynRoot && this.__dynRoot.nodeType === 1) ? this.__dynRoot : this.$el;
+                var root = host && host.querySelector ? (host.querySelector('#detail-setting-root') || (host.id === 'detail-setting-root' ? host : null)) : null;
+                if (root && dynConfig.pageConfig && window.dyn && dyn.renderPageConfig) {
+                    dyn.renderPageConfig(root, dynConfig.pageConfig, { Row: this.model }).catch(function (e) {
+                        console.error('[DetailSetting] render fail', e);
+                    });
+                }
+            }
+        };
+    </script>
+</div>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * nut-runtime.js
  * NutUI 低代码平台运行时
  * 功能：
@@ -293,21 +293,17 @@
             app.use(global.nutui.default || global.nutui);
         }
 
-        // 注册动态组件渲染器（内置，非异步）
-        app.component('NDynamicCom', {
-            props: {
-                jsonconfig: { type: Object, required: true },
-                parentmodelinfo: { type: Object, default: () => ({}) }
-            },
-            template: `<component :is="jsonconfig.component"
-                         :jsonconfig="jsonconfig"
-                         :parentmodelinfo="parentmodelinfo"></component>`
-        });
+        // NDynamicCom：全局唯一渲染内核（dyn-com.js）
+        if (window.DynCom && window.DynCom.NDynamicCom) {
+            app.component('NDynamicCom', window.DynCom.NDynamicCom);
+        } else {
+            console.error('[nut-runtime] DynCom.NDynamicCom 未加载（dyn-com.js 缺失）');
+        }
 
         // 获取组件元数据并注册
         const metaList = await fetchComponentMeta();
         for (const meta of metaList) {
-            app.component(meta.ComponentName, nutLoadCom(meta.ComponentName, meta.LoadUrl));
+            app.component(meta.componentName, nutLoadCom(meta.componentName, meta.loadUrl));
         }
 
         // 构建路由
@@ -373,16 +369,12 @@
             }
         });
 
-        // 注册动态渲染器和所有已缓存组件
-        pageApp.component('NDynamicCom', {
-            props: {
-                jsonconfig: { type: Object, required: true },
-                parentmodelinfo: { type: Object, default: () => ({}) }
-            },
-            template: `<component :is="jsonconfig.component"
-                         :jsonconfig="jsonconfig"
-                         :parentmodelinfo="parentmodelinfo"></component>`
-        });
+        // NDynamicCom：全局唯一渲染内核（dyn-com.js）
+        if (window.DynCom && window.DynCom.NDynamicCom) {
+            pageApp.component('NDynamicCom', window.DynCom.NDynamicCom);
+        } else {
+            console.error('[nut-runtime] DynCom.NDynamicCom 未加载（dyn-com.js 缺失）');
+        }
 
         if (global.nutui) {
             pageApp.use(global.nutui.default || global.nutui);

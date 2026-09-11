@@ -65,7 +65,6 @@
     var serializeForm = dyn.serializeForm;
     var setPathVal = dyn.setPathVal;
     var getVueModel = dyn.getVueModel;
-    var setVueModel = dyn.setVueModel;
     var getByPath = dyn.getByPath;
     var eventBus = dyn.eventBus;
     var deepClone = dyn.deepClone;
@@ -124,9 +123,14 @@
     // 占位符替换：把 options（已解析 JSON）所有字符串中的 {{key}} 用 params（按钮 data-* 属性）替换
     function applyTpl(val, params) {
         if (typeof val === 'string') {
-            return val.replace(/\{\{([\w.-]+)\}\}/g, function (_, k) {
-                return params && params[k] !== undefined ? params[k] : _;
-            });
+            // 循环替换：{{detail-url}} 替换出的 URL 里可能还有 {{id}}，一轮不够
+            var guard = 0;
+            while (guard++ < 5 && /\{\{/.test(val)) {
+                val = val.replace(/\{\{([\w.-]+)\}\}/g, function (_, k) {
+                    return params && params[k] !== undefined ? params[k] : _;
+                });
+            }
+            return val;
         }
         if (val && typeof val === 'object') {
             Object.keys(val).forEach(function (k) {
@@ -194,7 +198,8 @@
     function parseActionOptions(raw) {
         if (!raw || !raw.trim()) return {};
         var t = raw.trim();
-        if (t.charAt(0) === '{') { try { return JSON.parse(t); } catch (e) { return { selector: t }; } }
+        var c = t.charAt(0);
+        if (c === '{' || c === '[') { try { return JSON.parse(t); } catch (e) { return { selector: t }; } }
         return { selector: t };
     }
 
@@ -211,6 +216,11 @@
     }
 
     // 通用事件委托：每个事件一个 document capture 监听器，覆盖动态渲染出的所有元素
+    var _delegationBound = false;
+    function bindDelegation() {
+        if (_delegationBound) return;
+        _delegationBound = true;
+        var doBind = function () {
     ACTION_EVENTS.forEach(function (ev) {
         document.addEventListener(ev, function (e) {
             var sel = selectorFor(ev);
@@ -235,6 +245,11 @@
             });
         }, true);
     });
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', doBind);
+        else setTimeout(doBind, 0);
+    }
+    bindDelegation();
 
     // ===== 内置动作（全部挂 actionHelper，约定式自动绑定；兼容旧 dyn-click-postback/open/close/reload） =====
     defineAction('postback', function (ctx) {
@@ -271,7 +286,7 @@
     // evaljs：事件动作 + 初始化动作共用同一实现
     defineAction('evaljs', function (ctx) {
         var code = ctx.options;
-        if (typeof code === 'object') code = code.code || code.selector || code;
+        if (typeof code === 'object') code = code.js || code.code || code.selector || code;
         if (!code) return;
         try {
             // 使用 new Function 执行代码
@@ -1036,6 +1051,7 @@
         actionI18n: ACTION_I18N,
         autoBindActions: autoBindActions,
         rebind: autoBindActions,
+        bindDelegation: bindDelegation,
         /* --- DB 动作助手 --- */
         registerActionHelper: registerActionHelper,
         loadDbActionHelpers: loadDbActionHelpers,

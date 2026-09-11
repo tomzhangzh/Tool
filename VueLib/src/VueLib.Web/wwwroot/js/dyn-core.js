@@ -321,6 +321,12 @@
         if (global.ElementPlusIconsVue) {
             Object.keys(global.ElementPlusIconsVue).forEach(function (k) { app.component(k, global.ElementPlusIconsVue[k]); });
         }
+        // 属性框内核组件（dyn-com.js 内置，dyn-init app 通用）
+        if (global.DynCom) {
+            ['NDynamicCom', 'DynPropItem', 'DynPropControl', 'DynPropContainer'].forEach(function (cn) {
+                if (global.DynCom[cn]) app.component(cn, global.DynCom[cn]);
+            });
+        }
         app.config.globalProperties.$dyn = dyn;
         el.__dynApp = app;
         el.__dynModel = reactiveModel;
@@ -879,6 +885,7 @@
         isContainerComp: isContainerComp,
         nextId: nextId,
         /* --- 祖先查找统一入口 --- */
+        resolve: resolve,
         findAncestor: findAncestor,
         closestDynInit: closestDynInit,
         closestDataUrl: closestDataUrl,

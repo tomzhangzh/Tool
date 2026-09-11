@@ -35,6 +35,9 @@ public class DynActionHelper
     /// <summary>1=内置动作（只读目录），0=自定义（可编辑）</summary>
     public bool IsBuiltin { get; set; } = false;
 
+    /// <summary>保存后是否自动重新生成 dyn-actionhelpers.generated.js（动态注入动作）</summary>
+    public bool AutoGenerate { get; set; } = false;
+
     public bool IsEnabled { get; set; } = true;
 
     public int SortOrder { get; set; } = 0;

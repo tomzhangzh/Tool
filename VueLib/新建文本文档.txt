@@ -33,3 +33,60 @@
 11.需要多语言的支持，最少在js端
 
 12.属性框编辑动作链的时候使用弹出窗体，可以使用dyn-lib中的openwindow. 窗体内部是另外一个view。而不是把所有的都写在一个js里面。很难维护，能分离出来的都分离出来
+
+
+动作链编辑器保存到数据库中是不错的，但是和我想的不太一样，我的想法是有一个controller生成比如是，动态的将action都注入到dyn-actionhelper.js中，
+有个选项是否重新生成.动作链编辑器应该有个复制功能。
+使用CodeMirror，这个主要是想在设计时可以在右侧配置动作连
+2.需要重新创建一组控件，叫常用组件请参考E:\Tom\SunnySystem\SunnySystem.Admin\Views\Shared\EditorTemplates中的文件
+比如下拉可以是通过数据库来列出来的
+使用elementUI来实现，不需要那么多配置还是和之前的组件是一样形式
+
+这个文件中的所有的控件都实现一些，主要是简化配置
+3.创建一个学校管理的应用（添加到[DesktopSolution]中，应该创建一个新的sql数据库（student_grade_management）保存业务表）
+也需要在VueLib里面创建路由管理（路由，title，html，script等将这些页面关联起来）
+包括1.学生，班级，年级，学校，学科，成绩等，考试科目 
+创建一个组件，包括List(分页，排序)，filter，Detail，开发出来ListPageID，FilterPageId，DetailPageId，可以在组件属性设置这3个ID
+平且filter，detail，list都是通过设计器配置出来的，调用同一controller来实现增删改查。
+如果需要新的组件请添加到常用组件中。
+还需要一个树形组件
+需要一个左边是树右边是list的组件也是通过配置可以出来的
+需要学生管理，班级管理，年纪管理，成绩管理，等等都是根据上面的组件配置出来的
+如果数据库需要更新请自己更新，尽可能的创建多一些页面各种case都考虑一下
+
+
+你理解的有点不正确
+
+所有的应用都应该默认的加载dynlib，和动态组件，能使用dynlib通过配置完成的，就通过配置，比如打开window，根据url更新window的内容，关闭windows刷新list
+
+[DynTemplate]也和我想做的不太一样，dynTemplate你可以理解成为一特殊的组件或者是一个dyn-init,可以配置一下参数，供[DynWebPage]使用
+
+比如 可以定义一个3page的template，包括filter，list，detail。他们之间的关系和动作已经在template中写好了目前可以是固定的view。然后在[PageSetting]中定义filter,list,detail的显示（这个是可以配置的比如filter是个下拉从数据库读取）
+
+在DynWebPage中先设置这个模板，在选择filter，list，detail对应的pageSetting这样和对应的url这个页面就完成了
+
+当然也可以直接使用url返回页面，目前先使用DynWebPage定义的，右侧的属性栏也可以使用dynamic组件来完成配置，其实就是更改[ConfigJson]
+
+可以ComponentMeta新添加一个字段来保持当前组件有哪些配置。可以通过design来配置属性框
+
+另外[DynPage]不是这样使用的，是选择一个表生成DynWebPage，可分为filter，detail，list 当然目前没有table组件你可以添加到常用组件中
+
+可以使用组合控件来完成比如对于formItem都有数据绑定，和标签配置，这些可以作为一个组合组件，开发出来一个组件属性，对应input，dropdown只有组件属性需要添加即可
+
+另外常用组件没有显示在左侧的组件列表中，左侧应该是根据数据库来加载的，另外需要filter功能
+
+常用组件的组件属性请参考E:\Tom\SunnySystem\SunnySystem.Model\ItemExtended\DropdownFromDictSettingInfo.cs你也可以根据你的想法扩展
+
+如果数据库需要添加删除字段请直接操作。
+
+学校管理应该根据这个重新实现。
+
+为啥添加常用，就是之前的组件配置有点多想减少一些配置或者数据库和ajax直接操作
+
+
+gender的下拉应该是sourceType=dict，而且在组件中的ajax请求应该都是post这样不会有缓存的问题，是从数据库中取得，下拉框的width太小了，div容器style可以默认配置为{
+  "grid-template-columns": "1fr 1fr",
+  "gap": "16px 24px",
+  "display": "grid"
+}
+在子组件中配置class= col-span-2 就可以让子组件显示不同的宽度了

@@ -18,3 +18,7 @@
 .dyn-nav-type { font-weight: normal; color: #909399; font-size: 12px; margin-left: 4px; }
 .dyn-nav-obj { max-width: 100%; }
 .dyn-nav-empty { color: #c0c4cc; font-size: 13px; padding: 6px 0; }
+
+/* 容器 grid 布局辅助：子组件配置 class=col-span-2 跨两列 */
+.el-div-container > .el-form-item.col-span-2 { grid-column: span 2; }
+.el-div-container > .el-form-item { min-width: 0; }

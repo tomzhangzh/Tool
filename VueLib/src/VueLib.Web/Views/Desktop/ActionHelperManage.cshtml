@@ -46,7 +46,12 @@
             </el-select>
             <el-button type="primary" size="small" v-on:click="load()">查询</el-button>
             <el-button type="success" size="small" v-on:click="openEdit(null)">➕ 新增动作</el-button>
+            <el-button type="warning" size="small" :loading="generating" v-on:click="generate()">⚡ 重新生成注入 JS</el-button>
         </div>
+    </div>
+
+    <div v-if="genInfo" style="margin:8px 20px 0; padding:8px 12px; background:#fefce8; border:1px solid #fde68a; border-radius:6px; font-size:12px; color:#92400e;">
+        {{ genInfo }}
     </div>
 
     <div class="table-wrap">
@@ -72,6 +77,12 @@
             <el-table-column label="启用" width="70">
                 <template #default="{row}">
                     <el-switch :model-value="!!row.isEnabled" :disabled="true"></el-switch>
+                </template>
+            </el-table-column>
+            <el-table-column label="注入" width="70" align="center">
+                <template #default="{row}">
+                    <span v-if="!!row.autoGenerate" title="保存后自动重新生成注入 JS" style="font-size:14px;">⚡</span>
+                    <span v-else style="color:#d1d5db; font-size:11px;">—</span>
                 </template>
             </el-table-column>
             <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
@@ -128,6 +139,14 @@
                     </el-form-item>
                 </el-col>
                 <el-col :span="12">
+                    <el-form-item label="保存后自动注入">
+                        <el-switch v-model="edit.form.autoGenerate" active-text="⚡ 重新生成JS"></el-switch>
+                        <div style="font-size:11px; color:#9ca3af;">开启后保存即重新生成 dyn-actionhelpers.generated.js</div>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+            <el-row :gutter="12">
+                <el-col :span="24">
                     <el-form-item label="备注">
                         <el-input v-model="edit.form.remark" placeholder="备注说明"></el-input>
                     </el-form-item>
@@ -186,10 +205,12 @@
                 loading: false,
                 rows: [],
                 total: 0,
+                generating: false,
+                genInfo: '',
                 query: { keyword: '', category: '' },
                 edit: {
                     visible: false, saving: false,
-                    form: { id: 0, name: '', code: '', category: '', metaJson: '', scriptContent: '', isBuiltin: false, isEnabled: true, sortOrder: 0, remark: '' }
+                    form: { id: 0, name: '', code: '', category: '', metaJson: '', scriptContent: '', isBuiltin: false, isEnabled: true, autoGenerate: false, sortOrder: 0, remark: '' }
                 },
                 test: { visible: false, js: '', sampleCtx: '' }
             };
@@ -233,12 +254,28 @@
                         id: row.id, name: row.name, code: row.code, category: row.category || '',
                         metaJson: row.metaJson || '', scriptContent: row.scriptContent || '',
                         isBuiltin: !!row.isBuiltin, isEnabled: !!row.isEnabled,
-                        sortOrder: row.sortOrder || 0, remark: row.remark || ''
+                        autoGenerate: !!row.autoGenerate, sortOrder: row.sortOrder || 0, remark: row.remark || ''
                     };
                 } else {
-                    this.edit.form = { id: 0, name: '', code: '', category: 'flow', metaJson: '', scriptContent: 'function (ctx) {\n    var o = ctx.options || {};\n    // TODO: 在此实现动作\n    dyn.showMessage("动作执行：" + (o.msg || "ok"), "success");\n}', isBuiltin: false, isEnabled: true, sortOrder: 0, remark: '' };
+                    this.edit.form = { id: 0, name: '', code: '', category: 'flow', metaJson: '', scriptContent: 'function (ctx) {\n    var o = ctx.options || {};\n    // TODO: 在此实现动作\n    dyn.showMessage("动作执行：" + (o.msg || "ok"), "success");\n}', isBuiltin: false, isEnabled: true, autoGenerate: true, sortOrder: 0, remark: '' };
                 }
                 this.edit.visible = true;
+            },
+            generate: function () {
+                var self = this;
+                self.generating = true;
+                fetch('/api/dynactionhelper/generate', { method: 'POST' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (res && res.success) {
+                            self.genInfo = res.message + ' · ' + res.file + '（' + res.count + ' 个自定义动作）';
+                            self.$message.success('注入 JS 已重新生成');
+                        } else {
+                            self.$message.error((res && res.message) || '生成失败');
+                        }
+                    })
+                    .catch(function (e) { self.$message.error('生成失败: ' + e.message); })
+                    .finally(function () { self.generating = false; });
             },
             save: function () {
                 var self = this;

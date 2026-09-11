@@ -1,0 +1,74 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <div class="dyn-tree" :style="getStyle(jc.options.itemoptions)" :class="getClass(jc.options.itemoptions)">
+        <el-input v-if="comoptions.showSearch !== false" v-model="tree.filterText" placeholder="搜索节点" clearable size="small"
+                  style="margin-bottom:8px; width:100%;"></el-input>
+        <el-tree ref="treeRef" :data="tree.data" :props="tree.props" node-key="id"
+                 :filter-node-method="filterNode" :default-expand-all="!!comoptions.defaultExpandAll"
+                 :highlight-current="true" v-on:node-click="onNodeClick"
+                 v-bind="jc.options.comoptions.treeOptions || {}">
+            <template #default="{ data }">
+                <span class="dyn-tree-node"><span>{{ data.label }}</span></span>
+            </template>
+        </el-tree>
+        <div v-if="!tree.data.length && tree.loaded" class="dyn-empty">暂无树数据（请配置 projectId / table / 父子字段）</div>
+    </div>
+</template>
+
+@section setupScripts{
+    const comoptions = jc.options.comoptions || {};
+    if (!jc.options.comoptions) jc.options.comoptions = comoptions;
+
+    const tree = Vue.reactive({
+        data: [], loaded: false, filterText: '',
+        props: { label: 'label', children: 'children' }
+    });
+    const treeRef = ref(null);
+
+    function loadTree() {
+        if (!comoptions.projectId || !comoptions.table) { tree.loaded = true; return; }
+        const body = {
+            projectId: comoptions.projectId || 0,
+            table: comoptions.table || '',
+            idField: comoptions.idField || 'Id',
+            parentIdField: comoptions.parentIdField || 'ParentId',
+            nameField: comoptions.nameField || 'Name',
+            rootId: comoptions.rootId || 0
+        };
+        fetch('/DynRun/Data/Tree', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        }).then(r => r.json()).then(res => {
+            if (res && res.success) { tree.data = res.data || []; }
+            else if (window.dyn && dyn.showMessage) dyn.showMessage((res && res.message) || '树加载失败', 'error');
+        }).finally(() => { tree.loaded = true; });
+    }
+
+    function filterNode(value, data) {
+        if (!value) return true;
+        return (data.label || '').indexOf(value) !== -1;
+    }
+    function onNodeClick(data) {
+        // 通过父组件监听（comlisteners node-click）或发出事件
+        const listeners = jc.options.comlisteners || {};
+        if (typeof listeners['node-click'] === 'function') {
+            try { listeners['node-click'](data); } catch (e) { }
+        }
+        if (jc.options.comoptions.onNodeClick) {
+            try {
+                const fn = (typeof jc.options.comoptions.onNodeClick === 'string') ? new Function('node', 'vm', jc.options.comoptions.onNodeClick) : jc.options.comoptions.onNodeClick;
+                fn(data, null);
+            } catch (e) { }
+        }
+        tree.current = data;
+    }
+
+    watch(() => tree.filterText, function (v) {
+        if (treeRef.value && treeRef.value.filter) treeRef.value.filter(v);
+    });
+
+    onMounted(function () { loadTree(); });
+    const comExtra = { tree, treeRef, comoptions, loadTree, filterNode, onNodeClick };
+}

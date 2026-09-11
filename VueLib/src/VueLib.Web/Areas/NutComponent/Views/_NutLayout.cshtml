@@ -203,13 +203,18 @@ var comConfig = {
         provide('parent_com', { parent_Config: parentConfig, parent_Com: parentCom });
 
         // ===== 容器拖拽配置（v-draggable 指令用）=====
-        const dragOptions = {
+                const dragOptions = {
             animation: 250,
             swapThreshold: 0.1,
             group: { name: 'lc-designer-group' },
             ghostClass: 'lc-ghost',
             dragClass: 'lc-drag',
             chosenClass: 'lc-chosen',
+            draggable: '.lc-node',
+            // 鼠标模拟拖拽：绕过 draggable=false 与 dyn-com 的 dragstart.stop 拦截
+            forceFallback: false, // 原生 HTML5 DnD（lc-node draggable=true + onStart/onEnd item 兜底已就位）
+            fallbackClass: 'lc-fallback',
+            fallbackOnBody: true,
             onAdd(event) {
                 console.log('[Nut] onAdd:', event.newIndex, event.from?.className);
                 // 容器间移动则默认处理

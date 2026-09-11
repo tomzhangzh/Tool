@@ -1,4 +1,4 @@
-﻿using SqlSugar;
+using SqlSugar;
 
 namespace VueLib.Web.Models;
 
@@ -244,12 +244,19 @@ public class DynTemplate
     [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
     public string? ParamSchema { get; set; }
 
-    /// <summary>组装的 Filter 屏 Id</summary>
+    /// <summary>组装的 Filter 屏 Id（旧：DynPage 数据源定义）</summary>
     public int? FilterPageId { get; set; }
-    /// <summary>组装的 Summary 屏 Id</summary>
+    /// <summary>组装的 Summary 屏 Id（旧：DynPage 数据源定义）</summary>
     public int? SummaryPageId { get; set; }
-    /// <summary>组装的 Detail 屏 Id</summary>
+    /// <summary>组装的 Detail 屏 Id（旧：DynPage 数据源定义）</summary>
     public int? DetailPageId { get; set; }
+
+    /// <summary>模板级默认 Filter 屏 PageSetting（显示层，DynWebPage 可覆盖）</summary>
+    public int? FilterPageSettingId { get; set; }
+    /// <summary>模板级默认 List 屏 PageSetting（显示层，DynWebPage 可覆盖）</summary>
+    public int? ListPageSettingId { get; set; }
+    /// <summary>模板级默认 Detail 屏 PageSetting（显示层，DynWebPage 可覆盖）</summary>
+    public int? DetailPageSettingId { get; set; }
 
     /// <summary>模板配置 JSON（DynTemplateConfig）</summary>
     [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
@@ -308,6 +315,13 @@ public class DynWebPage
     /// <summary>按模板 ParamSchema 填写的参数值 JSON（如 {"summaryPageId":6,"filterPageId":17,"detailPageId":5}）</summary>
     [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
     public string? Params { get; set; }
+
+    /// <summary>页面实例 Filter 屏 PageSetting（显示层，覆盖模板默认；空 → 用模板的）</summary>
+    public int? FilterPageSettingId { get; set; }
+    /// <summary>页面实例 List 屏 PageSetting（显示层，覆盖模板默认；空 → 用模板的）</summary>
+    public int? ListPageSettingId { get; set; }
+    /// <summary>页面实例 Detail 屏 PageSetting（显示层，覆盖模板默认；空 → 用模板的）</summary>
+    public int? DetailPageSettingId { get; set; }
 
     /// <summary>是否主页（首页路由）</summary>
     public bool IsHome { get; set; }
@@ -372,6 +386,14 @@ public class DynRouteListModel
     public PagedResult<Dictionary<string, object?>>? Result { get; set; }
     /// <summary>按模板 ParamSchema 解析后的页面实例参数</summary>
     public Dictionary<string, object?>? Params { get; set; }
+
+    // ===== 新架构（PageSetting 显示层）：三屏 PageSetting Id + 对象 =====
+    public int? FilterPageSettingId { get; set; }
+    public int? ListPageSettingId { get; set; }
+    public int? DetailPageSettingId { get; set; }
+    public PageSetting? FilterPageSetting { get; set; }
+    public PageSetting? ListPageSetting { get; set; }
+    public PageSetting? DetailPageSetting { get; set; }
 }
 
 /// <summary>路由页面运行时模型（Home 模板：主页）</summary>
@@ -422,6 +444,8 @@ public class DynRunDetailModel
     public DynPageDefinition? Def { get; set; }
     /// <summary>当前行数据（新增时为按列定义生成的空模板）</summary>
     public Dictionary<string, object?> Row { get; set; } = new();
+    /// <summary>显示层 PageSetting（Detail 用其 ConfigJson 渲染表单时；空 → 走固定 _Detail 视图）</summary>
+    public PageSetting? PageSetting { get; set; }
 }
 
 /// <summary>汇总屏 POST 提交体（dyn-lib 提交整个 model）</summary>
@@ -435,4 +459,6 @@ public class DynPageInfoPost
 {
     public int CurrentPage { get; set; } = 1;
     public int PageSize { get; set; }
+    public string? OrderBy { get; set; }
+    public string? OrderDir { get; set; }
 }

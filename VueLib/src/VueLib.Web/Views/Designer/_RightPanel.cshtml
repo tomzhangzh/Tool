@@ -55,6 +55,24 @@
             <el-empty description="在左侧点击组件添加，或在画布中选中组件" :image-size="80"></el-empty>
         </div>
         <div v-else class="property-form">
+            <!-- 路径头（父链） -->
+            <div class="pp-path-bar">
+                <span class="pp-path-text" :title="pathText">{{ pathText }}</span>
+                <span class="pp-path-actions">
+                    <button class="panel-btn" title="编辑JSON" @@click="showJsonEditor">{/}</button>
+                </span>
+            </div>
+
+            <!-- Tab 栏：属性 / 样式 / 事件 / 高级 -->
+            <div class="pp-tabs">
+                <span class="pp-tab" :class="{ on: activeTab === 'attr' }" @@click="switchTab('attr')">属性</span>
+                <span class="pp-tab" :class="{ on: activeTab === 'style' }" @@click="switchTab('style')">样式</span>
+                <span class="pp-tab" :class="{ on: activeTab === 'event' }" @@click="switchTab('event')">事件</span>
+                <span class="pp-tab" :class="{ on: activeTab === 'adv' }" @@click="switchTab('adv')">高级</span>
+            </div>
+
+            <!-- ===== 属性 Tab ===== -->
+            <div v-if="activeTab === 'attr'" class="pp-tab-body">
             <!-- 组件信息头部 -->
             <div class="pp-panel-header">
                 <span class="pp-panel-title">
@@ -62,31 +80,28 @@
                     <span v-if="currentCom.modelname" style="margin-left:6px;font-size:12px;color:#909399;">{{ currentCom.modelname }}</span>
                 </span>
                 <div class="pp-panel-actions">
-                    <el-button size="small" text @@click="showJsonEditor" title="编辑JSON">JSON</el-button>
+                    <el-button size="small" text @@click="openPropFormDesigner" title="用设计器设计此组件的属性框（保存到 ComponentMeta.PropertyConfigJson）">✏ 设计属性框</el-button>
                 </div>
             </div>
 
-            <!-- 动态属性面板 -->
+            <!-- 属性框（DynCom 渲染 PropertyConfigJson，绑定到当前选中组件的 ConfigJson） -->
+            <div v-if="currentPropertyConfig && currentPropertyConfig.component" class="pp-dyncom">
+                <n-dynamic-com v-if="currentCom"
+                               :key="'pp-' + propRenderKey"
+                               :jsonconfig="currentPropertyConfig"
+                               :parentmodelinfo="currentCom"
+                               :node-path="'prop-root'"></n-dynamic-com>
+                <div v-else style="color:#909399;font-size:12px;padding:8px;">请先选中组件</div>
+            </div>
+
             <!-- 开放此容器开关（开放配置模式 + 选中容器时） -->
-            <div v-if="openConfigMode && isContainerComp(currentCom.component)" class="pp-open-container">
+            <div v-else-if="openConfigMode && isContainerComp(currentCom.component)" class="pp-open-container">
                 <span style="font-size:12px;color:#303133;">开放此容器（允许拖入组件）</span>
                 <el-switch :model-value="currentComOpenContainer" size="small" @@change="toggleOpenContainer" />
             </div>
 
-            <dynamic-property-panel
-                v-if="currentPropertyConfig"
-                :property-config="currentPropertyConfig"
-                :component-config="currentCom"
-                :component-name="currentCom.component"
-                :open-config-mode="openConfigMode"
-                :open-map="currentComOpenMap"
-                @@update="onPropertyUpdate"
-                @@reset="resetCurrentCom"
-                @@toggle-open="toggleOpenProp">
-            </dynamic-property-panel>
-
             <!-- 已开放项列表（开放配置模式，面板级始终显示） -->
-            <div v-if="openConfigMode" class="pp-open-summary">
+            <div v-else-if="openConfigMode" class="pp-open-summary">
                 <div class="pp-open-summary-title">已开放项 <span style="font-weight:normal;color:#909399;font-size:11px;">（保存为组合组件后外部可配置/可拖入）</span></div>
                 <template v-if="openSummary.props.length || openSummary.containers.length">
                     <div v-for="(item, i) in openSummary.props" :key="'p'+i" class="pp-open-item">
@@ -130,7 +145,48 @@
                     </el-form-item>
                 </el-form>
             </div>
+            </div>
 
+            <!-- ===== 样式 Tab ===== -->
+            <div v-else-if="activeTab === 'style'" class="pp-tab-body">
+                <el-form label-width="76px" size="small" class="pp-compact-form">
+                    <el-form-item label="标签文字">
+                        <el-input v-model="currentCom.options.labeloptions.label" placeholder="标签名称" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="显示标签">
+                        <el-switch v-model="currentCom.options.labeloptions.show"></el-switch>
+                    </el-form-item>
+                    <el-form-item label="必填">
+                        <el-switch v-model="currentCom.options.labeloptions.required" @@change="toggleRequired"></el-switch>
+                    </el-form-item>
+                    <el-form-item label="占位符">
+                        <el-input v-model="currentCom.options.comoptions.placeholder" placeholder="placeholder" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="标签宽度">
+                        <el-input v-model="currentCom.options.labeloptions.labelWidth" placeholder="如 110px" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="组件宽度">
+                        <el-input v-model="currentCom.options.itemoptions.style.width" placeholder="如 200px / 100%" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="上边距">
+                        <el-input v-model="currentCom.options.itemoptions.style.marginTop" placeholder="如 8px" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="下边距">
+                        <el-input v-model="currentCom.options.itemoptions.style.marginBottom" placeholder="如 8px" clearable></el-input>
+                    </el-form-item>
+                    <el-form-item label="自定义类">
+                        <el-input v-model="currentCom.options.itemoptions.style.className" placeholder="css class" clearable></el-input>
+                    </el-form-item>
+                </el-form>
+            </div>
+
+            <!-- ===== 事件 Tab ===== -->
+            <div v-else-if="activeTab === 'event'" class="pp-tab-body pp-tab-empty">
+                <el-empty description="事件 / 动作链配置（可后续通过属性编辑器配置 dyn-click 系列动作）" :image-size="50"></el-empty>
+            </div>
+
+            <!-- ===== 高级 Tab ===== -->
+            <div v-else class="pp-tab-body">
             <el-divider content-position="left">验证器</el-divider>
             <div class="validator-list">
                 <div v-for="(v, idx) in currentCom.validators" :key="idx" class="validator-item">
@@ -161,7 +217,17 @@
                 <el-button size="small" type="primary" plain @@click="copyCurrent">复制</el-button>
                 <el-button size="small" type="danger" @@click="deleteCurrent">删除</el-button>
             </el-form-item>
+            </div>
         </div>
+
+        <!-- 属性框设计器（用 DynCom 设计 PropertyConfigJson） -->
+        <property-form-designer
+            v-if="showPropFormDesigner"
+            :visible="showPropFormDesigner"
+            :meta="currentMetaForDesigner"
+            @@update:visible="showPropFormDesigner = $event"
+            @@saved="onPropFormSaved">
+        </property-form-designer>
         </div>
         <div v-else class="panel-restore panel-restore-right" title="展开属性面板" @@click="rightPanel = 'open'">
             <span>◀</span>
@@ -181,6 +247,37 @@
                 var ElMessage = EP.ElMessage || window.ElMessage || {};
 
                 var rightPanel = ref('open');
+
+                // ===== 属性面板 Tab（属性/样式/事件/高级）=====
+                var activeTab = ref('attr');
+                function ensureComOptions(com) {
+                    if (!com) return com;
+                    com.options = com.options || {};
+                    com.options.labeloptions = com.options.labeloptions || {};
+                    com.options.comoptions = com.options.comoptions || {};
+                    com.options.itemoptions = com.options.itemoptions || {};
+                    com.options.itemoptions.style = com.options.itemoptions.style || {};
+                    return com;
+                }
+                function switchTab(tab) {
+                    if (tab === 'style' && S.currentCom.value) ensureComOptions(S.currentCom.value);
+                    activeTab.value = tab;
+                }
+                // 路径头：父容器链 + 当前组件（最多 3 级）
+                var pathText = computed(function () {
+                    var parts = [];
+                    var node = S.currentCom.value;
+                    var c = S.currentContainer.value;
+                    var safe = 0;
+                    while (c && c.component && safe < 3) {
+                        var lbl = (c.options && c.options.labeloptions && c.options.labeloptions.label) || c.component;
+                        parts.unshift(lbl);
+                        c = c.__parentContainer || null;
+                        safe++;
+                    }
+                    parts.push(node ? ((node.options && node.options.labeloptions && node.options.labeloptions.label) || node.component) : '');
+                    return parts.join(' / ');
+                });
 
                 // ===== 开放配置模式辅助 =====
                 function ensureOpen(node) {
@@ -248,58 +345,175 @@
                     if (!S.currentCom.value) return false;
                     return ['DynNRadio', 'DynNCheckbox', 'DynNPicker'].indexOf(S.currentCom.value.component) >= 0;
                 });
-                var currentPropertyConfig = computed(function () {
-                    if (!S.currentCom.value) return null;
-                    var compName = S.currentCom.value.component;
-                    // 组合组件：根据开放属性 + 开放容器动态生成属性配置
-                    if (Core.compositeComponents[compName]) {
-                        var config = Core.compositeComponents[compName];
-                        var groups = [];
-                        if (config.exposedProps && config.exposedProps.length) {
-                            var fields = config.exposedProps.map(function (p) {
-                                return {
-                                    key: '@@' + p.key,
-                                    label: p.label || p.key,
-                                    type: p.type || 'input',
-                                    default: p.default,
-                                    options: p.options,
-                                    placeholder: p.placeholder
-                                };
-                            });
-                            groups.push({ title: '开放属性', fields: fields });
-                        }
-                        if (config.openContainers && config.openContainers.length) {
-                            var slotFields = config.openContainers.map(function (oc) {
-                                return {
-                                    key: '@@slots:' + oc.key, label: oc.label || oc.key,
-                                    type: 'slot', hint: oc.hint || '可拖入组件', readonly: true
-                                };
-                            });
-                            groups.push({ title: '开放容器（可拖入）', fields: slotFields });
-                        }
-                        return { groups: groups };
+                // 属性框 = DynCom 页面配置（PropertyConfigJson），绑定目标 = 当前选中组件的 ConfigJson
+                // 叶子控件 modelname 用 ~路径（如 ~options.labeloptions.label）直接读写选中组件
+                function buildLeafControl(p) {
+                    var type = p.type || 'input';
+                    var co = { kind: type };
+                    if (p.placeholder) co.placeholder = p.placeholder;
+                    if (type === 'textarea') co.type = 'textarea';
+                    if (type === 'select' || type === 'radio') {
+                        co.optionValues = Array.isArray(p.options) ? p.options
+                            : (typeof p.options === 'string' ? String(p.options).split(',').map(function (s) { return { label: s.trim(), value: s.trim() }; }) : []);
                     }
-                    var meta = S.componentMetaList.value.find(function (c) {
-                        return (c.componentName || c.ComponentName) === compName;
+                    if (type === 'dict') { co.sourceType = 'dict'; co.dictType = p.dictType; }
+                    if (type === 'dbquery') { co.sourceType = 'ajax'; co.dataUrl = p.queryUrl; }
+                    return {
+                        component: 'DynPropControl',
+                        modelname: '~' + p.key,
+                        options: { comoptions: co, labeloptions: { show: false }, itemoptions: { style: {} } },
+                        childrenctrls: [], slots: {}, validators: [], extendinfo: {}
+                    };
+                }
+                function buildPropItem(label, path, leaf) {
+                    return {
+                        component: 'DynPropItem',
+                        modelname: path || '',
+                        options: {
+                            comoptions: { label: label || path || '', required: false, showLabel: true, labelWidth: '110px' },
+                            itemoptions: { style: { marginBottom: '8px' } }
+                        },
+                        childrenctrls: [leaf],
+                        slots: {}, validators: [], extendinfo: {}
+                    };
+                }
+                function buildCompositePropConfig(config) {
+                    var children = [];
+                    if (config.exposedProps && config.exposedProps.length) {
+                        config.exposedProps.forEach(function (p) {
+                            children.push(buildPropItem(p.label || p.key, p.key, buildLeafControl(p)));
+                        });
+                    }
+                    if (config.openContainers && config.openContainers.length) {
+                        config.openContainers.forEach(function (oc) {
+                            children.push(buildPropItem(oc.label || oc.key, '', {
+                                component: 'DynNDivContainer',
+                                modelname: '',
+                                options: { itemoptions: { style: { minHeight: '42px', border: '1px dashed #c0c4cc', borderRadius: '4px', padding: '6px' } } },
+                                childrenctrls: [], slots: {}, validators: [], extendinfo: {}
+                            }));
+                        });
+                    }
+                    return {
+                        component: 'DynPropContainer',
+                        modelname: '',
+                        options: { itemoptions: { style: {} } },
+                        childrenctrls: children, slots: {}, validators: [], extendinfo: {}
+                    };
+                }
+                function getCompositeConfig(name) {
+                    var dc = window.DynCom || {};
+                    return (dc.compositeComponents && dc.compositeComponents[name]) || null;
+                }
+                // 属性框配置：全局共享 ref + 显式刷新（避免面板 app 重复挂载时 saved 事件与渲染实例不同步）
+                if (!window.__lcPropConfigRef) window.__lcPropConfigRef = ref(null);
+                var currentPropertyConfig = window.__lcPropConfigRef;
+                // 渲染 key：切换 current / 保存后递增，强制 n-dynamic-com 树重建（内部组件对 jsonconfig 做了 setup 快照，prop 变化不重渲染）
+                var propRenderKey = ref(0);
+                // 自动补"数据绑定（modelname）"条目：每个组件的属性框都应能配置顶层 modelname（DynPropItem 绑定路径=modelname）
+                function ensureModelNameItem(config) {
+                    var list = config.childrenctrls || [];
+                    var has = list.some(function (c) {
+                        return c.modelname === 'modelname'
+                            || (c.options && c.options.comoptions && (c.options.comoptions.label === '数据绑定' || c.options.comoptions.label === 'modelname'));
                     });
-                    if (!meta) { return null; }
-                    var propConfig = meta.propertyConfigJson || meta.PropertyConfigJson;
-                    if (!propConfig) return null;
+                    if (has) return config;
+                    list.unshift({
+                        component: 'DynPropItem', modelname: 'modelname',
+                        options: {
+                            comoptions: { label: '数据绑定', required: false, showLabel: true, labelWidth: '110px' },
+                            itemoptions: { style: { marginBottom: '8px' } }
+                        },
+                        childrenctrls: [{
+                            component: 'DynPropControl', modelname: '',
+                            options: {
+                                comoptions: { kind: 'input', placeholder: '如 options.input.value' },
+                                labeloptions: { show: false }, itemoptions: { style: {} }
+                            },
+                            childrenctrls: [], slots: {}, validators: [], extendinfo: {}
+                        }],
+                        slots: {}, validators: [], extendinfo: {}
+                    });
+                    return config;
+                }
+                function refreshPropertyConfig() {
                     try {
-                        var parsed = typeof propConfig === 'string' ? JSON.parse(propConfig) : propConfig;
-                        return parsed;
-                    } catch (e) { return null; }
-                });
+                        if (!S.currentCom.value) { currentPropertyConfig.value = null; return; }
+                        var compName = S.currentCom.value.component;
+                        var result = null;
+                        // 组合组件：根据开放属性 + 开放容器动态生成属性框（DynPropItem + 控件）
+                        var cc = getCompositeConfig(compName);
+                        if (cc) {
+                            result = buildCompositePropConfig(cc);
+                        } else {
+                            var meta = S.componentMetaList.value.find(function (c) {
+                                return (c.componentName || c.ComponentName) === compName;
+                            });
+                            if (meta) {
+                                var propConfig = meta.propertyConfigJson || meta.PropertyConfigJson;
+                                if (propConfig) {
+                                    var parsed = typeof propConfig === 'string' ? JSON.parse(propConfig) : propConfig;
+                                    if (parsed && parsed.component) result = parsed;
+                                }
+                            }
+                        }
+                        // 自动补"数据绑定（modelname）"条目
+                        if (result && result.childrenctrls) ensureModelNameItem(result);
+                        currentPropertyConfig.value = result;
+                        propRenderKey.value++;
+                    } catch (e) { currentPropertyConfig.value = null; }
+                }
+                refreshPropertyConfig();
+                window.__lcRefreshPropConfig = refreshPropertyConfig; // 调试钩子
+                Vue.watch(function () { return S.currentCom ? S.currentCom.value : null; }, refreshPropertyConfig);
                 function onPropertyUpdate(key, value, localModel) {
                     if (!S.currentCom.value) return;
-                    // 字面键（at 前缀，如 @@childrenctrls[0].modelname）：DynamicPropertyPanel 已直接写入
-                    // comoptions / slots（键含 . 和 [ ]，不能走 ppSetByPath 点号路径，否则会生成根级垃圾键）
-                    if (typeof key === 'string' && key.indexOf('@@') === 0) return;
-                    if (window.ppSetByPath) window.ppSetByPath(S.currentCom.value, key, value);
+                    // 属性框 DynCom 渲染：叶子控件通过 parentmodelinfo 直接写入选中组件 ConfigJson，无需额外处理
                 }
                 function showJsonEditor() {
                     if (S.currentCom.value) S.configJsonText.value = JSON.stringify(S.currentCom.value, null, 2);
                     S.showJson.value = true;
+                }
+                // ===== 属性框设计器（PropertyFormDesigner）=====
+                var showPropFormDesigner = ref(false);
+                var currentMetaForDesigner = computed(function () {
+                    if (!S.currentCom.value) return null;
+                    var compName = S.currentCom.value.component;
+                    var meta = S.componentMetaList.value.find(function (c) {
+                        return (c.componentName || c.ComponentName) === compName;
+                    });
+                    return meta || null;
+                });
+                function openPropFormDesigner() {
+                    if (!currentMetaForDesigner.value) {
+                        ElMessage.warning('未找到当前组件的元数据（ComponentMeta），无法设计属性框');
+                        return;
+                    }
+                    showPropFormDesigner.value = true;
+                }
+                function onPropFormSaved(meta) {
+                    // 更新本地元数据缓存，属性面板立即生效
+                    // 注意：ref 数组索引赋值不触发 ITERATE_KEY 依赖（find/forEach 收集），必须替换整个数组
+                    var list = S.componentMetaList.value;
+                    var copy = list.slice();
+                    var idx = copy.findIndex(function (c) { return (c.componentName || c.ComponentName) === (meta.componentName || meta.ComponentName); });
+                    if (idx >= 0) copy[idx] = Object.assign({}, copy[idx], meta);
+                    S.componentMetaList.value = copy;
+                    // 强制刷新属性面板：先置空再 nextTick 重算（确保 Vue 依赖触发 + 渲染队列 flush）
+                    var lcRef = window.__lcPropConfigRef;
+                    if (lcRef) {
+                        lcRef.value = null;
+                        Vue.nextTick(function () {
+                            refreshPropertyConfig();
+                        });
+                    } else {
+                        refreshPropertyConfig();
+                    }
+                    if (window.dynCom && Array.isArray(window.dynCom)) {
+                        var di = window.dynCom.findIndex(function (c) { return (c.componentName || c.ComponentName) === (meta.componentName || meta.ComponentName); });
+                        if (di >= 0) window.dynCom[di] = Object.assign({}, window.dynCom[di], meta);
+                    }
+                    ElMessage.success('属性框配置已保存');
                 }
                 function resetCurrentCom() { /* DynamicPropertyPanel 未 emit reset，保留 handler 占位 */ }
                 function openRightPanel() { rightPanel.value = 'open'; }
@@ -343,9 +557,11 @@
                 });
 
                 return {
-                    rightPanel: rightPanel, openConfigMode: S.openConfigMode,
+                    rightPanel: rightPanel, activeTab: activeTab, pathText: pathText,
+                    switchTab: switchTab, ensureComOptions: ensureComOptions,
+                    openConfigMode: S.openConfigMode,
                     currentCom: S.currentCom,
-                    currentPropertyConfig: currentPropertyConfig,
+                    currentPropertyConfig: currentPropertyConfig, propRenderKey: propRenderKey,
                     currentComOpenMap: currentComOpenMap,
                     currentComOpenContainer: currentComOpenContainer,
                     openSummary: openSummary,
@@ -354,6 +570,10 @@
                     isContainerComp: U.isContainerComp,
                     openRightPanel: openRightPanel,
                     showJsonEditor: showJsonEditor,
+                    showPropFormDesigner: showPropFormDesigner,
+                    currentMetaForDesigner: currentMetaForDesigner,
+                    openPropFormDesigner: openPropFormDesigner,
+                    onPropFormSaved: onPropFormSaved,
                     onPropertyUpdate: onPropertyUpdate,
                     resetCurrentCom: resetCurrentCom,
                     toggleOpenContainer: toggleOpenContainer,
@@ -365,7 +585,23 @@
                     copyCurrent: api.copyCurrent, deleteCurrent: api.deleteCurrent
                 };
             },
-            components: { DynamicPropertyPanel: window.DynamicPropertyPanel }
+            components: (function () {
+                // 属性框内核组件（dyn-com.js 内置）
+                var comps = {
+                    NDynamicCom: (window.DynCom && window.DynCom.NDynamicCom) || null,
+                    DynPropItem: (window.DynCom && window.DynCom.DynPropItem) || null,
+                    DynPropControl: (window.DynCom && window.DynCom.DynPropControl) || null,
+                    DynPropContainer: (window.DynCom && window.DynCom.DynPropContainer) || null,
+                    PropertyFormDesigner: window.PropertyFormDesigner
+                };
+                // 组件表注册表（designer.js registerComponents 后挂到 window.__lcCompRegistry）
+                // 属性框 DynCom 渲染可引用任意组件表组件（如 DynNCodeMirror）
+                var reg = window.__lcCompRegistry || {};
+                Object.keys(reg).forEach(function (k) {
+                    if (!comps[k]) comps[k] = reg[k];
+                });
+                return comps;
+            })()
         };
     </script>
 </div>

@@ -1,0 +1,137 @@
+@model VueLib.Web.Models.DynRouteListModel
+@using VueLib.Web.Models
+@using Newtonsoft.Json
+@using VueLib.Web.Controllers
+@{
+    Layout = null;
+    var project = Model.Project!;
+    var webPage = Model.WebPage!;
+    var projId = project.Id;
+    var route = webPage.Route;
+    var listPageId = Model.SummaryPage?.Id ?? 0;
+    var filterPageId = Model.FilterPage?.Id ?? 0;
+    var detailPageId = Model.DetailPage?.Id ?? 0;
+
+    var crudConfigJson = DynRunController.JsonModel(new
+    {
+        component = "DynTreeList",
+        modelname = "",
+        options = new
+        {
+            comoptions = new
+            {
+                projectId = projId,
+                listPageId = listPageId,
+                filterPageId = filterPageId,
+                detailPageId = detailPageId,
+                showFilter = true,
+                treeTable = "OrgUnit",
+                treeIdField = "Id",
+                treeParentIdField = "ParentId",
+                treeNameField = "Name",
+                linkField = "GradeId", treeValueField = "RefId"
+            },
+            labeloptions = new { label = webPage.Title ?? webPage.Name, required = false, show = false }
+        }
+    });
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@(project.DisplayName ?? project.Name) - @(webPage.Title ?? webPage.Name)</title>
+<link rel="stylesheet" href="~/css/element-plus.css">
+<link rel="stylesheet" href="~/css/dyn.css">
+<link rel="stylesheet" href="~/css/tailwind.css" asp-append-version="true">
+<style>
+    body { margin:0; font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#f0f2f5; }
+    .view-topbar { background:#fff; border-bottom:1px solid #e4e7ed; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+    .view-topbar .proj { font-weight:600; font-size:15px; }
+    .view-topbar .page { color:#409eff; font-size:13px; background:#ecf5ff; padding:2px 10px; border-radius:10px; }
+    ..view-topbar .route { color:#909399; font-size:12px; }
+    .dyn-page { padding:14px; }
+    .dyn-crud-page .dyn-card { background:#fff; border-radius:6px; padding:12px 14px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+    .dyn-crud-page .dyn-card-title { font-size:14px; font-weight:600; color:#303133; margin-bottom:10px; }
+    .dyn-crud-page .dyn-filter { display:flex; flex-wrap:wrap; gap:6px; align-items:flex-start; }
+    .dyn-crud-page .dyn-filter .el-form-item { margin-bottom:8px; }
+    .dyn-crud-page .dyn-pager { margin-top:12px; display:flex; justify-content:flex-end; }
+</style>
+</head>
+<body>
+<div class="view-topbar">
+    <span class="proj">@(project.DisplayName ?? project.Name)</span>
+    <span class="page">@(webPage.Title ?? webPage.Name)</span>
+    <span class="route">@(webPage.Route)</span>
+    <span style="color:#909399;font-size:12px;flex:1;"></span>
+    <span style="color:#909399;font-size:12px;">模板：@(Model.Template?.Name)（DynTreeList 组件）</span>
+</div>
+
+<div id="crudRoot" class="dyn-page"></div>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/js/vue.global.prod.js"></script>
+<script src="~/js/element-plus.full.min.js"></script>
+<script src="~/js/lodash.min.js"></script>
+<script>
+/* ============================================================
+ * RouteTreeList —— 由设计器组件 DynTreeList（左树右列表）渲染
+ * 组件定义从 Razor LoadUrl（/ElementComponent/Container/DynCrudPage）
+ * 动态加载（nut-runtime 同款机制），三个页面 ID 由模板/网页配置注入。
+ * ============================================================ */
+(function (global) {
+    'use strict';
+    var crudConfig = @Html.Raw(crudConfigJson);
+
+    async function loadRazorComponent(url) {
+        var resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'text/html' } });
+        if (!resp.ok) throw new Error('加载组件失败: HTTP ' + resp.status + ' (' + url + ')');
+        var html = await resp.text();
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var tplEl = doc.querySelector('template');
+        var scriptEl = doc.querySelector("script[tag='comconfig']");
+        if (!tplEl || !scriptEl) throw new Error('组件定义缺少 template/comconfig: ' + url);
+        var factory = new Function(scriptEl.textContent + '; return typeof comConfig !== "undefined" ? comConfig : null;');
+        var comConfig = factory();
+        if (!comConfig) throw new Error('comConfig 为空: ' + url);
+        comConfig.template = tplEl.innerHTML;
+        return comConfig;
+    }
+
+    async function boot() {
+        // 1. 组件元数据
+        var metaResp = await fetch('/api/lowcode/components', { headers: { 'Accept': 'application/json' } });
+        var metaResult = await metaResp.json();
+        var meta = (metaResult && metaResult.data || []).find(function (m) { return m.componentName === 'DynTreeList'; });
+        if (!meta) throw new Error('未找到组件元数据');
+        // 2. 从 Razor 加载组件定义
+        var comDef = await loadRazorComponent(meta.loadUrl);
+
+        // 3. 创建 Vue 应用
+        var app = Vue.createApp({
+            data: function () { return { config: crudConfig, model: {} }; },
+            template: '<n-dynamic-com :jsonconfig="config" :parentmodelinfo="model"></n-dynamic-com>'
+        });
+        app.use(ElementPlus);
+        // 4. 动态组件递归渲染器
+        app.component('NDynamicCom', {
+            props: { jsonconfig: { type: Object, required: true }, parentmodelinfo: { type: Object, default: function () { return {}; } } },
+            template: '<component :is="jsonconfig.component" :jsonconfig="jsonconfig" :parentmodelinfo="parentmodelinfo"></component>'
+        });
+        // 5. 注册 DynCrudPage（异步组件）
+        app.component('DynTreeList', Vue.defineAsyncComponent({
+            loader: function () { return Promise.resolve(comDef); },
+            delay: 100, timeout: 15000
+        }));
+        app.mount('#crudRoot');
+        console.log('[RouteTreeList] DynTreeList 组件已启动', crudConfig);
+    }
+
+    boot().catch(function (e) {
+        document.getElementById('crudRoot').innerHTML = '<div style="padding:20px;color:#f56c6c;border:1px dashed #f56c6c;border-radius:6px;margin:14px;">组件启动失败: ' + (e && e.message || e) + '</div>';
+        console.error('[RouteCrud]', e);
+    });
+})(window);
+</script>
+</body>
+</html>

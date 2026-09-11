@@ -41,7 +41,7 @@
     }
 
     // 组合组件配置 map
-    const compositeComponents = {};
+    const compositeComponents = (window.DynCom && window.DynCom.compositeComponents) || {};
 
         // ===== 按路径取值（支持 a.b.c 与 childrenctrls[0].b 混合语法）=====
     function getByPath(obj, path) {
@@ -124,243 +124,20 @@ function getUrlParam(name) {
     }
 
     function registerDynamicCom(app) {
-        app.component('NDynamicCom', {
-            name: 'NDynamicCom',
-            props: {
-                jsonconfig: { type: Object, required: true },
-                parentmodelinfo: { type: Object, default: () => ({}) },
-                nodePath: { type: String, default: 'root' },
-                locked: { type: Boolean, default: false }
-            },
-            inject: {
-                lcLocked: { default: null },
-                lcCompositeRoot: { default: null }
-            },
-            provide() {
-                return {
-                    lcLocked: computed(() => this.isLocked),
-                    lcCompositeRoot: this.isComposite ? this.jsonconfig : null
-                };
-            },
-            template: `
-                <div v-if="!validConfig" style="padding:8px;color:#f56c6c;font-size:12px;">
-                    [NDynamicCom] 无效配置: {{ nodePath }}
-                </div>
-                <div v-else-if="depthExceeded" style="padding:8px;color:#f56c6c;font-size:12px;">
-                    [NDynamicCom] 递归深度超限: {{ nodePath }}
-                </div>
-                <template v-else>
-                <div v-if="isDesign" class="lc-node"
-                     :class="{
-                        'lc-selected': isSelected,
-                        'lc-dragging': isDraggingSelf,
-                        'lc-drop-target': isDropTarget,
-                        'lc-container': isContainerComp,
-                        'lc-composite': isComposite,
-                        'lc-wrapper': hasWrapper,
-                        'lc-locked': isLocked,
-                        'lc-open-slot': isOpenSlot
-                     }"
-                     :draggable="true"
-                     @@dragstart.stop="onDragStart"
-                     @@dragover.stop.prevent="onDragOver"
-                     @@dragleave="onDragLeave"
-                     @@drop.stop.prevent="onDrop"
-                     @@click.stop="onClick">
-                    <!-- 有 Wrapper -->
-                    <component v-if="hasWrapper" :is="wrapperComponent"
-                               :jsonconfig="jsonconfig.options.wrapperoptions"
-                               :parentmodelinfo="parentmodelinfo"
-                               :node-path="nodePath + '.wrapper'">
-                        <n-dynamic-com v-if="isComposite && compositeTree"
-                                       :jsonconfig="compositeTree"
-                                       :parentmodelinfo="parentmodelinfo"
-                                       :node-path="nodePath + '.composite'"
-                                   :locked="true"></n-dynamic-com>
-                        <component v-else :is="jsonconfig.component"
-                                   :jsonconfig="jsonconfig"
-                                   :parentmodelinfo="parentmodelinfo"
-                                   :node-path="nodePath"></component>
-                    </component>
-                    <!-- 无 Wrapper -->
-                    <template v-else>
-                        <n-dynamic-com v-if="isComposite && compositeTree"
-                                       :jsonconfig="compositeTree"
-                                       :parentmodelinfo="parentmodelinfo"
-                                       :node-path="nodePath + '.composite'"
-                                   :locked="true"></n-dynamic-com>
-                        <component v-else :is="jsonconfig.component"
-                                   :jsonconfig="jsonconfig"
-                                   :parentmodelinfo="parentmodelinfo"
-                                   :node-path="nodePath"></component>
-                    </template>
-                    <!-- 插入位置指示器 -->
-                    <div v-if="showInsertBefore" class="lc-insert-indicator lc-insert-before"></div>
-                    <div v-if="showInsertAfter" class="lc-insert-indicator lc-insert-after"></div>
-                </div>
-                <!-- 非设计模式 -->
-                <component v-if="!isDesign && hasWrapper" :is="wrapperComponent"
-                           :jsonconfig="jsonconfig.options.wrapperoptions"
-                           :parentmodelinfo="parentmodelinfo"
-                           :node-path="nodePath + '.wrapper'">
-                    <n-dynamic-com v-if="isComposite && compositeTree"
-                                   :jsonconfig="compositeTree"
-                                   :parentmodelinfo="parentmodelinfo"
-                                   :node-path="nodePath + '.composite'"
-                                   :locked="true"></n-dynamic-com>
-                    <component v-else :is="jsonconfig.component"
-                               :jsonconfig="jsonconfig"
-                               :parentmodelinfo="parentmodelinfo"
-                               :node-path="nodePath"></component>
-                </component>
-                <n-dynamic-com v-else-if="!isDesign && isComposite && compositeTree"
-                               :jsonconfig="compositeTree"
-                               :parentmodelinfo="parentmodelinfo"
-                               :node-path="nodePath + '.composite'"
-                                   :locked="true"></n-dynamic-com>
-                <component v-else-if="!isDesign" :is="jsonconfig.component"
-                           :jsonconfig="jsonconfig"
-                           :parentmodelinfo="parentmodelinfo"
-                           :node-path="nodePath"></component>
-                </template>
-            `,
-            computed: {
-                validConfig() { return this.jsonconfig && typeof this.jsonconfig === 'object' && this.jsonconfig.component; },
-                depth() {
-                    const m = this.nodePath.match(/\.(childrenctrls\[|composite|wrapper)/g);
-                    return m ? m.length : 0;
-                },
-                depthExceeded() { return this.depth > 15; },
-                isDesign() { return designState.mode === 'design'; },
-                isSelected() { return designState.selectedPath === this.nodePath; },
-                isContainerComp() { return isContainer(this.jsonconfig.component); },
-                isComposite() { return !!compositeComponents[this.jsonconfig.component]; },
-                hasWrapper() { return !!(this.jsonconfig.options?.wrapperoptions?.component); },
-                wrapperComponent() { return this.jsonconfig.options?.wrapperoptions?.component; },
-                compositeTree() {
-                    if (!this.isComposite) return null;
-                    const config = compositeComponents[this.jsonconfig.component];
-                    if (!config?.tree) return null;
-                    const externalProps = this.jsonconfig.options?.comoptions || {};
-                    const externalSlots = this.jsonconfig.slots || (this.jsonconfig.slots = {});
-                    return applyCompositeProps(config.tree, config, externalProps, externalSlots);
-                },
-                parentLocked() {
-                    const pl = this.lcLocked;
-                    if (pl == null) return false;
-                    return (typeof pl === 'object' && 'value' in pl) ? !!pl.value : !!pl;
-                },
-                isLocked() { return (this.locked || this.parentLocked) && !this.jsonconfig?.__unlocked; },
-                isOpenSlot() { return !!(this.jsonconfig?.__openSlot); },
-                isDraggingSelf() {
-                    return designState.isDragging && designState.dragType === 'move' && designState.sourcePath === this.nodePath;
-                },
-                isDropTarget() {
-                    return designState.isDragging && designState.dropTargetPath === this.nodePath && designState.dropPosition === 'inside';
-                },
-                showInsertBefore() {
-                    return designState.isDragging && designState.dropTargetPath === this.nodePath && designState.dropPosition === 'before';
-                },
-                showInsertAfter() {
-                    return designState.isDragging && designState.dropTargetPath === this.nodePath && designState.dropPosition === 'after';
+        // NDynamicCom：全局唯一渲染内核（dyn-com.js）；preview 通过 lcDesignState 注入设计态
+        if (window.DynCom && window.DynCom.NDynamicCom) {
+            const PreviewNode = {
+                name: 'NDynamicCom',
+                inheritAttrs: false,
+                provide: function () { return { lcDesignState: designState }; },
+                render: function () {
+                    return Vue.h(window.DynCom.NDynamicCom, this.$attrs);
                 }
-            },
-            methods: {
-                onClick() {
-                    if (this.isLocked) return;
-                    if (this.isOpenSlot && this.lcCompositeRoot) {
-                        designState.selectedPath = this.lcCompositeRoot.__path || this.nodePath;
-                        try { parent.postMessage({ type: 'component-selected', path: this.nodePath }, '*'); } catch (e) {}
-                        return;
-                    }
-                    designState.selectedPath = this.nodePath;
-                    try { parent.postMessage({ type: 'component-selected', path: this.nodePath }, '*'); } catch (e) {}
-                },
-                onDragStart(e) {
-                    if (designState.mode !== 'design') return;
-                    designState.isDragging = true;
-                    designState.dragType = 'move';
-                    designState.sourcePath = this.nodePath;
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', this.nodePath);
-                },
-                onDragOver(e) {
-                    if (!designState.isDragging) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    const rect = this.$el.getBoundingClientRect();
-                    const y = e.clientY - rect.top;
-                    const h = rect.height;
-
-                    if (this.isContainerComp) {
-                        // 容器：判断是放在容器内还是在容器前后
-                        if (y < h * 0.25) {
-                            designState.dropTargetPath = this.nodePath;
-                            designState.dropPosition = 'before';
-                        } else if (y > h * 0.75) {
-                            designState.dropTargetPath = this.nodePath;
-                            designState.dropPosition = 'after';
-                        } else {
-                            designState.dropTargetPath = this.nodePath;
-                            designState.dropPosition = 'inside';
-                        }
-                        e.dataTransfer.dropEffect = 'move';
-                    } else {
-                        // 非容器：只能在前后插入
-                        if (y < h / 2) {
-                            designState.dropTargetPath = this.nodePath;
-                            designState.dropPosition = 'before';
-                        } else {
-                            designState.dropTargetPath = this.nodePath;
-                            designState.dropPosition = 'after';
-                        }
-                        e.dataTransfer.dropEffect = 'move';
-                    }
-                },
-                onDragLeave(e) {
-                    // 不清除，由 dragover 持续更新
-                },
-                onDrop(e) {
-                    if (!designState.isDragging) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    const targetPath = designState.dropTargetPath;
-                    const position = designState.dropPosition;
-
-                    if (designState.dragType === 'move') {
-                        // 移动组件
-                        try {
-                            parent.postMessage({
-                                type: 'component-move',
-                                sourcePath: designState.sourcePath,
-                                targetPath: targetPath,
-                                position: position
-                            }, '*');
-                        } catch (err) {}
-                    } else if (designState.dragType === 'add' && designState.addConfig) {
-                        // 添加新组件
-                        try {
-                            parent.postMessage({
-                                type: 'component-add',
-                                config: designState.addConfig,
-                                targetPath: targetPath,
-                                position: position
-                            }, '*');
-                        } catch (err) {}
-                    }
-
-                    // 重置拖拽状态
-                    designState.isDragging = false;
-                    designState.dragType = null;
-                    designState.sourcePath = null;
-                    designState.addConfig = null;
-                    designState.dropTargetPath = null;
-                    designState.dropPosition = null;
-                }
-            }
-        });
+            };
+            app.component('NDynamicCom', PreviewNode);
+        } else {
+            console.error('[Preview] DynCom.NDynamicCom 未加载（dyn-com.js 缺失）');
+        }
     }
 
     // 全局 dragend 监听，确保拖拽状态重置
@@ -389,33 +166,8 @@ function getUrlParam(name) {
             const resp = await fetch('/api/lowcode/components');
             const result = await resp.json();
             if (result.success && result.data) {
-                let registered = 0;
-                for (const meta of result.data) {
-                    const name = meta.componentName || meta.ComponentName;
-                    const url = meta.loadUrl || meta.LoadUrl;
-                    // 保存组合组件配置
-                    if (meta.isComposite && meta.compositeConfigJson) {
-                        try {
-                            compositeComponents[name] = JSON.parse(meta.compositeConfigJson);
-                        } catch (e) {
-                            console.error('[Preview] 解析组合组件配置失败:', name, e);
-                        }
-                    }
-                    // 注册自定义脚本
-                    if (meta.customScriptJson && window.nutRegisterCustomScript) {
-                        try {
-                            window.nutRegisterCustomScript(name, meta.customScriptJson);
-                        } catch (e) {
-                            console.error('[Preview] 注册自定义脚本失败:', name, e);
-                        }
-                    }
-                    if (name && url) {
-                        // 组件名已在数据库中统一为 Dyn 前缀（DynElInput / DynNInput），避免与 UI 库全局组件冲突
-                        app.component(name, window.nutLoadCom(name, url));
-                        registered++;
-                    }
-                }
-                console.log(`[Preview] 注册了 ${registered} 个组件, 其中组合组件: ${Object.keys(compositeComponents).length}`);
+                const r = await window.DynCom.registerComponents(app, result.data);
+                console.log(`[Preview] 注册了 ${r.count} 个组件, 其中组合组件: ${Object.keys(compositeComponents).length}`);
                 componentsLoaded = true;
             }
         } catch (err) {
@@ -436,27 +188,27 @@ function getUrlParam(name) {
                 }
             },
             template: `<div class="preview-page" :class="{ 'design-mode': designState.mode === 'design' }"
-                          @@dragover.prevent="onRootDragOver"
-                          @@drop.prevent="onRootDrop">
+                          @dragover.prevent="onRootDragOver"
+                          @drop.prevent="onRootDrop">
                 <n-dynamic-com :jsonconfig="state.config" :parentmodelinfo="state.model" node-path="root"></n-dynamic-com>
                 <div v-if="isStandalone" class="standalone-actions">
-                    <button class="btn-primary" @@click="handleSubmit">提交</button>
-                    <button class="btn-default" @@click="handleReset">重置</button>
-                    <button class="btn-default" @@click="showModelData">查看数据</button>
+                    <button class="btn-primary" @click="handleSubmit">提交</button>
+                    <button class="btn-default" @click="handleReset">重置</button>
+                    <button class="btn-default" @click="showModelData">查看数据</button>
                 </div>
                 <!-- Model JSON 弹窗 -->
-                <div v-if="showModelModal" class="model-modal-overlay" @@click.self="showModelModal = false">
+                <div v-if="showModelModal" class="model-modal-overlay" @click.self="showModelModal = false">
                     <div class="model-modal">
                         <div class="model-modal-header">
                             <span>页面数据模型 (Model JSON)</span>
-                            <button class="model-modal-close" @@click="showModelModal = false">×</button>
+                            <button class="model-modal-close" @click="showModelModal = false">×</button>
                         </div>
                         <div class="model-modal-body">
                             <textarea class="model-json-textarea" readonly>{{ modelJsonText }}</textarea>
                         </div>
                         <div class="model-modal-footer">
-                            <button class="btn-primary" @@click="copyModelJson">复制</button>
-                            <button class="btn-default" @@click="showModelModal = false">关闭</button>
+                            <button class="btn-primary" @click="copyModelJson">复制</button>
+                            <button class="btn-default" @click="showModelModal = false">关闭</button>
                         </div>
                     </div>
                 </div>

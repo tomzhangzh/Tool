@@ -34,10 +34,11 @@
                     <span v-if="row.hasOnEvent" style="color:#16a34a;font-size:11px;">已配置</span>
                 </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" align="center">
+            <el-table-column label="操作" width="150" align="center">
                 <template #default="{row,$index}">
                     <el-button size="small" text :disabled="$index===0" v-on:click="move($index,-1)">↑</el-button>
                     <el-button size="small" text :disabled="$index===steps.length-1" v-on:click="move($index,1)">↓</el-button>
+                    <el-button size="small" text type="primary" title="复制本步骤" v-on:click="copyStep($index)">⧉</el-button>
                     <el-button size="small" text type="danger" v-on:click="steps.splice($index,1)">✕</el-button>
                 </template>
             </el-table-column>
@@ -50,8 +51,20 @@
             <el-button size="small" v-on:click="addStep('openwindow')">🪟 打开窗体</el-button>
             <el-button size="small" v-on:click="addStep('setvar')">📝 设置变量</el-button>
             <span style="flex:1"></span>
+            <el-button size="small" v-on:click="copyChainJson()">⧉ 复制链JSON</el-button>
+            <el-button size="small" :type="cmMode ? 'primary' : 'default'" v-on:click="toggleCodeMirror()">{{ cmMode ? '◈ 列表模式' : '⌨ CodeMirror JSON' }}</el-button>
             <el-button size="small" v-on:click="cancel()">取消</el-button>
             <el-button size="small" type="success" v-on:click="save()">✔ 保存动作链</el-button>
+        </div>
+
+        <!-- CodeMirror 整链 JSON 编辑（设计时右侧配置动作链的进阶视图） -->
+        <div v-if="cmMode" style="margin-top:10px; border:1px solid #d1d5db; border-radius:6px; overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">
+                <span style="font-size:12px;color:#374151;">整链 JSON（CodeMirror 编辑 · 实时校验）</span>
+                <span style="flex:1"></span>
+                <el-button size="small" type="success" v-on:click="applyJson()">✔ 应用 JSON 到步骤</el-button>
+            </div>
+            <div ref="cmWrap" style="max-height:300px;"></div>
         </div>
 
         <div style="margin-top:8px;font-size:11px;color:#6b7280;line-height:1.7;">
@@ -72,7 +85,9 @@
             data: function () {
                 return {
                     steps: [],
-                    actionOptions: []
+                    actionOptions: [],
+                    cmMode: false,
+                    cmValid: true
                 };
             },
             mounted: function () {
@@ -118,6 +133,87 @@
                     var j = idx + dir;
                     if (j < 0 || j >= arr.length) return;
                     var t = arr[idx]; arr[idx] = arr[j]; arr[j] = t;
+                },
+                copyStep: function (idx) {
+                    var s = this.steps[idx];
+                    if (!s) return;
+                    var clone = this.normalizeStep(JSON.parse(JSON.stringify({ action: s.action, options: s.options, onEvent: s.onEvent })));
+                    this.steps.splice(idx + 1, 0, clone);
+                },
+                // 生成整链 JSON（与 save 同构）
+                chainJson: function () {
+                    var out = [];
+                    for (var i = 0; i < this.steps.length; i++) {
+                        var s = this.steps[i];
+                        var opt = {};
+                        if (s.optionsText && s.optionsText.trim()) {
+                            try { opt = JSON.parse(s.optionsText); } catch (e) { /* 保留原样 */ }
+                        }
+                        var step = { action: s.action, options: opt };
+                        if (s.hasOnEvent && s.onEvent) step.onEvent = s.onEvent;
+                        out.push(step);
+                    }
+                    return JSON.stringify(out, null, 2);
+                },
+                copyChainJson: function () {
+                    var self = this;
+                    var txt = this.chainJson();
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(txt).then(function () { self.$message.success('已复制整链 JSON'); });
+                    } else {
+                        window.prompt('复制整链 JSON：', txt);
+                    }
+                },
+                toggleCodeMirror: function () {
+                    var self = this;
+                    this.cmMode = !this.cmMode;
+                    if (this.cmMode) {
+                        this.$nextTick(function () { self.initCm(); });
+                    } else if (this._cm) {
+                        this._cm.save();
+                    }
+                },
+                initCm: function () {
+                    var self = this;
+                    if (this._cm || typeof window.CodeMirror !== 'function') {
+                        if (typeof window.CodeMirror !== 'function') this.$message.warning('CodeMirror 未加载');
+                        return;
+                    }
+                    var wrap = this.$refs.cmWrap;
+                    if (!wrap) return;
+                    this._cm = window.CodeMirror(wrap, {
+                        value: this.chainJson(),
+                        mode: { name: 'javascript', json: true },
+                        lineNumbers: true,
+                        lineWrapping: true,
+                        styleActiveLine: true,
+                        matchBrackets: true,
+                        tabSize: 2,
+                        indentUnit: 2
+                    });
+                    var timer = null;
+                    this._cm.on('change', function () {
+                        if (timer) clearTimeout(timer);
+                        timer = setTimeout(function () { self.cmHint(); }, 400);
+                    });
+                },
+                // CodeMirror 输入时仅提示有效性（显式「应用 JSON 到步骤」才回写列表）
+                cmHint: function () {
+                    if (!this._cm) return;
+                    var txt = this._cm.getValue();
+                    try { JSON.parse(txt); this.cmValid = true; } catch (e) { this.cmValid = false; }
+                },
+                applyJson: function () {
+                    var self = this;
+                    if (!this._cm) return;
+                    try {
+                        var arr = JSON.parse(this._cm.getValue());
+                        if (!Array.isArray(arr)) { self.$message.error('JSON 必须是数组'); return; }
+                        self.steps = arr.map(function (s) { return self.normalizeStep(s); });
+                        self.$message.success('已应用 ' + self.steps.length + ' 个步骤');
+                    } catch (e) {
+                        self.$message.error('JSON 无效: ' + e.message);
+                    }
                 },
                 editOnEvent: function (row) {
                     var self = this;
@@ -176,9 +272,13 @@
 <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
 <script src="~/js/lodash.min.js" asp-append-version="true"></script>
 <script src="~/js/element-plus.full.min.js" asp-append-version="true"></script>
+<script src="~/lib/codemirror/codemirror.min.js" asp-append-version="true"></script>
+<script src="~/lib/codemirror/mode-javascript.min.js" asp-append-version="true"></script>
+<link rel="stylesheet" href="~/lib/codemirror/codemirror.min.css">
 <script src="~/js/element-plus-icons.min.js" asp-append-version="true"></script>
 <script src="~/js/dyn-core.js" asp-append-version="true"></script>
 <script src="~/js/dyn-actionhelper.js" asp-append-version="true"></script>
+    <script src="~/js/dyn-com.js" asp-append-version="true"></script>
 <script src="~/js/dyn-lib.js" asp-append-version="true"></script>
 <script>
     // 独立打开时自启动（modal 流程由父页 initAll 扫描，幂等安全）

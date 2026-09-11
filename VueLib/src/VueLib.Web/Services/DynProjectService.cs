@@ -459,6 +459,39 @@ public class DynProjectService
         return (f, s, d);
     }
 
+    // ==================== 新架构：模板/页面关联三屏 PageSetting（显示层） ====================
+
+    /// <summary>按 Id 加载 PageSetting（显示层组件树配置）</summary>
+    public PageSetting? GetPageSetting(int? id)
+    {
+        if (id == null || id <= 0) return null;
+        using var db = _db.Create();
+        return db.Queryable<PageSetting>().InSingle(id.Value);
+    }
+
+    /// <summary>
+    /// 生效的三屏 PageSetting Id（显示层）：页面实例字段 > Params(filterPageSettingId 等) > 模板字段
+    /// 注意：与 EffectivePageIds(DynPage 数据源) 不同，这里指向 PageSetting（设计器设计的组件树页面）
+    /// </summary>
+    public static (int? filter, int? list, int? detail) EffectivePageSettingIds(DynWebPage? w, DynTemplate? t)
+    {
+        var f = w?.FilterPageSettingId;
+        var l = w?.ListPageSettingId;
+        var d = w?.DetailPageSettingId;
+        if (f == null || l == null || d == null)
+        {
+            // Params 兼容（filterPageSettingId / listPageSettingId / detailPageSettingId）
+            var ps = ParseParams(w);
+            if (f == null) f = ps.TryGetValue("filterPageSettingId", out var fv) ? ToIntParam(fv) : null;
+            if (l == null) l = ps.TryGetValue("listPageSettingId", out var lv) ? ToIntParam(lv) : null;
+            if (d == null) d = ps.TryGetValue("detailPageSettingId", out var dv) ? ToIntParam(dv) : null;
+        }
+        return (
+            f ?? t?.FilterPageSettingId,
+            l ?? t?.ListPageSettingId,
+            d ?? t?.DetailPageSettingId);
+    }
+
     // ==================== 外键导航自动检测 ====================
 
     /// <summary>

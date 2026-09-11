@@ -3,7 +3,9 @@
 }
 
 <template>
-    <div class="el-form-item" :class="{ 'is-error': !comInnerInfo.validation.valid && comInnerInfo.validation.touched }">
+    <div class="el-form-item"
+         :class="[{'is-error': !comInnerInfo.validation.valid && comInnerInfo.validation.touched}, getClass(jc.options.itemoptions)]"
+         :style="getStyle(jc.options.itemoptions)">
         <label v-if="jc.options.labeloptions.show !== false"
                class="el-form-item__label"
                :style="{ width: jc.options.labeloptions.labelWidth || 'auto' }"

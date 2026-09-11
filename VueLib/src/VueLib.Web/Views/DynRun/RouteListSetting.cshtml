@@ -1,0 +1,206 @@
+@{
+    Layout = null;
+}
+@model VueLib.Web.Models.DynRouteListModel
+@using Newtonsoft.Json;
+@{
+    var project = Model.Project!;
+    var webPage = Model.WebPage!;
+    var template = Model.Template;
+    var tcfg = Model.TemplateConfig;
+
+    // detail / add / delete 路径（沿用旧 RouteList 逻辑）
+    string detailOpenPath = "/DynRun/Detail?projectId={projectId}&pageId={pageId}&id={id}";
+    string detailOpenMode = "modal";
+    string deleteUrl = "/DynRun/Delete?projectId={projectId}&pageId={pageId}&id={id}";
+    if (tcfg != null)
+    {
+        if (!string.IsNullOrWhiteSpace(tcfg.DetailOpenPath)) detailOpenPath = tcfg.DetailOpenPath;
+        if (!string.IsNullOrWhiteSpace(tcfg.DetailOpenMode)) detailOpenMode = tcfg.DetailOpenMode;
+        if (!string.IsNullOrWhiteSpace(tcfg.DeleteUrl)) deleteUrl = tcfg.DeleteUrl;
+    }
+    // Detail/Delete/Add 是数据操作层，pageId 用 DynPage.Id（模板级 Filter/Summary/DetailPageId，如 pg_Teacher_Det=30），而非显示层 PageSetting.Id
+    var detailPageId = Model.Template?.DetailPageId ?? Model.DetailPage?.Id ?? 0;
+    var dataPageId = detailPageId;
+
+    // 占位替换：projectId / pageId
+    var detailPageIdVal = detailPageId;
+    string detailOpenPathFull = detailOpenPath
+        .Replace("{projectId}", project.Id.ToString())
+        .Replace("{pageId}", detailPageIdVal.ToString());
+    // Detail 屏显示层：拼接 PageSetting Id（Detail action 用其 ConfigJson 渲染表单）
+    var detailSettingId = Model.DetailPageSettingId ?? 0;
+    if (detailSettingId > 0)
+    {
+        var sep = detailOpenPathFull.IndexOf('?') >= 0 ? '&' : '?';
+        detailOpenPathFull += sep + "settingId=" + detailSettingId;
+    }
+    string deleteUrlFull = deleteUrl
+        .Replace("{projectId}", project.Id.ToString())
+        .Replace("{pageId}", detailPageIdVal.ToString());
+    string addUrlFull = detailOpenPathFull.Replace("{id}", "0");
+    if (tcfg?.AddParams is { Count: > 0 })
+    {
+        var sep = addUrlFull.IndexOf('?') >= 0 ? '&' : '?';
+        addUrlFull += sep + "_params=" + Uri.EscapeDataString(JsonConvert.SerializeObject(tcfg.AddParams));
+    }
+
+    var encodedRoute = Uri.EscapeDataString(webPage.Route);
+    var screenBase = "/DynRun/Screen?projectId=" + project.Id + "&route=" + encodedRoute;
+    var listDataUrl = "/DynRun/Route/List?projectId=" + project.Id + "&route=" + encodedRoute;
+    var detailVisible = Model.DetailPageSettingId != null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@(project.DisplayName ?? project.Name) - @(webPage.Title ?? webPage.Name)</title>
+    <link rel="stylesheet" href="~/css/element-plus.css">
+    <link rel="stylesheet" href="~/css/dyn.css">
+    <link rel="stylesheet" href="~/css/tailwind.css" asp-append-version="true">
+    <style>
+        body { margin:0; font-family:'Segoe UI','Microsoft YaHei',sans-serif; background:#f0f2f5; }
+        .view-topbar { background:#fff; border-bottom:1px solid #e4e7ed; padding:10px 16px; display:flex; align-items:center; gap:12px; }
+        .view-topbar .proj { font-weight:600; font-size:15px; }
+        .view-topbar .page { color:#409eff; font-size:13px; background:#ecf5ff; padding:2px 10px; border-radius:10px; }
+        .view-topbar .route { color:#909399; font-size:12px; }
+        .dyn-page { padding:14px; }
+        .dyn-card { background:#fff; border:1px solid #ebeef5; border-radius:6px; padding:14px 16px; margin-bottom:12px; }
+        .dyn-card-title { font-size:14px; font-weight:600; color:#303133; margin-bottom:10px; }
+        .dyn-screen { min-height:40px; }
+    </style>
+</head>
+<body>
+<div class="view-topbar">
+    <span class="proj">@(project.DisplayName ?? project.Name)</span>
+    <span class="page">@(webPage.Title ?? webPage.Name)</span>
+    <span class="route">@(webPage.Route)</span>
+    <span style="color:#909399;font-size:12px;flex:1;"></span>
+    <span style="color:#909399;font-size:12px;">模板：@(template?.Name)</span>
+</div>
+
+<div class="dyn-page">
+    <!-- 工具栏：搜索 / 清除 / 添加（dyn-lib chain：setVueModel + evaljs 触发 table reload） -->
+    <div class="dyn-card">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <el-button type="primary" size="small"
+                       dyn-click-chain='[{"action":"evaljs","options":{"js":"window.__screen.query()"}}]'>
+                <el-icon><Search /></el-icon><span style="margin-left:4px;">搜索</span>
+            </el-button>
+            <el-button size="small"
+                       dyn-click-chain='[{"action":"setVueModel","options":{"TargetEl":"#screen-list","modelName":"Filter","model":{}}},{"action":"evaljs","options":{"js":"window.__screen.query()"}}]'>
+                <el-icon><RefreshLeft /></el-icon><span style="margin-left:4px;">清除</span>
+            </el-button>
+            @if (detailVisible)
+            {
+                <el-button type="success" size="small"
+                           dyn-click-open='{"url":"@Html.Raw(addUrlFull)","title":"新增","width":"720px"}'>
+                    <el-icon><Plus /></el-icon><span style="margin-left:4px;">添加</span>
+                </el-button>
+            }
+        </div>
+    </div>
+
+    <!-- Filter 屏（PageSetting 组件树） -->
+    @if (Model.FilterPageSettingId != null)
+    {
+        <div class="dyn-card">
+            <div class="dyn-card-title">查询条件</div>
+            <div id="screen-filter" class="dyn-screen"></div>
+        </div>
+    }
+
+    <!-- List 屏（PageSetting 组件树：DynElTable 等） -->
+    @if (Model.ListPageSettingId != null)
+    {
+        <div class="dyn-card">
+            <div class="dyn-card-title">@(webPage.Title ?? webPage.Name)</div>
+            <div id="screen-list" class="dyn-screen"></div>
+        </div>
+    }
+</div>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/js/vue.global.prod.js"></script>
+<script src="~/js/element-plus.full.min.js"></script>
+<script src="~/js/element-plus-icons.min.js"></script>
+<script src="~/js/lodash.min.js"></script>
+<script src="~/js/dyn-core.js"></script>
+<script src="~/js/dyn-actionhelper.js"></script>
+    <script src="~/js/dyn-com.js" asp-append-version="true"></script>
+<script src="~/js/dyn-lib.js"></script>
+<script src="~/js/nut-runtime.js"></script>
+<script>
+    window.ElMessage = ElementPlus.ElMessage;
+    window.ElMessageBox = ElementPlus.ElMessageBox;
+
+    // ===== 三屏 PageSetting 渲染（共享 model：Filter/Rows/PageInfo 同一响应式对象） =====
+    var sharedModel = {
+        Filter: {},
+        Rows: [],
+        PageInfo: { CurrentPage: 1, PageSize: 10, TotalCount: 0, TotalPages: 0 }
+    };
+
+    // 搜索/清除按钮动作（evaljs 调用）：重置分页 + 强制 list 屏 table 重新加载（Filter 已实时写入共享 model）
+    window.__screen = {
+        query: function () {
+            var el = document.querySelector('#screen-list');
+            var app = el && el.__dynApp;
+            if (!app) { console.warn('[screen] list 屏未渲染'); return; }
+            var m = app.model;
+            m.PageInfo = Object.assign({}, m.PageInfo || {}, { CurrentPage: 1 });
+            if (typeof m.__tableReload === 'function') m.__tableReload();
+            else console.warn('[screen] list 屏无 table（缺 DynElTable 组件）');
+        }
+    };
+
+    function mergeModel(src) {
+        if (!src) return;
+        Object.keys(src).forEach(function (k) {
+            if (k === 'Filter') { sharedModel.Filter = Object.assign({}, sharedModel.Filter, src.Filter || {}); }
+            else sharedModel[k] = src[k];
+        });
+        if (!sharedModel.Filter) sharedModel.Filter = {};
+        if (!sharedModel.PageInfo) sharedModel.PageInfo = { CurrentPage: 1, PageSize: 10, TotalCount: 0, TotalPages: 0 };
+    }
+
+    async function loadScreen(screen, sel) {
+        window.__dbg = window.__dbg || [];
+        window.__dbg.push('loadScreen start ' + screen);
+        try {
+            var screenUrl = '@Html.Raw(screenBase)' + '&screen=' + screen;
+            var res = await fetch(screenUrl).then(function (r) { return r.json(); });
+            window.__dbg.push('fetch ' + screen + ' ok=' + (res && res.success) + ' cfg=' + (res && res.config ? res.config.component : '-'));
+            if (!res || !res.success) { console.error('[screen] 加载失败:', res); return; }
+            mergeModel(res.model);
+            var el = document.querySelector(sel);
+            if (!el) return;
+            var cfg = (typeof res.config === 'string') ? JSON.parse(res.config) : res.config;
+            window.__dbg.push('render ' + screen + ' start cfgRoot=' + (cfg && cfg.component));
+            await dyn.renderPageConfig(el, cfg, sharedModel);
+            window.__dbg.push('render ' + screen + ' done app=' + !!(el.__dynApp));
+        } catch (e) { window.__dbg.push('loadScreen FAIL ' + screen + ': ' + (e && e.stack || e)); }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        window.__dbg = window.__dbg || [];
+        window.__dbg.push('DOMContentLoaded fired');
+        dyn.initAll();
+        // 组件元数据（ComponentMeta → dynCom）→ 渲染三屏
+        fetch('/api/lowcode/components').then(function (r) { return r.json(); }).then(async function (res) {
+            if (res && res.success && Array.isArray(res.data)) window.dynCom = res.data;
+            else console.warn('[screen] 组件元数据加载失败', res);
+            @if (Model.FilterPageSettingId != null)
+            {
+                @:await loadScreen('filter', '#screen-filter');
+            }
+            @if (Model.ListPageSettingId != null)
+            {
+                @:await loadScreen('list', '#screen-list');
+            }
+        }).catch(function (err) { console.error('[screen] 初始化失败:', err); });
+    });
+</script>
+</body>
+</html>

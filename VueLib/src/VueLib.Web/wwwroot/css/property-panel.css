@@ -167,3 +167,133 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* ===== 紧凑属性面板（参考 Element 属性面板：路径头 + 四 Tab + 单行紧凑字段）===== */
+.pp-path-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px;
+    background: #fafafa;
+    border-bottom: 1px solid #ebeef5;
+    min-height: 26px;
+}
+.pp-path-text {
+    font-size: 11px;
+    color: #909399;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+.pp-path-actions .panel-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 11px;
+    color: #909399;
+    padding: 0 4px;
+}
+.pp-path-actions .panel-btn:hover { color: #409eff; }
+
+.pp-tabs {
+    display: flex;
+    border-bottom: 1px solid #e4e7ed;
+    background: #fff;
+}
+.pp-tab {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    color: #606266;
+    padding: 6px 0 5px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .2s, border-color .2s;
+}
+.pp-tab:hover { color: #409eff; }
+.pp-tab.on {
+    color: #409eff;
+    font-weight: 600;
+    border-bottom-color: #409eff;
+}
+.pp-tab-body {
+    padding: 2px 0;
+}
+.pp-tab-empty {
+    padding: 12px 0;
+    text-align: center;
+    color: #909399;
+    font-size: 11px;
+}
+
+/* 属性框字段（DynPropItem 渲染）紧凑化：单行、小字号、小行距 */
+#lc-right .el-prop-item {
+    margin-bottom: 3px !important;
+    display: flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 10px;
+}
+#lc-right .el-prop-item .prop-item-label {
+    width: 78px !important;
+    flex: 0 0 78px;
+    font-size: 11px;
+    color: #606266;
+    line-height: 26px;
+    padding-right: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#lc-right .el-prop-item .prop-item-content {
+    flex: 1;
+    min-width: 0;
+    line-height: 26px;
+}
+/* 控件紧凑：输入/选择/开关/按钮高度 26px */
+#lc-right .el-input__wrapper,
+#lc-right .el-select__wrapper,
+#lc-right .el-textarea__inner {
+    min-height: 26px;
+    font-size: 12px;
+}
+#lc-right .el-input--small .el-input__inner,
+#lc-right .el-select--small {
+    font-size: 12px;
+}
+#lc-right .el-switch--small {
+    transform: scale(0.85);
+    transform-origin: left center;
+}
+#lc-right .el-input-number--small { height: 26px; }
+#lc-right .el-input-number--small .el-input-number__increase,
+#lc-right .el-input-number--small .el-input-number__decrease { height: 24px; }
+#lc-right .el-button--small { font-size: 12px; padding: 5px 8px; }
+#lc-right .el-button--small.is-circle { padding: 5px; }
+
+/* 验证器 / 操作区紧凑 */
+#lc-right .validator-list { padding: 0 10px; }
+#lc-right .validator-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+    padding: 2px 0;
+}
+#lc-right .validator-item .el-input { font-size: 12px; }
+#lc-right .el-divider { margin: 8px 0; }
+#lc-right .el-divider__text { font-size: 11px; color: #909399; }
+
+/* 回退表单（无属性配置时）紧凑 */
+#lc-right .pp-fallback { padding: 0 10px; }
+#lc-right .pp-fallback .el-form-item { margin-bottom: 4px; }
+#lc-right .pp-fallback .el-form-item__label { font-size: 11px; line-height: 26px; }
+#lc-right .pp-fallback .el-form-item__content { line-height: 26px; }
+
+/* 样式 Tab 表单紧凑 */
+.pp-compact-form { padding: 0 10px; }
+.pp-compact-form .el-form-item { margin-bottom: 3px; }
+.pp-compact-form .el-form-item__label { font-size: 11px; line-height: 26px; color: #606266; }
+.pp-compact-form .el-form-item__content { line-height: 26px; }
+.pp-compact-form .el-input__wrapper { min-height: 26px; font-size: 12px; }
+.pp-compact-form .el-switch--small { transform: scale(0.85); transform-origin: left center; }

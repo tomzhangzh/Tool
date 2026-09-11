@@ -1,0 +1,50 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementFormItemLayout.cshtml";
+}
+<div class="dyn-codemirror-box"
+     :style="{ height: jc.options.comoptions.height || '220px', border: '1px solid #dcdfe6', borderRadius: '4px', overflow: 'hidden' }">
+    <textarea ref="cmHostRef" class="dyn-codemirror-host" style="width:100%;height:100%;box-sizing:border-box;"></textarea>
+</div>
+@section setupScripts{
+    DVALUE = '';
+    // ===== CodeMirror 编辑器（JSON / JS / SQL / CSS / XML / HTML）=====
+    const cmHostRef = ref(null);
+    let _cmEditor = null;
+    const cmLanguage = computed(() => (jc.options.comoptions.language) || 'json');
+    const cmReadOnly = computed(() => !!jc.options.comoptions.readonly);
+    const cmModes = {
+        json: 'application/json',
+        javascript: 'text/javascript',
+        js: 'text/javascript',
+        sql: 'text/x-sql',
+        css: 'text/css',
+        xml: 'application/xml',
+        html: 'text/html',
+        htmlmixed: 'text/html'
+    };
+    function initCodeMirror() {
+        if (typeof window.CodeMirror !== 'function' || !cmHostRef.value) return;
+        if (_cmEditor) { _cmEditor.toTextArea(); _cmEditor = null; }
+        const mode = cmModes[cmLanguage.value] || 'application/json';
+        _cmEditor = window.CodeMirror.fromTextArea(cmHostRef.value, {
+            mode: mode,
+            lineNumbers: true,
+            lineWrapping: true,
+            readOnly: cmReadOnly.value,
+            placeholder: jc.options.comoptions.placeholder || '',
+            viewportMargin: Infinity
+        });
+        _cmEditor.setValue(modelinfo.value == null ? '' : String(modelinfo.value));
+        _cmEditor.on('change', function () {
+            modelinfo.value = _cmEditor.getValue();
+        });
+        // 外部 model 变化同步回编辑器（父级 setVueModel / updateEl 等）
+        watch(modelinfo, function (val) {
+            const str = val == null ? '' : String(val);
+            if (_cmEditor && _cmEditor.getValue() !== str) _cmEditor.setValue(str);
+        });
+    }
+    onMounted(function () { initCodeMirror(); });
+    watch([cmLanguage, cmReadOnly], function () { initCodeMirror(); });
+    const comExtra = { cmHostRef };
+}

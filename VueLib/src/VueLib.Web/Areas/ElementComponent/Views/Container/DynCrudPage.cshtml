@@ -1,0 +1,250 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <div class="dyn-crud-page">
+        <!-- ============ Filter 区（由 FilterPage 定义驱动） ============ -->
+        <div v-if="comoptions.showFilter !== false && crud.filterCols.length" class="dyn-card">
+            <div class="dyn-card-title">查询条件</div>
+            <div class="dyn-filter">
+                <el-form-item v-for="c in crud.filterCols" :key="c.name" :label="c.label" class="dyn-f-item">
+                    <el-select v-if="c.control === 'select'" v-model="crud.filter[c.name]" clearable :placeholder="'请选择' + c.label" style="width:150px">
+                        <el-option v-for="o in (c.options || [])" :key="o.value" :label="o.label" :value="o.value"></el-option>
+                    </el-select>
+                    <el-date-picker v-else-if="c.control === 'date'" v-model="crud.filter[c.name]" type="date" value-format="YYYY-MM-DD" :placeholder="'选择日期'" style="width:150px"></el-date-picker>
+                    <el-date-picker v-else-if="c.control === 'datetime'" v-model="crud.filter[c.name]" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" style="width:170px"></el-date-picker>
+                    <el-input-number v-else-if="c.control === 'input-number'" v-model="crud.filter[c.name]" :controls="false" style="width:140px"></el-input-number>
+                    <el-input v-else v-model="crud.filter[c.name]" clearable :placeholder="'请输入' + c.label" style="width:150px"></el-input>
+                </el-form-item>
+                <el-button type="primary" v-on:click="loadList(1)">查询</el-button>
+                <el-button v-on:click="resetFilter">清除</el-button>
+                <el-button type="success" v-on:click="openDetail(null)">新增</el-button>
+            </div>
+        </div>
+
+        <!-- ============ List 区（由 ListPage 定义驱动，分页+排序） ============ -->
+        <div class="dyn-card">
+            <div v-if="!crud.filterCols.length" class="dyn-card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>{{ crud.listDefTitle }}</span>
+                <el-button type="success" size="small" v-on:click="openDetail(null)">➕ 新增</el-button>
+            </div>
+            <el-table :data="crud.rows" border stripe v-loading="crud.loading"
+                      :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }"
+                      v-on:sort-change="onSortChange" v-bind="jc.options.comoptions.tableOptions || {}">
+                <el-table-column v-for="c in crud.gridCols" :key="c.name" :prop="c.name" :label="c.label"
+                                 :width="c.width > 0 ? c.width : undefined" show-overflow-tooltip
+                                 :sortable="c.sortable === false ? false : 'custom'">
+                    <template #default="scope">
+                        <el-tag v-if="c.dbType === 'bool'" :type="scope.row[c.name] ? 'success' : 'info'" size="small">{{ scope.row[c.name] ? '是' : '否' }}</el-tag>
+                        <span v-else>{{ scope.row[c.name] }}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="150" fixed="right">
+                    <template #default="scope">
+                        <el-button type="primary" size="small" link v-on:click="openDetail(scope.row)">编辑</el-button>
+                        <el-button type="danger" size="small" link v-on:click="remove(scope.row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <div class="dyn-pager">
+                <el-pagination v-model:current-page="crud.page" v-model:page-size="crud.pageSize"
+                               :page-sizes="[10, 20, 50, 100]" :total="crud.total"
+                               layout="total, sizes, prev, pager, next, jumper" background
+                               v-on:current-change="p => loadList(p)"
+                               v-on:size-change="onSizeChange"></el-pagination>
+            </div>
+        </div>
+
+        <!-- ============ Detail 弹窗（由 DetailPage 定义驱动，同一 controller 增删改查） ============ -->
+        <el-dialog v-model="crud.detailVisible" :title="crud.editing ? '编辑' : '新增'" width="680px" top="8vh" append-to-body>
+            <el-form label-width="110px">
+                <el-form-item v-for="c in crud.formCols" :key="c.name" :label="c.label">
+                    <el-select v-if="c.control === 'select'" v-model="crud.row[c.name]" clearable :placeholder="'请选择' + c.label" style="width:100%">
+                        <el-option v-for="o in (c.options || [])" :key="o.value" :label="o.label" :value="o.value"></el-option>
+                    </el-select>
+                    <el-date-picker v-else-if="c.control === 'date'" v-model="crud.row[c.name]" type="date" value-format="YYYY-MM-DD" style="width:100%"></el-date-picker>
+                    <el-date-picker v-else-if="c.control === 'datetime'" v-model="crud.row[c.name]" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" style="width:100%"></el-date-picker>
+                    <el-input-number v-else-if="c.control === 'input-number'" v-model="crud.row[c.name]" :controls="false" style="width:100%"></el-input-number>
+                    <el-switch v-else-if="c.control === 'switch'" v-model="crud.row[c.name]"></el-switch>
+                    <el-input v-else v-model="crud.row[c.name]" :disabled="!!c.isReadOnly"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button v-on:click="crud.detailVisible = false">取消</el-button>
+                <el-button type="primary" :loading="crud.saving" v-on:click="saveDetail">保存</el-button>
+            </template>
+        </el-dialog>
+    </div>
+</template>
+
+@section setupScripts{
+    const comoptions = jc.options.comoptions || {};
+    // 静态配置兜底
+    if (!jc.options.comoptions) jc.options.comoptions = comoptions;
+
+    const crud = Vue.reactive({
+        loading: false, saving: false,
+        rows: [], total: 0, page: 1, pageSize: 10,
+        orderBy: '', orderDir: '',
+        filter: {},
+        filterCols: [], gridCols: [], formCols: [],
+        listDefTitle: '数据列表',
+        detailPageId: 0,
+        detailVisible: false, editing: false, row: {}
+    });
+
+    function showMsg(msg, type) {
+        try {
+            var el = window.ElementPlus;
+            if (el && el.ElMessage) el.ElMessage({ message: msg, type: type || 'info' });
+            else if (window.dyn && dyn.showMessage) dyn.showMessage(msg, type || 'info');
+            else alert(msg);
+        } catch (e) { alert(msg); }
+    }
+    function showConfirm(msg) {
+        return new Promise(function (resolve) {
+            var el = window.ElementPlus;
+            if (el && el.ElMessageBox) el.ElMessageBox.confirm(msg, '提示', { type: 'warning' })
+                .then(function () { resolve(true); }).catch(function () { resolve(false); });
+            else resolve(confirm(msg));
+        });
+    }
+    function emptyRow(def) {
+        var row = {};
+        (def && def.columns || []).forEach(function (c) {
+            if (c.isIdentity) return;
+            if (c.dbType === 'bool') row[c.name] = false;
+            else if (c.dbType === 'int' || c.dbType === 'long' || c.dbType === 'decimal') row[c.name] = null;
+            else row[c.name] = '';
+        });
+        return row;
+    }
+
+    async function initCrud() {
+        const projId = comoptions.projectId || 0;
+        const listId = comoptions.listPageId || 0;
+        if (!projId || !listId) return;
+        try {
+            // 列表页定义（含关联 Detail 页）
+            const lr = await fetch('/DynRun/PageDef?projectId=' + projId + '&pageId=' + listId).then(r => r.json());
+            if (lr && lr.success) {
+                crud.listDefTitle = lr.title || '数据列表';
+                crud.detailPageId = lr.detailPageId || 0;
+                const def = lr.def || {};
+                crud.gridCols = (def.columns || []).filter(c => c.isGrid).sort((a, b) => a.order - b.order);
+                if (!crud.gridCols.length) crud.gridCols = (def.columns || []).filter(c => !c.isPrimary);
+                if (def.pageSize) crud.pageSize = def.pageSize;
+            }
+            // 筛选页定义
+            const fId = comoptions.filterPageId || listId;
+            const fr = await fetch('/DynRun/PageDef?projectId=' + projId + '&pageId=' + fId).then(r => r.json());
+            if (fr && fr.success) {
+                const def = fr.def || {};
+                crud.filterCols = (def.columns || []).filter(c => c.isFilter).sort((a, b) => a.order - b.order);
+            }
+            // 详情页定义
+            const dId = comoptions.detailPageId || crud.detailPageId;
+            if (dId) {
+                const dr = await fetch('/DynRun/PageDef?projectId=' + projId + '&pageId=' + dId).then(r => r.json());
+                if (dr && dr.success) {
+                    const def = dr.def || {};
+                    crud.formCols = (def.columns || []).filter(c => c.isForm && !c.isIdentity && !c.isPrimary).sort((a, b) => a.order - b.order);
+                }
+            }
+            await loadList(1);
+        } catch (e) {
+            showMsg('组件初始化失败: ' + e.message, 'error');
+        }
+    }
+
+    function loadList(page) {
+        const projId = comoptions.projectId || 0;
+        const listId = comoptions.listPageId || 0;
+        if (!projId || !listId) return;
+        crud.loading = true;
+        const body = {
+            Filter: crud.filter || {},
+            PageInfo: {
+                CurrentPage: page || crud.page || 1,
+                PageSize: crud.pageSize || 10,
+                OrderBy: crud.orderBy || '',
+                OrderDir: crud.orderDir || ''
+            }
+        };
+        fetch('/DynRun/Data/List?projectId=' + projId + '&pageId=' + listId, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        }).then(r => r.json()).then(res => {
+            if (res && res.rows) {
+                crud.rows = res.rows;
+                crud.total = res.totalCount || 0;
+                crud.page = res.pageIndex || 1;
+                if (res.pageSize) crud.pageSize = res.pageSize;
+            }
+        }).catch(e => showMsg('加载失败: ' + e.message, 'error'))
+          .finally(() => { crud.loading = false; });
+    }
+    function resetFilter() { crud.filter = {}; loadList(1); }
+    function onSizeChange(size) { crud.pageSize = size || 10; crud.page = 1; loadList(1); }
+    function onSortChange(s) {
+        crud.orderBy = s && s.order ? s.prop : '';
+        crud.orderDir = s && s.order === 'ascending' ? 'asc' : (s && s.order === 'descending' ? 'desc' : '');
+        loadList(1);
+    }
+
+    async function openDetail(row) {
+        const dId = comoptions.detailPageId || crud.detailPageId;
+        if (!dId) { showMsg('未配置详情页', 'warning'); return; }
+        crud.editing = !!row && row._isNew !== true;
+        crud.detailVisible = true;
+        if (!row || row._isNew === true) {
+            crud.row = emptyRow({ columns: crud.formCols });
+            crud.editing = false;
+        } else {
+            crud.row = Object.assign({}, row);
+            crud.editing = true;
+        }
+    }
+
+    function saveDetail() {
+        const projId = comoptions.projectId || 0;
+        const dId = comoptions.detailPageId || crud.detailPageId;
+        if (!projId || !dId) return;
+        crud.saving = true;
+        const data = {};
+        crud.formCols.forEach(function (c) {
+            data[c.name] = crud.row[c.name] === undefined ? null : crud.row[c.name];
+        });
+        const pk = (crud.gridCols.find(c => c.isPrimary) || {}).name;
+        if (crud.editing && pk && crud.row[pk] !== undefined && crud.row[pk] !== null && crud.row[pk] !== '') data[pk] = crud.row[pk];
+        fetch('/DynRun/Save?projectId=' + projId + '&pageId=' + dId, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        }).then(r => r.json()).then(res => {
+            if (res && res.success) {
+                showMsg('保存成功', 'success');
+                crud.detailVisible = false;
+                loadList();
+            } else {
+                showMsg((res && res.message) || '保存失败', 'error');
+            }
+        }).catch(e => showMsg('保存失败: ' + e.message, 'error'))
+          .finally(() => { crud.saving = false; });
+    }
+
+    function remove(row) {
+        const projId = comoptions.projectId || 0;
+        const dId = comoptions.detailPageId || crud.detailPageId;
+        const pk = (crud.gridCols.find(c => c.isPrimary) || { name: 'Id' }).name;
+        showConfirm('确定删除该记录吗？').then(ok => {
+            if (!ok) return;
+            fetch('/DynRun/Delete?projectId=' + projId + '&pageId=' + (dId || comoptions.listPageId) + '&id=' + row[pk], { method: 'POST' })
+                .then(r => r.json()).then(res => {
+                    if (res && res.success) { showMsg('已删除', 'success'); loadList(); }
+                    else showMsg((res && res.message) || '删除失败', 'error');
+                });
+        });
+    }
+
+    onMounted(function () { initCrud(); });
+    const comExtra = { crud, comoptions, loadList, resetFilter, openDetail, saveDetail, remove, onSizeChange, onSortChange, showMsg };
+}

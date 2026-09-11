@@ -1,0 +1,17 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementFormItemLayout.cshtml";
+}
+@section setupScripts{
+    const _src = jc.options.comoptions || {};
+    if (_src.projectId && _src.table) {
+        const _qs = 'projectId=' + (_src.projectId || 0)
+            + '&table=' + encodeURIComponent(_src.table || '')
+            + '&valueField=' + encodeURIComponent(_src.valueField || 'Id')
+            + '&textField=' + encodeURIComponent(_src.textField || 'Name');
+        fetch('/api/dyncommon/options?' + _qs)
+            .then(r => r.json()).then(res => { if (res && res.success && Array.isArray(res.data)) comInnerInfo.options = res.data; });
+    }
+}
+<el-select v-model="modelinfo" v-bind="jc.options.comoptions" v-on="getComlisteners()">
+    <el-option v-for="opt in comInnerInfo.options" :key="opt.value" :label="opt.label" :value="opt.value"></el-option>
+</el-select>
