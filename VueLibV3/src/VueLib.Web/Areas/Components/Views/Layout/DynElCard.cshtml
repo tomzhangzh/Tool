@@ -1,0 +1,10 @@
+@{
+    // DynElCard —— 卡片容器组件
+}
+<el-card v-bind="node.options.comoptions"
+    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class">
+    <template #header v-if="node.options.comoptions.header">
+        {{ node.options.comoptions.header }}
+    </template>
+    <slot></slot>
+</el-card>

@@ -1,0 +1,8 @@
+@{
+    // DynOpenWindow —— 打开窗口组件（按钮触发模态）
+}
+<el-button v-bind="node.options.comoptions"
+    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class"
+    @@click="$emit('click', $event)">
+    {{ node.options.comoptions.text || '打开窗口' }}
+</el-button>

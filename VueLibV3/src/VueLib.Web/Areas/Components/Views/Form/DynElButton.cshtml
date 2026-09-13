@@ -1,0 +1,8 @@
+@{
+    // DynElButton —— Element Plus 按钮组件
+}
+<el-button v-bind="node.options.comoptions"
+    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class"
+    @@click="$emit('click', $event)">
+    {{ node.options.comoptions.text || '按钮' }}
+</el-button>

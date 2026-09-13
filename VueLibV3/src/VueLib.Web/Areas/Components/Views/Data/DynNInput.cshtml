@@ -1,0 +1,10 @@
+@{
+    // DynNInput —— Element Plus 输入框组件（设计态/运行态共用）
+}
+<el-input
+    v-model="model[node.modelname]"
+    v-bind="node.options.comoptions"
+    :style="node.options.itemoptions.style"
+    :class="node.options.itemoptions.class"
+    @@input="$emit('input', $event)"
+></el-input>

@@ -1,0 +1,7 @@
+@{
+    // DynForEach —— 循环组件（遍历 model[node.modelname]，渲染子节点）
+}
+<div v-for="(item, idx) in (model[node.modelname] || [])" :key="idx"
+    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class">
+    <slot :item="item" :index="idx"></slot>
+</div>

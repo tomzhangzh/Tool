@@ -1,0 +1,275 @@
+@{
+    ViewData["Title"] = "ActionHelper Demo";
+    Layout = "_Layout";
+}
+<div id="app" style="padding:20px;">
+    <h2>⚡ ActionHelper Demo</h2>
+    <p style="color:#909399;">每个按钮都"现场可点"：调用对应 API 或前端函数，结果用 ElMessage 反馈。</p>
+
+    <!-- 顶部：动作按钮组 -->
+    <el-card style="margin-top:16px;">
+        <template #header>动作测试面板（点击即执行）</template>
+        <el-space wrap>
+            <el-button type="primary" @@click="actPost">📤 Post 提交</el-button>
+            <el-button @@click="actGet">📥 Get 请求</el-button>
+            <el-button @@click="actOpen">🪟 Open 模态</el-button>
+            <el-button @@click="actClose">❌ Close 模态</el-button>
+            <el-button @@click="actReload">🔄 Reload 刷新</el-button>
+            <el-button @@click="actUpdateEl">✏️ UpdateEl 更新元素</el-button>
+            <el-button @@click="actSetVueModel">🧩 SetVueModel 改模型</el-button>
+            <el-button @@click="actConfirm">❓ Confirm 确认框</el-button>
+            <el-button @@click="actMessage">💬 Message 消息</el-button>
+            <el-button @@click="actChain">🔗 Chain 动作链</el-button>
+            <el-button @@click="actEvalJS">🧮 EvalJS 执行脚本</el-button>
+            <el-button @@click="actNavigate">🧭 Navigate 跳转</el-button>
+            <el-button type="success" @@click="actSave">💾 Save 保存</el-button>
+            <el-button type="danger" @@click="actDelete">🗑️ Delete 删除</el-button>
+        </el-space>
+    </el-card>
+
+    <!-- 中间：当前 Model 显示 -->
+    <el-card style="margin-top:16px;">
+        <template #header>当前 Model（实时 JSON）</template>
+        <el-input v-model="model.note" placeholder="试试在这里输入，下方 JSON 实时变化" style="margin-bottom:10px;" ></el-input>
+        <pre style="font-size:12px;background:#f5f7fa;padding:10px;border-radius:4px;">{{ JSON.stringify(model, null, 2) }}</pre>
+    </el-card>
+
+    <!-- 底部：动态 CRUD 测试（Student 表） -->
+    <el-card style="margin-top:16px;">
+        <template #header>动态 CRUD 测试（Student 表）</template>
+        <el-form :model="filter" inline style="margin-bottom:10px;">
+            <el-form-item label="姓名/班级">
+                <el-input v-model="filter.keyword" placeholder="模糊搜索" clearable ></el-input>
+            </el-form-item>
+            <el-form-item label="性别">
+                <el-select v-model="filter.Gender" placeholder="全部" clearable style="width:100px;">
+                    <el-option label="男" value="男" ></el-option>
+                    <el-option label="女" value="女" ></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @@click="search">🔍 查询</el-button>
+                <el-button @@click="resetFilter">重置</el-button>
+                <el-button type="success" @@click="openEdit(null)">➕ 新增</el-button>
+            </el-form-item>
+        </el-form>
+        <el-table :data="rows" border stripe>
+            <el-table-column prop="Id" label="ID" width="60" ></el-table-column>
+            <el-table-column prop="Name" label="姓名" ></el-table-column>
+            <el-table-column prop="Age" label="年龄" width="80" ></el-table-column>
+            <el-table-column prop="Gender" label="性别" width="80" ></el-table-column>
+            <el-table-column prop="ClassName" label="班级" ></el-table-column>
+            <el-table-column prop="Score" label="分数" width="80" ></el-table-column>
+            <el-table-column label="操作" width="150">
+                <template #default="scope">
+                    <el-button size="small" @@click="openEdit(scope.row)">编辑</el-button>
+                    <el-button size="small" type="danger" @@click="delRow(scope.row)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+        <el-pagination style="margin-top:12px;" background layout="total, prev, pager, next"
+                       :total="total" :page-size="pageSize" :current-page="pageIndex"
+                       @@current-change="onPage" ></el-pagination>
+    </el-card>
+
+    <!-- 编辑对话框 -->
+    <el-dialog v-model="dialogVisible" :title="editing.Id ? '编辑学生' : '新增学生'" width="480px">
+        <el-form :model="editing" label-width="80px">
+            <el-form-item label="姓名"><el-input v-model="editing.Name" ></el-input></el-form-item>
+            <el-form-item label="年龄"><el-input-number v-model="editing.Age" :min="0" :max="150" ></el-input-number></el-form-item>
+            <el-form-item label="性别">
+                <el-radio-group v-model="editing.Gender">
+                    <el-radio value="男">男</el-radio>
+                    <el-radio value="女">女</el-radio>
+                </el-radio-group>
+            </el-form-item>
+            <el-form-item label="班级"><el-input v-model="editing.ClassName" ></el-input></el-form-item>
+            <el-form-item label="分数"><el-input-number v-model="editing.Score" :min="0" :max="100" ></el-input-number></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @@click="dialogVisible = false">取消</el-button>
+            <el-button type="primary" @@click="doSave">保存</el-button>
+        </template>
+    </el-dialog>
+
+    <el-button style="margin-top:16px;" @@click="goBack">← 返回 Demo 汇总</el-button>
+</div>
+
+@section Scripts {
+<script>
+const { createApp, ref, reactive, onMounted } = Vue;
+createApp({
+    setup() {
+        const { ElMessage, ElMessageBox } = ElementPlus;
+
+        // ===== Model =====
+        const model = reactive({ hello: 'world', count: 0, note: '', lastAction: '' });
+
+        // ===== CRUD state =====
+        const rows = ref([]);
+        const total = ref(0);
+        const pageIndex = ref(1);
+        const pageSize = ref(5);
+        const filter = reactive({ keyword: '', Gender: '' });
+        const dialogVisible = ref(false);
+        const editing = reactive({});
+
+        async function api(url, opts) {
+            try {
+                const res = await fetch(url, opts);
+                return await res.json();
+            } catch (e) {
+                ElMessage.error('请求失败: ' + e.message);
+                return { success: false, message: e.message };
+            }
+        }
+
+        async function loadData() {
+            const json = await api('/Runtime/DynCrud/Query?projectId=1', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tableName: 'Student',
+                    filter: { Gender: filter.Gender || undefined },
+                    keyword: filter.keyword || undefined,
+                    keywordColumns: ['Name', 'ClassName'],
+                    pageIndex: pageIndex.value, pageSize: pageSize.value
+                })
+            });
+            if (json.success) { rows.value = json.data.rows; total.value = json.data.totalCount; }
+        }
+        function search() { pageIndex.value = 1; loadData(); }
+        function resetFilter() { filter.keyword = ''; filter.Gender = ''; search(); }
+        function onPage(p) { pageIndex.value = p; loadData(); }
+        function openEdit(row) {
+            Object.assign(editing, row || { Id: 0, Name: '', Age: 18, Gender: '男', ClassName: '', Score: 80 });
+            dialogVisible.value = true;
+        }
+        async function doSave() {
+            const json = await api('/Runtime/DynCrud/Save?projectId=1', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tableName: 'Student', data: { ...editing } })
+            });
+            if (json.success) { ElMessage.success('保存成功 id=' + (json.data && json.data.id)); dialogVisible.value = false; loadData(); }
+            else ElMessage.error(json.message || '保存失败');
+        }
+        function delRow(row) {
+            ElMessageBox.confirm('确认删除学生 "' + row.Name + '"？', '警告', { type: 'warning' })
+                .then(async () => {
+                    const json = await api('/Runtime/DynCrud/Delete?projectId=1', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tableName: 'Student', id: row.Id })
+                    });
+                    if (json.success) { ElMessage.success('删除成功'); loadData(); }
+                    else ElMessage.error(json.message || '删除失败');
+                }).catch(() => {});
+        }
+
+        // ===== 动作按钮 =====
+        function actPost() {
+            // 模拟 Post 提交：调 Tables 接口
+            api('/Runtime/DynCrud/Tables?projectId=1').then(json => {
+                if (json.success) ElMessage.success('Post 成功，返回表: ' + json.data.join(', '));
+                model.lastAction = 'Post -> ' + new Date().toLocaleTimeString();
+            });
+        }
+        function actGet() {
+            api('/api/components').then(list => {
+                ElMessage.success('Get 成功，共 ' + (Array.isArray(list) ? list.length : 0) + ' 个组件');
+                model.lastAction = 'Get /api/components';
+            });
+        }
+        function actOpen() {
+            ElMessageBox.alert('这是 Open 动作弹出的模态框（ElMessageBox）', 'Open 动作')
+                .then(() => ElMessage.info('模态已关闭'));
+            model.lastAction = 'Open';
+        }
+        function actClose() {
+            ElMessage.info('Close 动作：关闭当前弹窗（如有）');
+            dialogVisible.value = false;
+            model.lastAction = 'Close';
+        }
+        function actReload() {
+            ElMessage.info('Reload：重新加载表格数据');
+            loadData();
+            model.lastAction = 'Reload @@ ' + new Date().toLocaleTimeString();
+        }
+        function actUpdateEl() {
+            model.count++;
+            ElMessage.success('UpdateEl：model.count 自增为 ' + model.count + '（DOM 自动更新）');
+            model.lastAction = 'UpdateEl';
+        }
+        function actSetVueModel() {
+            model.note = '由 SetVueModel 动作写入 @@ ' + new Date().toLocaleTimeString();
+            ElMessage.success('SetVueModel：已写入 model.note');
+            model.lastAction = 'SetVueModel';
+        }
+        function actConfirm() {
+            ElMessageBox.confirm('确认执行此操作？', 'Confirm', { type: 'warning' })
+                .then(() => ElMessage.success('你点击了确定'))
+                .catch(() => ElMessage.info('你取消了'));
+        }
+        function actMessage() {
+            ElMessage.success('这是一条 Message 提示');
+            model.lastAction = 'Message';
+        }
+        function actChain() {
+            // 串接：Message -> UpdateEl -> SetVueModel
+            ElMessage.info('Chain step1: 开始');
+            setTimeout(() => {
+                model.count += 10;
+                ElMessage.success('Chain step2: count += 10 -> ' + model.count);
+            }, 300);
+            setTimeout(() => {
+                model.note = '由 Chain step3 写入';
+                ElMessage.success('Chain step3: 完成');
+                model.lastAction = 'Chain';
+            }, 600);
+        }
+        function actEvalJS() {
+            const result = (function () { return 2 + 3 * 7; })();
+            ElMessage.success('EvalJS: 2 + 3*7 = ' + result);
+            model.lastAction = 'EvalJS';
+        }
+        function actNavigate() {
+            ElMessage.info('Navigate：即将跳转到 /demo');
+            setTimeout(() => window.location.href = '/demo', 800);
+        }
+        function actSave() {
+            // 直接调 Save API 新增一条测试数据
+            api('/Runtime/DynCrud/Save?projectId=1', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tableName: 'Student', data: { Name: '测试生_' + Date.now() % 1000, Age: 20, Gender: '男', ClassName: '测试班', Score: 90 } })
+            }).then(json => {
+                if (json.success) { ElMessage.success('Save 成功 id=' + json.data.id); loadData(); }
+                else ElMessage.error(json.message);
+            });
+            model.lastAction = 'Save';
+        }
+        function actDelete() {
+            if (!rows.value.length) { ElMessage.warning('没有可删除的数据'); return; }
+            const last = rows.value[rows.value.length - 1];
+            ElMessageBox.confirm('删除最后一条 "' + last.Name + '"？', 'Delete', { type: 'warning' })
+                .then(() => api('/Runtime/DynCrud/Delete?projectId=1', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tableName: 'Student', id: last.Id })
+                })).then(json => {
+                    if (json.success) { ElMessage.success('Delete 成功'); loadData(); }
+                    else ElMessage.error(json.message);
+                }).catch(() => {});
+            model.lastAction = 'Delete';
+        }
+
+        function goBack() { window.location.href = '/demo'; }
+
+        onMounted(loadData);
+        return {
+            model, rows, total, pageIndex, pageSize, filter, dialogVisible, editing,
+            loadData, search, resetFilter, onPage, openEdit, doSave, delRow,
+            actPost, actGet, actOpen, actClose, actReload, actUpdateEl, actSetVueModel,
+            actConfirm, actMessage, actChain, actEvalJS, actNavigate, actSave, actDelete,
+            goBack
+        };
+    }
+}).use(ElementPlus).mount('#app');
+</script>
+}

@@ -1,0 +1,11 @@
+@{
+    // DynElRadio —— Element Plus 单选框组组件
+}
+<el-form-item :label="node.options.labeloptions.label" :required="node.options.labeloptions.required"
+    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class"
+    v-if="node.options.labeloptions.show !== false">
+    <el-radio-group v-model="model[node.modelname]" v-bind="node.options.comoptions">
+        <el-radio v-for="opt in (node.options.comoptions.options || [])" :key="opt.value"
+            :value="opt.value">{{ opt.label }}</el-radio>
+    </el-radio-group>
+</el-form-item>

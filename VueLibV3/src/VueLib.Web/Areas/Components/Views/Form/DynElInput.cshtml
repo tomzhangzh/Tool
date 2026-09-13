@@ -1,0 +1,8 @@
+@{
+    // DynElInput —— Element Plus 输入框组件
+}
+<el-form-item :label="node.options.labeloptions.label" :required="node.options.labeloptions.required"
+    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class"
+    v-if="node.options.labeloptions.show !== false">
+    <el-input v-model="model[node.modelname]" v-bind="node.options.comoptions"></el-input>
+</el-form-item>

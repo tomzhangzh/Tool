@@ -1,0 +1,196 @@
+@{
+    ViewData["Title"] = "动态页面管理";
+    Layout = "_Layout";
+}
+<div id="app" style="padding:20px;">
+    <el-page-header @@back="goBack" content="动态页面管理">
+        <template #extra>
+            <el-button type="primary" @@click="add">+ 新增页面</el-button>
+        </template>
+    </el-page-header>
+
+    <el-card style="margin-top:16px;">
+        <el-table :data="rows" border stripe style="width:100%;">
+            <el-table-column prop="route" label="Route" min-width="140" show-overflow-tooltip ></el-table-column>
+            <el-table-column prop="name" label="Name" min-width="120" show-overflow-tooltip ></el-table-column>
+            <el-table-column prop="title" label="Title" min-width="140" show-overflow-tooltip ></el-table-column>
+            <el-table-column label="Template" min-width="140">
+                <template #default="scope">
+                    {{ templateName(scope.row.templateId) }}
+                </template>
+            </el-table-column>
+            <el-table-column label="首页" width="70">
+                <template #default="scope">
+                    <el-tag v-if="scope.row.isHome" type="warning" size="small">首页</el-tag>
+                    <span v-else style="color:#c0c4cc">-</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="启用" width="80">
+                <template #default="scope">
+                    <el-tag :type="scope.row.isEnabled ? 'success' : 'info'" size="small">
+                        {{ scope.row.isEnabled ? '启用' : '禁用' }}
+                    </el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column prop="sortOrder" label="Sort" width="70" ></el-table-column>
+            <el-table-column label="操作" width="140" fixed="right">
+                <template #default="scope">
+                    <el-button size="small" @@click="edit(scope.row)">编辑</el-button>
+                    <el-button size="small" type="danger" @@click="del(scope.row)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+
+        <el-pagination style="margin-top:12px;" background
+                       layout="total, sizes, prev, pager, next, jumper"
+                       :total="total" :page-size="size" :current-page="page"
+                       :page-sizes="[10, 20, 50, 100]"
+                       @@current-change="onPageChange" @@size-change="onSizeChange" ></el-pagination>
+    </el-card>
+
+    <el-dialog v-model="dialogVisible" :title="editing.id ? '编辑页面' : '新增页面'" width="780px" top="6vh">
+        <el-form :model="editing" label-width="110px">
+            <el-row :gutter="16">
+                <el-col :span="12">
+                    <el-form-item label="Route">
+                        <el-input v-model="editing.route" placeholder="如 /customer-list" ></el-input>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                    <el-form-item label="Name">
+                        <el-input v-model="editing.name" ></el-input>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+            <el-row :gutter="16">
+                <el-col :span="12">
+                    <el-form-item label="Title">
+                        <el-input v-model="editing.title" ></el-input>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                    <el-form-item label="Template">
+                        <el-select v-model="editing.templateId" style="width:100%;" placeholder="选择模板">
+                            <el-option v-for="t in templateList" :key="t.id" :label="t.name + ' (' + t.code + ')'" :value="t.id" ></el-option>
+                        </el-select>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+            <el-form-item label="Config">
+                <el-input v-model="editing.config" type="textarea" :rows="5" ></el-input>
+            </el-form-item>
+            <el-form-item label="Params">
+                <el-input v-model="editing.params" type="textarea" :rows="5" ></el-input>
+            </el-form-item>
+            <el-form-item label="LayoutJson">
+                <el-input v-model="editing.layoutJson" type="textarea" :rows="6" ></el-input>
+            </el-form-item>
+            <el-row :gutter="16">
+                <el-col :span="8">
+                    <el-form-item label="IsHome">
+                        <el-switch v-model="editing.isHome" ></el-switch>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                    <el-form-item label="IsEnabled">
+                        <el-switch v-model="editing.isEnabled" ></el-switch>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                    <el-form-item label="SortOrder">
+                        <el-input-number v-model="editing.sortOrder" :min="0" ></el-input-number>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+        </el-form>
+        <template #footer>
+            <el-button @@click="dialogVisible = false">取消</el-button>
+            <el-button type="primary" @@click="save">保存</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+@section Scripts {
+<script>
+const { createApp, ref, reactive, onMounted } = Vue;
+createApp({
+    setup() {
+        const rows = ref([]);
+        const total = ref(0);
+        const page = ref(1);
+        const size = ref(20);
+        const dialogVisible = ref(false);
+        const editing = reactive({});
+        const templateList = ref([]);
+
+        async function loadTemplates() {
+            const res = await fetch('/api/admin/templates?page=1&size=500');
+            const json = await res.json();
+            if (json.success) templateList.value = json.data.rows || [];
+        }
+        function templateName(id) {
+            const t = templateList.value.find(x => x.id === id);
+            return t ? t.name : (id || '-');
+        }
+
+        async function load() {
+            const url = `/api/admin/webpages?page=${page.value}&size=${size.value}&projectId=1`;
+            const res = await fetch(url);
+            const json = await res.json();
+            if (json.success) {
+                rows.value = json.data.rows || [];
+                total.value = json.data.total || 0;
+            } else {
+                ElementPlus.ElMessage.error(json.message || '加载失败');
+            }
+        }
+        function onPageChange(p) { page.value = p; load(); }
+        function onSizeChange(s) { size.value = s; page.value = 1; load(); }
+
+        function add() {
+            Object.assign(editing, {
+                id: 0, projectId: 1, route: '', name: '', title: '', templateId: null,
+                config: '', params: '', layoutJson: '', isHome: false, isEnabled: true, sortOrder: 0
+            });
+            dialogVisible.value = true;
+        }
+        function edit(row) {
+            Object.keys(editing).forEach(k => delete editing[k]);
+            Object.assign(editing, row);
+            dialogVisible.value = true;
+        }
+        async function save() {
+            if (!editing.route || !editing.name) { ElementPlus.ElMessage.warning('请填写 Route 和 Name'); return; }
+            const res = await fetch('/api/admin/webpages', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editing)
+            });
+            const json = await res.json();
+            if (json.success) {
+                ElementPlus.ElMessage.success('保存成功');
+                dialogVisible.value = false;
+                load();
+            } else {
+                ElementPlus.ElMessage.error(json.message || '保存失败');
+            }
+        }
+        function del(row) {
+            ElementPlus.ElMessageBox.confirm(`确认删除页面「${row.name}」？`, '提示', { type: 'warning' }).then(async () => {
+                const res = await fetch('/api/admin/webpages/delete', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(row.id)
+                });
+                const json = await res.json();
+                if (json.success) { ElementPlus.ElMessage.success('删除成功'); load(); }
+                else ElementPlus.ElMessage.error(json.message || '删除失败');
+            }).catch(() => {});
+        }
+        function goBack() { window.location.href = '/demo'; }
+
+        onMounted(async () => { await loadTemplates(); load(); });
+        return { rows, total, page, size, dialogVisible, editing, templateList, templateName,
+                 load, onPageChange, onSizeChange, add, edit, save, del, goBack };
+    }
+}).use(ElementPlus).mount('#app');
+</script>
+}

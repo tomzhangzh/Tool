@@ -1,0 +1,7 @@
+@{
+    // DynCodeMirror —— 代码编辑器（用 textarea 替代）
+}
+<el-input type="textarea" v-model="model[node.modelname]"
+    v-bind="node.options.comoptions"
+    :rows="Math.max(5, parseInt((node.options.comoptions.height || '300px').replace('px','') || 300) / 24)"
+    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class"></el-input>

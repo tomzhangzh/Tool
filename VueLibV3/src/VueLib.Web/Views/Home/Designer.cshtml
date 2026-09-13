@@ -1,0 +1,459 @@
+@{
+    ViewData["Title"] = "设计器";
+    Layout = "_Layout";
+}
+<style>
+    .designer-root { display: flex; flex-direction: column; height: 100vh; background: #f0f2f5; }
+    .top-toolbar { height: 48px; background: #409eff; color: #fff; display: flex; align-items: center; padding: 0 12px; gap: 8px; flex-shrink: 0; }
+    .top-toolbar .title { font-weight: 600; margin-right: 8px; white-space: nowrap; }
+    .top-toolbar .spacer { flex: 1; }
+    .main-row { display: flex; flex: 1; overflow: hidden; }
+    .left-panel { width: 240px; border-right: 1px solid #e4e7ed; background: #fff; display: flex; flex-direction: column; overflow: hidden; transition: width .2s; flex-shrink: 0; }
+    .left-panel.collapsed { width: 0; border-right: none; }
+    .left-panel .panel-body { flex: 1; overflow-y: auto; padding: 8px; }
+    .left-panel .tree-box { height: 220px; border-top: 1px solid #e4e7ed; overflow-y: auto; padding: 8px; flex-shrink: 0; }
+    .center-canvas { flex: 1; overflow: auto; background: #f0f2f5; }
+    .canvas-inner { padding: 16px; min-height: 100%; transform-origin: top left; }
+    .canvas-device-mobile .canvas-inner { max-width: 390px; margin: 0 auto; }
+    .canvas-root { background: #fff; border: 2px dashed #dcdfe6; border-radius: 4px; padding: 16px; min-height: 420px; }
+    .right-panel { width: 320px; border-left: 1px solid #e4e7ed; background: #fff; overflow-y: auto; padding: 8px; flex-shrink: 0; }
+    .lc-node { border: 1px solid #e4e7ed; border-radius: 4px; padding: 8px; margin: 4px; position: relative; background: #fff; }
+    .lc-node.selected { border-color: #409eff; box-shadow: 0 0 0 2px rgba(64,158,255,.3); }
+    .lc-node.is-container { border-style: dashed; border-color: #c0c4cc; }
+    .lc-label { font-size: 10px; color: #409eff; background: #ecf5ff; padding: 1px 4px; border-radius: 2px; display: inline-block; margin-bottom: 4px; }
+    .lc-body { min-height: 20px; }
+    .palette-item { cursor: grab; }
+    .palette-item:active { cursor: grabbing; }
+    .cat-title { margin: 8px 0 4px; color: #909399; font-size: 13px; font-weight: 600; }
+    .json-editor { width: 100%; font-family: Consolas, Menlo, monospace; font-size: 12px; }
+</style>
+
+<div id="designer-app" :class="{ 'canvas-device-mobile': deviceMode === 'mobile' }">
+    <div class="designer-root">
+        <!-- ============ _TopToolbar ============ -->
+        <div class="top-toolbar">
+            <span class="title">🎨 V3 设计器</span>
+            <el-button size="small" @@click="newCanvas">新建画布</el-button>
+            <el-button size="small" @@click="openSave">保存 JSON</el-button>
+            <el-button size="small" @@click="showPreview = true">预览</el-button>
+            <el-button size="small" @@click="clearCanvas">清空</el-button>
+            <el-button size="small" @@click="goHome">返回桌面</el-button>
+            <span class="spacer"></span>
+            <el-button size="small" @@click="leftCollapsed = !leftCollapsed">📂</el-button>
+            <el-button-group>
+                <el-button size="small" :type="deviceMode === 'mobile' ? 'primary' : ''" @@click="deviceMode = 'mobile'">📱</el-button>
+                <el-button size="small" :type="deviceMode === 'desktop' ? 'primary' : ''" @@click="deviceMode = 'desktop'">💻</el-button>
+            </el-button-group>
+            <span style="font-size:12px;">缩放 {{ zoom }}%</span>
+            <el-slider v-model="zoom" :min="50" :max="200" :step="10" style="width:120px;" ></el-slider>
+            <el-breadcrumb separator="/">
+                <el-breadcrumb-item v-for="(n, i) in breadcrumbPath" :key="i">{{ n.component }}</el-breadcrumb-item>
+            </el-breadcrumb>
+        </div>
+
+        <div class="main-row">
+            <!-- ============ _LeftPanel ============ -->
+            <div class="left-panel" :class="{ collapsed: leftCollapsed }">
+                <div style="padding:8px; border-bottom:1px solid #e4e7ed;">
+                    <el-input v-model="searchText" size="small" placeholder="搜索组件..." ></el-input>
+                </div>
+                <div class="panel-body">
+                    <template v-for="(comps, cat) in groupedComponents" :key="cat">
+                        <div class="cat-title">{{ cat }}</div>
+                        <div v-for="c in comps" :key="c.componentName"
+                             class="palette-item"
+                             draggable="true"
+                             @@dragstart="onDragStart($event, c)"
+                             style="padding:6px 10px; margin:2px 0; background:#f5f7fa; border:1px solid #e4e7ed; border-radius:4px; font-size:13px;">
+                            {{ c.icon || '🧩' }} {{ c.label || c.componentName }}
+                        </div>
+                    </template>
+                    <p v-if="!Object.keys(groupedComponents).length" style="color:#c0c4cc;font-size:12px;text-align:center;padding:20px;">无组件</p>
+                </div>
+                <div class="tree-box">
+                    <div class="cat-title">组件树</div>
+                    <el-tree :data="treeData"
+                             :props="{ label: 'label', children: 'children' }"
+                             highlight-current
+                             default-expand-all
+                             @@node-click="onTreeNodeClick" ></el-tree>
+                </div>
+            </div>
+
+            <!-- ============ _CenterCanvas ============ -->
+            <div class="center-canvas">
+                <div class="canvas-inner" :style="{ transform: 'scale(' + (zoom / 100) + ')' }">
+                    <div class="canvas-root" @@dragover.prevent @@drop="onRootDrop">
+                        <p v-if="!rootNode.childrenctrls || rootNode.childrenctrls.length === 0"
+                           style="color:#c0c4cc; text-align:center; padding:40px;">
+                            从左侧拖拽组件到此处
+                        </p>
+                        <dyn-node v-for="(child, i) in rootNode.childrenctrls"
+                                  :key="i"
+                                  :node="child"
+                                  :design="true"
+                                  @@selected="onSelect" ></dyn-node>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ _RightPanel ============ -->
+            <div class="right-panel">
+                <template v-if="selectedNode">
+                    <h4 style="margin:8px 0;">属性配置</h4>
+                    <el-form label-width="90px" size="small">
+                        <el-form-item label="组件名">
+                            <el-input :model-value="selectedNode.component" readonly ></el-input>
+                        </el-form-item>
+                        <el-form-item label="modelname">
+                            <el-input v-model="selectedNode.modelname" placeholder="modelname" ></el-input>
+                        </el-form-item>
+                    </el-form>
+
+                    <el-divider style="margin:8px 0;">comoptions</el-divider>
+                    <el-form label-width="90px" size="small">
+                        <el-form-item v-for="(val, key) in (selectedNode.options && selectedNode.options.comoptions || {})"
+                                      :key="key" :label="key">
+                            <el-input v-model="selectedNode.options.comoptions[key]" ></el-input>
+                        </el-form-item>
+                        <p v-if="!selectedNode.options || !Object.keys(selectedNode.options.comoptions || {}).length"
+                           style="color:#c0c4cc;font-size:12px;">无 comoptions</p>
+                    </el-form>
+
+                    <el-divider style="margin:8px 0;">labeloptions</el-divider>
+                    <el-form label-width="90px" size="small">
+                        <el-form-item label="label">
+                            <el-input v-model="selectedNode.options.labeloptions.label" ></el-input>
+                        </el-form-item>
+                        <el-form-item label="required">
+                            <el-switch v-model="selectedNode.options.labeloptions.required" ></el-switch>
+                        </el-form-item>
+                        <el-form-item label="show">
+                            <el-switch v-model="selectedNode.options.labeloptions.show" ></el-switch>
+                        </el-form-item>
+                    </el-form>
+
+                    <el-divider style="margin:8px 0;">itemoptions.style</el-divider>
+                    <el-input v-model="styleText" type="textarea" :rows="5" class="json-editor" @@change="applyStyle" ></el-input>
+
+                    <el-divider style="margin:8px 0;">itemoptions.class</el-divider>
+                    <el-input v-model="selectedNode.options.itemoptions.class" size="small" ></el-input>
+
+                    <el-divider style="margin:8px 0;">JSON 源码</el-divider>
+                    <el-input v-model="selectedJson" type="textarea" :rows="12" class="json-editor" @@change="applyJson" ></el-input>
+                </template>
+                <p v-else style="color:#909399;font-size:12px;padding:20px;text-align:center;">点击画布中的组件编辑属性</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ _Dialogs ============ -->
+    <el-dialog v-model="showPreview" title="JSON 预览" width="60%">
+        <pre style="font-size:12px; max-height:60vh; overflow:auto; background:#f5f7fa; padding:8px; margin:0;">{{ previewJson }}</pre>
+    </el-dialog>
+
+    <el-dialog v-model="showSave" title="保存页面" width="420px">
+        <el-form label-width="80px" size="small">
+            <el-form-item label="路由"><el-input v-model="saveForm.route" placeholder="/your-page" ></el-input></el-form-item>
+            <el-form-item label="页面名"><el-input v-model="saveForm.name" placeholder="页面名称" ></el-input></el-form-item>
+            <el-form-item label="标题"><el-input v-model="saveForm.title" placeholder="页面标题" ></el-input></el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @@click="showSave = false">取消</el-button>
+            <el-button type="primary" @@click="doSave">保存</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+@section Scripts {
+<script>
+const { createApp, ref, reactive, computed, watch, onMounted } = Vue;
+
+// ---- 共享状态（供 dyn-node 通过 inject 读取选中节点）----
+const selectedNode = ref(null);
+
+// ---- 工具：根据组件元数据创建标准节点 ----
+function createNode(meta) {
+    let def = {};
+    try { def = meta.defaultConfigJson ? JSON.parse(meta.defaultConfigJson) : {}; } catch (e) { def = {}; }
+    return {
+        component: meta.componentName,
+        modelname: '',
+        options: {
+            comoptions: def.comoptions || {},
+            comlisteners: {},
+            labeloptions: def.labeloptions || { label: meta.label || meta.componentName, required: false, show: true },
+            itemoptions: def.itemoptions || { style: {}, class: '' }
+        },
+        validators: [],
+        childrenctrls: [],
+        slots: {},
+        extendinfo: { isContainer: !!meta.isContainer, isComposite: !!meta.isComposite }
+    };
+}
+
+// ---- 工具：清理空属性 ----
+function cleanNode(node) {
+    const out = {};
+    if (node.component) out.component = node.component;
+    if (node.modelname) out.modelname = node.modelname;
+    const opts = node.options || {};
+    const cleanOpts = {};
+    if (opts.comoptions && Object.keys(opts.comoptions).length) cleanOpts.comoptions = opts.comoptions;
+    if (opts.comlisteners && Object.keys(opts.comlisteners).length) cleanOpts.comlisteners = opts.comlisteners;
+    if (opts.labeloptions) {
+        const lo = {};
+        if (opts.labeloptions.label) lo.label = opts.labeloptions.label;
+        if (opts.labeloptions.required) lo.required = opts.labeloptions.required;
+        if (opts.labeloptions.show !== undefined) lo.show = opts.labeloptions.show;
+        if (Object.keys(lo).length) cleanOpts.labeloptions = lo;
+    }
+    if (opts.itemoptions) {
+        const io = {};
+        if (opts.itemoptions.style && Object.keys(opts.itemoptions.style).length) io.style = opts.itemoptions.style;
+        if (opts.itemoptions.class) io.class = opts.itemoptions.class;
+        if (Object.keys(io).length) cleanOpts.itemoptions = io;
+    }
+    if (Object.keys(cleanOpts).length) out.options = cleanOpts;
+    if (node.validators && node.validators.length) out.validators = node.validators;
+    if (node.childrenctrls && node.childrenctrls.length) out.childrenctrls = node.childrenctrls.map(cleanNode);
+    if (node.slots && Object.keys(node.slots).length) out.slots = node.slots;
+    if (node.extendinfo && Object.keys(node.extendinfo).length) out.extendinfo = node.extendinfo;
+    return out;
+}
+
+const app = createApp({
+    setup() {
+        const components = ref([]);
+        const searchText = ref('');
+        const leftCollapsed = ref(false);
+        const deviceMode = ref('desktop');
+        const zoom = ref(100);
+        const showPreview = ref(false);
+        const showSave = ref(false);
+        const styleText = ref('');
+        const selectedJson = ref('');
+        const saveForm = reactive({ route: '', name: '', title: '' });
+
+        const rootNode = reactive({
+            component: 'DynElForm',
+            modelname: '',
+            options: {
+                comoptions: {},
+                comlisteners: {},
+                labeloptions: { label: '表单', required: false, show: true },
+                itemoptions: { style: {}, class: '' }
+            },
+            validators: [],
+            childrenctrls: [],
+            slots: {},
+            extendinfo: { isContainer: true, isComposite: false }
+        });
+
+        // 左面板分组
+        const groupedComponents = computed(() => {
+            const g = {};
+            const kw = searchText.value;
+            components.value
+                .filter(c => !kw || (c.label || '').includes(kw) || c.componentName.includes(kw))
+                .forEach(c => {
+                    const cat = c.category || '其他';
+                    if (!g[cat]) g[cat] = [];
+                    g[cat].push(c);
+                });
+            return g;
+        });
+
+        // 组件树数据
+        const treeData = computed(() => [buildTree(rootNode)]);
+        function buildTree(node) {
+            return {
+                label: node.component,
+                node: node,
+                children: (node.childrenctrls || []).map(buildTree)
+            };
+        }
+
+        // 面包屑路径
+        const breadcrumbPath = computed(() => {
+            if (!selectedNode.value) return [];
+            const path = [];
+            (function walk(n) {
+                path.push(n);
+                if (n === selectedNode.value) return true;
+                for (const c of (n.childrenctrls || [])) { if (walk(c)) return true; }
+                path.pop();
+                return false;
+            })(rootNode);
+            return path;
+        });
+
+        // 预览 JSON
+        const previewJson = computed(() => JSON.stringify(cleanNode(rootNode), null, 2));
+
+        // 选中节点后同步右侧编辑器文本
+        watch(selectedNode, (n) => {
+            if (n) {
+                styleText.value = JSON.stringify((n.options && n.options.itemoptions && n.options.itemoptions.style) || {}, null, 2);
+                selectedJson.value = JSON.stringify(n, null, 2);
+            } else {
+                styleText.value = '';
+                selectedJson.value = '';
+            }
+        });
+
+        function onDragStart(e, comp) {
+            e.dataTransfer.setData('application/x-lc-comp', JSON.stringify(comp));
+        }
+        function readDrop(e) {
+            const data = e.dataTransfer.getData('application/x-lc-comp');
+            if (!data) return null;
+            try { return JSON.parse(data); } catch (err) { return null; }
+        }
+        function onRootDrop(e) {
+            e.preventDefault();
+            const meta = readDrop(e);
+            if (!meta) return;
+            rootNode.childrenctrls.push(createNode(meta));
+        }
+        function onSelect(node) { selectedNode.value = node; }
+        function onTreeNodeClick(data) { selectedNode.value = data.node; }
+
+        function applyStyle() {
+            try {
+                const parsed = JSON.parse(styleText.value);
+                selectedNode.value.options.itemoptions.style = parsed;
+                ElementPlus.ElMessage.success('style 已应用');
+            } catch (e) { ElementPlus.ElMessage.error('style JSON 解析失败: ' + e.message); }
+        }
+        function applyJson() {
+            try {
+                const parsed = JSON.parse(selectedJson.value);
+                Object.assign(selectedNode.value, parsed);
+                ElementPlus.ElMessage.success('JSON 已应用');
+            } catch (e) { ElementPlus.ElMessage.error('JSON 解析失败: ' + e.message); }
+        }
+
+        function newCanvas() {
+            rootNode.childrenctrls = [];
+            rootNode.options = {
+                comoptions: {}, comlisteners: {},
+                labeloptions: { label: '表单', required: false, show: true },
+                itemoptions: { style: {}, class: '' }
+            };
+            selectedNode.value = null;
+            ElementPlus.ElMessage.info('已新建画布');
+        }
+        function clearCanvas() {
+            rootNode.childrenctrls = [];
+            selectedNode.value = null;
+        }
+        function openSave() { showSave.value = true; }
+        async function doSave() {
+            const clean = cleanNode(rootNode);
+            const body = {
+                projectId: 1,
+                route: saveForm.route,
+                name: saveForm.name,
+                title: saveForm.title || saveForm.name,
+                layoutJson: JSON.stringify(clean)
+            };
+            try {
+                const res = await fetch('/api/admin/webpages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (res.ok) { ElementPlus.ElMessage.success('保存成功'); showSave.value = false; }
+                else { ElementPlus.ElMessage.error('保存失败: ' + res.status); }
+            } catch (e) { ElementPlus.ElMessage.error('保存请求失败: ' + e.message); }
+        }
+        function goHome() { window.location.href = '/'; }
+
+        onMounted(async () => {
+            try {
+                const res = await fetch('/api/components');
+                components.value = await res.json();
+            } catch (e) {
+                ElementPlus.ElMessage.error('加载组件元数据失败: ' + e.message);
+            }
+        });
+
+        return {
+            components, searchText, groupedComponents, rootNode, selectedNode,
+            leftCollapsed, deviceMode, zoom, showPreview, showSave,
+            styleText, selectedJson, saveForm, treeData, breadcrumbPath, previewJson,
+            onDragStart, onRootDrop, onSelect, onTreeNodeClick,
+            applyStyle, applyJson, newCanvas, clearCanvas, openSave, doSave, goHome
+        };
+    }
+});
+
+// ---- dyn-node 递归组件 ----
+app.component('dyn-node', {
+    props: {
+        node: { type: Object, required: true },
+        design: { type: Boolean, default: true }
+    },
+    inject: ['selectedNode'],
+    computed: {
+        isSelected() { return this.selectedNode.value === this.node; },
+        isContainer() {
+            return !!(this.node.extendinfo && this.node.extendinfo.isContainer) ||
+                   (this.node.childrenctrls && this.node.childrenctrls.length > 0);
+        }
+    },
+    template: `
+        <div class="lc-node"
+             :class="[{ selected: design && isSelected, 'is-container': isContainer }, (node.options && node.options.itemoptions && node.options.itemoptions.class) || '']"
+             :style="(node.options && node.options.itemoptions && node.options.itemoptions.style) || {}"
+             @@click.stop="$emit('selected', node)">
+            <div v-if="design" class="lc-label">{{ node.component }}</div>
+            <div class="lc-body" :data-container="isContainer"
+                 @@dragover.prevent
+                 @@drop="onBodyDrop">
+                <dyn-node v-for="(child, i) in node.childrenctrls"
+                          :key="i"
+                          :node="child"
+                          :design="design"
+                          @@selected="$emit('selected', $event)" ></dyn-node>
+                <span v-if="design && (!node.childrenctrls || node.childrenctrls.length === 0)"
+                      style="color:#c0c4cc;font-size:11px;">（空容器）</span>
+            </div>
+        </div>
+    `,
+    mounted() {
+        const el = this.$el.querySelector('.lc-body');
+        if (el && window.Sortable) {
+            const self = this;
+            this._sortable = new Sortable(el, {
+                animation: 150,
+                onEnd: function (evt) {
+                    const list = self.node.childrenctrls;
+                    if (!list) return;
+                    const moved = list.splice(evt.oldIndex, 1)[0];
+                    list.splice(evt.newIndex, 0, moved);
+                }
+            });
+        }
+    },
+    beforeUnmount() { if (this._sortable) this._sortable.destroy(); },
+    methods: {
+        onBodyDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const data = e.dataTransfer.getData('application/x-lc-comp');
+            if (!data) return;
+            try {
+                const meta = JSON.parse(data);
+                if (!this.node.childrenctrls) this.node.childrenctrls = [];
+                this.node.childrenctrls.push(createNode(meta));
+            } catch (err) { /* ignore */ }
+        }
+    }
+});
+
+app.provide('selectedNode', selectedNode);
+app.use(ElementPlus).mount('#designer-app');
+</script>
+}

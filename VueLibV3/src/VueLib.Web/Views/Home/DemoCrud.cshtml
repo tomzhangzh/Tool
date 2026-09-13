@@ -1,0 +1,192 @@
+@{
+    ViewData["Title"] = "CRUD 三屏 Demo";
+    Layout = "_Layout";
+}
+<div id="app" style="padding:20px;">
+    <h2>🗂️ CRUD 三屏 Demo（Teachers 表）</h2>
+    <p style="color:#909399;">顶部 filter 条件区 + 左侧 list 表格 + 右侧 detail 表单。分页/新增/编辑/删除全部走 /Runtime/DynCrud API。</p>
+
+    <!-- ① 顶部 filter 条件区 -->
+    <el-card>
+        <template #header>① 查询条件（filter 屏）</template>
+        <el-form :model="filter" inline>
+            <el-form-item label="姓名">
+                <el-input v-model="filter.keyword" placeholder="姓名模糊搜索" clearable ></el-input>
+            </el-form-item>
+            <el-form-item label="性别">
+                <el-select v-model="filter.Gender" placeholder="全部" clearable style="width:110px;">
+                    <el-option label="男" value="男" ></el-option>
+                    <el-option label="女" value="女" ></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="学科">
+                <el-select v-model="filter.Subject" placeholder="全部" clearable style="width:140px;">
+                    <el-option v-for="s in subjectOptions" :key="s" :label="s" :value="s" ></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @@click="search">🔍 查询</el-button>
+                <el-button @@click="resetFilter">重置</el-button>
+                <el-button type="success" @@click="openEdit(null)">➕ 新增教师</el-button>
+            </el-form-item>
+        </el-form>
+    </el-card>
+
+    <!-- ② + ③ 左右布局：list + detail -->
+    <div style="display:flex;gap:16px;margin-top:16px;align-items:flex-start;">
+        <!-- ② 左侧 list 屏 -->
+        <el-card style="flex:1;min-width:560px;">
+            <template #header>② 教师列表（{{ total }} 条）</template>
+            <el-table :data="rows" border stripe highlight-current-row @@current-change="onRowSelect">
+                <el-table-column prop="Id" label="ID" width="60"></el-table-column>
+                <el-table-column prop="Name" label="姓名" width="100"></el-table-column>
+                <el-table-column prop="Gender" label="性别" width="70"></el-table-column>
+                <el-table-column prop="Age" label="年龄" width="70"></el-table-column>
+                <el-table-column prop="Phone" label="电话" width="120"></el-table-column>
+                <el-table-column prop="Subject" label="学科" width="100"></el-table-column>
+                <el-table-column prop="Title" label="职称" width="100"></el-table-column>
+                <el-table-column label="操作" width="140" fixed="right">
+                    <template #default="scope">
+                        <el-button size="small" @@click="openEdit(scope.row)">编辑</el-button>
+                        <el-button size="small" type="danger" @@click="delRow(scope.row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <el-pagination style="margin-top:12px;" background layout="total, sizes, prev, pager, next, jumper"
+                           :total="total" :page-sizes="[5,10,20]" :page-size="pageSize" :current-page="pageIndex"
+                           @@size-change="onSize" @@current-change="onPage" ></el-pagination>
+        </el-card>
+
+        <!-- ③ 右侧 detail 屏 -->
+        <el-card style="width:420px;">
+            <template #header>
+                ③ 教师详情（detail 屏）
+                <el-tag v-if="editing.Id" size="small" style="margin-left:8px;">ID: {{ editing.Id }}</el-tag>
+            </template>
+            <div v-if="!editing.Id && !selectedRow" style="color:#c0c4cc;text-align:center;padding:40px 0;">
+                👈 在左侧表格点击行，或点"编辑"/"新增"
+            </div>
+            <el-form v-else :model="editing" label-width="80px">
+                <el-form-item label="姓名"><el-input v-model="editing.Name" ></el-input></el-form-item>
+                <el-form-item label="性别">
+                    <el-radio-group v-model="editing.Gender">
+                        <el-radio value="男">男</el-radio>
+                        <el-radio value="女">女</el-radio>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="年龄"><el-input-number v-model="editing.Age" :min="20" :max="70" ></el-input-number></el-form-item>
+                <el-form-item label="电话"><el-input v-model="editing.Phone" ></el-input></el-form-item>
+                <el-form-item label="学科">
+                    <el-select v-model="editing.Subject" style="width:100%;">
+                        <el-option v-for="s in subjectOptions" :key="s" :label="s" :value="s" ></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="职称">
+                    <el-select v-model="editing.Title" style="width:100%;">
+                        <el-option label="助教" value="助教" ></el-option>
+                        <el-option label="讲师" value="讲师" ></el-option>
+                        <el-option label="副教授" value="副教授" ></el-option>
+                        <el-option label="教授" value="教授" ></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="在岗">
+                    <el-switch v-model="editing.IsActive" ></el-switch>
+                </el-form-item>
+                <el-form-item>
+                    <el-button type="primary" @@click="doSave">💾 保存</el-button>
+                    <el-button @@click="resetDetail">清空</el-button>
+                    <el-button v-if="editing.Id" type="danger" @@click="delRow(editing)">🗑️ 删除</el-button>
+                </el-form-item>
+            </el-form>
+        </el-card>
+    </div>
+
+    <el-button style="margin-top:16px;" @@click="goBack">← 返回 Demo 汇总</el-button>
+</div>
+
+@section Scripts {
+<script>
+const { createApp, ref, reactive, onMounted } = Vue;
+createApp({
+    setup() {
+        const { ElMessage, ElMessageBox } = ElementPlus;
+        const rows = ref([]);
+        const total = ref(0);
+        const pageIndex = ref(1);
+        const pageSize = ref(10);
+        const filter = reactive({ keyword: '', Gender: '', Subject: '' });
+        const editing = reactive({});
+        const selectedRow = ref(null);
+        const subjectOptions = ref(['语文', '数学', '英语', '物理', '化学', '生物']);
+
+        async function loadData() {
+            const res = await fetch('/Runtime/DynCrud/Query?projectId=1', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tableName: 'Teachers',
+                    filter: { Gender: filter.Gender || undefined, Subject: filter.Subject || undefined },
+                    keyword: filter.keyword || undefined,
+                    keywordColumns: ['Name', 'Phone'],
+                    pageIndex: pageIndex.value, pageSize: pageSize.value
+                })
+            });
+            const json = await res.json();
+            if (json.success) { rows.value = json.data.rows; total.value = json.data.totalCount; }
+            else ElMessage.error(json.message);
+        }
+        function search() { pageIndex.value = 1; loadData(); }
+        function resetFilter() { filter.keyword = ''; filter.Gender = ''; filter.Subject = ''; search(); }
+        function onPage(p) { pageIndex.value = p; loadData(); }
+        function onSize(s) { pageSize.value = s; pageIndex.value = 1; loadData(); }
+        function onRowSelect(row) {
+            if (row) { selectedRow.value = row; Object.assign(editing, row); }
+        }
+        function openEdit(row) {
+            selectedRow.value = row;
+            Object.assign(editing, row || {
+                Id: 0, Name: '', Gender: '男', Age: 30, Phone: '',
+                Subject: '数学', Title: '讲师', IsActive: true
+            });
+        }
+        function resetDetail() {
+            Object.keys(editing).forEach(k => delete editing[k]);
+            selectedRow.value = null;
+        }
+        async function doSave() {
+            const res = await fetch('/Runtime/DynCrud/Save?projectId=1', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tableName: 'Teachers', data: { ...editing } })
+            });
+            const json = await res.json();
+            if (json.success) {
+                ElMessage.success((editing.Id ? '更新' : '新增') + '成功 id=' + json.data.id);
+                editing.Id = json.data.id;
+                loadData();
+            } else ElMessage.error(json.message);
+        }
+        function delRow(row) {
+            ElMessageBox.confirm('确认删除教师 "' + row.Name + '"？', '警告', { type: 'warning' }).then(async () => {
+                const res = await fetch('/Runtime/DynCrud/Delete?projectId=1', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tableName: 'Teachers', id: row.Id })
+                });
+                const json = await res.json();
+                if (json.success) {
+                    ElMessage.success('删除成功');
+                    resetDetail();
+                    loadData();
+                } else ElMessage.error(json.message);
+            }).catch(() => {});
+        }
+        function goBack() { window.location.href = '/demo'; }
+
+        onMounted(loadData);
+        return {
+            rows, total, pageIndex, pageSize, filter, editing, selectedRow, subjectOptions,
+            loadData, search, resetFilter, onPage, onSize, onRowSelect,
+            openEdit, resetDetail, doSave, delRow, goBack
+        };
+    }
+}).use(ElementPlus).mount('#app');
+</script>
+}

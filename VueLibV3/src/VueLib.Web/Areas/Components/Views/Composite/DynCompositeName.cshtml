@@ -1,0 +1,13 @@
+@{
+    // DynCompositeName —— 姓名组合组件（firstname + lastname 并排）
+}
+<el-form-item :label="node.options.labeloptions.label" :required="node.options.labeloptions.required"
+    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class"
+    v-if="node.options.labeloptions.show !== false">
+    <el-input v-model="model[node.modelname + '_first']"
+        :placeholder="node.options.comoptions.firstPlaceholder || '名'"
+        style="width:48%;margin-right:4%"></el-input>
+    <el-input v-model="model[node.modelname + '_last']"
+        :placeholder="node.options.comoptions.lastPlaceholder || '姓'"
+        style="width:48%"></el-input>
+</el-form-item>
