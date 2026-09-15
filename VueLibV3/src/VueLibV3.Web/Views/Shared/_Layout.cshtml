@@ -1,0 +1,47 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] ?? "VueLibV3 企业级低代码平台")</title>
+
+    <!-- CSS：Tailwind + ElementPlus + LayUI + 平台动态样式 -->
+    <link rel="stylesheet" href="~/lib/tailwind.css" />
+    <link rel="stylesheet" href="~/lib/element-plus/index.css" />
+    <link rel="stylesheet" href="~/lib/layui/css/layui.css" />
+    <link rel="stylesheet" href="~/lib/codemirror/codemirror.min.css" />
+    <link rel="stylesheet" href="~/dyn/dyn.css" />
+
+    @RenderSection("Head", required: false)
+</head>
+<body>
+    @RenderBody()
+
+    @* 第三方 UMD 库（同步顺序加载，保证依赖可用；不依赖异步加载器，页面更稳定） *@
+    <script src="~/lib/vue.global.prod.js"></script>
+    <script src="~/lib/lodash.min.js"></script>
+    <script src="~/lib/element-plus/index.full.min.js"></script>
+    <script src="~/lib/layui/layui.js"></script>
+    <script src="~/lib/sortable.min.js"></script>
+    <script src="~/lib/echarts.min.js"></script>
+    <script src="~/lib/codemirror/codemirror.min.js"></script>
+    <script src="~/lib/codemirror/mode-javascript.min.js"></script>
+    <script src="~/lib/codemirror/mode-htmlmixed.min.js"></script>
+    <script src="~/lib/codemirror/mode-xml.min.js"></script>
+    <script src="~/lib/codemirror/mode-css.min.js"></script>
+    <script src="~/lib/codemirror/mode-sql.min.js"></script>
+
+    @* 平台动态模块（顺序：校验 → 动作 → 渲染核心 → 模板 → 组件库 → 设计器；asp-append-version 自动指纹防缓存） *@
+    <script src="~/dyn/dyn-validator.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-actionhelper.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-core.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-template.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-com.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-designer.js" asp-append-version="true"></script>
+
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

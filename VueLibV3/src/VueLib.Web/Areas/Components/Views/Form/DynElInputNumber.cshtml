@@ -1,8 +1,0 @@
-@{
-    // DynElInputNumber —— Element Plus 数字输入组件
-}
-<el-form-item :label="node.options.labeloptions.label" :required="node.options.labeloptions.required"
-    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class"
-    v-if="node.options.labeloptions.show !== false">
-    <el-input-number v-model="model[node.modelname]" v-bind="node.options.comoptions"></el-input-number>
-</el-form-item>

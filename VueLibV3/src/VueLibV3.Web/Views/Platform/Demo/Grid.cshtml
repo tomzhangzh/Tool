@@ -1,0 +1,101 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "栅格布局 Demo - VueLibV3";
+}
+<div id="app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">DynGridContainer 栅格容器 Demo（不包装 DOM，布局原样生效）</span>
+    </div>
+    <div class="main">
+        <div>
+            <el-card shadow="never">
+                <template #header><b>grid-template-columns: 1fr 1fr · gap: 16px 24px · 子组件 class=col-span-2</b></template>
+                <dyn-render :cfg="cfg"></dyn-render>
+            </el-card>
+            <el-card shadow="never" style="margin-top:16px">
+                <template #header><b>弹性布局 flex</b></template>
+                <dyn-render :cfg="flexCfg"></dyn-render>
+            </el-card>
+        </div>
+        <el-card shadow="never">
+            <template #header><b>说明</b></template>
+            <ul style="font-size:13px;color:#606266;line-height:2">
+                <li>容器的 <code>comoptions</code> 即 CSS 样式：<code>display</code>、<code>grid-template-columns</code>、<code>gap</code>、<code>align-items</code> 等</li>
+                <li>子组件通过 <code>itemoptions.class</code> 配置 <code>col-span-2</code> 等 Tailwind/自定义类</li>
+                <li>设计器选中/拖放使用<b>绝对定位悬浮层</b>，不会在组件外包 div，因此 grid/flex 布局在设计与运行时完全一致</li>
+            </ul>
+            <el-divider></el-divider>
+            <b>配置 JSON</b>
+            <pre style="background:#282c34;color:#abb2bf;padding:12px;border-radius:6px;font-size:12px;max-height:360px;overflow:auto">{{ cfgText }}</pre>
+        </el-card>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; margin-right: auto; }
+    .main { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    @@media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+</style>
+
+@section Scripts {
+    <script>
+        (function () {
+            var cfg = {
+                component: 'DynGridContainer',
+                modelname: '',
+                options: {
+                    comoptions: { display: 'grid', 'grid-template-columns': '1fr 1fr', gap: '16px 24px' },
+                    comlisteners: {},
+                    labeloptions: { label: '', required: false, show: false },
+                    itemoptions: { style: {}, class: '' }
+                },
+                validators: [],
+                childrenctrls: [
+                    { component: 'DynWrapper', modelname: '', options: { comoptions: {}, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [
+                        { component: 'DynText', modelname: '', options: { comoptions: { text: '单元格 A（默认占 1 列）' }, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [], slots: {}, extendinfo: {} }
+                    ], slots: {}, extendinfo: {} },
+                    { component: 'DynWrapper', modelname: '', options: { comoptions: {}, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [
+                        { component: 'DynText', modelname: '', options: { comoptions: { text: '单元格 B' }, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [], slots: {}, extendinfo: {} }
+                    ], slots: {}, extendinfo: {} },
+                    { component: 'DynWrapper', modelname: '', options: { comoptions: {}, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: 'col-span-2' } }, validators: [], childrenctrls: [
+                        { component: 'DynText', modelname: '', options: { comoptions: { text: '单元格 C：col-span-2 跨两列（设计时布局不破坏）' }, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [], slots: {}, extendinfo: {} }
+                    ], slots: {}, extendinfo: {} }
+                ],
+                slots: {},
+                extendinfo: {}
+            };
+
+            var flexCfg = {
+                component: 'DynGridContainer',
+                modelname: '',
+                options: {
+                    comoptions: { display: 'flex', 'flex-direction': 'row', gap: '12px', 'flex-wrap': 'wrap' },
+                    comlisteners: {},
+                    labeloptions: { label: '', required: false, show: false },
+                    itemoptions: { style: {}, class: '' }
+                },
+                validators: [],
+                childrenctrls: [
+                    { component: 'ElTag', modelname: '', options: { comoptions: { text: '弹性 A', type: 'primary' }, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [], slots: {}, extendinfo: {} },
+                    { component: 'ElTag', modelname: '', options: { comoptions: { text: '弹性 B', type: 'success' }, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [], slots: {}, extendinfo: {} },
+                    { component: 'ElTag', modelname: '', options: { comoptions: { text: '弹性 C', type: 'warning' }, comlisteners: {}, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [], slots: {}, extendinfo: {} }
+                ],
+                slots: {},
+                extendinfo: {}
+            };
+
+            var app = Vue.createApp({
+                data: function () { return { cfg: DynCore.normalize(cfg), flexCfg: DynCore.normalize(flexCfg) }; },
+                computed: {
+                    cfgText: function () { return JSON.stringify(DynCore.clean(this.cfg), null, 2); }
+                },
+                methods: { go: function (url) { window.location.href = url; } }
+            });
+            DynCom.setupApp(app);
+            app.mount('#app');
+        })();
+    </script>
+}

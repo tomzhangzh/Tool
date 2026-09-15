@@ -1,0 +1,62 @@
+[
+  {
+    "Id": "ah-msg", "Name": "消息提示", "Code": "ShowMessage", "ActionType": "script",
+    "Script": "$api.msg($args.message || '操作成功', $args.type || 'success');",
+    "Language": "javascript", "ParamsJson": { "message": { "label": "消息内容", "type": "string" }, "type": { "label": "类型", "type": "select", "options": ["success", "warning", "info", "error"] } },
+    "Description": "弹出 ElementPlus 消息提示", "SortNo": "1", "IsActive": "1"
+  },
+  {
+    "Id": "ah-confirm", "Name": "确认框", "Code": "ShowConfirm", "ActionType": "script",
+    "Script": "return $api.confirm($args.message || '确定执行吗？', $args.title || '提示').then(function(ok){ if(ok) $api.msg('已确认'); return ok; });",
+    "Language": "javascript", "ParamsJson": { "message": { "label": "提示内容", "type": "string" } },
+    "Description": "弹出确认框，返回 Promise<boolean>", "SortNo": "2", "IsActive": "1"
+  },
+  {
+    "Id": "ah-alert", "Name": "警告框", "Code": "ShowAlert", "ActionType": "script",
+    "Script": "$api.alert($args.message || '提示');",
+    "Language": "javascript", "ParamsJson": { "message": { "label": "内容", "type": "string" } },
+    "Description": "弹出警告框", "SortNo": "3", "IsActive": "1"
+  },
+  {
+    "Id": "ah-openurl", "Name": "打开链接", "Code": "OpenUrl", "ActionType": "url",
+    "Script": "{url}",
+    "Language": "javascript", "ParamsJson": { "url": { "label": "地址", "type": "string" }, "target": { "label": "打开方式", "type": "select", "options": ["_blank", "_self"] } },
+    "Description": "打开外部链接或页面", "SortNo": "4", "IsActive": "1"
+  },
+  {
+    "Id": "ah-openpage", "Name": "打开动态页面", "Code": "OpenPage", "ActionType": "url",
+    "Script": "/webpage.html?code={code}",
+    "Language": "javascript", "ParamsJson": { "code": { "label": "页面Code", "type": "string" } },
+    "Description": "按 Code 打开平台动态页面", "SortNo": "5", "IsActive": "1"
+  },
+  {
+    "Id": "ah-callapi", "Name": "调用接口", "Code": "CallApi", "ActionType": "api",
+    "Script": "{url}",
+    "Language": "javascript", "ParamsJson": { "url": { "label": "接口地址", "type": "string" }, "method": { "label": "方法", "type": "select", "options": ["GET", "POST"] } },
+    "Description": "调用后端接口（返回 data）", "SortNo": "6", "IsActive": "1"
+  },
+  {
+    "Id": "ah-refresh", "Name": "刷新页面", "Code": "RefreshPage", "ActionType": "script",
+    "Script": "$api.refresh();",
+    "Language": "javascript", "ParamsJson": {},
+    "Description": "刷新当前页面", "SortNo": "7", "IsActive": "1"
+  },
+  {
+    "Id": "ah-chain", "Name": "动作链示例", "Code": "ChainDemo", "ActionType": "chain",
+    "Script": "[{\"action\":\"ShowMessage\",\"params\":{\"message\":\"动作链第一步：提示\"},\"when\":\"\"},{\"action\":\"ShowConfirm\",\"params\":{\"message\":\"动作链第二步：确认\"},\"when\":\"\"},{\"action\":\"ShowMessage\",\"params\":{\"message\":\"动作链第三步：执行完成\",\"type\":\"success\"},\"when\":\"result\"}]",
+    "Language": "javascript", "ParamsJson": {},
+    "Description": "演示动作链：按顺序执行多个动作（条件执行）", "SortNo": "8", "IsActive": "1"
+  },
+  {
+    "Id": "ah-eval", "Name": "表达式求值示例", "Code": "EvalDemo", "ActionType": "script",
+    "Script": "var n = Number($args.n || 0); return { input: n, double: n * 2, tip: '参数与返回值已打通' };",
+    "Language": "javascript", "ParamsJson": { "n": { "label": "数值", "type": "number" } },
+    "Description": "演示脚本动作的参数与返回值", "SortNo": "9", "IsActive": "1"
+  },
+  {
+    "Id": "ah-crud", "Name": "刷新学生数据", "Code": "RefreshStudentList", "ActionType": "script",
+    "Script": "if ($ctx && $ctx.reload) $ctx.reload();",
+    "Language": "javascript", "ParamsJson": {},
+    "Description": "调用页面上下文 reload 刷新表格", "SortNo": "10", "IsActive": "1"
+  }
+]

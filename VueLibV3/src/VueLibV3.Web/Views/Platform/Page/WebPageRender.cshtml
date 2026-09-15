@@ -1,0 +1,62 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "动态页面 - VueLibV3";
+    var pageCode = ViewData["PageCode"] as string;
+    var pageId = ViewData["PageId"] as string;
+}
+<div id="app">
+    <div class="webpage-bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+        <span class="title">{{ pageName || '动态页面' }}</span>
+        <el-tag size="small" v-if="pageCode" type="info" effect="plain">{{ pageCode }}</el-tag>
+    </div>
+    <div id="page-root" v-loading="loading">正在渲染动态页面…</div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .webpage-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .webpage-bar .title { font-weight: 600; color: #303133; margin-right: auto; }
+    #page-root { padding: 16px; }
+</style>
+
+@section Scripts {
+    <script>
+        (function () {
+            var app = Vue.createApp({
+                data: function () {
+                    return { pageName: '', pageCode: '@pageCode', loading: true };
+                },
+                methods: {
+                    go: function (url) { window.location.href = url; },
+                    load: function () {
+                        var self = this;
+                        var url = '/api/platform/dynwebpage/render';
+                        if ('@pageId') url += '?id=' + encodeURIComponent('@pageId');
+                        else if ('@pageCode') url += '?code=' + encodeURIComponent('@pageCode');
+                        else {
+                            self.loading = false;
+                            document.getElementById('page-root').innerHTML = '<div style="text-align:center;color:#909399">缺少页面参数（?code= 或 ?id=）</div>';
+                            return;
+                        }
+                        fetch(url).then(function (r) { return r.json(); }).then(function (res) {
+                            self.loading = false;
+                            if (res.code !== 0 || !res.data) {
+                                document.getElementById('page-root').innerHTML = '<div style="text-align:center;color:#f56c6c">' + (res.msg || '页面加载失败') + '</div>';
+                                return;
+                            }
+                            self.pageName = res.data.name;
+                            self.pageCode = res.data.code;
+                            var cfg = DynCore.normalize(res.data.config || {});
+                            // 运行时：同一套 DynRender 渲染（不编译模板）
+                            DynCore.mount(cfg, document.getElementById('page-root'));
+                        }).catch(function () { self.loading = false; });
+                    }
+                },
+                mounted: function () { this.load(); }
+            });
+            DynCom.setupApp(app);
+            app.mount('#app');
+        })();
+    </script>
+}

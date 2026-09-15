@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{6993EE74-4B1D-43FB-9762-E9C970B91529}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{BE254635-7B75-44B0-80B1-A8B606A06169}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VueLib.Web", "src\VueLib.Web\VueLib.Web.csproj", "{AAF50446-DFF1-4A5E-83C7-D8A1330BBFB1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VueLibV3.Web", "src\VueLibV3.Web\VueLibV3.Web.csproj", "{58134C11-8CBE-4B7D-AB33-A01F3760B74B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -16,12 +16,12 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{AAF50446-DFF1-4A5E-83C7-D8A1330BBFB1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AAF50446-DFF1-4A5E-83C7-D8A1330BBFB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AAF50446-DFF1-4A5E-83C7-D8A1330BBFB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AAF50446-DFF1-4A5E-83C7-D8A1330BBFB1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{58134C11-8CBE-4B7D-AB33-A01F3760B74B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{58134C11-8CBE-4B7D-AB33-A01F3760B74B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{58134C11-8CBE-4B7D-AB33-A01F3760B74B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{58134C11-8CBE-4B7D-AB33-A01F3760B74B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{AAF50446-DFF1-4A5E-83C7-D8A1330BBFB1} = {6993EE74-4B1D-43FB-9762-E9C970B91529}
+		{58134C11-8CBE-4B7D-AB33-A01F3760B74B} = {BE254635-7B75-44B0-80B1-A8B606A06169}
 	EndGlobalSection
 EndGlobal

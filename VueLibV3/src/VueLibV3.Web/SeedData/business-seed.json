@@ -1,0 +1,30 @@
+{
+  "Student": [
+    { "Id": "S001", "Name": "张伟", "Gender": "男", "Age": "18", "ClassName": "一班", "Score": "92", "Phone": "13800000001", "Address": "济南市历下区", "CreateTime": "2026-09-01 08:30:00" },
+    { "Id": "S002", "Name": "李娜", "Gender": "女", "Age": "19", "ClassName": "一班", "Score": "88", "Phone": "13800000002", "Address": "济南市市中区", "CreateTime": "2026-09-01 08:31:00" },
+    { "Id": "S003", "Name": "王强", "Gender": "男", "Age": "18", "ClassName": "一班", "Score": "85", "Phone": "13800000003", "Address": "济南市槐荫区", "CreateTime": "2026-09-01 08:32:00" },
+    { "Id": "S004", "Name": "赵敏", "Gender": "女", "Age": "20", "ClassName": "二班", "Score": "95", "Phone": "13800000004", "Address": "济南市天桥区", "CreateTime": "2026-09-01 08:33:00" },
+    { "Id": "S005", "Name": "刘洋", "Gender": "男", "Age": "19", "ClassName": "二班", "Score": "76", "Phone": "13800000005", "Address": "济南市历城区", "CreateTime": "2026-09-01 08:34:00" },
+    { "Id": "S006", "Name": "陈静", "Gender": "女", "Age": "18", "ClassName": "二班", "Score": "89", "Phone": "13800000006", "Address": "济南市长清区", "CreateTime": "2026-09-01 08:35:00" },
+    { "Id": "S007", "Name": "杨帆", "Gender": "男", "Age": "21", "ClassName": "三班", "Score": "68", "Phone": "13800000007", "Address": "济南市章丘区", "CreateTime": "2026-09-01 08:36:00" },
+    { "Id": "S008", "Name": "周婷", "Gender": "女", "Age": "20", "ClassName": "三班", "Score": "97", "Phone": "13800000008", "Address": "济南市济阳区", "CreateTime": "2026-09-01 08:37:00" },
+    { "Id": "S009", "Name": "吴迪", "Gender": "男", "Age": "22", "ClassName": "三班", "Score": "61", "Phone": "13800000009", "Address": "济南市莱芜区", "CreateTime": "2026-09-01 08:38:00" },
+    { "Id": "S010", "Name": "郑爽", "Gender": "女", "Age": "19", "ClassName": "一班", "Score": "91", "Phone": "13800000010", "Address": "济南市钢城区", "CreateTime": "2026-09-01 08:39:00" },
+    { "Id": "S011", "Name": "孙浩", "Gender": "男", "Age": "23", "ClassName": "二班", "Score": "58", "Phone": "13800000011", "Address": "济南市平阴县", "CreateTime": "2026-09-01 08:40:00" },
+    { "Id": "S012", "Name": "钱进", "Gender": "男", "Age": "18", "ClassName": "三班", "Score": "82", "Phone": "13800000012", "Address": "济南市商河县", "CreateTime": "2026-09-01 08:41:00" }
+  ],
+  "Course": [
+    { "Id": "C001", "Name": "语文", "Teacher": "王老师", "Credit": "2", "Hours": "32", "CreateTime": "2026-09-01 09:00:00" },
+    { "Id": "C002", "Name": "数学", "Teacher": "李老师", "Credit": "3", "Hours": "48", "CreateTime": "2026-09-01 09:00:00" },
+    { "Id": "C003", "Name": "英语", "Teacher": "张老师", "Credit": "2", "Hours": "32", "CreateTime": "2026-09-01 09:00:00" },
+    { "Id": "C004", "Name": "物理", "Teacher": "赵老师", "Credit": "3", "Hours": "40", "CreateTime": "2026-09-01 09:00:00" },
+    { "Id": "C005", "Name": "化学", "Teacher": "陈老师", "Credit": "2", "Hours": "32", "CreateTime": "2026-09-01 09:00:00" }
+  ],
+  "BusinessDict": [
+    { "Id": "bd-g-1", "DictType": "Gender", "DictCode": "male", "DictName": "男", "SortNo": "1", "IsActive": "1" },
+    { "Id": "bd-g-2", "DictType": "Gender", "DictCode": "female", "DictName": "女", "SortNo": "2", "IsActive": "1" },
+    { "Id": "bd-c-1", "DictType": "ClassName", "DictCode": "class-1", "DictName": "一班", "SortNo": "1", "IsActive": "1" },
+    { "Id": "bd-c-2", "DictType": "ClassName", "DictCode": "class-2", "DictName": "二班", "SortNo": "2", "IsActive": "1" },
+    { "Id": "bd-c-3", "DictType": "ClassName", "DictCode": "class-3", "DictName": "三班", "SortNo": "3", "IsActive": "1" }
+  ]
+}

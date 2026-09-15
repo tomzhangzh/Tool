@@ -1,0 +1,2913 @@
+[
+    {
+        "Id":  "cm-el-input",
+        "ComponentName":  "ElInput",
+        "Label":  "输入框",
+        "Category":  "表单组件",
+        "Icon":  "✏️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv",
+                            "DynTabPane",
+                            "ElTabPane"
+                        ],
+        "SlotsDefine":  [
+                            "prefix",
+                            "suffix",
+                            "prepend",
+                            "append"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "placeholder",
+                              "label":  "占位提示",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "type",
+                              "label":  "类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "文本",
+                                                  "value":  "text"
+                                              },
+                                              {
+                                                  "label":  "多行",
+                                                  "value":  "textarea"
+                                              },
+                                              {
+                                                  "label":  "密码",
+                                                  "value":  "password"
+                                              }
+                                          ],
+                              "default":  "text"
+                          },
+                          {
+                              "name":  "clearable",
+                              "label":  "可清空",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "maxlength",
+                              "label":  "最大长度",
+                              "type":  "number",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "showWordLimit",
+                              "label":  "显示字数统计",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "size",
+                              "label":  "尺寸",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "大",
+                                                  "value":  "large"
+                                              },
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  "default"
+                                              },
+                                              {
+                                                  "label":  "小",
+                                                  "value":  "small"
+                                              }
+                                          ],
+                              "default":  ""
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-inputnumber",
+        "ComponentName":  "ElInputNumber",
+        "Label":  "数字输入",
+        "Category":  "表单组件",
+        "Icon":  "🔢",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "min",
+                              "label":  "最小值",
+                              "type":  "number",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "max",
+                              "label":  "最大值",
+                              "type":  "number",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "step",
+                              "label":  "步长",
+                              "type":  "number",
+                              "default":  "1"
+                          },
+                          {
+                              "name":  "precision",
+                              "label":  "精度",
+                              "type":  "number",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "controls",
+                              "label":  "显示步进按钮",
+                              "type":  "boolean",
+                              "default":  true
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-select",
+        "ComponentName":  "ElSelect",
+        "Label":  "下拉选择",
+        "Category":  "表单组件",
+        "Icon":  "📋",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "placeholder",
+                              "label":  "占位提示",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "options",
+                              "label":  "选项(JSON数组)",
+                              "type":  "json",
+                              "default":  "[{\"label\":\"选项1\",\"value\":\"1\"}]"
+                          },
+                          {
+                              "name":  "clearable",
+                              "label":  "可清空",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "multiple",
+                              "label":  "多选",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "filterable",
+                              "label":  "可搜索",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "size",
+                              "label":  "尺寸",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "大",
+                                                  "value":  "large"
+                                              },
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  "default"
+                                              },
+                                              {
+                                                  "label":  "小",
+                                                  "value":  "small"
+                                              }
+                                          ],
+                              "default":  ""
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-radiogroup",
+        "ComponentName":  "ElRadioGroup",
+        "Label":  "单选组",
+        "Category":  "表单组件",
+        "Icon":  "🔘",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "options",
+                              "label":  "选项(JSON数组)",
+                              "type":  "json",
+                              "default":  "[{\"label\":\"男\",\"value\":\"男\"},{\"label\":\"女\",\"value\":\"女\"}]"
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-checkboxgroup",
+        "ComponentName":  "ElCheckboxGroup",
+        "Label":  "复选组",
+        "Category":  "表单组件",
+        "Icon":  "☑️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "options",
+                              "label":  "选项(JSON数组)",
+                              "type":  "json",
+                              "default":  "[{\"label\":\"选项A\",\"value\":\"A\"}]"
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-switch",
+        "ComponentName":  "ElSwitch",
+        "Label":  "开关",
+        "Category":  "表单组件",
+        "Icon":  "🔛",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "activeText",
+                              "label":  "开启文案",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "inactiveText",
+                              "label":  "关闭文案",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-datepicker",
+        "ComponentName":  "ElDatePicker",
+        "Label":  "日期选择",
+        "Category":  "表单组件",
+        "Icon":  "📅",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "type",
+                              "label":  "类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "日期",
+                                                  "value":  "date"
+                                              },
+                                              {
+                                                  "label":  "日期时间",
+                                                  "value":  "datetime"
+                                              },
+                                              {
+                                                  "label":  "日期范围",
+                                                  "value":  "daterange"
+                                              },
+                                              {
+                                                  "label":  "月份",
+                                                  "value":  "month"
+                                              }
+                                          ],
+                              "default":  "date"
+                          },
+                          {
+                              "name":  "placeholder",
+                              "label":  "占位提示",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "valueFormat",
+                              "label":  "值格式",
+                              "type":  "string",
+                              "default":  "YYYY-MM-DD"
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-timepicker",
+        "ComponentName":  "ElTimePicker",
+        "Label":  "时间选择",
+        "Category":  "表单组件",
+        "Icon":  "🕐",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "placeholder",
+                              "label":  "占位提示",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "format",
+                              "label":  "显示格式",
+                              "type":  "string",
+                              "default":  "HH:mm:ss"
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-slider",
+        "ComponentName":  "ElSlider",
+        "Label":  "滑块",
+        "Category":  "表单组件",
+        "Icon":  "🎚️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "min",
+                              "label":  "最小值",
+                              "type":  "number",
+                              "default":  "0"
+                          },
+                          {
+                              "name":  "max",
+                              "label":  "最大值",
+                              "type":  "number",
+                              "default":  "100"
+                          },
+                          {
+                              "name":  "step",
+                              "label":  "步长",
+                              "type":  "number",
+                              "default":  "1"
+                          },
+                          {
+                              "name":  "showInput",
+                              "label":  "显示输入框",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-rate",
+        "ComponentName":  "ElRate",
+        "Label":  "评分",
+        "Category":  "表单组件",
+        "Icon":  "⭐",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "max",
+                              "label":  "最大分值",
+                              "type":  "number",
+                              "default":  "5"
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "allowHalf",
+                              "label":  "允许半星",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-colorpicker",
+        "ComponentName":  "ElColorPicker",
+        "Label":  "颜色选择",
+        "Category":  "表单组件",
+        "Icon":  "🎨",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "showAlpha",
+                              "label":  "显示透明度",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-cascader",
+        "ComponentName":  "ElCascader",
+        "Label":  "级联选择",
+        "Category":  "表单组件",
+        "Icon":  "🪜",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "options",
+                              "label":  "选项(JSON)",
+                              "type":  "json",
+                              "default":  "[]"
+                          },
+                          {
+                              "name":  "placeholder",
+                              "label":  "占位提示",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "clearable",
+                              "label":  "可清空",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "filterable",
+                              "label":  "可搜索",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-button",
+        "ComponentName":  "ElButton",
+        "Label":  "按钮",
+        "Category":  "通用组件",
+        "Icon":  "🔘",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "text",
+                              "label":  "按钮文案",
+                              "type":  "string",
+                              "default":  "按钮"
+                          },
+                          {
+                              "name":  "type",
+                              "label":  "类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  "default"
+                                              },
+                                              {
+                                                  "label":  "主要",
+                                                  "value":  "primary"
+                                              },
+                                              {
+                                                  "label":  "成功",
+                                                  "value":  "success"
+                                              },
+                                              {
+                                                  "label":  "警告",
+                                                  "value":  "warning"
+                                              },
+                                              {
+                                                  "label":  "危险",
+                                                  "value":  "danger"
+                                              },
+                                              {
+                                                  "label":  "信息",
+                                                  "value":  "info"
+                                              }
+                                          ],
+                              "default":  "primary"
+                          },
+                          {
+                              "name":  "size",
+                              "label":  "尺寸",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "大",
+                                                  "value":  "large"
+                                              },
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  "default"
+                                              },
+                                              {
+                                                  "label":  "小",
+                                                  "value":  "small"
+                                              }
+                                          ],
+                              "default":  ""
+                          },
+                          {
+                              "name":  "plain",
+                              "label":  "朴素",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "round",
+                              "label":  "圆角",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "circle",
+                              "label":  "圆形",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "disabled",
+                              "label":  "禁用",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "loading",
+                              "label":  "加载中",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "icon",
+                              "label":  "图标",
+                              "type":  "string",
+                              "default":  ""
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-table",
+        "ComponentName":  "ElTable",
+        "Label":  "数据表格",
+        "Category":  "数据组件",
+        "Icon":  "📊",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+                          "ElTableColumn"
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynFragment",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "columns",
+                              "label":  "列定义(JSON数组)",
+                              "type":  "json",
+                              "default":  "[{\"prop\":\"name\",\"label\":\"名称\"}]"
+                          },
+                          {
+                              "name":  "data",
+                              "label":  "静态数据(JSON数组)",
+                              "type":  "json",
+                              "default":  "[]"
+                          },
+                          {
+                              "name":  "border",
+                              "label":  "边框",
+                              "type":  "boolean",
+                              "default":  true
+                          },
+                          {
+                              "name":  "stripe",
+                              "label":  "斑马纹",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "size",
+                              "label":  "尺寸",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "大",
+                                                  "value":  "large"
+                                              },
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  "default"
+                                              },
+                                              {
+                                                  "label":  "小",
+                                                  "value":  "small"
+                                              }
+                                          ],
+                              "default":  "default"
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-tablecolumn",
+        "ComponentName":  "ElTableColumn",
+        "Label":  "表格列",
+        "Category":  "数据组件",
+        "Icon":  "🗂️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "ElTable"
+                        ],
+        "SlotsDefine":  [
+                            "default",
+                            "header"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "prop",
+                              "label":  "字段名",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "label",
+                              "label":  "列标题",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "width",
+                              "label":  "宽度",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "type",
+                              "label":  "列类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  "default"
+                                              },
+                                              {
+                                                  "label":  "序号",
+                                                  "value":  "index"
+                                              },
+                                              {
+                                                  "label":  "选择",
+                                                  "value":  "selection"
+                                              },
+                                              {
+                                                  "label":  "展开",
+                                                  "value":  "expand"
+                                              }
+                                          ],
+                              "default":  "default"
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-pagination",
+        "ComponentName":  "ElPagination",
+        "Label":  "分页",
+        "Category":  "数据组件",
+        "Icon":  "📑",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "pageSize",
+                              "label":  "每页条数",
+                              "type":  "number",
+                              "default":  "20"
+                          },
+                          {
+                              "name":  "layout",
+                              "label":  "布局",
+                              "type":  "string",
+                              "default":  "total, sizes, prev, pager, next, jumper"
+                          },
+                          {
+                              "name":  "total",
+                              "label":  "总条数",
+                              "type":  "number",
+                              "default":  "0"
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-crudpage",
+        "ComponentName":  "DynCrudPage",
+        "Label":  "增删改查页",
+        "Category":  "数据组件",
+        "Icon":  "🗃️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "DynRow",
+                            "ElRow",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "title",
+                              "label":  "页面标题",
+                              "type":  "string",
+                              "default":  "学生管理"
+                          },
+                          {
+                              "name":  "table",
+                              "label":  "业务表名",
+                              "type":  "string",
+                              "default":  "Student"
+                          },
+                          {
+                              "name":  "project",
+                              "label":  "业务项目Code",
+                              "type":  "string",
+                              "default":  "Business-School"
+                          },
+                          {
+                              "name":  "pageSize",
+                              "label":  "每页条数",
+                              "type":  "number",
+                              "default":  "20"
+                          },
+                          {
+                              "name":  "columns",
+                              "label":  "表格列(JSON)",
+                              "type":  "json",
+                              "default":  "[{\"prop\":\"Name\",\"label\":\"姓名\"},{\"prop\":\"ClassName\",\"label\":\"班级\"}]"
+                          },
+                          {
+                              "name":  "searchFields",
+                              "label":  "搜索字段(JSON)",
+                              "type":  "json",
+                              "default":  "[{\"prop\":\"Name\",\"label\":\"姓名\",\"op\":\"like\"}]"
+                          },
+                          {
+                              "name":  "formFields",
+                              "label":  "表单字段(JSON)",
+                              "type":  "json",
+                              "default":  "[{\"prop\":\"Name\",\"label\":\"姓名\",\"component\":\"ElInput\"}]"
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-table",
+        "ComponentName":  "DynTable",
+        "Label":  "动态表格(API)",
+        "Category":  "数据组件",
+        "Icon":  "📊",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "table",
+                              "label":  "业务表名",
+                              "type":  "string",
+                              "default":  "Student"
+                          },
+                          {
+                              "name":  "project",
+                              "label":  "业务项目Code",
+                              "type":  "string",
+                              "default":  "Business-School"
+                          },
+                          {
+                              "name":  "columns",
+                              "label":  "列定义(JSON)",
+                              "type":  "json",
+                              "default":  "[{\"prop\":\"Name\",\"label\":\"姓名\"}]"
+                          },
+                          {
+                              "name":  "pageSize",
+                              "label":  "每页条数",
+                              "type":  "number",
+                              "default":  "20"
+                          },
+                          {
+                              "name":  "pagination",
+                              "label":  "显示分页",
+                              "type":  "boolean",
+                              "default":  true
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-tree",
+        "ComponentName":  "DynTree",
+        "Label":  "动态树(API)",
+        "Category":  "数据组件",
+        "Icon":  "🌳",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "table",
+                              "label":  "业务表名",
+                              "type":  "string",
+                              "default":  "Student"
+                          },
+                          {
+                              "name":  "project",
+                              "label":  "业务项目Code",
+                              "type":  "string",
+                              "default":  "Business-School"
+                          },
+                          {
+                              "name":  "idField",
+                              "label":  "节点Id字段",
+                              "type":  "string",
+                              "default":  "Id"
+                          },
+                          {
+                              "name":  "parentField",
+                              "label":  "父节点字段",
+                              "type":  "string",
+                              "default":  "ParentId"
+                          },
+                          {
+                              "name":  "labelField",
+                              "label":  "显示字段",
+                              "type":  "string",
+                              "default":  "Name"
+                          },
+                          {
+                              "name":  "showCheckbox",
+                              "label":  "显示复选框",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-tree",
+        "ComponentName":  "ElTree",
+        "Label":  "树形控件",
+        "Category":  "数据组件",
+        "Icon":  "🌳",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "data",
+                              "label":  "数据(JSON)",
+                              "type":  "json",
+                              "default":  "[{\"label\":\"节点1\",\"children\":[]}]"
+                          },
+                          {
+                              "name":  "showCheckbox",
+                              "label":  "显示复选框",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "defaultExpandAll",
+                              "label":  "默认展开",
+                              "type":  "boolean",
+                              "default":  true
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-gridcontainer",
+        "ComponentName":  "DynGridContainer",
+        "Label":  "栅格容器",
+        "Category":  "容器组件",
+        "Icon":  "🧱",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "display",
+                              "label":  "布局方式",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "网格",
+                                                  "value":  "grid"
+                                              },
+                                              {
+                                                  "label":  "弹性",
+                                                  "value":  "flex"
+                                              },
+                                              {
+                                                  "label":  "块级",
+                                                  "value":  "block"
+                                              }
+                                          ],
+                              "default":  "grid"
+                          },
+                          {
+                              "name":  "grid-template-columns",
+                              "label":  "列模板",
+                              "type":  "string",
+                              "default":  "1fr 1fr"
+                          },
+                          {
+                              "name":  "grid-auto-rows",
+                              "label":  "行高",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "gap",
+                              "label":  "间距",
+                              "type":  "string",
+                              "default":  "16px 24px"
+                          },
+                          {
+                              "name":  "align-items",
+                              "label":  "垂直对齐",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "拉伸",
+                                                  "value":  "stretch"
+                                              },
+                                              {
+                                                  "label":  "居中",
+                                                  "value":  "center"
+                                              },
+                                              {
+                                                  "label":  "顶部",
+                                                  "value":  "start"
+                                              },
+                                              {
+                                                  "label":  "底部",
+                                                  "value":  "end"
+                                              }
+                                          ],
+                              "default":  ""
+                          },
+                          {
+                              "name":  "justify-items",
+                              "label":  "水平对齐",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "拉伸",
+                                                  "value":  "stretch"
+                                              },
+                                              {
+                                                  "label":  "居中",
+                                                  "value":  "center"
+                                              },
+                                              {
+                                                  "label":  "左",
+                                                  "value":  "start"
+                                              },
+                                              {
+                                                  "label":  "右",
+                                                  "value":  "end"
+                                              }
+                                          ],
+                              "default":  ""
+                          },
+                          {
+                              "name":  "flex-direction",
+                              "label":  "弹性方向",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "横向",
+                                                  "value":  "row"
+                                              },
+                                              {
+                                                  "label":  "纵向",
+                                                  "value":  "column"
+                                              }
+                                          ],
+                              "default":  ""
+                          },
+                          {
+                              "name":  "flex-wrap",
+                              "label":  "换行",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "不换行",
+                                                  "value":  "nowrap"
+                                              },
+                                              {
+                                                  "label":  "换行",
+                                                  "value":  "wrap"
+                                              }
+                                          ],
+                              "default":  ""
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-card",
+        "ComponentName":  "ElCard",
+        "Label":  "卡片",
+        "Category":  "容器组件",
+        "Icon":  "🗂️",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default",
+                            "header"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "header",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "shadow",
+                              "label":  "阴影",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "始终",
+                                                  "value":  "always"
+                                              },
+                                              {
+                                                  "label":  "悬停",
+                                                  "value":  "hover"
+                                              },
+                                              {
+                                                  "label":  "从不",
+                                                  "value":  "never"
+                                              }
+                                          ],
+                              "default":  "always"
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-card",
+        "ComponentName":  "DynCard",
+        "Label":  "卡片(自定义)",
+        "Category":  "容器组件",
+        "Icon":  "🗂️",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default",
+                            "header",
+                            "footer"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "title",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "shadow",
+                              "label":  "阴影",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "始终",
+                                                  "value":  "always"
+                                              },
+                                              {
+                                                  "label":  "悬停",
+                                                  "value":  "hover"
+                                              },
+                                              {
+                                                  "label":  "从不",
+                                                  "value":  "never"
+                                              }
+                                          ],
+                              "default":  "always"
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-row",
+        "ComponentName":  "ElRow",
+        "Label":  "行",
+        "Category":  "容器组件",
+        "Icon":  "➡️",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+                          "ElCol"
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "gutter",
+                              "label":  "栅格间距",
+                              "type":  "number",
+                              "default":  "0"
+                          },
+                          {
+                              "name":  "justify",
+                              "label":  "水平排列",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "左",
+                                                  "value":  "start"
+                                              },
+                                              {
+                                                  "label":  "中",
+                                                  "value":  "center"
+                                              },
+                                              {
+                                                  "label":  "右",
+                                                  "value":  "end"
+                                              },
+                                              {
+                                                  "label":  "两端",
+                                                  "value":  "space-between"
+                                              },
+                                              {
+                                                  "label":  "环绕",
+                                                  "value":  "space-around"
+                                              }
+                                          ],
+                              "default":  "start"
+                          },
+                          {
+                              "name":  "align",
+                              "label":  "垂直排列",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "顶部",
+                                                  "value":  "top"
+                                              },
+                                              {
+                                                  "label":  "居中",
+                                                  "value":  "middle"
+                                              },
+                                              {
+                                                  "label":  "底部",
+                                                  "value":  "bottom"
+                                              }
+                                          ],
+                              "default":  "top"
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-col",
+        "ComponentName":  "ElCol",
+        "Label":  "列",
+        "Category":  "容器组件",
+        "Icon":  "📐",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "ElRow"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "span",
+                              "label":  "栅格数(1-24)",
+                              "type":  "number",
+                              "default":  "12"
+                          },
+                          {
+                              "name":  "offset",
+                              "label":  "偏移",
+                              "type":  "number",
+                              "default":  "0"
+                          },
+                          {
+                              "name":  "push",
+                              "label":  "右移",
+                              "type":  "number",
+                              "default":  "0"
+                          },
+                          {
+                              "name":  "pull",
+                              "label":  "左移",
+                              "type":  "number",
+                              "default":  "0"
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-tabs",
+        "ComponentName":  "ElTabs",
+        "Label":  "标签页",
+        "Category":  "容器组件",
+        "Icon":  "🗃️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+                          "ElTabPane"
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynFragment",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "type",
+                              "label":  "类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  ""
+                                              },
+                                              {
+                                                  "label":  "卡片",
+                                                  "value":  "card"
+                                              },
+                                              {
+                                                  "label":  "边框卡片",
+                                                  "value":  "border-card"
+                                              }
+                                          ],
+                              "default":  ""
+                          },
+                          {
+                              "name":  "tabPosition",
+                              "label":  "位置",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "上",
+                                                  "value":  "top"
+                                              },
+                                              {
+                                                  "label":  "左",
+                                                  "value":  "left"
+                                              },
+                                              {
+                                                  "label":  "右",
+                                                  "value":  "right"
+                                              },
+                                              {
+                                                  "label":  "下",
+                                                  "value":  "bottom"
+                                              }
+                                          ],
+                              "default":  "top"
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-tabpane",
+        "ComponentName":  "ElTabPane",
+        "Label":  "标签子页",
+        "Category":  "容器组件",
+        "Icon":  "📄",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "ElTabs"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "label",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  "页签"
+                          },
+                          {
+                              "name":  "name",
+                              "label":  "名称",
+                              "type":  "string",
+                              "default":  ""
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-form",
+        "ComponentName":  "DynForm",
+        "Label":  "表单容器",
+        "Category":  "容器组件",
+        "Icon":  "🧾",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynFragment",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "modelname",
+                              "label":  "数据模型名",
+                              "type":  "string",
+                              "default":  "formData"
+                          },
+                          {
+                              "name":  "labelWidth",
+                              "label":  "标签宽度",
+                              "type":  "string",
+                              "default":  "100px"
+                          },
+                          {
+                              "name":  "labelPosition",
+                              "label":  "标签位置",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "右侧",
+                                                  "value":  "right"
+                                              },
+                                              {
+                                                  "label":  "左侧",
+                                                  "value":  "left"
+                                              },
+                                              {
+                                                  "label":  "顶部",
+                                                  "value":  "top"
+                                              }
+                                          ],
+                              "default":  "right"
+                          },
+                          {
+                              "name":  "inline",
+                              "label":  "行内模式",
+                              "type":  "boolean",
+                              "default":  false
+                          },
+                          {
+                              "name":  "size",
+                              "label":  "尺寸",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "大",
+                                                  "value":  "large"
+                                              },
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  "default"
+                                              },
+                                              {
+                                                  "label":  "小",
+                                                  "value":  "small"
+                                              }
+                                          ],
+                              "default":  ""
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-wrapper",
+        "ComponentName":  "DynWrapper",
+        "Label":  "包装容器",
+        "Category":  "容器组件",
+        "Icon":  "📦",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "tag",
+                              "label":  "标签名",
+                              "type":  "string",
+                              "default":  "div"
+                          },
+                          {
+                              "name":  "title",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  ""
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-slot",
+        "ComponentName":  "DynSlot",
+        "Label":  "插槽占位",
+        "Category":  "容器组件",
+        "Icon":  "🎯",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "slotName",
+                              "label":  "插槽名",
+                              "type":  "string",
+                              "default":  "default"
+                          },
+                          {
+                              "name":  "title",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  "插槽区域"
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-dialog",
+        "ComponentName":  "ElDialog",
+        "Label":  "弹窗",
+        "Category":  "容器组件",
+        "Icon":  "🪟",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynFragment",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default",
+                            "header",
+                            "footer"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "title",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  "弹窗"
+                          },
+                          {
+                              "name":  "width",
+                              "label":  "宽度",
+                              "type":  "string",
+                              "default":  "50%"
+                          },
+                          {
+                              "name":  "modal",
+                              "label":  "遮罩",
+                              "type":  "boolean",
+                              "default":  true
+                          },
+                          {
+                              "name":  "closeOnClickModal",
+                              "label":  "点击遮罩关闭",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-openwindow",
+        "ComponentName":  "DynOpenWindow",
+        "Label":  "窗口组件",
+        "Category":  "容器组件",
+        "Icon":  "🖥️",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynFragment",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default",
+                            "header",
+                            "footer"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "title",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  "窗口"
+                          },
+                          {
+                              "name":  "width",
+                              "label":  "宽度",
+                              "type":  "string",
+                              "default":  "60%"
+                          },
+                          {
+                              "name":  "height",
+                              "label":  "高度",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "modal",
+                              "label":  "遮罩",
+                              "type":  "boolean",
+                              "default":  true
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-fragment",
+        "ComponentName":  "DynFragment",
+        "Label":  "片段容器",
+        "Category":  "布局组件",
+        "Icon":  "🧩",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-foreach",
+        "ComponentName":  "DynForEach",
+        "Label":  "循环容器",
+        "Category":  "布局组件",
+        "Icon":  "🔁",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "dataSource",
+                              "label":  "数据(JSON数组)",
+                              "type":  "json",
+                              "default":  "[{\"label\":\"条目1\"},{\"label\":\"条目2\"}]"
+                          },
+                          {
+                              "name":  "itemName",
+                              "label":  "循环变量名",
+                              "type":  "string",
+                              "default":  "item"
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-combination",
+        "ComponentName":  "DynCombination",
+        "Label":  "组合组件",
+        "Category":  "布局组件",
+        "Icon":  "🧩",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default",
+                            "header",
+                            "footer"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "title",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  "组合组件"
+                          },
+                          {
+                              "name":  "layout",
+                              "label":  "布局",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "块级",
+                                                  "value":  "block"
+                                              },
+                                              {
+                                                  "label":  "网格",
+                                                  "value":  "grid"
+                                              },
+                                              {
+                                                  "label":  "弹性",
+                                                  "value":  "flex"
+                                              }
+                                          ],
+                              "default":  "block"
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-divider",
+        "ComponentName":  "ElDivider",
+        "Label":  "分割线",
+        "Category":  "布局组件",
+        "Icon":  "➖",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "contentPosition",
+                              "label":  "文案位置",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "左",
+                                                  "value":  "left"
+                                              },
+                                              {
+                                                  "label":  "中",
+                                                  "value":  "center"
+                                              },
+                                              {
+                                                  "label":  "右",
+                                                  "value":  "right"
+                                              }
+                                          ],
+                              "default":  "center"
+                          },
+                          {
+                              "name":  "direction",
+                              "label":  "方向",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "水平",
+                                                  "value":  "horizontal"
+                                              },
+                                              {
+                                                  "label":  "垂直",
+                                                  "value":  "vertical"
+                                              }
+                                          ],
+                              "default":  "horizontal"
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-div",
+        "ComponentName":  "ElDiv",
+        "Label":  "布局DIV",
+        "Category":  "布局组件",
+        "Icon":  "🟦",
+        "AcceptAll":  "1",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "tag",
+                              "label":  "标签名",
+                              "type":  "string",
+                              "default":  "div"
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-text",
+        "ComponentName":  "DynText",
+        "Label":  "文本",
+        "Category":  "展示组件",
+        "Icon":  "📝",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynSlot",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynFragment",
+                            "DynForEach",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "text",
+                              "label":  "文本内容",
+                              "type":  "textarea",
+                              "default":  "文本内容"
+                          },
+                          {
+                              "name":  "html",
+                              "label":  "渲染HTML",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-tag",
+        "ComponentName":  "ElTag",
+        "Label":  "标签",
+        "Category":  "展示组件",
+        "Icon":  "🏷️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "text",
+                              "label":  "文本",
+                              "type":  "string",
+                              "default":  "标签"
+                          },
+                          {
+                              "name":  "type",
+                              "label":  "类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "默认",
+                                                  "value":  "primary"
+                                              },
+                                              {
+                                                  "label":  "成功",
+                                                  "value":  "success"
+                                              },
+                                              {
+                                                  "label":  "信息",
+                                                  "value":  "info"
+                                              },
+                                              {
+                                                  "label":  "警告",
+                                                  "value":  "warning"
+                                              },
+                                              {
+                                                  "label":  "危险",
+                                                  "value":  "danger"
+                                              }
+                                          ],
+                              "default":  "primary"
+                          },
+                          {
+                              "name":  "closable",
+                              "label":  "可关闭",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-badge",
+        "ComponentName":  "ElBadge",
+        "Label":  "徽标",
+        "Category":  "展示组件",
+        "Icon":  "🔔",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+                            "default"
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "value",
+                              "label":  "数值",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "type",
+                              "label":  "类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "主色",
+                                                  "value":  "primary"
+                                              },
+                                              {
+                                                  "label":  "成功",
+                                                  "value":  "success"
+                                              },
+                                              {
+                                                  "label":  "警告",
+                                                  "value":  "warning"
+                                              },
+                                              {
+                                                  "label":  "危险",
+                                                  "value":  "danger"
+                                              },
+                                              {
+                                                  "label":  "信息",
+                                                  "value":  "info"
+                                              }
+                                          ],
+                              "default":  "danger"
+                          },
+                          {
+                              "name":  "isDot",
+                              "label":  "圆点模式",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-progress",
+        "ComponentName":  "ElProgress",
+        "Label":  "进度条",
+        "Category":  "展示组件",
+        "Icon":  "📈",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "percentage",
+                              "label":  "百分比",
+                              "type":  "number",
+                              "default":  "50"
+                          },
+                          {
+                              "name":  "type",
+                              "label":  "类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "线条",
+                                                  "value":  "line"
+                                              },
+                                              {
+                                                  "label":  "圆形",
+                                                  "value":  "circle"
+                                              },
+                                              {
+                                                  "label":  "仪表盘",
+                                                  "value":  "dashboard"
+                                              }
+                                          ],
+                              "default":  "line"
+                          },
+                          {
+                              "name":  "status",
+                              "label":  "状态",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "无",
+                                                  "value":  ""
+                                              },
+                                              {
+                                                  "label":  "成功",
+                                                  "value":  "success"
+                                              },
+                                              {
+                                                  "label":  "异常",
+                                                  "value":  "exception"
+                                              },
+                                              {
+                                                  "label":  "警告",
+                                                  "value":  "warning"
+                                              }
+                                          ],
+                              "default":  ""
+                          },
+                          {
+                              "name":  "textInside",
+                              "label":  "文字内置",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-image",
+        "ComponentName":  "ElImage",
+        "Label":  "图片",
+        "Category":  "展示组件",
+        "Icon":  "🖼️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "src",
+                              "label":  "图片地址",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "fit",
+                              "label":  "适应方式",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "填充",
+                                                  "value":  "fill"
+                                              },
+                                              {
+                                                  "label":  "包含",
+                                                  "value":  "contain"
+                                              },
+                                              {
+                                                  "label":  "覆盖",
+                                                  "value":  "cover"
+                                              },
+                                              {
+                                                  "label":  "缩放",
+                                                  "value":  "scale-down"
+                                              },
+                                              {
+                                                  "label":  "无",
+                                                  "value":  "none"
+                                              }
+                                          ],
+                              "default":  "cover"
+                          },
+                          {
+                              "name":  "lazy",
+                              "label":  "懒加载",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-el-alert",
+        "ComponentName":  "ElAlert",
+        "Label":  "提示框",
+        "Category":  "展示组件",
+        "Icon":  "⚠️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "title",
+                              "label":  "标题",
+                              "type":  "string",
+                              "default":  "提示信息"
+                          },
+                          {
+                              "name":  "description",
+                              "label":  "描述",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "type",
+                              "label":  "类型",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "成功",
+                                                  "value":  "success"
+                                              },
+                                              {
+                                                  "label":  "信息",
+                                                  "value":  "info"
+                                              },
+                                              {
+                                                  "label":  "警告",
+                                                  "value":  "warning"
+                                              },
+                                              {
+                                                  "label":  "错误",
+                                                  "value":  "error"
+                                              }
+                                          ],
+                              "default":  "info"
+                          },
+                          {
+                              "name":  "closable",
+                              "label":  "可关闭",
+                              "type":  "boolean",
+                              "default":  true
+                          },
+                          {
+                              "name":  "showIcon",
+                              "label":  "显示图标",
+                              "type":  "boolean",
+                              "default":  true
+                          }
+                      ],
+        "IsElementPlus":  "1",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-echart",
+        "ComponentName":  "DynEChart",
+        "Label":  "图表",
+        "Category":  "展示组件",
+        "Icon":  "📈",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynWrapper",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "option",
+                              "label":  "ECharts配置(JSON)",
+                              "type":  "json",
+                              "default":  "{\"xAxis\":{\"type\":\"category\",\"data\":[\"一\",\"二\",\"三\"]},\"yAxis\":{\"type\":\"value\"},\"series\":[{\"type\":\"bar\",\"data\":[20,40,60]}]}"
+                          },
+                          {
+                              "name":  "height",
+                              "label":  "高度",
+                              "type":  "string",
+                              "default":  "300px"
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-codemirror",
+        "ComponentName":  "DynCodeMirror",
+        "Label":  "JSON编辑器",
+        "Category":  "展示组件",
+        "Icon":  "💻",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynGridContainer",
+                            "ElCard",
+                            "DynCard",
+                            "ElRow",
+                            "ElCol",
+                            "DynForm",
+                            "DynWrapper",
+                            "ElDialog",
+                            "DynOpenWindow",
+                            "DynCombination",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "mode",
+                              "label":  "语言",
+                              "type":  "select",
+                              "options":  [
+                                              {
+                                                  "label":  "JSON",
+                                                  "value":  "application/json"
+                                              },
+                                              {
+                                                  "label":  "JavaScript",
+                                                  "value":  "javascript"
+                                              },
+                                              {
+                                                  "label":  "HTML",
+                                                  "value":  "htmlmixed"
+                                              },
+                                              {
+                                                  "label":  "XML",
+                                                  "value":  "xml"
+                                              },
+                                              {
+                                                  "label":  "SQL",
+                                                  "value":  "text/x-sql"
+                                              }
+                                          ],
+                              "default":  "application/json"
+                          },
+                          {
+                              "name":  "height",
+                              "label":  "高度",
+                              "type":  "string",
+                              "default":  "300px"
+                          },
+                          {
+                              "name":  "readonly",
+                              "label":  "只读",
+                              "type":  "boolean",
+                              "default":  false
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    },
+    {
+        "Id":  "cm-dyn-desktop",
+        "ComponentName":  "DynDesktop",
+        "Label":  "桌面组件",
+        "Category":  "展示组件",
+        "Icon":  "🖥️",
+        "AcceptAll":  "0",
+        "AllowDrop":  [
+
+                      ],
+        "CanDropInto":  [
+                            "DynWrapper",
+                            "ElDiv"
+                        ],
+        "SlotsDefine":  [
+
+                        ],
+        "PropsMeta":  [
+                          {
+                              "name":  "solutionId",
+                              "label":  "解决方案Id",
+                              "type":  "string",
+                              "default":  ""
+                          },
+                          {
+                              "name":  "columns",
+                              "label":  "每行图标数",
+                              "type":  "number",
+                              "default":  "6"
+                          }
+                      ],
+        "IsElementPlus":  "0",
+        "Version":  "3.0.0",
+        "IsActive":  "1"
+    }
+]

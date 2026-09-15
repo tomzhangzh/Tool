@@ -1,8 +1,0 @@
-@{
-    // DynElTable —— Element Plus 数据表格组件
-}
-<el-table :data="model[node.modelname] || []" v-bind="node.options.comoptions"
-    :style="node.options.itemoptions.style" :class="node.options.itemoptions.class">
-    <el-table-column v-for="col in (node.options.comoptions.columns || [])" :key="col.prop"
-        :prop="col.prop" :label="col.label" :width="col.width"></el-table-column>
-</el-table>
