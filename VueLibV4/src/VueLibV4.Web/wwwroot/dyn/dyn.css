@@ -1,0 +1,139 @@
+/* ============================================================
+ * VueLibV3  dyn.css  动态组件/设计器公共样式
+ * ============================================================ */
+
+/* ---------- 组合组件 ---------- */
+.dyn-combination { border: 1px dashed #c0c4cc; border-radius: 6px; padding: 8px; background: #fafafa; }
+.dyn-combination-title { font-weight: 600; padding: 4px 8px; color: #606266; border-bottom: 1px dashed #dcdfe6; margin-bottom: 8px; }
+.dyn-combination-body.layout-grid { display: grid; gap: 12px; }
+.dyn-combination-body.layout-flex { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ---------- 插槽占位 ---------- */
+.dyn-slot { border: 1px dashed #409eff; border-radius: 4px; min-height: 36px; padding: 6px; background: rgba(64, 158, 255, 0.04); }
+.dyn-slot-title { font-size: 12px; color: #409eff; margin-bottom: 4px; }
+
+/* ---------- 桌面 ---------- */
+.dyn-desktop { padding: 24px; }
+.dyn-desktop-title { font-size: 22px; font-weight: 700; color: #303133; margin-bottom: 20px; text-align: center; }
+.dyn-desktop-grid { display: grid; gap: 18px; justify-content: center; }
+.dyn-desktop-icon { cursor: pointer; text-align: center; user-select: none; }
+.dyn-desktop-icon-box {
+  width: 64px; height: 64px; margin: 0 auto 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #ecf5ff, #d9ecff);
+  border-radius: 14px; color: #409eff;
+  transition: transform .15s, box-shadow .15s;
+}
+.dyn-desktop-icon:hover .dyn-desktop-icon-box { transform: translateY(-3px); box-shadow: 0 6px 14px rgba(64, 158, 255, .25); }
+.dyn-desktop-emoji { font-size: 32px; line-height: 1; }
+.dyn-desktop-icon-name { font-size: 12px; color: #606266; }
+
+/* ---------- CodeMirror ---------- */
+.dyn-codemirror { border: 1px solid #dcdfe6; border-radius: 4px; overflow: hidden; }
+.dyn-codemirror .CodeMirror { height: 100%; font-family: Consolas, Menlo, monospace; font-size: 13px; }
+
+/* ============================================================
+ * 设计器：绝对定位悬浮选中层（不包装额外 div，不破坏 flex/grid 布局）
+ * ============================================================ */
+.designer-body { margin: 0; height: 100vh; overflow: hidden; font-family: 'Helvetica Neue', Arial, sans-serif; }
+
+.designer-layout { display: flex; height: 100vh; overflow: hidden; }
+
+.designer-left { width: 240px; border-right: 1px solid #e4e7ed; background: #f5f7fa; display: flex; flex-direction: row; transition: width .2s; overflow: hidden; }
+.designer-left.collapsed { width: 24px; }
+.designer-left-body { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.designer-left-tabs { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.designer-left-tabs .el-tabs__header { margin: 0; }
+.designer-left-tabs .el-tabs__content { flex: 1; overflow-y: auto; padding: 4px 8px; }
+.designer-panel-toggle {
+  width: 24px; min-width: 24px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 12px; color: #909399; user-select: none;
+}
+.designer-panel-toggle.left { border-left: 1px solid #e4e7ed; background: #f5f7fa; }
+.designer-panel-toggle.left:hover, .designer-panel-toggle.right:hover { color: #409eff; background: #ecf5ff; }
+.designer-panel-toggle.right { border-right: 1px solid #e4e7ed; background: #f5f7fa; }
+
+.designer-left .comp-scroll { overflow-y: auto; }
+.designer-left .designer-tree { padding: 8px 4px; }
+.designer-left .el-tree { background: transparent; }
+.designer-left .panel-title { padding: 10px 12px; font-weight: 600; color: #303133; background: #fff; border-bottom: 1px solid #ebeef5; position: sticky; top: 0; z-index: 2; }
+.designer-left .comp-category { margin: 8px 0 2px; padding: 6px 12px; font-size: 12px; color: #909399; }
+.designer-left .comp-item {
+  margin: 4px 8px; padding: 8px 10px; background: #fff; border: 1px solid #ebeef5; border-radius: 6px;
+  font-size: 13px; color: #303133; cursor: grab; display: flex; align-items: center; gap: 6px;
+}
+.designer-left .comp-item:hover { border-color: #409eff; color: #409eff; }
+.designer-left .comp-item.dragging { opacity: .5; }
+.designer-left .comp-emoji { font-size: 16px; line-height: 1; }
+
+.designer-center { position: relative; background: #f0f2f5; overflow: auto; flex: 1; min-width: 0; }
+.designer-canvas {
+  position: relative; margin: 20px auto; width: calc(100% - 40px); min-height: 600px;
+  background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0, 0, 0, .08);
+  padding: 16px;
+}
+.designer-canvas.dragover-active { outline: 2px dashed #409eff; outline-offset: -2px; }
+
+/* 设计模式节点 hover 高亮（直接加在组件根元素上，不破坏布局） */
+.design-mode [data-dyn-uid]:hover { outline: 1px dashed #409eff; outline-offset: 1px; cursor: pointer; }
+.design-mode [data-dyn-uid].dyn-node-selected { outline: 2px solid #409eff; outline-offset: 1px; }
+
+/* 绝对定位悬浮选中层 */
+.dyn-overlay-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; }
+.dyn-overlay {
+  position: absolute; border: 2px solid #409eff; pointer-events: none; box-sizing: border-box;
+  box-shadow: 0 0 0 1px rgba(64, 158, 255, .2);
+}
+.dyn-overlay-tools {
+  position: absolute; top: -30px; left: -2px; display: flex; gap: 4px; background: #409eff;
+  border-radius: 4px 4px 0 0; padding: 2px 6px; pointer-events: auto;
+  text-wrap: nowrap;
+}
+.dyn-overlay-tools button {
+  border: none; background: transparent; color: #fff; font-size: 12px; cursor: pointer; padding: 2px 6px;
+  
+}
+.dyn-overlay-tools button:hover { background: rgba(255, 255, 255, .2); border-radius: 3px; }
+.dyn-overlay-label { color: #fff; font-size: 12px; line-height: 24px; padding: 0 6px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 拖拽放置指示 */
+.dyn-drop-indicator {
+  position: absolute; border: 2px dashed #67c23a; background: rgba(103, 194, 58, .08);
+  pointer-events: none; z-index: 998; border-radius: 4px;
+}
+
+.designer-right { width: 320px; border-left: 1px solid #e4e7ed; background: #fff; display: flex; flex-direction: row; transition: width .2s; overflow: hidden; }
+.designer-right.collapsed { width: 24px; }
+.designer-right-body { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.designer-right .panel-title { padding: 10px 12px; font-weight: 600; color: #303133; border-bottom: 1px solid #ebeef5; }
+.designer-right .prop-body { flex: 1; overflow-y: auto; padding: 12px; }
+.designer-right .prop-group { font-size: 12px; color: #909399; margin: 10px 0 4px; }
+.designer-right .prop-item { margin-bottom: 10px; }
+.designer-right .prop-item label { display: block; font-size: 12px; color: #606266; margin-bottom: 4px; }
+.designer-right .prop-item .el-input, .designer-right .prop-item .el-select, .designer-right .prop-item .el-input-number { width: 100%; }
+
+/* 拖拽目标容器高亮占位 */
+.drag-target-active { outline: 2px dashed #409eff !important; outline-offset: 2px; background: rgba(64, 158, 255, .06) !important; }
+
+/* 悬停高亮（display:contents 包裹层无盒子，hover 由 JS 加到组件根） */
+.dyn-hover-active { outline: 1px dashed #409eff; outline-offset: -1px; }
+
+/* 结构树 */
+.dyn-struct-node { padding: 4px 6px; font-size: 13px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 4px; }
+.dyn-struct-node:hover { background: #f5f7fa; }
+.dyn-struct-node.active { background: #ecf5ff; color: #409eff; }
+
+/* 顶部工具栏 */
+.designer-topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 44px; background: #fff; border-bottom: 1px solid #e4e7ed;
+  display: flex; align-items: center; padding: 0 12px; gap: 8px; z-index: 1000;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+}
+.designer-layout { padding-top: 44px; }
+.designer-logo { font-weight: 700; color: #409eff; margin-right: 12px; font-size: 15px; }
+
+/* 弹窗 */
+.designer-dialog-footer { text-align: right; margin-top: 12px; }
+
+/* CRUD 页 */
+.dyn-crud-page .el-card__body { padding: 12px; }

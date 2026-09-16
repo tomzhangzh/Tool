@@ -1,0 +1,107 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "模板导入 Demo - VueLibV4";
+}
+<div id="app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">Vue Template ⇄ DynCom JSON 双向转换 Demo</span>
+    </div>
+    <div class="main">
+        <el-card shadow="never">
+            <template #header><b>① 粘贴 ElementPlus Vue Template → 还原为 JSON</b></template>
+            <el-input
+                v-model="tplText"
+                type="textarea"
+                :rows="10"
+                placeholder="例如：&#10;<ElForm :model=&quot;formData&quot; label-width=&quot;100px&quot;>&#10;  <ElFormItem label=&quot;姓名&quot; required>&#10;    <ElInput v-model=&quot;formData.name&quot; placeholder=&quot;请输入姓名&quot; clearable />&#10;  </ElFormItem>&#10;  <ElButton type=&quot;primary&quot; @@click=&quot;submit&quot;>提交</ElButton>&#10;</ElForm>"
+            />
+            <div style="margin-top:8px;display:flex;gap:8px">
+                <el-button type="primary" @@click="doImport">解析 → JSON</el-button>
+                <el-button @@click="doExport">② JSON → Vue Template</el-button>
+                <el-button @@click="fillSample">填入示例</el-button>
+            </div>
+        </el-card>
+        <el-card shadow="never">
+            <template #header><b>转换结果</b></template>
+            <el-tabs v-model="tab">
+                <el-tab-pane label="导入 JSON" name="json">
+                    <pre class="pre">{{ importText }}</pre>
+                </el-tab-pane>
+                <el-tab-pane label="导出模板" name="tpl">
+                    <pre class="pre">{{ exportText }}</pre>
+                </el-tab-pane>
+                <el-tab-pane label="渲染预览" name="preview">
+                    <div v-if="previewCfg">
+                        <dyn-render :cfg="previewCfg"></dyn-render>
+                        <el-button size="small" type="primary" style="margin-top:12px" @@click="runAction">测试动作（提交）</el-button>
+                    </div>
+                    <el-empty v-else description="暂无预览，请先导入"></el-empty>
+                </el-tab-pane>
+            </el-tabs>
+        </el-card>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; margin-right: auto; }
+    .main { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    @@media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+    .pre { background: #282c34; color: #abb2bf; padding: 12px; border-radius: 6px; font-size: 12px; max-height: 420px; overflow: auto; white-space: pre-wrap; }
+</style>
+
+@section Scripts {
+    <script>
+        (function () {
+            var app = Vue.createApp({
+                data: function () {
+                    return { tplText: '', tab: 'json', importText: '', exportText: '', previewCfg: null };
+                },
+                methods: {
+                    go: function (url) { window.location.href = url; },
+                    fillSample: function () {
+                        this.tplText = [
+                            '<ElForm :model="formData" label-width="100px">',
+                            '  <ElFormItem label="姓名" required>',
+                            '    <ElInput v-model="formData.name" placeholder="请输入姓名" clearable />',
+                            '  </ElFormItem>',
+                            '  <ElFormItem label="手机号">',
+                            '    <ElInput v-model="formData.phone" placeholder="请输入手机号" />',
+                            '  </ElFormItem>',
+                            '  <ElButton type="primary" @@click="ShowMessage">提交</ElButton>',
+                            '</ElForm>'
+                        ].join('\n');
+                    },
+                    doImport: function () {
+                        try {
+                            var roots = DynTemplate.importTemplate(this.tplText);
+                            this.importText = JSON.stringify(roots, null, 2);
+                            this.previewCfg = DynCore.normalize(roots[0] || {});
+                            this.tab = 'json';
+                            ElementPlus.ElMessage.success('解析成功 ' + roots.length + ' 个根组件');
+                        } catch (e) {
+                            this.importText = '解析失败: ' + e.message;
+                            ElementPlus.ElMessage.error('解析失败');
+                        }
+                    },
+                    doExport: function () {
+                        try {
+                            var roots = this.tplText ? DynTemplate.importTemplate(this.tplText) : null;
+                            var cfg = roots && roots[0];
+                            if (!cfg) { ElementPlus.ElMessage.warning('请先输入模板内容'); return; }
+                            this.exportText = DynTemplate.exportTemplate(cfg);
+                            this.tab = 'tpl';
+                        } catch (e) { ElementPlus.ElMessage.error('转换失败: ' + e.message); }
+                    },
+                    runAction: function () {
+                        DynActionHelper.run('ShowMessage', { message: '来自模板导入的按钮事件', type: 'success' });
+                    }
+                }
+            });
+            DynCom.setupApp(app);
+            app.mount('#app');
+        })();
+    </script>
+}

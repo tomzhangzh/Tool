@@ -1,0 +1,108 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <div class="dyn-table" :style="getStyle(jc.options.itemoptions)" :class="getClass(jc.options.itemoptions)">
+        <el-table :data="rows"
+                  v-bind="jc.options.comoptions"
+                  v-loading="loading"
+                  stripe
+                  size="small"
+                  border
+                  v-on:sort-change="onSortChange">
+            <el-table-column v-for="col in columns"
+                             :key="col.prop"
+                             :prop="col.prop"
+                             :label="col.label"
+                             :width="col.width"
+                             :sortable="col.sortable ? 'custom' : false">
+                <template #default="scope">
+                    <slot :name="'cell-' + col.prop" :row="scope.row">
+                        <span v-if="col.type === 'tag'">
+                            <el-tag :type="(col.tagMap && col.tagMap[scope.row[col.prop]]) || 'info'">{{ scope.row[col.prop] }}</el-tag>
+                        </span>
+                        <span v-else>{{ scope.row[col.prop] }}</span>
+                    </slot>
+                </template>
+            </el-table-column>
+            <template v-if="jc.options.comoptions.actions && jc.options.comoptions.actions.length">
+                <el-table-column label="操作" :width="jc.options.comoptions.actionsWidth || 150" fixed="right">
+                    <template #default="scope">
+                        <el-button v-for="act in jc.options.comoptions.actions" :key="act.label"
+                                   size="small" :type="act.type || 'primary'" link
+                                   v-on:click="runAction(act, scope.row)">{{ act.label }}</el-button>
+                    </template>
+                </el-table-column>
+            </template>
+        </el-table>
+        <div v-if="pager" class="dyn-table-pager">
+            <el-pagination background layout="total, sizes, prev, pager, next"
+                           :total="total" :page-size="size" :current-page="page"
+                           :page-sizes="[10,20,50,100]"
+                           v-on:current-change="onPageChange" v-on:size-change="onSizeChange" />
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    // 免模型表格：只要知道 table 即可查询（SqlSugar 读取主键/字段）
+    const table = jc.options?.comoptions?.table || '';
+    const project = jc.options?.comoptions?.project || null;
+    const apiBase = '/api/business/dyndata';
+    const rows = ref([]);
+    const total = ref(0);
+    const page = ref(1);
+    const size = ref(jc.options?.comoptions?.size || 10);
+    const loading = ref(false);
+    const pager = computed(() => !!jc.options?.comoptions?.pager);
+    const columns = computed(() => (jc.options?.comoptions?.columns || []).filter(c => c && c.prop));
+    const orderBy = ref('');
+    const orderDir = ref('');
+
+    function buildFilter() {
+        const f = {};
+        const conds = jc.options?.comoptions?.filter || {};
+        Object.keys(conds).forEach(function (k) {
+            const v = conds[k];
+            if (v === undefined || v === null || v === '') return;
+            if (typeof v === 'object' && v.op) f[k] = v;
+            else f[k] = { op: 'eq', value: v };
+        });
+        return f;
+    }
+
+    function loadList(p) {
+        if (!table) return;
+        loading.value = true;
+        fetch(apiBase + '/search', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: table, project: project, page: p || page.value, size: size.value, filter: buildFilter(), orderBy: orderBy.value, orderDir: orderDir.value })
+        }).then(r => r.json()).then(res => {
+            if (res && res.code === 0 && res.data) {
+                const d = res.data;
+                rows.value = d.rows || d.Rows || [];
+                total.value = d.total || d.Total || 0;
+                page.value = d.page || d.Page || 1;
+                if (d.size || d.Size) size.value = d.size || d.Size;
+            }
+        }).catch(e => console.error('DynTable 加载失败', e)).finally(() => { loading.value = false; });
+    }
+    function onPageChange(p) { loadList(p); }
+    function onSizeChange(s) { size.value = s; loadList(1); }
+    function onSortChange(s) {
+        orderBy.value = s && s.order ? s.prop : '';
+        orderDir.value = s && s.order === 'ascending' ? 'asc' : (s && s.order === 'descending' ? 'desc' : '');
+        loadList(1);
+    }
+    function runAction(act, row) {
+        const handler = act.handler || act.action;
+        if (!handler) return;
+        if (typeof handler === 'function') { handler(row); return; }
+        if (global.DynActionHelper && typeof global.DynActionHelper.run === 'function') {
+            global.DynActionHelper.run(handler, { args: [row] }, { pageData: { row: row } });
+        }
+    }
+    onMounted(function () { loadList(1); });
+}

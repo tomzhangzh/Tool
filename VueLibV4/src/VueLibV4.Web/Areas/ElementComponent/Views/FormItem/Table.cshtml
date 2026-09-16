@@ -1,0 +1,105 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <!-- ElementUI 表格组件（List 屏）：dataUrl 分页 + 共享 model(Rows/PageInfo/Filter) + 操作列(编辑/删除 dyn-lib 动作) -->
+    <div class="dyn-el-table">
+        <el-table :data="parentmodelinfo.Rows" v-loading="loading" border stripe size="default"
+                  :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }">
+            <el-table-column v-for="col in cols" :key="col.prop" :prop="col.prop" :label="col.label"
+                             :width="col.width || undefined" show-overflow-tooltip></el-table-column>
+            <el-table-column v-if="showOps" label="操作" :width="opWidth" align="center" fixed="right">
+                <template #default="scope">
+                    <el-button v-if="editUrl" link type="primary" size="small"
+                               :data-id="scope.row[pk]"
+                               :data-detail-url="editUrl"
+                               dyn-click-open='{"url":"{{detail-url}}","title":"编辑","width":"720px","params":{"id":"{{id}}"}}'>
+                        <el-icon><Edit /></el-icon><span style="margin-left:2px;">编辑</span>
+                    </el-button>
+                    <el-button v-if="deleteUrl" link type="danger" size="small"
+                               :data-id="scope.row[pk]"
+                               :data-detail-url="deleteUrl"
+                               :data-reload-sel="reloadSel"
+                               dyn-click-postback='{"url":"{{detail-url}}","confirm":"确定删除该记录吗？","reload":"{{reload-sel}}","params":{"id":"{{id}}"}}'>
+                        <el-icon><Delete /></el-icon><span style="margin-left:2px;">删除</span>
+                    </el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+        <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+            <el-pagination
+                v-model:current-page="parentmodelinfo.PageInfo.CurrentPage"
+                v-model:page-size="parentmodelinfo.PageInfo.PageSize"
+                :page-sizes="pageSizes"
+                :total="parentmodelinfo.PageInfo.TotalCount"
+                layout="total, sizes, prev, pager, next, jumper"
+                background
+                @@current-change="onPageChange"
+                @@size-change="onSizeChange"></el-pagination>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    // ===== ElementUI 表格（List 屏） =====
+    // options.comoptions: { dataUrl, pk, columns:[{prop,label,width}], showOps, editUrl, deleteUrl, reloadSel, opWidth, pageSizes }
+    // 数据契约：POST dataUrl → { filter, pageInfo } → { rows, totalCount, totalPages, pageIndex, pageSize }
+    // 共享 model：parentmodelinfo.Rows / .PageInfo / .Filter（与 Filter 屏同一 model，setVueModel 可直接驱动）
+    const tOpts = computed(() => jc.options?.comoptions || {});
+    const cols = computed(() => Array.isArray(tOpts.value.columns) ? tOpts.value.columns : []);
+    const pk = computed(() => tOpts.value.pk || 'Id');
+    const editUrl = computed(() => tOpts.value.editUrl || '');
+    const deleteUrl = computed(() => tOpts.value.deleteUrl || '');
+    const reloadSel = computed(() => tOpts.value.reloadSel || '#screen-list');
+    const showOps = computed(() => tOpts.value.showOps !== false && (editUrl.value || deleteUrl.value));
+    const opWidth = computed(() => tOpts.value.opWidth || 160);
+    const pageSizes = computed(() => Array.isArray(tOpts.value.pageSizes) ? tOpts.value.pageSizes : [10, 20, 50, 100]);
+    const loading = ref(false);
+    const dataUrl = computed(() => tOpts.value.dataUrl || '');
+
+    function tableLoad() {
+        if (!dataUrl.value) { console.warn('[DynElTable] 未配置 dataUrl'); return; }
+        loading.value = true;
+        fetch(dataUrl.value, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filter: props.parentmodelinfo.Filter || {},
+                pageInfo: {
+                    currentPage: (props.parentmodelinfo.PageInfo && props.parentmodelinfo.PageInfo.CurrentPage) || 1,
+                    pageSize: (props.parentmodelinfo.PageInfo && props.parentmodelinfo.PageInfo.PageSize) || 10
+                }
+            })
+        }).then(r => r.json()).then(function (res) {
+            if (res && res.success === false) { ElMessage.error(res.message || '查询失败'); return; }
+            if (res && res.rows !== undefined) {
+                props.parentmodelinfo.Rows = res.rows;
+                const pi = props.parentmodelinfo.PageInfo || {};
+                pi.TotalCount = res.totalCount || 0;
+                pi.TotalPages = res.totalPages || 1;
+                if (res.pageIndex) pi.CurrentPage = res.pageIndex;
+                if (res.pageSize) pi.PageSize = res.pageSize;
+            }
+        }).catch(err => ElMessage.error('查询失败: ' + (err && err.message || err)))
+          .finally(function () { loading.value = false; });
+    }
+
+    // 暴露 reload 到共享 model（模板外壳"搜索/清除"按钮通过 evaljs 调用）
+    if (props.parentmodelinfo) props.parentmodelinfo.__tableReload = tableLoad;
+
+    function onPageChange(page) { props.parentmodelinfo.PageInfo.CurrentPage = page || 1; tableLoad(); }
+    function onSizeChange(size) {
+        props.parentmodelinfo.PageInfo.PageSize = size || 10;
+        props.parentmodelinfo.PageInfo.CurrentPage = 1;
+        tableLoad();
+    }
+
+    onMounted(function () { tableLoad(); });
+    // 分页变化（外部 setVueModel 重置 CurrentPage=1 时）→ 自动 reload
+    watch(function () { return props.parentmodelinfo && props.parentmodelinfo.PageInfo && props.parentmodelinfo.PageInfo.CurrentPage; },
+          function (nv, ov) { if (nv && nv !== ov) tableLoad(); });
+
+    // 暴露给模板（_ElementLayout 的 setup 仅返回公共变量，自定义变量需经 comExtra 返回）
+    const comExtra = { cols, pk, editUrl, deleteUrl, reloadSel, showOps, opWidth, pageSizes, loading, tableLoad, onPageChange, onSizeChange };
+}

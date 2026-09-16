@@ -1,0 +1,102 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "动作助手 Demo - VueLibV4";
+}
+<div id="app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">DynActionHelper 动作助手 Demo</span>
+        <el-tag size="small" type="success">所有动作来自数据库 DynActionHelper</el-tag>
+    </div>
+    <div class="main">
+        <el-card shadow="never">
+            <template #header><b>动作列表（{{ actions.length }}）</b></template>
+            <div v-for="a in actions" :key="a.Id" class="action-row">
+                <el-tag size="small" :type="tagType(a.ActionType)">{{ a.ActionType }}</el-tag>
+                <span style="flex:1">{{ a.Name }} <span style="color:#909399;font-size:12px">{{ a.Code }}</span></span>
+                <el-button size="small" type="primary" @@click="runAction(a)">执行</el-button>
+            </div>
+            <el-divider></el-divider>
+            <div>
+                <el-button size="small" @@click="runChain">▶ 执行动作链 ChainDemo</el-button>
+                <el-button size="small" @@click="showScript">查看数据库生成注册脚本</el-button>
+            </div>
+        </el-card>
+
+        <el-card shadow="never">
+            <template #header><b>执行结果 / 上下文</b></template>
+            <div v-if="lastResult !== null" style="margin-bottom:8px">
+                最后返回值：<el-tag size="small" type="success">{{ typeof lastResult === 'object' ? JSON.stringify(lastResult) : lastResult }}</el-tag>
+            </div>
+            <el-divider></el-divider>
+            <b>说明</b>
+            <ul style="font-size:13px;color:#606266;line-height:1.8">
+                <li>动作四类：<code>script</code>（脚本）/ <code>url</code>（链接）/ <code>api</code>（接口）/ <code>chain</code>（动作链）</li>
+                <li>脚本上下文：<code>$action</code> 动作定义、<code>$args</code> 参数、<code>$ctx</code> 页面上下文、<code>$api</code> 工具</li>
+                <li>前端启动时从 <code>/api/platform/dynactionhelper/all</code> 动态注册</li>
+                <li>动作链支持 <code>when</code> 条件（如 result 表示上一步成功才继续）</li>
+            </ul>
+            <div v-if="scriptText">
+                <el-divider></el-divider><b>数据库生成注册脚本</b>
+                <pre class="script-pre">{{ scriptText }}</pre>
+            </div>
+        </el-card>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; margin-right: auto; }
+    .main { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    @@media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+    .action-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .script-pre { background: #282c34; color: #abb2bf; padding: 12px; border-radius: 6px; font-size: 12px; max-height: 320px; overflow: auto; }
+</style>
+
+@section Scripts {
+    <script>
+        (function () {
+            var app = Vue.createApp({
+                data: function () { return { actions: [], lastResult: null, scriptText: '' }; },
+                methods: {
+                    go: function (url) { window.location.href = url; },
+                    tagType: function (t) {
+                        return { script: 'primary', url: 'success', api: 'warning', chain: 'danger' }[t] || 'info';
+                    },
+                    load: function () {
+                        var self = this;
+                        DynActionHelper.loadAll().then(function () {
+                            self.actions = Object.keys(DynActionHelper.actions).map(function (k) { return DynActionHelper.actions[k]; });
+                        });
+                    },
+                    runAction: function (a) {
+                        var self = this;
+                        var args = {};
+                        try {
+                            var params = JSON.parse(a.ParamsJson || '{}');
+                            Object.keys(params).forEach(function (k) {
+                                args[k] = params[k].type === 'number' ? 8 : (k === 'code' ? 'student-manage' : (k === 'url' ? '/Platform/Page/Desktop' : (k === 'message' ? '来自动作助手 Demo' : k)));
+                            });
+                        } catch (e) { }
+                        DynActionHelper.run(a.Code, args, {
+                            reload: function () { ElementPlus.ElMessage.success('页面上下文 reload 已调用'); }
+                        }).then(function (r) { self.lastResult = r; })
+                          .catch(function (e) { ElementPlus.ElMessage.error('执行失败: ' + e.message); });
+                    },
+                    runChain: function () {
+                        var self = this;
+                        DynActionHelper.run('ChainDemo', {}, {}).then(function (r) { self.lastResult = r; });
+                    },
+                    showScript: function () {
+                        var self = this;
+                        fetch('/api/platform/dynactionhelper/script').then(function (r) { return r.text(); }).then(function (t) { self.scriptText = t; });
+                    }
+                },
+                mounted: function () { this.load(); }
+            });
+            DynCom.setupApp(app);
+            app.mount('#app');
+        })();
+    </script>
+}

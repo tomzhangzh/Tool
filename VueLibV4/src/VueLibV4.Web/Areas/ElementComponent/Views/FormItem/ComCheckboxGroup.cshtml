@@ -1,0 +1,34 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementFormItemLayout.cshtml";
+}
+@section setupScripts{    // ---- 常用组件数据源：static(optionValues) / dict(DynDict) / table(工程表) ----
+    const _src = jc.options.comoptions || {};
+    const _srcType = _src.sourceType || 'static';
+    function _fillOptions(list) { if (Array.isArray(list)) comInnerInfo.options = list; }
+    if (_srcType === 'static') {
+        initOptionsFromConfig();
+    } else if (_srcType === 'dict') {
+        if (_src.dictType) {
+            fetch('/api/dyncommon/dicts?type=' + encodeURIComponent(_src.dictType))
+                .then(r => r.json()).then(res => { if (res && res.success) _fillOptions(res.data); });
+        }
+    } else if (_srcType === 'table') {
+        if (_src.projectId && _src.table) {
+            const _qs = 'projectId=' + (_src.projectId || 0)
+                + '&table=' + encodeURIComponent(_src.table || '')
+                + '&valueField=' + encodeURIComponent(_src.valueField || 'Id')
+                + '&textField=' + encodeURIComponent(_src.textField || 'Name')
+                + (_src.filter ? '&filter=' + encodeURIComponent(_src.filter) : '');
+            fetch('/api/dyncommon/options?' + _qs)
+                .then(r => r.json()).then(res => { if (res && res.success) _fillOptions(res.data); });
+        }
+    }    // 多值：字符串逗号分隔 <-> 数组
+    const modelinfoArray = Vue.computed({
+        get() { return typeof modelinfo.value === 'string' && modelinfo.value ? modelinfo.value.split(',').map(s => s.trim()).filter(Boolean) : (Array.isArray(modelinfo.value) ? modelinfo.value : []); },
+        set(arr) { modelinfo.value = Array.isArray(arr) ? arr.join(',') : (arr || ''); }
+    });
+    const comExtra = { modelinfoArray };
+}
+<el-checkbox-group v-model="modelinfoArray" v-bind="jc.options.comoptions" v-on="getComlisteners()">
+    <el-checkbox v-for="opt in comInnerInfo.options" :key="opt.value" :label="opt.value">{{ opt.label }}</el-checkbox>
+</el-checkbox-group>

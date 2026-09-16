@@ -1,0 +1,6 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementFormItemLayout.cshtml";
+}
+<el-input v-model="modelinfo" type="textarea" :rows="jc.options.comoptions.rows || 8" resize="both"
+          v-bind="jc.options.comoptions" v-on="getComlisteners()"
+          placeholder="富文本内容（可输入 HTML）"></el-input>

@@ -1,0 +1,27 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <div class="el-div-container"
+         :style="getStyle(jc.options.itemoptions)"
+         :class="getClass(jc.options.itemoptions)">
+        <n-dynamic-com v-for="(child, idx) in safeChildren"
+                       :key="child.component + '_' + idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
+        </n-dynamic-com>
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    // 容器默认两列 grid 布局；已显式配置 style 时保留原配置
+    const _st = jc.options?.itemoptions?.style;
+    if (!_st || (typeof _st === 'object' && Object.keys(_st).length === 0)) {
+        if (!jc.options) jc.options = {};
+        if (!jc.options.itemoptions) jc.options.itemoptions = {};
+        jc.options.itemoptions.style = { display: 'grid', 'grid-template-columns': '1fr 1fr', gap: '16px 24px' };
+    }
+}

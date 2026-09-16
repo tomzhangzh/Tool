@@ -1,0 +1,67 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] ?? "VueLibV4 企业级低代码平台")</title>
+    <link rel="icon" href="data:,">
+
+    <!-- CSS：Tailwind + ElementPlus + LayUI + 平台动态样式 -->
+    <link rel="stylesheet" href="~/lib/tailwind.css" />
+    <link rel="stylesheet" href="~/lib/element-plus/index.css" />
+    <link rel="stylesheet" href="~/lib/layui/css/layui.css" />
+    <link rel="stylesheet" href="~/lib/codemirror/codemirror.min.css" />
+    <link rel="stylesheet" href="~/dyn/dyn.css" />
+
+    @RenderSection("Head", required: false)
+</head>
+<body>
+    @RenderBody()
+
+    @* 第三方 UMD 库（同步顺序加载） *@
+    <script src="~/lib/vue.global.prod.js"></script>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/lodash.min.js"></script>
+    <script src="~/lib/element-plus/index.full.min.js"></script>
+    <script src="~/lib/layui/layui.js"></script>
+    <script src="~/lib/sortable.min.js"></script>
+    <script src="~/lib/echarts.min.js"></script>
+    <script src="~/lib/codemirror/codemirror.min.js"></script>
+    <script src="~/lib/codemirror/mode-javascript.min.js"></script>
+    <script src="~/lib/codemirror/mode-htmlmixed.min.js"></script>
+    <script src="~/lib/codemirror/mode-xml.min.js"></script>
+    <script src="~/lib/codemirror/mode-css.min.js"></script>
+    <script src="~/lib/codemirror/mode-sql.min.js"></script>
+
+    <script>
+        // TEMP-DEBUG：追踪哪个组件被渲染以及栈溢出源头
+        window.__dbg = [];
+        window.__dbgCapture = function (tag, err) {
+            window.__dbg.push({ tag: tag, msg: String(err && err.message || err).slice(0, 120), stack: String(err && err.stack || '').split('\n').slice(0, 12).join(' | ') });
+            console.warn('[DBG] ' + tag + ': ' + (err && err.message || err));
+        };
+    </script>
+
+    @* 组件注册表（dyncom 在 View 中定义：服务端 _Layout 调用 ViewComponent 输出 JSON，前端消费） *@
+    @await Component.InvokeAsync("DynComRegistry")
+
+    @* 核心：vueLoadCom 动态组件加载器（GET /api/component/define/{name}，Razor 代码优先 / DB 回退） *@
+    <script src="~/dyn/vue-loader.js" asp-append-version="true"></script>
+
+    @* 平台动态模块（V1 顺序：校验 → core(dynCore) → actionhelper(注入动作) → 模板 → 组件库 → 设计器） *@
+    <script src="~/dyn/dyn-validator.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-core.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-actionhelper.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-template.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-com.js" asp-append-version="true"></script>
+    <script src="~/dyn/dyn-designer.js" asp-append-version="true"></script>
+
+    @RenderSection("Scripts", required: false)
+
+    @* ExecJS 注册的服务端 dyn 动作（渲染为隐藏 div dyn-init-*，动作系统 init 扫描自动执行） *@
+    @Html.RenderDynActions()
+</body>
+</html>

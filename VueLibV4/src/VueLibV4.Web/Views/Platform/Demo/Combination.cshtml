@@ -1,0 +1,89 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "组合组件 Demo - VueLibV4";
+}
+<div id="app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">DynCombination 组合组件 Demo（开放属性 / 开放容器 / 开放插槽）</span>
+    </div>
+    <div class="main">
+        <div>
+            <el-card shadow="never">
+                <template #header><b>设计时/运行时同一套 JSON 渲染</b></template>
+                <dyn-render :cfg="cfg"></dyn-render>
+            </el-card>
+        </div>
+        <el-card shadow="never">
+            <template #header>
+                <b>组件配置 JSON</b>
+                <el-button size="small" style="float:right" @@click="copy">复制</el-button>
+            </template>
+            <pre class="json-pre">{{ cfgText }}</pre>
+        </el-card>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; margin-right: auto; }
+    .main { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    @@media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+    .json-pre { background: #282c34; color: #abb2bf; padding: 12px; border-radius: 6px; font-size: 12px; max-height: 480px; overflow: auto; white-space: pre-wrap; }
+</style>
+
+@section Scripts {
+    <script>
+        (function () {
+            var cfg = {
+                component: 'DynCombination',
+                modelname: '',
+                options: {
+                    comoptions: { title: '学生信息组合卡片', layout: 'grid' },
+                    comlisteners: {},
+                    labeloptions: { label: '', required: false, show: true },
+                    itemoptions: { style: {}, class: '' }
+                },
+                validators: [],
+                childrenctrls: [
+                    {
+                        component: 'DynGridContainer',
+                        modelname: '',
+                        options: {
+                            comoptions: { display: 'grid', 'grid-template-columns': '1fr 1fr', gap: '16px 24px' },
+                            comlisteners: {},
+                            labeloptions: { label: '', required: false, show: false },
+                            itemoptions: { style: {}, class: '' }
+                        },
+                        validators: [],
+                        childrenctrls: [
+                            { component: 'ElInput', modelname: 'formData.name', options: { comoptions: { placeholder: '姓名', clearable: true }, comlisteners: {}, labeloptions: { label: '姓名', required: true, show: true }, itemoptions: { style: {}, class: '' } }, validators: [{ type: 'required', message: '请输入姓名' }], childrenctrls: [], slots: {}, extendinfo: {} },
+                            { component: 'ElInput', modelname: 'formData.age', options: { comoptions: { placeholder: '年龄', clearable: true }, comlisteners: {}, labeloptions: { label: '年龄', required: false, show: true }, itemoptions: { style: {}, class: '' } }, validators: [], childrenctrls: [], slots: {}, extendinfo: {} },
+                            { component: 'ElButton', modelname: '', options: { comoptions: { text: '提交', type: 'primary' }, comlisteners: { click: 'ShowMessage' }, labeloptions: { label: '', required: false, show: false }, itemoptions: { style: {}, class: 'col-span-2' } }, validators: [], childrenctrls: [], slots: {}, extendinfo: {} }
+                        ],
+                        slots: {},
+                        extendinfo: {}
+                    }
+                ],
+                slots: {},
+                extendinfo: {}
+            };
+
+            var app = Vue.createApp({
+                data: function () { return { cfg: DynCore.normalize(cfg) }; },
+                computed: {
+                    cfgText: function () { return JSON.stringify(DynCore.clean(this.cfg), null, 2); }
+                },
+                methods: {
+                    go: function (url) { window.location.href = url; },
+                    copy: function () {
+                        navigator.clipboard.writeText(this.cfgText).then(function () { ElementPlus.ElMessage.success('已复制'); });
+                    }
+                }
+            });
+            DynCom.setupApp(app);
+            app.mount('#app');
+        })();
+    </script>
+}

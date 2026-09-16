@@ -1,0 +1,57 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementFormItemLayout.cshtml";
+}
+@section setupScripts{
+    // Lookup 选择器：从工程任意表弹出表格选择
+    const _lk = jc.options.comoptions || {};
+    const lookup = Vue.reactive({
+        visible: false, loading: false, keyword: '', rows: [], total: 0, page: 1, pageSize: 8,
+        cols: []
+    });
+    function _lkCols() {
+        const cols = (_lk.columns || 'Id,Name').split(',').map(c => c.trim()).filter(Boolean);
+        lookup.cols = cols;
+    }
+    function loadLookup() {
+        if (!_lk.projectId || !_lk.table) { return; }
+        lookup.loading = true;
+        const qs = 'projectId=' + (_lk.projectId || 0)
+            + '&table=' + encodeURIComponent(_lk.table || '')
+            + '&page=' + lookup.page + '&pageSize=' + lookup.pageSize
+            + '&columns=' + encodeURIComponent(_lk.columns || 'Id,Name')
+            + (lookup.keyword ? '&keyword=' + encodeURIComponent(lookup.keyword) + '&searchField=' + encodeURIComponent(_lk.searchField || 'Name') : '');
+        fetch('/api/dyncommon/tablelist?' + qs)
+            .then(r => r.json()).then(res => {
+                if (res && res.success) { lookup.rows = res.data || []; lookup.total = res.total || 0; }
+            }).finally(() => { lookup.loading = false; });
+    }
+    function openLookup() { _lkCols(); lookup.page = 1; lookup.keyword = ''; lookup.visible = true; loadLookup(); }
+    function pickLookup(row) {
+        const vf = _lk.valueField || 'Id';
+        modelinfo.value = row[vf];
+        lookup.visible = false;
+    }
+    function lookupPage(p) { lookup.page = p; loadLookup(); }
+    const comExtra = { lookup, openLookup, pickLookup, loadLookup, lookupPage, _lk };
+}
+<div style="display:flex; gap:4px; width:100%;">
+    <el-input v-model="modelinfo" :placeholder="_lk.placeholder || '点击右侧按钮选择'" readonly
+              :style="jc.options.comoptions.inputStyle || { width: '100%' }"></el-input>
+    <el-button v-on:click="openLookup" :disabled="!_lk.projectId || !_lk.table">…</el-button>
+</div>
+<el-dialog v-model="lookup.visible" title="选择记录" width="640px" append-to-body top="10vh">
+    <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <el-input v-model="lookup.keyword" placeholder="搜索关键词" clearable size="small"
+                  v-on:keyup.enter="lookupPage(1)"></el-input>
+        <el-button size="small" type="primary" v-on:click="lookupPage(1)">查询</el-button>
+    </div>
+    <el-table :data="lookup.rows" border stripe size="small" v-loading="lookup.loading" max-height="320"
+              highlight-current-row @@current-change="row => row && pickLookup(row)">
+        <el-table-column v-for="col in lookup.cols" :key="col" :prop="col" :label="col" show-overflow-tooltip></el-table-column>
+    </el-table>
+    <div style="margin-top:8px; text-align:right;">
+        <el-pagination small layout="prev, pager, next, total" :total="lookup.total"
+                       :page-size="lookup.pageSize" :current-page="lookup.page"
+                       @@current-change="lookupPage"></el-pagination>
+    </div>
+</el-dialog>

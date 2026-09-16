@@ -1,0 +1,116 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementFormItemLayout.cshtml";
+}
+<div class="dyn-markdown-box">
+    <div class="dyn-md-toolbar" v-if="jc.options.comoptions.toolbar !== false">
+        <el-radio-group v-model="mdMode" size="small">
+            <el-radio-button label="edit">编辑</el-radio-button>
+            <el-radio-button label="split">分栏</el-radio-button>
+            <el-radio-button label="preview">预览</el-radio-button>
+        </el-radio-group>
+        <span class="dyn-md-count" v-if="jc.options.comoptions.showWordCount !== false">{{ (modelinfo || '').length }} 字</span>
+    </div>
+    <div class="dyn-md-body" :class="'md-mode-' + mdMode"
+         :style="{ height: jc.options.comoptions.height || '260px', border: '1px solid #dcdfe6', borderRadius: '4px', overflow: 'hidden' }">
+        <textarea v-show="mdMode !== 'preview'"
+                  class="dyn-md-textarea"
+                  :readonly="!!jc.options.comoptions.readonly"
+                  :placeholder="jc.options.comoptions.placeholder || '输入 Markdown…'"
+                  v-model="modelinfo"></textarea>
+        <div v-show="mdMode !== 'edit'" class="dyn-md-preview" v-html="mdHtml"></div>
+    </div>
+</div>
+@section setupScripts{
+    DVALUE = '';
+    // ===== Markdown 编辑器（内嵌轻量渲染器，无外部依赖）=====
+    const mdMode = ref('split');
+    const mdHtml = computed(() => mdToHtml(modelinfo.value));
+
+    function mdEscape(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+    // 行内格式：代码 / 加粗 / 斜体 / 删除线 / 链接
+    function mdInline(s) {
+        return s
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+            .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+            .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    }
+    // 轻量 Markdown → HTML（标题/代码块/引用/列表/表格/分隔线/段落）
+    function mdToHtml(src) {
+        if (src == null) return '';
+        var lines = mdEscape(src).split(/\r?\n/);
+        var out = [], i = 0, inCode = false, codeBuf = [], listType = null;
+
+        function closeList() { if (listType) { out.push(listType === 'ul' ? '</ul>' : '</ol>'); listType = null; } }
+        function inline(l) { return mdInline(l).replace(/^\s*(&gt;|\|)/, ''); }
+
+        while (i < lines.length) {
+            var line = lines[i];
+            var cm = line.match(/^```(\w*)\s*$/);
+            if (cm) {
+                if (inCode) { out.push('<pre><code>' + codeBuf.join('\n') + '</code></pre>'); codeBuf = []; inCode = false; }
+                else { closeList(); inCode = true; }
+                i++; continue;
+            }
+            if (inCode) { codeBuf.push(line); i++; continue; }
+            if (!line.trim()) { closeList(); i++; continue; }
+
+            var hm = line.match(/^(#{1,6})\s+(.*)$/);
+            if (hm) { closeList(); var lv = hm[1].length; out.push('<h' + lv + '>' + mdInline(hm[2]) + '</h' + lv + '>'); i++; continue; }
+            if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { closeList(); out.push('<hr>'); i++; continue; }
+
+            // 引用块（连续 > 行合并）
+            if (/^\s*&gt;\s?/.test(line)) {
+                closeList(); var q = [];
+                while (i < lines.length && /^\s*&gt;\s?/.test(lines[i])) { q.push(mdInline(lines[i].replace(/^\s*&gt;\s?/, ''))); i++; }
+                out.push('<blockquote>' + q.join('<br>') + '</blockquote>'); continue;
+            }
+
+            // 无序/有序列表（扁平，不嵌套）
+            var ulm = line.match(/^\s*[-*+]\s+(.*)$/);
+            var olm = line.match(/^\s*\d+\.\s+(.*)$/);
+            if (ulm || olm) {
+                var t = ulm ? 'ul' : 'ol';
+                if (listType !== t) { closeList(); out.push('<' + t + '>'); listType = t; }
+                out.push('<li>' + mdInline((ulm || olm)[1]) + '</li>');
+                i++; continue;
+            }
+
+            // 表格（| a | b | 表头 + 分隔行 + 数据行）
+            if (/^\s*\|.+\|/.test(line)) {
+                closeList();
+                var rows = [];
+                while (i < lines.length && /^\s*\|.*\|/.test(lines[i])) { rows.push(lines[i]); i++; }
+                if (rows.length >= 2) {
+                    var head = rows[0].split('|').slice(1, -1).map(x => x.trim());
+                    var sep = rows[1].split('|').slice(1, -1).map(x => /:?-+:?/.test(x.trim()));
+                    var body = rows.slice(2).map(r => r.split('|').slice(1, -1).map(x => x.trim()));
+                    var h = '<table><thead><tr>' + head.map((c, j) => '<th' + (sep[j] ? ' style="text-align:center"' : '') + '>' + mdInline(c) + '</th>').join('') + '</tr></thead><tbody>';
+                    var b = body.map(r => '<tr>' + r.map((c, j) => '<td' + (sep[j] ? ' style="text-align:center"' : '') + '>' + mdInline(c) + '</td>').join('') + '</tr>').join('');
+                    out.push(h + b + '</tbody></table>');
+                    continue;
+                }
+                out.push('<p>' + mdInline(line) + '</p>'); continue;
+            }
+
+            // 普通段落（合并连续行）
+            var para = [];
+            while (i < lines.length && lines[i].trim() && !/^(#{1,6})\s/.test(lines[i])
+                   && !/^\s*[-*+]\s/.test(lines[i]) && !/^\s*\d+\.\s/.test(lines[i])
+                   && !/^\s*&gt;\s?/.test(lines[i]) && !/^\s*\|.+\|/.test(lines[i])
+                   && !/^```/.test(lines[i])) { para.push(lines[i]); i++; }
+            closeList();
+            out.push('<p>' + para.map(mdInline).join('<br>') + '</p>');
+        }
+        if (inCode) out.push('<pre><code>' + codeBuf.join('\n') + '</code></pre>');
+        closeList();
+        return out.join('\n');
+    }
+
+    const comExtra = { mdMode, mdHtml };
+}

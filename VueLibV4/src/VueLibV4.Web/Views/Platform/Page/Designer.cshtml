@@ -1,0 +1,14 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "页面设计器 - VueLibV4";
+}
+<div id="app">正在加载设计器…</div>
+
+@section Scripts {
+    <script>
+        // 设计器主逻辑在 dyn-designer.js（DynDesigner.create）。
+        // 选中框采用"绝对定位悬浮层"，不包装额外 DOM，
+        // 网格/弹性布局（grid-template-columns: 1fr 1fr + col-span-2）设计与运行时完全一致。
+        DynDesigner.create('#app');
+    </script>
+}

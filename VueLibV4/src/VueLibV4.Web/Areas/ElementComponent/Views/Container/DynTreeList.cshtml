@@ -1,0 +1,205 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <div class="dyn-tree-list" :style="getStyle(jc.options.itemoptions)">
+        <div class="dyn-tl-left" :style="{ width: comoptions.treeWidth || '260px' }">
+            <el-input v-model="tree.filterText" placeholder="搜索" clearable size="small" style="margin-bottom:8px;"></el-input>
+            <el-tree ref="treeRef" :data="tree.data" :props="tree.props" node-key="id"
+                     :filter-node-method="filterNode" :default-expand-all="true" :highlight-current="true"
+                     v-on:node-click="onTreeNodeClick"></el-tree>
+        </div>
+        <div class="dyn-tl-right">
+            <div class="dyn-card">
+                <div class="dyn-card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>{{ list.title }}</span>
+                    <el-button type="success" size="small" v-on:click="openDetail(null)">➕ 新增</el-button>
+                </div>
+                <el-table :data="list.rows" border stripe size="small" v-loading="list.loading"
+                          :header-cell-style="{ background: '#f5f7fa', color: '#606266', fontWeight: 'bold' }"
+                          v-on:sort-change="onSortChange">
+                    <el-table-column v-for="c in list.gridCols" :key="c.name" :prop="c.name" :label="c.label"
+                                     :width="c.width > 0 ? c.width : undefined" show-overflow-tooltip
+                                     :sortable="c.sortable === false ? false : 'custom'"></el-table-column>
+                    <el-table-column label="操作" width="150" fixed="right">
+                        <template #default="scope">
+                            <el-button type="primary" size="small" link v-on:click="openDetail(scope.row)">编辑</el-button>
+                            <el-button type="danger" size="small" link v-on:click="remove(scope.row)">删除</el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+                <div class="dyn-pager">
+                    <el-pagination v-model:current-page="list.page" v-model:page-size="list.pageSize"
+                                   :page-sizes="[10, 20, 50]" :total="list.total"
+                                   layout="total, sizes, prev, pager, next" background
+                                   v-on:current-change="p => loadList(p)"
+                                   v-on:size-change="onSizeChange"></el-pagination>
+                </div>
+            </div>
+        </div>
+
+        <el-dialog v-model="list.detailVisible" :title="list.editing ? '编辑' : '新增'" width="680px" top="8vh" append-to-body>
+            <el-form label-width="110px">
+                <el-form-item v-for="c in list.formCols" :key="c.name" :label="c.label">
+                    <el-select v-if="c.control === 'select'" v-model="list.row[c.name]" clearable style="width:100%">
+                        <el-option v-for="o in (c.options || [])" :key="o.value" :label="o.label" :value="o.value"></el-option>
+                    </el-select>
+                    <el-date-picker v-else-if="c.control === 'date'" v-model="list.row[c.name]" type="date" value-format="YYYY-MM-DD" style="width:100%"></el-date-picker>
+                    <el-input-number v-else-if="c.control === 'input-number'" v-model="list.row[c.name]" :controls="false" style="width:100%"></el-input-number>
+                    <el-switch v-else-if="c.control === 'switch'" v-model="list.row[c.name]"></el-switch>
+                    <el-input v-else v-model="list.row[c.name]"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button v-on:click="list.detailVisible = false">取消</el-button>
+                <el-button type="primary" :loading="list.saving" v-on:click="saveDetail">保存</el-button>
+            </template>
+        </el-dialog>
+    </div>
+</template>
+
+@section setupScripts{
+    const comoptions = jc.options.comoptions || {};
+    if (!jc.options.comoptions) jc.options.comoptions = comoptions;
+
+    const tree = Vue.reactive({ data: [], props: { label: 'label', children: 'children' }, filterText: '', current: null });
+    const treeRef = ref(null);
+    const list = Vue.reactive({
+        loading: false, saving: false, rows: [], total: 0, page: 1, pageSize: 10,
+        orderBy: '', orderDir: '', title: '数据列表',
+        gridCols: [], formCols: [], detailPageId: 0, linkFilter: null,
+        detailVisible: false, editing: false, row: {}
+    });
+
+    function showMsg(msg, type) {
+        try {
+            var el = window.ElementPlus;
+            if (el && el.ElMessage) el.ElMessage({ message: msg, type: type || 'info' });
+            else alert(msg);
+        } catch (e) { alert(msg); }
+    }
+    function showConfirm(msg) {
+        return new Promise(function (resolve) {
+            var el = window.ElementPlus;
+            if (el && el.ElMessageBox) el.ElMessageBox.confirm(msg, '提示', { type: 'warning' })
+                .then(function () { resolve(true); }).catch(function () { resolve(false); });
+            else resolve(confirm(msg));
+        });
+    }
+
+    function loadTree() {
+        if (!comoptions.projectId || !comoptions.treeTable) return;
+        const body = {
+            projectId: comoptions.projectId, table: comoptions.treeTable,
+            idField: comoptions.idField || 'Id', parentIdField: comoptions.parentIdField || 'ParentId',
+            nameField: comoptions.nameField || 'Name', valueField: comoptions.treeValueField || '', rootId: comoptions.rootId || 0
+        };
+        fetch('/DynRun/Data/Tree', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+            .then(r => r.json()).then(res => { if (res && res.success) { tree.data = res.data || []; console.log('[DynTreeList] 树加载', res.count, '节点'); } else { console.error('[DynTreeList] 树加载失败', res); } })
+            .catch(e => console.error('[DynTreeList] 树请求异常', e));
+    }
+    function filterNode(value, data) { if (!value) return true; return (data.label || '').indexOf(value) !== -1; }
+
+    function onTreeNodeClick(data) {
+        // 点击树节点 → 右侧列表按 linkField 过滤
+        tree.current = data;
+        list.linkFilter = data.value;
+        loadList(1);
+        // 支持配置事件回调
+        const listeners = jc.options.comlisteners || {};
+        if (typeof listeners['node-click'] === 'function') { try { listeners['node-click'](data); } catch (e) { } }
+    }
+
+    function loadList(page) {
+        const projId = comoptions.projectId || 0;
+        const listId = comoptions.listPageId || 0;
+        if (!projId || !listId) return;
+        list.loading = true;
+        const filter = {};
+        if (list.linkFilter !== null && list.linkFilter !== undefined && comoptions.linkField) filter[comoptions.linkField] = list.linkFilter;
+        const body = {
+            Filter: filter,
+            PageInfo: { CurrentPage: page || list.page, PageSize: list.pageSize, OrderBy: list.orderBy, OrderDir: list.orderDir }
+        };
+        fetch('/DynRun/Data/List?projectId=' + projId + '&pageId=' + listId, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        }).then(r => r.json()).then(res => {
+            if (res && res.rows) { list.rows = res.rows; list.total = res.totalCount || 0; list.page = res.pageIndex || 1; }
+        }).finally(() => { list.loading = false; });
+    }
+    function onSortChange(s) { list.orderBy = s && s.order ? s.prop : ''; list.orderDir = s && s.order === 'ascending' ? 'asc' : 'desc'; loadList(1); }
+    function onSizeChange(size) { list.pageSize = size || 10; list.page = 1; loadList(1); }
+
+    async function initList() {
+        const projId = comoptions.projectId || 0;
+        const listId = comoptions.listPageId || 0;
+        if (!projId || !listId) return;
+        try {
+            const lr = await fetch('/DynRun/PageDef?projectId=' + projId + '&pageId=' + listId).then(r => r.json());
+            if (lr && lr.success) {
+                list.title = lr.title || '数据列表';
+                list.detailPageId = lr.detailPageId || 0;
+                const def = lr.def || {};
+                list.gridCols = (def.columns || []).filter(c => c.isGrid).sort((a, b) => a.order - b.order);
+                if (def.pageSize) list.pageSize = def.pageSize;
+            }
+            const dId = comoptions.detailPageId || list.detailPageId;
+            if (dId) {
+                const dr = await fetch('/DynRun/PageDef?projectId=' + projId + '&pageId=' + dId).then(r => r.json());
+                if (dr && dr.success) {
+                    const def = dr.def || {};
+                    list.formCols = (def.columns || []).filter(c => c.isForm && !c.isIdentity && !c.isPrimary).sort((a, b) => a.order - b.order);
+                }
+            }
+            loadTree();
+            if (comoptions.autoLoadFirst !== false) loadList(1);
+        } catch (e) { showMsg('初始化失败: ' + e.message, 'error'); }
+    }
+
+    function openDetail(row) {
+        const dId = comoptions.detailPageId || list.detailPageId;
+        if (!dId) { showMsg('未配置详情页', 'warning'); return; }
+        list.editing = !!row;
+        list.detailVisible = true;
+        if (row) { list.row = Object.assign({}, row); }
+        else {
+            list.row = {};
+            list.formCols.forEach(c => { if (!c.isIdentity) list.row[c.name] = c.dbType === 'bool' ? false : ''; });
+            if (comoptions.linkField && list.linkFilter !== null) list.row[comoptions.linkField] = list.linkFilter;
+        }
+    }
+    function saveDetail() {
+        const projId = comoptions.projectId || 0;
+        const dId = comoptions.detailPageId || list.detailPageId;
+        if (!projId || !dId) return;
+        list.saving = true;
+        const data = {};
+        list.formCols.forEach(c => { data[c.name] = list.row[c.name] === undefined ? null : list.row[c.name]; });
+        const pk = (list.gridCols.find(c => c.isPrimary) || {}).name;
+        if (list.editing && pk && list.row[pk] !== undefined && list.row[pk] !== null && list.row[pk] !== '') data[pk] = list.row[pk];
+        fetch('/DynRun/Save?projectId=' + projId + '&pageId=' + dId, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        }).then(r => r.json()).then(res => {
+            if (res && res.success) { showMsg('保存成功', 'success'); list.detailVisible = false; loadList(); }
+            else showMsg((res && res.message) || '保存失败', 'error');
+        }).finally(() => { list.saving = false; });
+    }
+    function remove(row) {
+        const projId = comoptions.projectId || 0;
+        const dId = comoptions.detailPageId || list.detailPageId;
+        const pk = (list.gridCols.find(c => c.isPrimary) || { name: 'Id' }).name;
+        showConfirm('确定删除该记录吗？').then(ok => {
+            if (!ok) return;
+            fetch('/DynRun/Delete?projectId=' + projId + '&pageId=' + (dId || comoptions.listPageId) + '&id=' + row[pk], { method: 'POST' })
+                .then(r => r.json()).then(res => { if (res && res.success) { showMsg('已删除', 'success'); loadList(); } });
+        });
+    }
+
+    watch(() => tree.filterText, function (v) {
+        if (treeRef.value && treeRef.value.filter) treeRef.value.filter(v);
+    });
+
+    onMounted(function () { initList(); });
+    const comExtra = { tree, treeRef, list, comoptions, loadTree, filterNode, onTreeNodeClick, loadList, onSortChange, onSizeChange, openDetail, saveDetail, remove };
+}

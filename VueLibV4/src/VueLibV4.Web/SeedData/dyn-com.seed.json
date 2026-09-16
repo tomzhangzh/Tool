@@ -1,0 +1,66 @@
+[
+  {
+    "Id": "dc-searchbar", "Name": "搜索栏组合", "Code": "SearchBar", "Category": "组合组件", "ComponentName": "DynCombination",
+    "ConfigJson": {
+      "component": "DynCombination", "modelname": "",
+      "options": {
+        "comoptions": { "title": "搜索栏", "layout": "block" },
+        "comlisteners": {},
+        "labeloptions": { "label": "", "required": false, "show": false },
+        "itemoptions": { "style": {}, "class": "" }
+      },
+      "validators": [],
+      "childrenctrls": [
+        {
+          "component": "DynForm", "modelname": "",
+          "options": { "comoptions": { "modelname": "searchForm", "inline": true, "labelWidth": "70px" }, "comlisteners": {}, "labeloptions": { "label": "", "required": false, "show": false }, "itemoptions": { "style": {}, "class": "" } },
+          "validators": [], "childrenctrls": [
+            {
+              "component": "ElInput", "modelname": "searchForm.keyword",
+              "options": { "comoptions": { "placeholder": "请输入关键字" }, "comlisteners": {}, "labeloptions": { "label": "关键字", "required": false, "show": true }, "itemoptions": { "style": { "width": "200px" }, "class": "" } },
+              "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}
+            },
+            {
+              "component": "ElButton", "modelname": "",
+              "options": { "comoptions": { "text": "查询", "type": "primary" }, "comlisteners": { "click": "ShowMessage" }, "labeloptions": { "label": "", "required": false, "show": false }, "itemoptions": { "style": {}, "class": "" } },
+              "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}
+            }
+          ], "slots": {}, "extendinfo": {}
+        }
+      ],
+      "slots": {}, "extendinfo": {}
+    },
+    "Description": "搜索栏组合组件：表单容器 + 查询按钮，开放属性/容器/插槽", "SortNo": "1", "IsActive": "1"
+  },
+  {
+    "Id": "dc-cardaction", "Name": "卡片操作组合", "Code": "CardAction", "Category": "组合组件", "ComponentName": "DynCombination",
+    "ConfigJson": {
+      "component": "DynCombination", "modelname": "",
+      "options": {
+        "comoptions": { "title": "卡片操作", "layout": "block" },
+        "comlisteners": {},
+        "labeloptions": { "label": "", "required": false, "show": false },
+        "itemoptions": { "style": {}, "class": "" }
+      },
+      "validators": [],
+      "childrenctrls": [
+        {
+          "component": "ElCard", "modelname": "",
+          "options": { "comoptions": { "header": "操作区", "shadow": "hover" }, "comlisteners": {}, "labeloptions": { "label": "", "required": false, "show": false }, "itemoptions": { "style": {}, "class": "" } },
+          "validators": [], "childrenctrls": [
+            {
+              "component": "DynGridContainer", "modelname": "",
+              "options": { "comoptions": { "display": "flex", "gap": "8px" }, "comlisteners": {}, "labeloptions": { "label": "", "required": false, "show": false }, "itemoptions": { "style": {}, "class": "" } },
+              "validators": [], "childrenctrls": [
+                { "component": "ElButton", "modelname": "", "options": { "comoptions": { "text": "新增", "type": "primary" }, "comlisteners": { "click": "ShowMessage" }, "labeloptions": { "label": "", "required": false, "show": false }, "itemoptions": { "style": {}, "class": "" } }, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {} },
+                { "component": "ElButton", "modelname": "", "options": { "comoptions": { "text": "删除", "type": "danger" }, "comlisteners": { "click": "ShowConfirm" }, "labeloptions": { "label": "", "required": false, "show": false }, "itemoptions": { "style": {}, "class": "" } }, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {} }
+              ], "slots": {}, "extendinfo": {}
+            }
+          ], "slots": {}, "extendinfo": {}
+        }
+      ],
+      "slots": {}, "extendinfo": {}
+    },
+    "Description": "卡片 + 按钮操作组合", "SortNo": "2", "IsActive": "1"
+  }
+]

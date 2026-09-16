@@ -1,0 +1,26 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_ElementLayout.cshtml";
+}
+
+<template>
+    <el-dialog :model-value="visible"
+               :title="jc.options.comoptions.title || ''"
+               :width="jc.options.comoptions.width || '60%'"
+               :append-to-body="true"
+               v-on:update:model-value="onVisibleChange"
+               v-on:close="onClose">
+        <DynRender v-for="(child, idx) in safeChildren" :key="child.component + '_' + idx" :cfg="child" />
+    </el-dialog>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    // 弹窗组件：comoptions.visible 控制显示（支持 v-model:visible 由父级控制）
+    const visible = ref(!!jc.options?.comoptions?.visible);
+    function onVisibleChange(v) { visible.value = v; }
+    function onClose() { visible.value = false; }
+    function open() { visible.value = true; }
+    function close() { visible.value = false; }
+    // 暴露 open/close 给动作助手（comlisteners.open → 'open'）
+    const comExtra = { open, close };
+}
