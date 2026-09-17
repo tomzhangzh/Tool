@@ -42,8 +42,37 @@ public class ComponentMetaController : ControllerBase
             .OrderBy(c => c.Id)
             .ToList();
         var groups = rows.GroupBy(r => r.Category ?? "未分类")
-            .Select(g => new { category = g.Key, components = g.ToList() });
-        return ApiResult.Ok(groups);
+            .Select(g => new { category = g.Key, components = g.ToList() })
+            .ToList();
+        // 补充 ElementPlus 内置组件（DB 无元数据行）：ElFormItem 供设计器拖入，defaultCfg 自动填 label
+        if (!rows.Any(r => r.ComponentName == "ElFormItem"))
+        {
+            var formGroup = groups.FirstOrDefault(g => g.category == "表单");
+            var fake = new ComponentMeta
+            {
+                ComponentName = "ElFormItem",
+                Label = "表单项",
+                Category = "表单",
+                Icon = "🏷️",
+                IsActive = true,
+                AcceptAll = true, // 表单项可接收任意表单控件/组件作为子项
+                AllowDrop = "[]",
+                SlotsDefine = "[\"default\"]",
+                PropsMeta = "[]"
+            };
+            if (formGroup != null)
+            {
+                var list = formGroup.components.ToList();
+                list.Add(fake);
+                groups.Remove(formGroup);
+                groups.Add(new { category = "表单", components = list });
+            }
+            else
+            {
+                groups.Add(new { category = "表单", components = new List<ComponentMeta> { fake } });
+            }
+        }
+        return ApiResult.Ok(groups.OrderBy(g => g.category));
     }
 
     [HttpGet("get")]

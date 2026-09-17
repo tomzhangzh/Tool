@@ -47,12 +47,19 @@
       dragOverTarget: null,
 
       jsonText: '',
+      jsonError: '',
       importVisible: false, importText: '', importReport: [],
       exportVisible: false, exportText: '',
       pageDialogVisible: false, pageForm: { name: '', code: '', projectId: 'proj-school', templateId: '' },
       templateDialogVisible: false,
       jsonVisible: false,
-      loading: false
+      loading: false,
+
+      /* ---- V1 对齐扩展 ---- */
+      collapsedCats: {},        // 组件库分组折叠
+      showModelDialog: false,   // Model 查看/编辑弹窗
+      modelJsonText: '',        // 当前 model JSON 文本
+      pathList: [],             // 当前选中组件路径（底部状态栏）
     });
 
     /* ================= 工具 ================= */
@@ -109,6 +116,10 @@
           if (p && p.name && p.default !== undefined) cfg.options.comoptions[p.name] = p.default;
         });
       }
+      // V1 对齐：ElFormItem 拖入时自动用元数据 Label 填充标签（避免空标签）
+      if (componentName === 'ElFormItem') {
+        cfg.options.labeloptions.label = (meta && meta.Label) || '表单项';
+      }
       return cfg;
     }
 
@@ -154,11 +165,33 @@
       state.selectedUid = cfg ? uidOf(cfg) : '';
       pageCtx.selected = cfg; // 供 dyn-core 判断"再点一次选中父级"
       syncPanels(cfg);
+      state.pathList = getPathList(cfg);
       VueObj.nextTick(updateOverlay);
     }
 
+    /* 当前选中组件路径链（根 → 当前），供底部状态栏点击跳转 */
+    function getPathList(cfg) {
+      var arr = [];
+      if (!cfg || !state.pageCfg) return arr;
+      function find(node, chain) {
+        if (node === cfg) { chain.push(node); return true; }
+        for (var i = 0; i < (node.childrenctrls || []).length; i++) {
+          if (find(node.childrenctrls[i], chain)) { chain.unshift(node); return true; }
+        }
+        for (var k in (node.slots || {})) {
+          for (var j = 0; j < (node.slots[k] || []).length; j++) {
+            if (find(node.slots[k][j], chain)) { chain.unshift(node); return true; }
+          }
+        }
+        return false;
+      }
+      var chain = [];
+      find(state.pageCfg, chain);
+      return chain; // 根在前
+    }
+
     function syncPanels(cfg) {
-      if (!cfg) { state.eventRows = []; state.validatorRows = []; state.slotRows = []; state.jsonText = ''; return; }
+      if (!cfg) { state.eventRows = []; state.validatorRows = []; state.slotRows = []; state.jsonText = ''; state.jsonError = ''; return; }
       var comlisteners = cfg.options && cfg.options.comlisteners || {};
       state.eventRows = Object.keys(comlisteners).map(function (k) { return { event: k, action: comlisteners[k] }; });
       state.validatorRows = (cfg.validators || []).map(function (v) { return Object.assign({}, v); });
@@ -518,11 +551,47 @@
         var obj = JSON.parse(state.jsonText);
         Object.keys(state.selected).forEach(function (k) { delete state.selected[k]; });
         Object.keys(obj).forEach(function (k) { state.selected[k] = obj[k]; });
+        state.jsonError = '';
         syncPanels(state.selected);
+        state.pathList = getPathList(state.selected);
+        VueObj.nextTick(updateOverlay);
         global.ElementPlus.ElMessage.success('JSON 已应用');
+      } catch (e) {
+        state.jsonError = e.message;
+        global.ElementPlus.ElMessage.error('JSON 格式错误: ' + e.message);
+      }
+    }
+
+    /* ---- JSON 面板实时校验（输入过程不应用，仅提示；点"应用JSON"才回写） ---- */
+    function onJsonInput(v) {
+      state.jsonText = v;
+      try { JSON.parse(v); state.jsonError = ''; }
+      catch (e) { state.jsonError = e.message; }
+    }
+
+    /* ---- Model 查看/编辑弹窗 ---- */
+    function openModelDialog() {
+      state.modelJsonText = JSON.stringify(pageCtx.pageData || {}, null, 2);
+      state.showModelDialog = true;
+    }
+    function applyModelJson() {
+      try {
+        var obj = JSON.parse(state.modelJsonText);
+        Object.keys(pageCtx.pageData).forEach(function (k) { delete pageCtx.pageData[k]; });
+        Object.keys(obj).forEach(function (k) { pageCtx.pageData[k] = obj[k]; });
+        state.showModelDialog = false;
+        global.ElementPlus.ElMessage.success('Model 已应用（页面数据）');
       } catch (e) {
         global.ElementPlus.ElMessage.error('JSON 格式错误: ' + e.message);
       }
+    }
+    function addModelField() {
+      try {
+        var obj = JSON.parse(state.modelJsonText || '{}');
+        var k = 'field' + Object.keys(obj).length;
+        obj[k] = '';
+        state.modelJsonText = JSON.stringify(obj, null, 2);
+      } catch (e) { /* ignore */ }
     }
 
     /* ================= 导入导出 ================= */
@@ -570,15 +639,51 @@
     function structTree() {
       if (!state.pageCfg) return [];
       function walk(cfg) {
-        var label = (metaOf(cfg.component) || {}).Label || cfg.component;
+        var meta = metaOf(cfg.component) || {};
+        var label = meta.Label || cfg.component;
         var children = (cfg.childrenctrls || []).map(walk);
         var slots = cfg.slots || {};
         Object.keys(slots).forEach(function (k) {
-          children.push({ uid: 'slot-' + uidOf(cfg) + '-' + k, label: '#' + k, isSlot: true, cfg: null, children: (slots[k] || []).map(walk) });
+          children.push({ uid: 'slot-' + uidOf(cfg) + '-' + k, label: '#' + k, icon: '📥', isSlot: true, cfg: null, children: (slots[k] || []).map(walk) });
         });
-        return { uid: uidOf(cfg), label: label, cfg: cfg, children: children };
+        return { uid: uidOf(cfg), label: label, icon: meta.Icon || '🧩', cfg: cfg, children: children };
       }
       return [walk(state.pageCfg)];
+    }
+
+    /* 组件树拖拽排序：拖拽树节点 → 移动配置树对应节点 */
+    function onTreeNodeDrop(draggingNode, dropNode, dropType) {
+      var dragCfg = draggingNode && draggingNode.data && draggingNode.data.cfg;
+      var dropCfg = dropNode && dropNode.data && dropNode.data.cfg;
+      if (!dragCfg || !dropCfg) return;
+      if (dragCfg === dropCfg || isDescendantOf(dropCfg, dragCfg)) {
+        global.ElementPlus && global.ElementPlus.ElMessage.warning('不能将容器移动到自身或其内部');
+        return;
+      }
+      // 从原位置移除
+      var hit = findParent(state.pageCfg, dragCfg);
+      if (!hit) return;
+      var oldArr = hit.slot === 'childrenctrls' ? hit.parent.childrenctrls : (hit.parent.slots[hit.slot] || []);
+      var oi = oldArr.indexOf(dragCfg);
+      if (oi >= 0) oldArr.splice(oi, 1);
+      if (dropType === 'inner') {
+        // 放入目标内部末尾
+        dropCfg.childrenctrls = dropCfg.childrenctrls || [];
+        dropCfg.childrenctrls.push(dragCfg);
+      } else {
+        // before/after：插入目标前/后
+        var dhit = findParent(state.pageCfg, dropCfg);
+        var arr = dhit ? (dhit.slot === 'childrenctrls' ? dhit.parent.childrenctrls : (dhit.parent.slots[dhit.slot] || [])) : null;
+        if (arr) {
+          var di = arr.indexOf(dropCfg);
+          arr.splice(dropType === 'after' ? di + 1 : di, 0, dragCfg);
+        } else {
+          state.pageCfg.childrenctrls = state.pageCfg.childrenctrls || [];
+          state.pageCfg.childrenctrls.push(dragCfg);
+        }
+      }
+      select(dragCfg);
+      global.ElementPlus && global.ElementPlus.ElMessage.success('已移动 ' + ((metaOf(dragCfg.component) || {}).Label || dragCfg.component));
     }
 
     /* ================= 画布元素 ================= */
@@ -607,6 +712,70 @@
       return state.pageCfg ? find(state.pageCfg, null) : null;
     }
 
+    /* ================= 内置 JSON 编辑器组件 =================
+     * DynCodeMirror 在 DB/View 中的定义缺失（FormItem 契约 + 无模板），
+     * 设计器内直接内置一个纯 CodeMirror 编辑器，供 JSON tab / Model / 页面 JSON 弹窗使用。
+     */
+    var DynJsonEditor = {
+      name: 'DynJsonEditor',
+      props: {
+        modelValue: { type: String, default: '' },
+        mode: { type: String, default: 'application/json' },
+        height: { type: String, default: '300px' }
+      },
+      emits: ['update:modelValue'],
+      data: function () { return { cm: null }; },
+      mounted: function () {
+        var self = this;
+        if (typeof window.CodeMirror !== 'function') return;
+        // 使用 CodeMirror(container, options) 容器方式：value 参数直接生效，
+        // 不依赖 fromTextArea（其初始化时机不可靠，容易在隐藏容器中不渲染视图）
+        var cmMode = self.mode;
+        if (cmMode === 'application/json' && window.CodeMirror && !window.CodeMirror.modes.json) {
+          cmMode = 'text/javascript';
+        }
+        self.cm = window.CodeMirror(this.$el, {
+            mode: cmMode,
+            lineNumbers: true,
+            lineWrapping: true,
+            viewportMargin: Infinity,
+            value: self.modelValue || ''
+          });
+        this.$el.__dynCm = self.cm; // 供外部程序化读取/测试
+        if (!self.cm) return;
+        // CM 可能创建于隐藏容器（el-tabs 懒渲染、弹窗未打开）→ 视图不渲染。
+        // 轮询等待容器可见后 refresh（display:none 时 ResizeObserver 不触发，轮询最可靠）
+        self._poll = setInterval(function () {
+          if (!self.cm) { clearInterval(self._poll); return; }
+          if (self.$el.clientHeight > 0) {
+            self.cm.refresh();
+            var sc = self.cm.getScrollerElement();
+            var sizer = sc && sc.querySelector('.CodeMirror-sizer');
+            if (sizer && sizer.clientHeight > 20) clearInterval(self._poll);
+          }
+        }, 300);
+        setTimeout(function () { if (self._poll) { clearInterval(self._poll); self._poll = null; } }, 6000);
+        // 容器可能处于隐藏/尺寸 0 状态（el-tabs 懒渲染、弹窗未打开），
+        // 定时兜底 refresh
+        [100, 300, 800].forEach(function (t) {
+          setTimeout(function () { if (self.cm) self.cm.refresh(); }, t);
+        });
+        self.cm.on('change', function () {
+          self.$emit('update:modelValue', self.cm.getValue());
+        });
+      },
+      beforeUnmount: function () {
+        if (this._poll) { clearInterval(this._poll); this._poll = null; }
+        if (this.cm) { this.cm = null; }
+      },
+      watch: {
+        modelValue: function (v) {
+          if (this.cm && this.cm.getValue() !== (v || '')) this.cm.setValue(v || '');
+        }
+      },
+      template: '<div class="dyn-json-editor" :style="{height: height}"></div>'
+    };
+
     /* ================= 根组件 ================= */
     var pageCtx = VueObj.reactive({
       designMode: true,
@@ -614,6 +783,7 @@
       selected: null,
       uidOf: uidOf,
       parentOf: parentOf,
+      isContainer: isContainer,
       onSelect: select,
       onHover: onHover,
       onDragStartCfg: onDragStartCfg,
@@ -657,6 +827,11 @@
         removeSelected: removeSelected, duplicateSelected: duplicateSelected, moveSelected: moveSelected,
         savePage: savePage, openPage: openPage, loadTemplate: loadTemplate,
         applyEvents: applyEvents, applyValidators: applyValidators, applyJson: applyJson,
+        onJsonInput: onJsonInput,
+        openModelDialog: openModelDialog, applyModelJson: applyModelJson, addModelField: addModelField,
+        onTreeNodeDrop: onTreeNodeDrop,
+        toggleCat: function (cat) { state.collapsedCats[cat] = !state.collapsedCats[cat]; },
+        isCatCollapsed: function (cat) { return !!state.collapsedCats[cat]; },
         doImport: doImport, doExport: doExport,
         applyStyleText: applyStyleText, classText: classText,
         newPage: function () {
@@ -719,6 +894,7 @@
       '<el-button size="small" @click="openImport">导入模板</el-button>',
       '<el-button size="small" @click="openExport">导出模板</el-button>',
       '<el-button size="small" @click="openJson">页面JSON</el-button>',
+      '<el-button size="small" type="warning" plain @click="openModelDialog">Model 查看</el-button>',
       '<span style="flex:1"></span>',
       '<el-tag size="small" v-if="st.pageName">{{ st.pageName }}</el-tag>',
       '</div>',
@@ -731,10 +907,12 @@
       '<el-tab-pane label="🧩 组件库" name="comp">',
       '<div class="comp-scroll">',
       '<div v-for="g in st.metaGroups" :key="g.category">',
-      '<div class="comp-category">{{ g.category }}</div>',
+      '<div class="comp-category" @click="toggleCat(g.category)">{{ g.category }}<span class="cat-arrow" :class="{collapsed: isCatCollapsed(g.category)}">▼</span></div>',
+      '<template v-if="!isCatCollapsed(g.category)">',
       '<div class="comp-item" v-for="c in g.components" :key="c.ComponentName" draggable="true" @dragstart="onDragStart(c, $event)">',
       '<span class="comp-emoji">{{ c.Icon || "🧩" }}</span>{{ c.Label }}',
       '</div>',
+      '</template>',
       '</div>',
       '</div>',
       '</el-tab-pane>',
@@ -743,8 +921,8 @@
       '</el-tab-pane>',
       '<el-tab-pane label="🌳 结构树" name="tree">',
       '<div class="designer-tree">',
-      '<el-tree :data="structData" :props="{label: \'label\', children: \'children\'}" default-expand-all node-key="uid" highlight-current :current-node-key="st.selectedUid" @node-click="(n) => n.cfg && select(n.cfg)">',
-      '<template #default="{ data }"><span class="dyn-struct-node" :class="{active: st.selectedUid === data.uid}">{{ data.label }}</span></template>',
+      '<el-tree :data="structData" :props="{label: \'label\', children: \'children\'}" default-expand-all node-key="uid" highlight-current :current-node-key="st.selectedUid" draggable @node-drop="onTreeNodeDrop" @node-click="(n) => n.cfg && select(n.cfg)">',
+      '<template #default="{ data }"><span class="dyn-struct-node" :class="{active: st.selectedUid === data.uid}"><span class="tree-icon">{{ data.icon }}</span>{{ data.label }}</span></template>',
       '</el-tree>',
       '</div>',
       '</el-tab-pane>',
@@ -755,7 +933,7 @@
 
       /* ---- 中间画布 ---- */
       '<div class="designer-center" @dragover.prevent @drop.prevent="dropToRoot">',
-      '<div ref="canvasRef" class="designer-canvas" @click.self="select(null)">',
+      '<div ref="canvasRef" class="designer-canvas design-mode" @click.self="select(null)">',
       '<DynRender :cfg="st.pageCfg" />',
       '<div class="dyn-overlay-container">',
       '<div v-if="st.overlay.uid" class="dyn-overlay" :style="overlayStyle" @click.stop="overlayClick">',
@@ -861,7 +1039,8 @@
 
       '<el-tab-pane label="JSON" name="json">',
       '<div class="prop-body" v-if="st.selected">',
-      '<DynCodeMirror :model-value="st.jsonText" mode="application/json" height="360px" @update:model-value="v => st.jsonText = v" />',
+      '<DynJsonEditor :model-value="st.jsonText" mode="application/json" height="360px" @update:model-value="onJsonInput" />',
+      '<div v-if="st.jsonError" class="json-error-tip">JSON 错误：{{ st.jsonError }}</div>',
       '<div style="margin-top:8px"><el-button size="small" type="primary" @click="applyJson">应用JSON</el-button></div>',
       '</div>',
       '<el-empty v-else description="请选择组件" />',
@@ -870,6 +1049,18 @@
       '</div>',
       '<div class="designer-panel-toggle right" @click="st.rightCollapsed = !st.rightCollapsed" :title="st.rightCollapsed ? \'展开右侧\' : \'收起右侧\'">{{ st.rightCollapsed ? "◀" : "▶" }}</div>',
       '</div>',
+      '</div>',
+
+      /* ---- 底部状态栏：当前组件路径（可点击跳转选中） ---- */
+      '<div class="designer-statusbar">',
+      '<span class="path-label">组件路径：</span>',
+      '<template v-if="st.pathList && st.pathList.length">',
+      '<template v-for="(p, i) in st.pathList" :key="i">',
+      '<span class="path-item" :class="{current: p === st.selected}" @click="select(p)">{{ (metaOf(p.component) || {}).Label || p.component }}</span>',
+      '<span v-if="i < st.pathList.length - 1" class="path-sep">›</span>',
+      '</template>',
+      '</template>',
+      '<span v-else style="color:#c0c4cc">未选中组件</span>',
       '</div>',
 
       /* ---- 打开页面弹窗 ---- */
@@ -903,13 +1094,25 @@
 
       /* ---- 页面JSON弹窗 ---- */
       '<el-dialog v-model="st.jsonVisible" title="页面 JSON" width="720px">',
-      '<DynCodeMirror :model-value="st.jsonText" mode="application/json" height="420px" @update:model-value="v => st.jsonText = v" />',
+      '<DynJsonEditor :model-value="st.jsonText" mode="application/json" height="420px" @update:model-value="v => st.jsonText = v" />',
       '<div style="margin-top:8px"><el-button type="primary" @click="applyPageJson">应用</el-button></div>',
+      '</el-dialog>',
+
+      /* ---- Model 查看/编辑弹窗 ---- */
+      '<el-dialog v-model="st.showModelDialog" title="Model 查看 / 编辑（页面数据）" width="680px">',
+      '<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">',
+      '<el-button size="small" @click="addModelField">添加字段</el-button>',
+      '<span style="font-size:12px;color:#909399">组件 modelname 绑定此对象字段（如 formData.name），编辑后点"应用 Model"写回页面数据</span>',
+      '</div>',
+      '<DynJsonEditor :model-value="st.modelJsonText" mode="application/json" height="360px" @update:model-value="v => st.modelJsonText = v" />',
+      '<div style="margin-top:8px"><el-button type="primary" @click="applyModelJson">应用 Model</el-button></div>',
       '</el-dialog>',
       '</div>'
     ].join('');
 
     var app = VueObj.createApp(Root);
+    // 内置 JSON 编辑器（不依赖 DB/View 定义）
+    app.component('DynJsonEditor', DynJsonEditor);
     // 注册 DynRender（dyn-core 递归渲染器）——设计器画布 <DynRender :cfg="st.pageCfg" /> 依赖
     if (global.DynCore && global.DynCore.DynRender) {
         app.component('DynRender', global.DynCore.DynRender);

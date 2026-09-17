@@ -243,6 +243,24 @@ public class ComponentService
             }
             break;
         }
+
+        // ③ 补充 ElementPlus 内置组件（DB/View 无定义，ElementPlus 全局注册即可渲染）
+        // ElFormItem：表单项，拖入设计器时由 defaultCfg 自动填充 label
+        if (!seen.Contains("ElFormItem"))
+        {
+            result.Add(new ComponentListItemDto
+            {
+                ComponentName = "ElFormItem",
+                Label = "表单项",
+                Category = "表单",
+                Icon = "🏷️",
+                ComponentType = (int)ComponentType.Common,
+                SortOrder = 50,
+                LoadUrl = null, // ElementPlus 全局组件
+                Version = "1.0.0"
+            });
+            seen.Add("ElFormItem");
+        }
         return result;
     }
 

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>DynLib V4 Demo 完整测试页</title>
+<!-- 第三方库CDN，保留 -->
+<link rel="stylesheet" href="https://unpkg.com/element-plus@2.8.8/dist/index.css" />
+<script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/element-plus@2.8.8/dist/index.full.min.js"></script>
+<script src="https://unpkg.com/element-plus@2.8.8/dist/icons.min.js"></script>
+<script src="https://unpkg.com/lodash@4.17.21/lodash.min.js"></script>
+
+<style>
+*{box-sizing:border-box;}
+body{padding:18px;font-family:system-ui,-apple-system,Segoe UI,Roboto;}
+.test-block{border:1px solid #e5e7eb;padding:14px;margin-bottom:18px;border-radius:8px;}
+.title{font-weight:600;margin-bottom:10px;color:#1f2937;font-size:15px;}
+pre{background:#f3f4f6;padding:10px;border-radius:6px;max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;}
+button{padding:5px 12px;margin:3px;border-radius:4px;border:1px solid #dcdfe6;background:#fff;cursor:pointer;}
+input,textarea{padding:6px;border:1px solid #dcdfe6;border-radius:4px;width:100%;}
+.app-box{border:1px dashed #409eff;padding:12px;margin:8px 0;border-radius:6px;background:#f7faff;}
+.log{background:#111827;color:#4ade80;padding:10px;font-size:12px;min-height:130px;white-space:pre-wrap;border-radius:6px;}
+</style>
+</head>
+<body>
+<h1>DynLib V4 内核 Demo 测试页面</h1>
+
+<div class="test-block">
+  <div class="title">0｜全局配置 evaljs开关</div>
+  <div>
+    <label><input type="checkbox" id="chkEval"> disableEvalJs 关闭evaljs动作</label>
+    <button onclick="printLog('DYN_LIB_CONFIG:'+JSON.stringify(window.DYN_LIB_CONFIG))">打印全局配置</button>
+  </div>
+</div>
+
+<div class="test-block">
+  <div class="title">1｜多VueApp + 共享scope（两个独立App共用同一份响应式model）</div>
+  <div data-dyn-shared-scope="scope-demo" data-dyn-scope-json='{"msg":"hello scope","count":0}'>
+    <div class="app-box" data-dyn-mode="createApp" data-dyn-use-scope="scope-demo">
+      <div>【App‑A】count = {{model.count}}</div>
+      <div>msg = {{model.msg}}</div>
+      <button data-dyn-on-click='{"action":"evaljs","options":{"code":"ctx.model.count = ctx.model.count + 1"}}'>count +1</button>
+      <button data-dyn-on-click='{"action":"setvar","options":{"path":"msg","value":"来自AppA修改"}}'>修改msg(A)</button>
+    </div>
+
+    <div class="app-box" data-dyn-mode="createApp" data-dyn-use-scope="scope-demo">
+      <div>【App‑B】count = {{model.count}}</div>
+      <div>msg = {{model.msg}}</div>
+      <button data-dyn-on-click='{"action":"setvar","options":{"path":"count","value":-1}}'>count -1</button>
+      <button data-dyn-on-click='{"action":"setvar","options":{"path":"msg","value":"来自AppB修改"}}'>修改msg(B)</button>
+    </div>
+  </div>
+  <div style="font-size:12px;color:#666;">两个完全独立Vue实例，操作同一个scope，任意一方修改两边视图同步更新</div>
+</div>
+
+<div class="test-block">
+  <div class="title">2｜DynAction 动作系统：属性配置 + 隐藏配置块(__dynObj模拟Vue绑定对象)</div>
+  <div style="display:none;" id="act-toast-cfg" data-dyn-action-cfg></div>
+  <script>
+    document.querySelector('#act-toast-cfg').__dynObj = {
+      action:"toast",
+      options:{message:"✅来自隐藏配置块 __dynObj 对象",type:"success"}
+    };
+  </script>
+  <div>
+    <button data-dyn-on-click='{"action":"toast","options":{"message":"👉直接DOM属性配置toast提示"}}'>属性配置toast</button>
+    <button data-dyn-on-click data-dyn-action-ref="act-toast-cfg">隐藏配置块(__dynObj)</button>
+  </div>
+</div>
+
+<div class="test-block">
+  <div class="title">3｜chain动作链 + bus事件总线 triggerevent</div>
+  <button data-dyn-on-click='{"action":"chain","options":{"steps":[
+    {"action":"toast","options":{"message":"chain步骤1"}},
+    {"action":"delay","options":{"ms":700}},
+    {"action":"triggerevent","options":{"name":"demo-bus","payload":{"num":666}}},
+    {"action":"toast","options":{"message":"chain步骤3，bus事件已发出"}}
+  ]}}'>执行chain动作链</button>
+  <div style="font-size:12px;color:#666;">bus事件会输出到下方日志面板</div>
+</div>
+
+<div class="test-block">
+  <div class="title">4｜模拟后端返回 dyn‑actions 自动执行动作</div>
+  <button onclick="mockBackendDynActions()">模拟后端返回dyn‑actions</button>
+  <pre id="mockRespPre"></pre>
+</div>
+
+<div class="test-block">
+  <div class="title">5｜DynTemplate JSON ↔ Vue模板双向转换</div>
+<textarea id="tplInput" rows="6" placeholder="粘贴vue模板">
+&lt;ElInput v-model="form.username" placeholder="请输入用户名" clearable /&gt;
+&lt;ElButton type="primary"&gt;提交&lt;/ElButton&gt;
+</textarea>
+  <div style="margin:6px 0;">
+    <button onclick="runImportTemplate()">HTML → cfg JSON</button>
+    <button onclick="runExportTemplate()">cfg JSON → HTML模板</button>
+  </div>
+  <pre id="tplOutput"></pre>
+</div>
+
+<div class="test-block">
+  <div class="title">运行日志</div>
+  <div class="log" id="logBox"></div>
+  <button onclick="clearLog()">清空日志</button>
+</div>
+
+<script>
+// ========= 日志工具 =========
+const logBox = document.getElementById('logBox');
+function printLog(text){
+  const t = new Date().toLocaleTimeString();
+  logBox.textContent += `[${t}] ${text}\n`;
+  logBox.scrollTop = logBox.scrollHeight;
+}
+function clearLog(){ logBox.textContent = ''; }
+
+document.addEventListener('DOMContentLoaded',()=>{
+  if(window.dyn){
+    dyn.busOn('demo-bus',(payload)=>{
+      printLog(`🚌 bus事件 demo‑bus 收到 payload=${JSON.stringify(payload)}`);
+    });
+  }
+});
+
+// 模拟后端dyn‑actions
+function mockBackendDynActions(){
+  const mockResp = {
+    "dyn‑actions":[
+      {"action":"toast","options":{"message":"✅模拟后端dyn‑actions执行成功"}},
+      {"action":"setvar","options":{"path":"count","value":888}}
+    ]
+  };
+  document.getElementById('mockRespPre').textContent = JSON.stringify(mockResp,null,2);
+  if(window.dyn && dyn.runJsonActions){
+    dyn.runJsonActions(mockResp,document.body);
+    printLog("模拟执行 dyn‑actions 完成");
+  }
+}
+
+// DynTemplate测试
+function runImportTemplate(){
+  if(!window.DynTemplate){ printLog("DynTemplate未加载");return; }
+  const html = document.getElementById('tplInput').value;
+  const res = DynTemplate.importTemplate(html);
+  document.getElementById('tplOutput').textContent = JSON.stringify(res,null,2);
+  printLog("importTemplate：HTML解析为cfg完成");
+}
+function runExportTemplate(){
+  if(!window.DynTemplate){ printLog("DynTemplate未加载");return; }
+  try{
+    const jsonText = document.getElementById('tplOutput').textContent;
+    const arr = JSON.parse(jsonText);
+    const out = arr.map(item=>DynTemplate.exportTemplate(item)).join('\n');
+    document.getElementById('tplOutput').textContent = out;
+    printLog("exportTemplate：cfg导出Vue模板完成");
+  }catch(err){ printLog("导出异常："+err.message); }
+}
+
+// evaljs开关
+document.getElementById('chkEval').addEventListener('change',e=>{
+  if(window.DYN_LIB_CONFIG){
+    DYN_LIB_CONFIG.disableEvalJs = e.target.checked;
+    printLog("disableEvalJs = "+DYN_LIB_CONFIG.disableEvalJs);
+  }
+});
+</script>
+
+<!-- ✅只保留dyn‑lib.js！！！其余dyn脚本全部由dyn‑lib内部自动按顺序加载，不要再手写script标签 -->
+<script src="./dyn-lib.js"></script>
+<script src="../lib/jquery/dist/jquery.min.js"></script>
+<script>
+// DynLib就绪之后初始化页面
+DynLib.ready(function(){
+    debugger;
+  printLog("✅ DynLib.ready 全部内核脚本就绪");
+  // 初始化所有data‑dyn‑mode="createApp"
+  document.querySelectorAll('[data-dyn-mode="createApp"]').forEach(el=>{
+    dyn.mount(el).then(app=>{
+      printLog(`mount完成，use‑scope=${el.getAttribute('data-dyn-use-scope')||"无"}`);
+    })
+  });
+  // 执行页面上所有data‑dyn‑on‑init初始化动作
+  dyn.initActions(document.body);
+});
+</script>
+
+</body>
+</html>

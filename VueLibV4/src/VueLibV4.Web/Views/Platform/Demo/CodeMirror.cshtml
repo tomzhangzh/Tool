@@ -10,7 +10,7 @@
     <div class="main">
         <el-card shadow="never">
             <template #header><b>JSON 编辑器（用于设计器属性、页面配置）</b></template>
-            <dyn-codemirror :model-value="json" mode="application/json" height="360px" @@update:model-value="onChange"></dyn-codemirror>
+            <dyn-code-mirror :jsonconfig="jsonCfg" :parentmodelinfo="model"></dyn-code-mirror>
             <div :class="error ? 'error-box' : 'ok-box'">{{ error || 'JSON 格式正确' }}</div>
             <div style="margin-top:10px;display:flex;gap:8px">
                 <el-button size="small" @@click="format">格式化</el-button>
@@ -26,14 +26,14 @@
             <el-card shadow="never" style="margin-top:16px">
                 <template #header><b>多模式支持</b></template>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <el-button size="small" @@click="mode='application/json'">JSON</el-button>
-                    <el-button size="small" @@click="mode='text/javascript'">JavaScript</el-button>
-                    <el-button size="small" @@click="mode='text/html'">HTML</el-button>
-                    <el-button size="small" @@click="mode='text/x-sql'">SQL</el-button>
-                    <el-button size="small" @@click="mode='text/css'">CSS</el-button>
+                    <el-button size="small" @@click="setMode('json')">JSON</el-button>
+                    <el-button size="small" @@click="setMode('javascript')">JavaScript</el-button>
+                    <el-button size="small" @@click="setMode('html')">HTML</el-button>
+                    <el-button size="small" @@click="setMode('sql')">SQL</el-button>
+                    <el-button size="small" @@click="setMode('css')">CSS</el-button>
                 </div>
                 <div style="margin-top:10px">
-                    <dyn-codemirror :model-value="codeText" :mode="mode" height="200px" @@update:model-value="v => codeText = v" />
+                    <dyn-code-mirror :jsonconfig="codeCfg" :parentmodelinfo="model" />
                 </div>
             </el-card>
         </div>
@@ -86,27 +86,48 @@
             var app = Vue.createApp({
                 data: function () {
                     return {
-                        json: JSON.stringify(sample, null, 2),
+                        model: Vue.reactive({ json: JSON.stringify(sample, null, 2), codeText: '// 切换右上角模式可编辑不同类型代码\nvar demo = { ok: true };' }),
                         error: '',
                         previewCfg: null,
-                        mode: 'application/json',
-                        codeText: '// 切换右上角模式可编辑不同类型代码\nvar demo = { ok: true };'
+                        mode: 'json',
+                        jsonCfg: {
+                            component: 'DynCodeMirror',
+                            modelname: 'json',
+                            options: {
+                                comoptions: { language: 'json', height: '360px', placeholder: '在此输入 JSON 配置…' },
+                                comlisteners: {}, labeloptions: { label: 'JSON 配置', required: false, show: false },
+                                itemoptions: { style: {}, class: '' }
+                            },
+                            validators: [], childrenctrls: [], slots: {}, extendinfo: {}
+                        },
+                        codeCfg: {
+                            component: 'DynCodeMirror',
+                            modelname: 'codeText',
+                            options: {
+                                comoptions: { language: 'json', height: '200px', placeholder: '切换右上角模式可编辑不同类型代码' },
+                                comlisteners: {}, labeloptions: { label: '', required: false, show: false },
+                                itemoptions: { style: {}, class: '' }
+                            },
+                            validators: [], childrenctrls: [], slots: {}, extendinfo: {}
+                        }
                     };
+                },
+                watch: {
+                    'model.json': function (v) {
+                        try { JSON.parse(v); this.error = ''; }
+                        catch (e) { this.error = 'JSON 格式错误: ' + e.message; }
+                    }
                 },
                 methods: {
                     go: function (url) { window.location.href = url; },
-                    onChange: function (v) {
-                        this.json = v;
-                        try { JSON.parse(v); this.error = ''; }
-                        catch (e) { this.error = 'JSON 格式错误: ' + e.message; }
-                    },
                     format: function () {
-                        try { this.json = JSON.stringify(JSON.parse(this.json), null, 2); this.error = ''; }
+                        try { this.model.json = JSON.stringify(JSON.parse(this.model.json), null, 2); this.error = ''; }
                         catch (e) { this.error = '无法格式化: ' + e.message; }
                     },
+                    setMode: function (m) { this.mode = m; this.codeCfg.options.comoptions.language = m; },
                     renderPreview: function () {
                         try {
-                            this.previewCfg = DynCore.normalize(JSON.parse(this.json));
+                            this.previewCfg = DynCore.normalize(JSON.parse(this.model.json));
                             this.error = '';
                             ElementPlus.ElMessage.success('渲染成功');
                         } catch (e) { this.error = 'JSON 格式错误: ' + e.message; }
@@ -114,7 +135,7 @@
                 }
             });
             DynCom.setupApp(app);
-            app.mount('#app');
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
         })();
     </script>
 }

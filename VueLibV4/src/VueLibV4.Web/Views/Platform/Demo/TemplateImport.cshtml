@@ -15,7 +15,7 @@
                 type="textarea"
                 :rows="10"
                 placeholder="例如：&#10;<ElForm :model=&quot;formData&quot; label-width=&quot;100px&quot;>&#10;  <ElFormItem label=&quot;姓名&quot; required>&#10;    <ElInput v-model=&quot;formData.name&quot; placeholder=&quot;请输入姓名&quot; clearable />&#10;  </ElFormItem>&#10;  <ElButton type=&quot;primary&quot; @@click=&quot;submit&quot;>提交</ElButton>&#10;</ElForm>"
-            />
+            ></el-input>
             <div style="margin-top:8px;display:flex;gap:8px">
                 <el-button type="primary" @@click="doImport">解析 → JSON</el-button>
                 <el-button @@click="doExport">② JSON → Vue Template</el-button>
@@ -101,7 +101,7 @@
                 }
             });
             DynCom.setupApp(app);
-            app.mount('#app');
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
         })();
     </script>
 }

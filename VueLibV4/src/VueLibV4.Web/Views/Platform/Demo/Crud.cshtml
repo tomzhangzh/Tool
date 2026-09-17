@@ -73,7 +73,7 @@
                 methods: { go: function (url) { window.location.href = url; } }
             });
             DynCom.setupApp(app);
-            app.mount('#app');
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
         })();
     </script>
 }
