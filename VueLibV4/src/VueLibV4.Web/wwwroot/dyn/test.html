@@ -1,188 +1,327 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8" />
-<title>DynLib V4 Demo 完整测试页</title>
-<!-- 第三方库CDN，保留 -->
-<link rel="stylesheet" href="https://unpkg.com/element-plus@2.8.8/dist/index.css" />
-<script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
-<script src="https://unpkg.com/element-plus@2.8.8/dist/index.full.min.js"></script>
-<script src="https://unpkg.com/element-plus@2.8.8/dist/icons.min.js"></script>
-<script src="https://unpkg.com/lodash@4.17.21/lodash.min.js"></script>
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dyn V4 Demo - 短语法动作系统</title>
 <style>
-*{box-sizing:border-box;}
-body{padding:18px;font-family:system-ui,-apple-system,Segoe UI,Roboto;}
-.test-block{border:1px solid #e5e7eb;padding:14px;margin-bottom:18px;border-radius:8px;}
-.title{font-weight:600;margin-bottom:10px;color:#1f2937;font-size:15px;}
-pre{background:#f3f4f6;padding:10px;border-radius:6px;max-height:260px;overflow:auto;font-size:12px;white-space:pre-wrap;}
-button{padding:5px 12px;margin:3px;border-radius:4px;border:1px solid #dcdfe6;background:#fff;cursor:pointer;}
-input,textarea{padding:6px;border:1px solid #dcdfe6;border-radius:4px;width:100%;}
-.app-box{border:1px dashed #409eff;padding:12px;margin:8px 0;border-radius:6px;background:#f7faff;}
-.log{background:#111827;color:#4ade80;padding:10px;font-size:12px;min-height:130px;white-space:pre-wrap;border-radius:6px;}
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: #f0f2f5;
+    color: #333;
+    font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  }
+  .page { max-width: 980px; margin: 0 auto; padding: 36px 20px 80px; }
+
+  /* ===== 页头 ===== */
+  .header {
+    text-align: center;
+    padding: 28px 20px 8px;
+  }
+  .header h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #1f2d3d;
+    letter-spacing: 1px;
+  }
+  .header h1 .dot { color: #409eff; }
+  .header p {
+    margin: 0;
+    color: #909399;
+    font-size: 14px;
+  }
+  .header .tagline {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 5px 14px;
+    background: #ecf5ff;
+    color: #409eff;
+    border-radius: 20px;
+    font-size: 13px;
+  }
+
+  /* ===== 状态栏 ===== */
+  .status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 24px 0 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+  .kv-item {
+    background: #f5f7fa;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  .kv-item .k { color: #909399; margin-right: 6px; }
+  .kv-item .v { color: #409eff; font-weight: 600; font-size: 15px; }
+  .kv-item .v.hot { color: #f56c6c; }
+
+  /* ===== 卡片 ===== */
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 22px 24px;
+    margin-bottom: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    border: 1px solid #ebeef5;
+  }
+  .card h3 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    color: #303133;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h3 .idx {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    background: #409eff;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .card .desc {
+    margin: 0 0 14px;
+    color: #909399;
+    font-size: 13px;
+    padding-left: 30px;
+  }
+  .card .syntax {
+    display: block;
+    margin: 0 0 14px;
+    padding: 8px 12px;
+    background: #f8f9fb;
+    border-left: 3px solid #409eff;
+    border-radius: 4px;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 12px;
+    color: #7a8699;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+  /* ===== 按钮 ===== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    color: #fff;
+    background: #409eff;
+    box-shadow: 0 2px 6px rgba(64,158,255,.35);
+    transition: all .2s ease;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(64,158,255,.4); }
+  .btn:active { transform: translateY(0); }
+  .btn.green  { background: #67c23a; box-shadow: 0 2px 6px rgba(103,194,58,.35); }
+  .btn.green:hover  { box-shadow: 0 4px 12px rgba(103,194,58,.4); }
+  .btn.red    { background: #f56c6c; box-shadow: 0 2px 6px rgba(245,108,108,.35); }
+  .btn.red:hover    { box-shadow: 0 4px 12px rgba(245,108,108,.4); }
+  .btn.orange { background: #e6a23c; box-shadow: 0 2px 6px rgba(230,162,60,.35); }
+  .btn.orange:hover { box-shadow: 0 4px 12px rgba(230,162,60,.4); }
+  .btn.purple { background: #9266f9; box-shadow: 0 2px 6px rgba(146,102,249,.35); }
+  .btn.purple:hover { box-shadow: 0 4px 12px rgba(146,102,249,.4); }
+  .btn.plain  { background: #fff; color: #409eff; border: 1px solid #409eff; box-shadow: none; }
+  .btn.plain:hover { background: #ecf5ff; box-shadow: none; transform: none; }
+  .btn.ghost  { background: transparent; color: #606266; border: 1px solid #dcdfe6; box-shadow: none; }
+  .btn.ghost:hover { color: #409eff; border-color: #409eff; background: #f5f7fa; }
+
+  /* ===== 提示 / 标记 ===== */
+  .note {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    background: #fdf6ec;
+    color: #e6a23c;
+  }
+  .tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    background: #ecf5ff;
+    color: #409eff;
+    margin-right: 6px;
+  }
+  .divider { border: none; border-top: 1px dashed #ebeef5; margin: 18px 0; }
+
+  .footer {
+    text-align: center;
+    color: #c0c4cc;
+    font-size: 12px;
+    margin-top: 30px;
+  }
 </style>
 </head>
 <body>
-<h1>DynLib V4 内核 Demo 测试页面</h1>
+<div class="page">
 
-<div class="test-block">
-  <div class="title">0｜全局配置 evaljs开关</div>
-  <div>
-    <label><input type="checkbox" id="chkEval"> disableEvalJs 关闭evaljs动作</label>
-    <button onclick="printLog('DYN_LIB_CONFIG:'+JSON.stringify(window.DYN_LIB_CONFIG))">打印全局配置</button>
+  <!-- ===== 页头 ===== -->
+  <div class="header">
+    <h1>Dyn<span class="dot">.</span> V4 Demo</h1>
+    <p>短语法动作系统 · 仅一套语法 · 组合动作 $before / $onSuccess / $onFail / $after</p>
+    <span class="tagline">data-dyn-{event}-{action} = &quot;{...}&quot;</span>
   </div>
-</div>
 
-<div class="test-block">
-  <div class="title">1｜多VueApp + 共享scope（两个独立App共用同一份响应式model）</div>
-  <div data-dyn-shared-scope="scope-demo" data-dyn-scope-json='{"msg":"hello scope","count":0}'>
-    <div class="app-box" data-dyn-mode="createApp" data-dyn-use-scope="scope-demo">
-      <div>【App‑A】count = {{model.count}}</div>
-      <div>msg = {{model.msg}}</div>
-      <button data-dyn-on-click='{"action":"evaljs","options":{"code":"ctx.model.count = ctx.model.count + 1"}}'>count +1</button>
-      <button data-dyn-on-click='{"action":"setvar","options":{"path":"msg","value":"来自AppA修改"}}'>修改msg(A)</button>
+  <!-- ===== 共享 scope 状态栏（在 createApp 容器内，Vue 插值可渲染） ===== -->
+  <div data-dyn-shared-scope="scope-demo" data-dyn-scope-json='{"count":0,"msg":"hello scope","price":100,"num":2,"total":0}'>
+
+    <div data-dyn-init-createapp='{}' data-dyn-use-scope="scope-demo">
+
+      <div class="status-bar">
+        <span class="kv-item"><span class="k">AppA.count</span><span class="v hot">{{model.count}}</span></span>
+        <span class="kv-item"><span class="k">msg</span><span class="v">{{model.msg}}</span></span>
+        <span class="kv-item"><span class="k">price</span><span class="v">{{model.price}}</span></span>
+        <span class="kv-item"><span class="k">num</span><span class="v">{{model.num}}</span></span>
+        <span class="kv-item"><span class="k">total</span><span class="v">{{model.total}}</span></span>
+      </div>
+
+      <!-- ===== 1. calc 运算 ===== -->
+      <div class="card">
+        <h3><span class="idx">1</span> calc · 安全表达式运算</h3>
+        <p class="desc">不使用 eval，仅支持简单赋值运算，直接读写共享 model</p>
+        <code class="syntax">data-dyn-click-calc='{"expr":"count += 1"}'</code>
+        <div class="row">
+          <button class="btn" data-dyn-click-calc='{"expr":"count += 1"}'>count += 1</button>
+          <button class="btn green" data-dyn-click-calc='{"expr":"count -= 1"}'>count -= 1</button>
+          <button class="btn orange" data-dyn-click-calc='{"expr":"count += 5"}'>count += 5</button>
+          <button class="btn purple" data-dyn-click-calc='{"expr":"total = price * num"}'>total = price * num</button>
+      <button class="btn purple" data-dyn-click-evaljs='{"code":"ctx.model.count = ctx.model.count + 1"}'>count +1</button
+        </div>
+      </div>
+
+      <!-- ===== 2. setvar / toast ===== -->
+      <div class="card">
+        <h3><span class="idx">2</span> setvar · toast 提示</h3>
+        <p class="desc">设置变量值、弹出轻提示</p>
+        <code class="syntax">data-dyn-click-setvar='{"path":"msg","value":"来自按钮设置"}'</code>
+        <div class="row">
+          <button class="btn" data-dyn-click-setvar='{"path":"msg","value":"来自按钮设置"}'>修改 msg</button>
+          <button class="btn green" data-dyn-click-toast='{"message":"这是 toast 消息","type":"success"}'>弹出 toast</button>
+          <button class="btn orange" data-dyn-click-notify='{"title":"通知标题","message":"这是 notify 通知","type":"success"}'>弹出 notify</button>
+        </div>
+      </div>
+
+      <!-- ===== 3. 组合动作 confirm + postback ===== -->
+      <div class="card">
+        <h3><span class="idx">3</span> 组合动作 · confirm 前置确认</h3>
+        <p class="desc">$before 先确认，用户点"确定"才执行 postback；失败走 $onFail，无论成败最后走 $after</p>
+        <code class="syntax">data-dyn-click-postback='{"$before":[{"action":"confirm","options":{"message":"确定提交？"}}],"url":"/api/mock/save","message":"保存成功"}'</code>
+        <div class="row">
+          <button class="btn red" data-dyn-click-postback='{
+            "$before":[{"action":"confirm","options":{"message":"确定要模拟提交吗？"}}],
+            "url":"/api/mock/save",
+            "message":"模拟提交成功",
+            "$onFail":[{"action":"toast","options":{"message":"提交失败"}}],
+            "$after":[{"action":"toast","options":{"message":"流程执行结束"}}]
+          }'>confirm + postback 组合</button>
+          <span class="note">取消确认将中止请求</span>
+        </div>
+      </div>
+
+      <!-- ===== 4. chain 动作链 ===== -->
+      <div class="card">
+        <h3><span class="idx">4</span> chain · 动作链</h3>
+        <p class="desc">按顺序执行多个动作，前一步结果可作为 $result 传递</p>
+        <code class="syntax">data-dyn-click-chain='{"steps":[{"action":"calc","options":{"expr":"count += 1"}},{"action":"toast","options":{"message":"chain 完成"}}]}'</code>
+        <div class="row">
+          <button class="btn" data-dyn-click-chain='{
+            "steps":[
+              {"action":"calc","options":{"expr":"count += 1"}},
+              {"action":"delay","options":{"ms":300}},
+              {"action":"toast","options":{"message":"chain 执行完毕"}}
+            ]
+          }'>执行 chain 链（+1 后提示）</button>
+        </div>
+      </div>
+
+      <!-- ===== 5. open 弹窗 + reloadSelf ===== -->
+      <div class="card">
+        <h3><span class="idx">5</span> open · 弹窗 + onopen/onclose + reloadSelf</h3>
+        <p class="desc">打开弹窗加载远程片段；关闭后自动刷新触发按钮所在容器</p>
+        <code class="syntax">data-dyn-click-open='{"url":"/mock/dialog.html","title":"编辑","reloadSelf":true,"onopen":[...]}'</code>
+        <div class="row">
+          <button class="btn purple" data-dyn-click-open='{
+            "url":"/mock/dialog.html",
+            "title":"测试弹窗",
+            "reloadSelf":true,
+            "onopen":[{"action":"toast","options":{"message":"弹窗已打开"}}],
+            "onclose":[{"action":"toast","options":{"message":"弹窗已关闭，正在刷新容器"}}]
+          }'>打开弹窗（关闭自动刷新）</button>
+          <span class="note">/mock/dialog.html 需后端提供，否则显示加载失败</span>
+        </div>
+      </div>
+
+      <!-- ===== 6. switch 条件分支 ===== -->
+      <div class="card">
+        <h3><span class="idx">6</span> switch · 条件分支</h3>
+        <p class="desc">按 model 值匹配分支执行对应动作，支持 default 兜底</p>
+        <code class="syntax">data-dyn-click-switch='{"expr":"model.count","cases":[...],"default":{...}}'</code>
+        <div class="row">
+          <button class="btn orange" data-dyn-click-switch='{
+            "expr":"model.count",
+            "cases":[
+              {"value":"0","action":"toast","options":{"message":"count 等于 0"}},
+              {"value":"1","action":"toast","options":{"message":"count 等于 1"}},
+              {"value":"5","action":"toast","options":{"message":"count 等于 5"}}
+            ],
+            "default":{"action":"toast","options":{"message":"count 是其他值："}}
+          }'>判断 count 当前值</button>
+        </div>
+      </div>
+
+      <!-- ===== 7. 事件总线 ===== -->
+      <div class="card">
+        <h3><span class="idx">7</span> triggerevent · 事件总线</h3>
+        <p class="desc">通过 bus 发布事件，DynLib.ready 里可订阅</p>
+        <code class="syntax">data-dyn-click-triggerevent='{"name":"my-bus-event","payload":{"val":999}}'</code>
+        <div class="row">
+          <button class="btn ghost" data-dyn-click-triggerevent='{"name":"my-bus-event","payload":{"val":999}}'>触发总线事件 my-bus-event</button>
+        </div>
+      </div>
+
+      <!-- ===== 8. init 初始化 ===== -->
+      <div class="card">
+        <h3><span class="idx">8</span> init · 初始化动作</h3>
+        <p class="desc">页面就绪 / ajax 片段加载完成后自动执行，只执行一次</p>
+        <code class="syntax">data-dyn-init-toast='{"message":"页面初始化完成"}'</code>
+        <div data-dyn-init-toast='{"message":"【init】页面初始化完成"}'></div>
+        <div data-dyn-init-setvar='{"path":"msg","value":"scope 已就绪"}'></div>
+        <span class="tag">msg 已由 init 自动改写</span>
+      </div>
+
     </div>
-
-    <div class="app-box" data-dyn-mode="createApp" data-dyn-use-scope="scope-demo">
-      <div>【App‑B】count = {{model.count}}</div>
-      <div>msg = {{model.msg}}</div>
-      <button data-dyn-on-click='{"action":"setvar","options":{"path":"count","value":-1}}'>count -1</button>
-      <button data-dyn-on-click='{"action":"setvar","options":{"path":"msg","value":"来自AppB修改"}}'>修改msg(B)</button>
-    </div>
   </div>
-  <div style="font-size:12px;color:#666;">两个完全独立Vue实例，操作同一个scope，任意一方修改两边视图同步更新</div>
+
+  <div class="footer">Dyn V4 · 仅短语法 · axios UMD · 无 jQuery</div>
 </div>
 
-<div class="test-block">
-  <div class="title">2｜DynAction 动作系统：属性配置 + 隐藏配置块(__dynObj模拟Vue绑定对象)</div>
-  <div style="display:none;" id="act-toast-cfg" data-dyn-action-cfg></div>
-  <script>
-    document.querySelector('#act-toast-cfg').__dynObj = {
-      action:"toast",
-      options:{message:"✅来自隐藏配置块 __dynObj 对象",type:"success"}
-    };
-  </script>
-  <div>
-    <button data-dyn-on-click='{"action":"toast","options":{"message":"👉直接DOM属性配置toast提示"}}'>属性配置toast</button>
-    <button data-dyn-on-click data-dyn-action-ref="act-toast-cfg">隐藏配置块(__dynObj)</button>
-  </div>
-</div>
 
-<div class="test-block">
-  <div class="title">3｜chain动作链 + bus事件总线 triggerevent</div>
-  <button data-dyn-on-click='{"action":"chain","options":{"steps":[
-    {"action":"toast","options":{"message":"chain步骤1"}},
-    {"action":"delay","options":{"ms":700}},
-    {"action":"triggerevent","options":{"name":"demo-bus","payload":{"num":666}}},
-    {"action":"toast","options":{"message":"chain步骤3，bus事件已发出"}}
-  ]}}'>执行chain动作链</button>
-  <div style="font-size:12px;color:#666;">bus事件会输出到下方日志面板</div>
-</div>
-
-<div class="test-block">
-  <div class="title">4｜模拟后端返回 dyn‑actions 自动执行动作</div>
-  <button onclick="mockBackendDynActions()">模拟后端返回dyn‑actions</button>
-  <pre id="mockRespPre"></pre>
-</div>
-
-<div class="test-block">
-  <div class="title">5｜DynTemplate JSON ↔ Vue模板双向转换</div>
-<textarea id="tplInput" rows="6" placeholder="粘贴vue模板">
-&lt;ElInput v-model="form.username" placeholder="请输入用户名" clearable /&gt;
-&lt;ElButton type="primary"&gt;提交&lt;/ElButton&gt;
-</textarea>
-  <div style="margin:6px 0;">
-    <button onclick="runImportTemplate()">HTML → cfg JSON</button>
-    <button onclick="runExportTemplate()">cfg JSON → HTML模板</button>
-  </div>
-  <pre id="tplOutput"></pre>
-</div>
-
-<div class="test-block">
-  <div class="title">运行日志</div>
-  <div class="log" id="logBox"></div>
-  <button onclick="clearLog()">清空日志</button>
-</div>
-
-<script>
-// ========= 日志工具 =========
-const logBox = document.getElementById('logBox');
-function printLog(text){
-  const t = new Date().toLocaleTimeString();
-  logBox.textContent += `[${t}] ${text}\n`;
-  logBox.scrollTop = logBox.scrollHeight;
-}
-function clearLog(){ logBox.textContent = ''; }
-
-document.addEventListener('DOMContentLoaded',()=>{
-  if(window.dyn){
-    dyn.busOn('demo-bus',(payload)=>{
-      printLog(`🚌 bus事件 demo‑bus 收到 payload=${JSON.stringify(payload)}`);
-    });
-  }
-});
-
-// 模拟后端dyn‑actions
-function mockBackendDynActions(){
-  const mockResp = {
-    "dyn‑actions":[
-      {"action":"toast","options":{"message":"✅模拟后端dyn‑actions执行成功"}},
-      {"action":"setvar","options":{"path":"count","value":888}}
-    ]
-  };
-  document.getElementById('mockRespPre').textContent = JSON.stringify(mockResp,null,2);
-  if(window.dyn && dyn.runJsonActions){
-    dyn.runJsonActions(mockResp,document.body);
-    printLog("模拟执行 dyn‑actions 完成");
-  }
-}
-
-// DynTemplate测试
-function runImportTemplate(){
-  if(!window.DynTemplate){ printLog("DynTemplate未加载");return; }
-  const html = document.getElementById('tplInput').value;
-  const res = DynTemplate.importTemplate(html);
-  document.getElementById('tplOutput').textContent = JSON.stringify(res,null,2);
-  printLog("importTemplate：HTML解析为cfg完成");
-}
-function runExportTemplate(){
-  if(!window.DynTemplate){ printLog("DynTemplate未加载");return; }
-  try{
-    const jsonText = document.getElementById('tplOutput').textContent;
-    const arr = JSON.parse(jsonText);
-    const out = arr.map(item=>DynTemplate.exportTemplate(item)).join('\n');
-    document.getElementById('tplOutput').textContent = out;
-    printLog("exportTemplate：cfg导出Vue模板完成");
-  }catch(err){ printLog("导出异常："+err.message); }
-}
-
-// evaljs开关
-document.getElementById('chkEval').addEventListener('change',e=>{
-  if(window.DYN_LIB_CONFIG){
-    DYN_LIB_CONFIG.disableEvalJs = e.target.checked;
-    printLog("disableEvalJs = "+DYN_LIB_CONFIG.disableEvalJs);
-  }
-});
-</script>
-
-<!-- ✅只保留dyn‑lib.js！！！其余dyn脚本全部由dyn‑lib内部自动按顺序加载，不要再手写script标签 -->
 <script src="./dyn-lib.js"></script>
-<script src="../lib/jquery/dist/jquery.min.js"></script>
-<script>
-// DynLib就绪之后初始化页面
-DynLib.ready(function(){
-    debugger;
-  printLog("✅ DynLib.ready 全部内核脚本就绪");
-  // 初始化所有data‑dyn‑mode="createApp"
-  document.querySelectorAll('[data-dyn-mode="createApp"]').forEach(el=>{
-    dyn.mount(el).then(app=>{
-      printLog(`mount完成，use‑scope=${el.getAttribute('data-dyn-use-scope')||"无"}`);
-    })
-  });
-  // 执行页面上所有data‑dyn‑on‑init初始化动作
-  dyn.initActions(document.body);
-});
-</script>
+
+
 
 </body>
 </html>

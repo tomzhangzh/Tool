@@ -1,8 +1,8 @@
-/* dyn‑render.js V4 独立递归渲染器，硬编码内核组件，不从后端加载 */
+/* dyn-render.js V4 独立递归渲染器，硬编码内核组件，不从后端加载 */
 (function (global) {
 'use strict';
 const Vue = global.Vue;
-if (!Vue) { console.error('[DynRender] Vue3 未加载，dyn‑render.js 需要 Vue UMD'); return; }
+if (!Vue) { console.error('[DynRender] Vue3 未加载，dyn-render.js 需要 Vue UMD'); return; }
 const h = Vue.h;
 
 /**
@@ -113,7 +113,7 @@ const DynRender = {
   render() {
     const self = this;
     const cfg = this.cfg;
-    if (!cfg || typeof cfg !== 'object') return h('div', { class: 'dyn‑empty' }, "空配置");
+    if (!cfg || typeof cfg !== 'object') return h('div', { class: 'dyn-empty' }, "空配置");
     const component = cfg.component || "DynText";
     const options = cfg.options || {};
     const comoptions = options.comoptions || {};
@@ -132,7 +132,7 @@ const DynRender = {
       comp = Vue.resolveComponent(component);
     }
     if (!comp || typeof comp === 'string') {
-      return h('div', { class: 'dyn‑unknown' }, "未知组件:" + component);
+      return h('div', { class: 'dyn-unknown' }, "未知组件:" + component);
     }
 
     const props = {};
@@ -178,7 +178,7 @@ const DynRender = {
     if (itemoptions.class) outer.class = itemoptions.class;
     if (itemoptions.style) outer.style = itemoptions.style;
     if (this.pageCtx && this.pageCtx.designMode && this.pageCtx.uidOf) {
-      outer['data‑dyn‑uid'] = this.pageCtx.uidOf(cfg);
+      outer['data-dyn-uid'] = this.pageCtx.uidOf(cfg);
     }
 
     if (this.pageCtx && this.pageCtx.designMode) {
@@ -235,7 +235,7 @@ const DynRender = {
     if (outer.style) compAttrs.style = outer.style;
 
     const wrapProps = { style: { display: 'contents' } };
-    if (outer['data‑dyn‑uid']) wrapProps['data‑dyn‑uid'] = outer['data‑dyn‑uid'];
+    if (outer['data-dyn-uid']) wrapProps['data-dyn-uid'] = outer['data-dyn-uid'];
     if (outer.draggable) wrapProps.draggable = outer.draggable;
     return h('span', Object.assign(wrapProps, designOn), [
       h(comp, Object.assign({}, props, on, compAttrs), slotVNodes)

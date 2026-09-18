@@ -1,4 +1,5 @@
-/* dyn‑lib.js V4 资源加载控制器 */
+/* dyn-lib.js V4 资源加载控制器 */
+/* 就绪后自动执行 dyn.initActions(document.body)，扫描 data-dyn-init-* 初始化动作 */
 (function(global){
 'use strict';
 
@@ -9,6 +10,7 @@
  * @property {boolean} loadLayui
  * @property {boolean} loadCodemirror
  * @property {boolean} loadTailwind
+ * @property {boolean} loadAxios 是否加载本地 ../lib/axios.min.js（默认false，页面可自行引入axios UMD CDN）
  * @property {boolean} disableEvalJs 全局关闭evaljs动作，防止任意脚本执行
  */
 
@@ -19,6 +21,7 @@ const DEFAULT_CONFIG = {
   loadLayui:true,
   loadCodemirror:true,
   loadTailwind:true,
+  loadAxios:true,
   disableEvalJs:false
 };
 global.DYN_LIB_CONFIG = Object.assign({}, DEFAULT_CONFIG, global.DYN_LIB_CONFIG||{});
@@ -36,6 +39,7 @@ function getBase(){
 const BASE = getBase();
 
 const DEFAULT_LIBS = [];
+DEFAULT_LIBS.push({url:"../lib/vue.global.prod.js",name:"vue"});
 if(DYN_LIB_CONFIG.loadLodash) DEFAULT_LIBS.push({url:"../lib/lodash.min.js",name:"lodash"});
 if(DYN_LIB_CONFIG.loadElementPlus){
   DEFAULT_LIBS.push({url:"../lib/element-plus/index.css",name:"element-plus-css"});
@@ -51,11 +55,13 @@ if(DYN_LIB_CONFIG.loadCodemirror){
   DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.css",name:"codemirror-css"});
   DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.js",name:"codemirror"});
 }
+// axios UMD：默认false，页面可自行引入CDN；如需本地加载，把 axios.min.js 放入 ../lib/ 并设置 loadAxios:true
+if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"../lib/axios.min.js",name:"axios"});
 
-// 模块加载顺序：dyn‑render 优先 dyn‑com
+// 模块加载顺序：dyn-render 优先 dyn-com
 const DYN_MODULES = [
   "dyn-load-com.js",
-  "dyn-render.js",
+  // "dyn-render.js",
   "dyn-com.js",
   "dyn-core.js",
   "dyn-action.js",
@@ -108,6 +114,12 @@ const DynLib = {
     this._queue.push(cb);
   },
   _fireReady(){
+    // 就绪后自动扫描并执行页面 data-dyn-init-* 初始化动作（含ajax载入片段由mountCore触发）
+    try{
+      if(global.dyn && typeof dyn.initActions === 'function'){
+        dyn.initActions(document.body);
+      }
+    }catch(e){ console.error("[DynLib]initActions执行异常",e); }
     this._ready = true;
     const q = [...this._queue];
     this._queue.length = 0;

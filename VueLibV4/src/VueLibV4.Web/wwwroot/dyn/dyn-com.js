@@ -1,4 +1,4 @@
-/* dyn‑com.js V4 组件注册表，组合组件解析；DynRender已剥离至dyn‑render.js */
+/* dyn-com.js V4 组件注册表，组合组件解析；DynRender已剥离至dyn-render.js */
 (function(global){
 'use strict';
 const Vue = global.Vue;
@@ -45,7 +45,7 @@ function applyCompositeProps(tree,config,externalProps,externalSlots){
 }
 
 /**
- * @description 设置对象路径值，依赖dyn‑render导出的setPath
+ * @description 设置对象路径值，依赖dyn-render导出的setPath
  */
 function setPath(obj,path,value){
   if(global.DynRender && typeof global.DynRender.setPath === 'function'){
@@ -55,7 +55,7 @@ function setPath(obj,path,value){
     global._.set(obj,path,value);
     return;
   }
-  console.warn("[DynCom] setPath缺少实现，请确保dyn‑render.js已加载");
+  console.warn("[DynCom] setPath缺少实现，请确保dyn-render.js已加载");
 }
 
 async function ensureRegistered(app){

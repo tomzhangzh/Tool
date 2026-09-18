@@ -1,0 +1,184 @@
+@* ElementUI 组件公共布局 - 完全对齐 NutLayout 方式，直接修改 props.jsonconfig *@
+@RenderBody()
+
+<script tag='comconfig'>
+var comConfig = {
+    props: {
+        jsonconfig: { type: Object, required: true },
+        parentmodelinfo: { type: Object, required: false },
+        extensioninfo: { type: Object, required: false },
+        nodePath: { type: String, default: 'root' }
+    },
+    setup(props, context) {
+        const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted } = Vue;
+        const _ = window._;
+
+        const designShared = inject('design_ShareData', null);
+        const parentConfig = inject('parent_jsonconfig', null);
+        const parentCom = inject('parent_com', null);
+        const parentModelPrefix = inject('parentModelPrefix', computed(() => ''));
+
+        // 对齐 NutLayout：直接修改 props.jsonconfig 填充默认值
+        // 注意：ElementUI 组件注册时加了 Dyn 前缀（DynElInput），避免与 ElementPlus 全局组件名冲突导致无限递归
+        const defaults = {
+            component: null, modelname: null,
+            options: { comoptions: {}, comlisteners: {}, labeloptions: { label: '', required: false, show: true }, itemoptions: { style: {}, class: '' }, wrapperoptions: {} },
+            validators: [], childrenctrls: [], slots: {}, extendinfo: {}
+        };
+        function deepMerge(target, source) {
+            for (const key in source) {
+                if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+                    target[key] = target[key] || {};
+                    deepMerge(target[key], source[key]);
+                } else if (target[key] === undefined) {
+                    target[key] = source[key];
+                }
+            }
+            return target;
+        }
+        // props.jsonconfig 可能为 undefined（子组件数组空洞），此时用本地对象兜底
+        const jc = props.jsonconfig || {};
+        if (props.jsonconfig) {
+            deepMerge(props.jsonconfig, JSON.parse(JSON.stringify(defaults)));
+        } else {
+            deepMerge(jc, JSON.parse(JSON.stringify(defaults)));
+        }
+
+        const comInnerInfo = reactive({ options: [], validation: { valid: true, errors: [], touched: false } });
+        let DVALUE = null;
+        @RenderSection("setupScripts", false)
+
+        const fullModelName = computed(() => {
+            const raw = jc.modelname || '';
+            if (!raw) {
+                // 无自身 modelname：继承父级前缀；~ 前缀 = 直接用路径（属性框 DynPropItem 传入）
+                const p = parentModelPrefix.value || '';
+                return p.startsWith('~') ? p.slice(1) : p;
+            }
+            if (raw.startsWith('~')) return raw.slice(1);
+            const prefix = parentModelPrefix.value;
+            if (prefix) {
+                if (raw.startsWith('[')) return prefix + raw;
+                return prefix + '.' + raw;
+            }
+            return raw;
+        });
+        provide('parentModelPrefix', fullModelName);
+        provide('parent_jsonconfig', jc);
+        provide('parent_com', { parent_Config: parentConfig, parent_Com: parentCom });
+
+        function getByPath(obj, path) { return !obj || !path ? undefined : _.get(obj, path); }
+        function setByPath(obj, path, value) { if (!obj || !path) return; _.set(obj, path, value); }
+
+        const innerValue = ref(DVALUE);
+        const modelinfo = computed({
+            get() {
+                if (props.parentmodelinfo && fullModelName.value) {
+                    const val = getByPath(props.parentmodelinfo, fullModelName.value);
+                    return val === undefined ? DVALUE : val;
+                }
+                return innerValue.value;
+            },
+            set(val) {
+                if (props.parentmodelinfo && fullModelName.value) { setByPath(props.parentmodelinfo, fullModelName.value, val); }
+                else { innerValue.value = val; }
+                if (comInnerInfo.validation.touched) validate();
+            }
+        });
+
+        const validators = {
+            required: (v) => v !== null && v !== undefined && v !== '',
+            min: (v, m) => Number(v) >= m, max: (v, m) => Number(v) <= m,
+            pattern: (v, p) => new RegExp(p).test(String(v || '')),
+            email: (v) => /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(String(v || '')),
+            number: (v) => !isNaN(Number(v))
+        };
+        function validate() {
+            const rules = jc.validators || [];
+            const val = modelinfo.value;
+            const errors = [];
+            for (const rule of rules) {
+                const fn = validators[rule.type];
+                if (!fn) continue;
+                if (!fn(val, rule.value)) errors.push(rule.message || `验证失败: ${rule.type}`);
+            }
+            comInnerInfo.validation.valid = errors.length === 0;
+            comInnerInfo.validation.errors = errors;
+            comInnerInfo.validation.touched = true;
+            return comInnerInfo.validation.valid;
+        }
+        function resetValidation() { comInnerInfo.validation.valid = true; comInnerInfo.validation.errors = []; comInnerInfo.validation.touched = false; }
+        provide('component_validate', validate);
+        provide('component_resetValidation', resetValidation);
+
+        function getStyle(...opts) { return Object.assign({}, ...opts.map(o => o?.style || {})); }
+        function getClass(...opts) { return opts.flatMap(o => (o?.class || '').split(' ')).filter(Boolean); }
+        function getComlisteners() {
+            const listeners = jc.options?.comlisteners || {};
+            const result = {};
+            for (const key in listeners) {
+                const val = listeners[key];
+                if (typeof val === 'function') result[key] = val;
+                else if (typeof val === 'string' && val && context.attrs[val]) result[key] = context.attrs[val];
+            }
+            return result;
+        }
+        function initOptionsFromConfig() {
+            const co = jc.options?.comoptions || {};
+            const src = jc.options?.sourceType ?? co.sourceType;
+            const staticRaw = jc.options?.optionValues ?? co.optionValues;
+            // 数据源类型：dict（字典表）/ ajax（自定义 URL，POST 请求，避免 GET 缓存）
+            if (src === 'dict' || src === 'ajax') {
+                const dictType = jc.options?.dictType ?? co.dictType;
+                const dataUrl = jc.options?.dataUrl ?? co.dataUrl ?? (src === 'dict' ? '/DynRun/Dict' : '');
+                if (!dataUrl) { comInnerInfo.options = []; return; }
+                // dict 走 POST + query（后端 body 绑定与 Newtonsoft 输入格式化器不兼容）；ajax 走 POST + JSON body
+                const sep = dataUrl.indexOf('?') >= 0 ? '&' : '?';
+                const reqUrl = (src === 'dict' && dictType) ? dataUrl + sep + 'dictType=' + encodeURIComponent(dictType) : dataUrl;
+                const body = src === 'dict' ? '{}' : JSON.stringify(jc.options?.ajaxParams ?? co.ajaxParams ?? {});
+                fetch(reqUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body
+                }).then(r => r.json()).then(j => {
+                    const arr = Array.isArray(j) ? j : (j.items || j.rows || j.data || []);
+                    comInnerInfo.options = arr.map(v => (typeof v === 'object' && v !== null)
+                        ? { label: v.label ?? v.text ?? v.name ?? String(v.value ?? ''), value: v.value ?? v.code ?? String(v.label ?? '') }
+                        : { label: String(v).trim(), value: String(v).trim() });
+                }).catch(e => {
+                    console.error('[dyn-lib] 下拉选项加载失败', e);
+                    comInnerInfo.options = [];
+                });
+                return;
+            }
+            // 静态选项：兼容两种配置位 options.optionValues / options.comoptions.optionValues
+            if (Array.isArray(staticRaw)) {
+                comInnerInfo.options = staticRaw.map(v => (typeof v === 'object' && v !== null)
+                    ? { label: v.label ?? v.value, value: v.value ?? v.label }
+                    : { label: String(v).trim(), value: String(v).trim() });
+            } else if (staticRaw != null && staticRaw !== '') {
+                comInnerInfo.options = String(staticRaw).split(',').map(v => ({ label: v.trim(), value: v.trim() }));
+            } else {
+                comInnerInfo.options = [];
+            }
+        }
+        initOptionsFromConfig();
+        watch(() => [
+            jc.options?.optionValues, jc.options?.comoptions?.optionValues,
+            jc.options?.sourceType, jc.options?.comoptions?.sourceType,
+            jc.options?.dictType, jc.options?.comoptions?.dictType,
+            jc.options?.dataUrl, jc.options?.comoptions?.dataUrl
+        ], initOptionsFromConfig, { deep: true });
+
+        // 过滤 childrenctrls 中的 undefined/null 元素
+        const safeChildren = computed(() => (jc.childrenctrls || []).filter(c => c && typeof c === 'object'));
+
+        return {
+            modelinfo, comInnerInfo, validate, resetValidation,
+            getStyle, getClass, getComlisteners, safeChildren, jc, props, context,
+            designShared, parentConfig, parentCom, DVALUE, fullModelName,
+            ...(typeof comExtra !== 'undefined' ? comExtra : {})
+        };
+    }
+};
+</script>

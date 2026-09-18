@@ -1,8 +1,9 @@
-/* dyn‑action.js V4 动作系统；依赖 dyn‑core.js，提供事件委托、动作链、bus事件总线、dyn‑actions后端执行 */
+/* dyn-action.js V4 动作系统；依赖 dyn-core.js，提供事件委托、动作链、bus事件总线、dyn-actions后端执行 */
+/* 仅短语法：data-dyn-{event}-{action}="{}"；组合动作 $before/$onSuccess/$onFail/$after；postback 使用 axios UMD */
 (function(global){
 'use strict';
 if(!global.dyn){
-  console.error("[DynAction] 请先加载 dyn‑core.js");
+  console.error("[DynAction] 请先加载 dyn-core.js");
   return;
 }
 const dyn = global.dyn;
@@ -20,6 +21,7 @@ const DYN_LIB_CONFIG = global.DYN_LIB_CONFIG||{};
  * @property {number} $step
  * @property {any} $result
  * @property {Array<string>} $callStack
+ * @property {boolean} $abort
  */
 
 /**
@@ -31,10 +33,9 @@ const DYN_LIB_CONFIG = global.DYN_LIB_CONFIG||{};
  */
 
 const CONST = {
-  ATTR_ON_PREFIX: 'data-dyn-on-',
   ATTR_ACTION_REF: 'data-dyn-action-ref',
   ATTR_ACTION_CFG: 'data-dyn-action-cfg',
-  ATTR_INIT: 'data-dyn-on-init',
+  ATTR_INIT_PREFIX: 'data-dyn-init-',
   DATA_DYN_ACTIONS: 'dyn-actions',
   ACTION_EVENTS: ['click','dblclick','change','select'],
   MSG_ACTION_NOT_FOUND: '动作[{name}]未注册，请检查配置',
@@ -134,6 +135,77 @@ function resolveAction(name){
 }
 
 /**
+ * @description 标准化为动作数组：对象自动包装成数组
+ * @param {any} v
+ * @returns {Array}
+ */
+function normActionSteps(v){
+  if(!v) return [];
+  if(Array.isArray(v)) return v;
+  return [v];
+}
+
+/**
+ * @description 组合动作包装器：自动处理 $before / $onSuccess / $onFail / $after 四个元字段
+ * $before  本体动作执行之前运行，任意一步返回false则中止本体动作
+ * $onSuccess 本体动作成功后运行
+ * $onFail    本体动作抛异常后运行
+ * $after     无论成功失败，最后一定执行
+ * @param {Function} originalFn 原始动作函数
+ * @returns {Function} 包装后的动作函数
+ */
+function wrapCompositeAction(originalFn){
+  return async function(ctx){
+    const o = ctx.options;
+    // 执行前置动作链
+    const beforeSteps = normActionSteps(o.$before);
+    for(const step of beforeSteps){
+      const fn = resolveAction(step.action);
+      if(!fn) continue;
+      const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+      const ret = await fn(subCtx);
+      if(ret===false){ ctx.$abort=true; return false; }
+    }
+    if(ctx.$abort) return false;
+    let res;
+    let success = true;
+    try{
+      res = await originalFn(ctx);
+    }catch(err){
+      success = false;
+      console.error("[composite action error]",err);
+      // 失败执行 $onFail
+      const failSteps = normActionSteps(o.$onFail);
+      for(const step of failSteps){
+        const fn = resolveAction(step.action);
+        if(!fn) continue;
+        const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+        await fn(subCtx);
+      }
+    }
+    if(success){
+      // 成功执行 $onSuccess
+      const succSteps = normActionSteps(o.$onSuccess);
+      for(const step of succSteps){
+        const fn = resolveAction(step.action);
+        if(!fn) continue;
+        const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+        await fn(subCtx);
+      }
+    }
+    // 后置动作链，无论成功失败
+    const afterSteps = normActionSteps(o.$after);
+    for(const step of afterSteps){
+      const fn = resolveAction(step.action);
+      if(!fn) continue;
+      const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+      await fn(subCtx);
+    }
+    return res;
+  };
+}
+
+/**
  * @description 解析原始配置字符串，容错JSON
  * @param {string} raw
  * @returns {object}
@@ -142,18 +214,23 @@ function parseActionOptions(raw){
   if(!raw||!raw.trim()) return {};
   const t = raw.trim();
   const c = t.charAt(0);
-  if(c==='{'||c==='[') try{ return JSON.parse(t); }catch(e){ return {selector:t}; }
-  return {selector:t};
+  if(c==='{'||c==='['){
+    try{ return JSON.parse(t); }catch(e){
+      console.warn("[parseActionOptions JSON解析失败 raw="+raw,e);
+      return {};
+    }
+  }
+  return {};
 }
 
 /**
- * @description 解析动作配置：支持DOM属性 + 隐藏配置块data‑dyn‑action‑cfg（支持vue挂载__dynObj对象）
+ * @description 解析动作配置：支持DOM属性 + 隐藏配置块data-dyn-action-cfg（支持vue挂载__dynObj对象）
  * @param {HTMLElement} el 触发元素
  * @param {string} attrRaw 属性上原始json字符串
  * @returns {object} 合并后配置，属性优先级高于隐藏块
  * @demo
  * <div style="display:none" data-dyn-action-cfg id="act1"></div>
- * <button data-dyn-on-click data-dyn-action-ref="act1">按钮</button>
+ * <button data-dyn-click-toast data-dyn-action-ref="act1">按钮</button>
  */
 function resolveActionConfig(el, attrRaw){
   let baseCfg = {};
@@ -215,18 +292,28 @@ function buildCtx(el,eventName,$event,options,actionName){
     vm:app&&app._instance?app._instance.proxy:null,
     url:optCopy.url||(el?el.getAttribute('data-dyn-url'):'')||'',
     $step:0,$result:null,$chain:[],$chainAction:'',
-    $callStack:[]
+    $callStack:[],
+    $abort:false
   };
 }
 
 // ---------------------- 内置动作定义 ----------------------
+defineAction('createapp',async ctx=>{
+  const o = ctx.options||{};
+  const el = ctx.element;
+  const url = o.url||el.getAttribute('data-dyn-url');
+  if(url) el.setAttribute('data-dyn-url',url);
+  el.setAttribute('data-dyn-mode','createApp');
+  await dyn.mount(el);
+});
+
 defineAction('postback',async function(ctx){
   const o = ctx.options||{};
   const url = o.url||ctx.url;
   if(!url){ dyn.showMessage(CONST.MSG_MISS_URL.replace('{action}','postback'),'error'); return; }
   if(o.confirm){
     const ok = await dyn.confirmAsync(o.confirm===true?'确定执行该操作吗？':o.confirm);
-    if(!ok) return;
+    if(!ok) return false;
   }
   // useEventPayload 默认true
   const usePayload = o.useEventPayload!==false;
@@ -239,21 +326,24 @@ defineAction('postback',async function(ctx){
   const qs = o.params?new URLSearchParams(o.params).toString():'';
   const fullUrl = qs?(url+(url.indexOf('?')>=0?'&':'?')+qs):url;
   try{
-    const ajax = await fetch(fullUrl,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body)
+    if(!window.axios) throw new Error("Axios未加载");
+    const ajax = await window.axios({
+      method:'POST',
+      url:fullUrl,
+      headers:{'Content-Type':'application/json'},
+      data:body
     });
-    const res = await ajax.json();
-    if(res.success===false||res.Success===false){ dyn.showMessage(res.Message||'操作失败','error'); return; }
-    //识别dyn‑actions
+    const res = ajax.data;
+    if(res.success===false||res.Success===false){ dyn.showMessage(res.Message||'操作失败','error'); throw new Error(res.Message||'操作失败'); }
+    //识别dyn-actions
     if(res&&Array.isArray(res[CONST.DATA_DYN_ACTIONS])){
-      runJsonActions(res,ctx.element);
+      runJsonActions({actions:res[CONST.DATA_DYN_ACTIONS]},ctx.element);
     }
     if(o.reload) await dyn.reload(o.reload,{params:o.params});
     if(o.close) await dyn.close(ctx.element);
     if(o.message) dyn.showMessage(o.message,'success');
     return res;
-  }catch(err){ dyn.showMessage('请求异常:'+err.message,'error'); }
+  }catch(err){ dyn.showMessage('请求异常:'+err.message,'error'); throw err; }
 });
 defineAction('postdata',ctx=>_actions.postback(ctx));
 
@@ -270,9 +360,10 @@ defineAction('load',async ctx=>{
 defineAction('open',async ctx=>{
   const o = ctx.options||{};
   if(!o.url){ dyn.showMessage("[open]缺少url",'error'); return; }
+  const triggerEl = ctx.element;
   const holder = document.createElement('div');
-  holder.className='dyn‑modal‑host';
-  holder.id='dyn‑modal‑'+Math.random().toString(36);
+  holder.className='dyn-modal-host';
+  holder.id='dyn-modal-'+Math.random().toString(36);
   document.body.appendChild(holder);
   const app = Vue.createApp({
     data(){ return { visible:true,title:o.title||'对话框',width:o.width||'60%',loading:true,html:'',err:''}; },
@@ -288,11 +379,16 @@ defineAction('open',async ctx=>{
           this.html = await dyn.fetchPartial(o.url,o.params||{},o.method||'GET');
           this.loading = false;
           await dyn.mount(holder.querySelector('.el-dialog__body'));
-          if(o.events&&o.events.onopen) await _runEvents(o.events.onopen,Object.assign({},ctx,{holder}));
+          await _runEvents(normActionSteps(o.onopen),Object.assign({},ctx,{holder}));
         }catch(e){ this.err=e.message; this.loading=false; }
       },
       async onClosed(){
-        if(o.events&&o.events.onclose) await _runEvents(o.events.onclose,Object.assign({},ctx,{holder}));
+        await _runEvents(normActionSteps(o.onclose),Object.assign({},ctx,{holder}));
+        // reloadSelf:true 关闭弹窗后自动刷新触发按钮所在容器
+        if(o.reloadSelf){
+          const host = dyn.findAncestor(triggerEl,'[data-dyn-url]')||triggerEl;
+          await dyn.reload(host);
+        }
         dyn.unmount(holder); app.unmount(); holder.remove();
       }
     },
@@ -309,7 +405,7 @@ defineAction('close',ctx=>{
   let host = null;
   let p = el;
   while(p){
-    if(p.classList&&p.classList.contains('dyn‑modal‑host')){ host=p; break; }
+    if(p.classList&&p.classList.contains('dyn-modal-host')){ host=p; break; }
     p = p.parentNode;
   }
   if(host&&host.__dynApp&&host.__dynApp._instance){
@@ -387,6 +483,75 @@ defineAction('setvar',async ctx=>{
     dyn.showMessage(`setvar执行异常:${err.message}`,'error');
     return null;
   }
+});
+
+/**
+ * @description calc 安全表达式运算动作，不使用eval/new Function，仅支持简单赋值运算
+ * 支持语法：
+ *   count +=1 / count -=1 / count *=2 / count /=2
+ *   total = price * num / sum = a + b / diff = a - b / avg = total / count
+ * 变量名仅限model内部字段，支持点路径 user.score += 5
+ * @param {DynActionCtx} ctx
+ * @returns {Promise<number|null>}
+ */
+defineAction('calc',async ctx=>{
+  const o = ctx.options||{};
+  const expr = o.expr || '';
+  if(!expr){
+    dyn.showMessage('calc：expr表达式不能为空','warning');
+    return null;
+  }
+  const model = ctx.model;
+  if(!model){
+    dyn.showMessage('calc：未获取到model(scope)','warning');
+    return null;
+  }
+  const src = expr.replace(/\s+/g,' ').trim();
+  // 自增自减支持空格和步长：count +=1 / count += 1 / count += 5
+  const assignSelfRe = /^([\w.]+)\s*(\+=|-=|\*=|\/=)\s*([0-9.]+)?$/;
+  const assignBinRe = /^([\w.]+)\s*=\s*([\w.]+)\s*(\+|-|\*|\/)\s*([0-9.]+|[\w.]+)$/;
+  let match;
+  let targetPath;
+  let resultValue;
+  if((match = src.match(assignSelfRe))){
+    // 自增自减：count +=1 / count += 5
+    targetPath = match[1];
+    const op = match[2];
+    const step = match[3]===undefined ? 1 : Number(match[3]);
+    const cur = dyn.getByPath(model, targetPath) ?? 0;
+    let num = Number(cur);
+    switch(op){
+      case '+=': num = num + step; break;
+      case '-=': num = num - step; break;
+      case '*=': num = num * step; break;
+      case '/=': num = step===0?0 : num / step; break;
+    }
+    resultValue = num;
+  }else if((match = src.match(assignBinRe))){
+    // 二元运算：total = price * num
+    targetPath = match[1];
+    const leftPath = match[2];
+    const operator = match[3];
+    const rightRaw = match[4];
+    const getVal = (p)=>{
+      if(/^[0-9.]+$/.test(p)) return Number(p);
+      return dyn.getByPath(model,p)??0;
+    };
+    const lv = getVal(leftPath);
+    const rv = getVal(rightRaw);
+    switch(operator){
+      case '+': resultValue = lv + rv; break;
+      case '-': resultValue = lv - rv; break;
+      case '*': resultValue = lv * rv; break;
+      case '/': resultValue = rv===0?0 : lv / rv; break;
+      default: dyn.showMessage(`calc不支持运算符${operator}`,'warning'); return null;
+    }
+  }else{
+    dyn.showMessage(`calc表达式语法不支持：${expr}\n支持示例：count +=1、total=price*num`,'warning');
+    return null;
+  }
+  dyn.setPathVal(model, targetPath, resultValue);
+  return resultValue;
 });
 
 defineAction('evaljs',async ctx=>{
@@ -538,8 +703,9 @@ function _runEvents(steps,baseCtx){
  * @param {HTMLElement} rootEl
  */
 function runJsonActions(res,rootEl){
-  if(!res||!Array.isArray(res.actions)||!res.actions.length) return;
-  res.actions.forEach(item=>{
+  const actions = Array.isArray(res)?res:(res&&Array.isArray(res.actions)?res.actions:[]);
+  if(!actions.length) return;
+  actions.forEach(item=>{
     if(!item||typeof item!=='object') return;
     try{
       if(item.script){
@@ -551,35 +717,38 @@ function runJsonActions(res,rootEl){
       const act = resolveAction(item.action);
       if(!act){ console.warn("[runJsonActions]动作不存在:"+item.action); return; }
       const c = buildCtx(rootEl,'jsonAction',null,item.options||{},item.action);
-      Promise.resolve(act(c)).catch(e=>console.error("[runJsonActions]执行异常",e));
+      const wrappedFn = wrapCompositeAction(act);
+      Promise.resolve(wrappedFn(c)).catch(e=>console.error("[runJsonActions]执行异常",e));
     }catch(err){ console.error("[runJsonActions]",err); }
   });
 }
 
 /**
- * @description 扫描dom执行data‑dyn‑on‑init初始化动作
+ * @description 扫描dom执行 data-dyn-init-* 初始化动作
  * @param {HTMLElement} root
  */
 function initActions(root){
   root = dyn.resolve(root)||document.body;
   if(!root) return;
-  const scanAttrs = [CONST.ATTR_INIT];
-  scanAttrs.forEach(attrName=>{
-    let arr = [];
-    if(root.hasAttribute&&root.hasAttribute(attrName)) arr.push(root);
-    if(root.querySelectorAll) arr = arr.concat([].slice.call(root.querySelectorAll('['+attrName+']')));
-    arr.forEach(el=>{
-      if(el.__dynInitDone) return;
-      el.__dynInitDone = true;
-      const raw = el.getAttribute(attrName);
-      const opt = resolveActionConfig(el,raw);
-      const actName = opt.action;
-      if(!actName) return;
-      const fn = resolveAction(actName);
-      if(!fn) return;
-      //修复：传入opt.options，不是顶层opt对象
-      const c = buildCtx(el, 'init', null, opt.options || {}, actName);
-      Promise.resolve(fn(c)).catch(e=>console.error("[init‑action异常]",e));
+  const list = [];
+  if(root.nodeType===1) list.push(root);
+  if(root.querySelectorAll) list.push(...[].slice.call(root.querySelectorAll('*')));
+  list.forEach(el=>{
+    if(el.__dynInitDone) return;
+    const attrs = el.attributes?[].slice.call(el.attributes):[];
+    attrs.forEach(a=>{
+      if(a.name.indexOf(CONST.ATTR_INIT_PREFIX)===0){
+        const actNameRaw = a.name.substring(CONST.ATTR_INIT_PREFIX.length);
+        const optRaw = a.value;
+        const options = parseActionOptions(optRaw);
+        const fn = resolveAction(actNameRaw);
+        if(!fn) return;
+        // 执行后移除init属性，防止Vue挂载重建DOM后重复执行
+        el.removeAttribute(a.name);
+        const c = buildCtx(el, 'init', null, options, actNameRaw);
+        const wrappedFn = wrapCompositeAction(fn);
+        wrappedFn(c).catch(e=>console.error("[init-action异常]",e));
+      }
     });
   });
 }
@@ -590,31 +759,66 @@ async function loadDbActionHelpers(){
 
 let _delegationBound = false;
 /**
- * @description document捕获模式事件委托，处理data‑dyn‑on‑xxx事件
+ * @description 根据动作注册表生成事件委托选择器（data-dyn-{event}-{actionName}）
+ * @returns {string}
+ */
+function generateSelector(){
+  const parts = [];
+  CONST.ACTION_EVENTS.forEach(ev=>{
+    Object.keys(_actions).forEach(actName=>{
+      parts.push('[data-dyn-'+ev+'-'+actName.toLowerCase()+']');
+    });
+  });
+  return parts.join(',');
+}
+
+/**
+ * @description 重新绑定事件委托；新增自定义动作后调用 dyn.rebindActions() 刷新选择器
+ */
+function rebindActions(){
+  _delegationBound = false;
+  bindDelegation();
+}
+
+/**
+ * @description document捕获模式事件委托，处理 data-dyn-{event}-{action} 短语法事件
  */
 function bindDelegation(){
   if(_delegationBound) return;
   _delegationBound = true;
   const doBind = ()=>{
     CONST.ACTION_EVENTS.forEach(ev=>{
-      const sel = '['+CONST.ATTR_ON_PREFIX+ev+']';
-      document.addEventListener(ev,e=>{
+      const prefix = 'data-dyn-'+ev+'-';
+      document.addEventListener(ev,async e=>{
+        const sel = generateSelector();
+        if(!sel) return;
         const target = e.target&&e.target.closest?e.target.closest(sel):null;
         if(!target) return;
-        const raw = target.getAttribute(CONST.ATTR_ON_PREFIX+ev);
-        const opt = resolveActionConfig(target,raw);
-        const actName = opt.action;
-        if(!actName) return;
-        const fn = resolveAction(actName);
-        if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',actName),'warning'); return; }
-        //修复：第四个参数传入 opt.options，不是顶层opt对象
-        const ctx = buildCtx(target, ev, e, opt.options || {}, actName);
-        const prevent = opt.prevent!==false;
-        if(prevent){ e.preventDefault(); e.stopPropagation(); }
-        Promise.resolve(fn(ctx)).catch(err=>{
-          console.error("[DynAction]动作执行异常",actName,err);
-          dyn.showMessage("操作失败："+err.message,'error');
+        // 从元素属性中解析出动作名：data-dyn-click-{actionName}
+        let hitAttr = null;
+        let actNameRaw = null;
+        [].slice.call(target.attributes).forEach(a=>{
+          if(!hitAttr&&a.name.indexOf(prefix)===0){
+            hitAttr = a;
+            actNameRaw = a.name.substring(prefix.length);
+          }
         });
+        if(!hitAttr||!actNameRaw) return;
+        const optRaw = hitAttr.value;
+        const options = parseActionOptions(optRaw);
+        const fn = resolveAction(actNameRaw);
+        if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',actNameRaw),'warning'); return; }
+        const ctx = buildCtx(target, ev, e, options, actNameRaw);
+        const prevent = options.prevent!==false;
+        if(prevent){ e.preventDefault(); e.stopPropagation(); }
+        // 组合动作包装：$before/$onSuccess/$onFail/$after
+        const wrappedFn = wrapCompositeAction(fn);
+        try{
+          await wrappedFn(ctx);
+        }catch(err){
+          console.error("[DynAction]动作执行异常",actNameRaw,err);
+          dyn.showMessage("操作失败："+err.message,'error');
+        }
       },true);
     });
   };
@@ -632,13 +836,14 @@ const api = {
   runJsonActions,
   loadDbActionHelpers,
   defineAction,
+  rebindActions,
   busOn:_bus.on, busOff:_bus.off, busEmit:_bus.emit, busClear:_bus.clear
 };
 
 if(typeof dyn.installActionApi === 'function'){
   dyn.installActionApi(api);
 }else{
-  console.error("[DynAction] dyn.installActionApi不存在，请检查dyn‑core.js");
+  console.error("[DynAction] dyn.installActionApi不存在，请检查dyn-core.js");
 }
 bindDelegation();
 

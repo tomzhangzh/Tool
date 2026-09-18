@@ -1,4 +1,5 @@
-/* dyn‑core.js V4 底层工具库，DOM/Vue实例管理，多App嵌套，scope共享作用域 */
+/* dyn-core.js V4 底层工具库，DOM/Vue实例管理，多App嵌套，scope共享作用域 */
+/* 网络层改用 axios UMD 全局（window.axios），去除 jQuery 依赖 */
 (function(global){
 'use strict';
 const Vue = global.Vue;
@@ -26,15 +27,14 @@ const _appMap = typeof WeakMap!=='undefined'?new WeakMap():null;
 const _scopeStore = new WeakMap();
 
 /**
- * @description 获取DOM元素，支持选择器/jQuery对象/DOM对象
- * @param {string|HTMLElement|JQuery|null} target
+ * @description 获取DOM元素，支持选择器/DOM对象
+ * @param {string|HTMLElement|null} target
  * @returns {HTMLElement|null}
  * @demo dyn.resolve("#app")
  */
 function resolve(target){
   if(!target) return null;
   if(typeof target === 'string') return document.querySelector(target);
-  if(target.jquery) return target.get(0);
   if(target.nodeType === 1) return target;
   return null;
 }
@@ -49,18 +49,30 @@ function findAncestor(el,selector){
   el = resolve(el);
   if(!el) return null;
   if(el.closest) return el.closest(selector)||null;
-  const $ = global.jQuery;
-  if($){ const r = $(el).closest(selector); return r.length?r.get(0):null; }
+  let cur = el.parentNode;
+  while(cur&&cur.nodeType===1){
+    if(cur.matches(selector)) return cur;
+    cur = cur.parentNode;
+  }
   return null;
 }
 
 /**
- * @description 向上查找最近 dyn‑mode=createApp容器
+ * @description 向上查找最近 dyn-mode=createApp容器
  * @param {HTMLElement} el
  * @returns {HTMLElement|null}
  */
 function closestDynInit(el){
   return findAncestor(el,'['+CONST.ATTR_MODE+'="createApp"]');
+}
+
+/**
+ * @description 判断元素是否为createApp容器
+ * @param {HTMLElement} el
+ * @returns {boolean}
+ */
+function isCreateApp(el){
+  return !!el && el.hasAttribute && el.hasAttribute(CONST.ATTR_MODE) && el.getAttribute(CONST.ATTR_MODE)==='createApp';
 }
 
 /**
@@ -94,7 +106,7 @@ function deepClone(o){
 }
 
 /**
- * @description 解析元素上data‑dyn‑mode‑model属性或者内嵌script标签model
+ * @description 解析元素上data-dyn-mode-model属性或者内嵌script标签model
  * @param {HTMLElement} el
  * @returns {object|null}
  */
@@ -118,32 +130,40 @@ function parseModel(el){
  * @returns {object|null}
  */
 function readModelScript(el){
+  if(!el||!el.querySelector) return null;
   const s = el.querySelector('script[type="'+CONST.SCRIPT_TYPE_JSON+'"][tag="'+CONST.SCRIPT_TAG_DYNMODEL+'"]');
   if(s) try{ return JSON.parse(s.textContent); }catch(e){ console.error("[DynCore] dynmodel脚本解析失败",e); }
   return null;
 }
 
 /**
- * @description ajax获取html片段
+ * @description ajax获取html片段，使用全局axios UMD（window.axios）
  * @param {string} url
  * @param {object} params
  * @param {string} [type]
- * @param {string} [dataType]
+ * @param {string} [dataType] json|text|html
  * @returns {Promise<any>}
  */
 async function fetchPartial(url,params,type,dataType){
   type = type||'POST';
   dataType = dataType||'html';
-  const $ = global.jQuery;
-  return new Promise((resolve,reject)=>{
-    if(!$) return reject(new Error("缺少jQuery"));
-    $.ajax({
-      url,type,
-      data:type==='GET'?$.param(params):JSON.stringify(params),
-      contentType:type==='GET'?undefined:'application/json',
-      dataType
-    }).done(r=>resolve(r)).fail(xhr=>reject(new Error((xhr.responseJSON&&xhr.responseJSON.Message)||('HTTP '+xhr.status))));
-  });
+  if(!global.axios){
+    console.error("[DynCore] 需要引入axios UMD，例如：<script src='https://cdn.jsdelivr.net/npm/axios@1.13.2/dist/axios.min.js'></script>");
+    throw new Error("Axios未加载");
+  }
+  const opt = {
+    url,
+    method:type,
+    timeout:30000,
+    responseType: dataType==='json' ? 'json' : 'text'
+  };
+  if(type==='GET'){
+    opt.params = params||{};
+  }else{
+    opt.data = params||{};
+  }
+  const resp = await global.axios(opt);
+  return resp.data;
 }
 
 /**
@@ -176,21 +196,25 @@ function confirmAsync(msg){
 
 function storeApp(el,app){
   if(_appMap)_appMap.set(el,app);
-  const $ = global.jQuery;
-  if($) try{ $(el).data('app',app); }catch(e){}
+  el.__dynApp = app;
 }
-
+function getClosestApp(el){
+  const host = closestDynInit(el);
+  if(!host) return null;
+  const app = getAppByEl(host);
+  // host dom存在，但是app仍然可能为null（dom标记已打上，mount还没完成）
+  return app;
+}
 function getAppByEl(el){
+  if(!el) return null;
   if(_appMap&&_appMap.has(el)) return _appMap.get(el);
-  const $ = global.jQuery;
-  if($){ try{ const d=$(el).data('app'); if(d) return d; }catch(e){} }
-  return null;
+  return el.__dynApp||null;
 }
 
 function removeApp(el){
+  if(!el) return;
   if(_appMap)_appMap.delete(el);
-  const $ = global.jQuery;
-  if($) try{ $(el).removeData('app'); }catch(e){}
+  el.__dynApp = null;
 }
 
 function holderEl(){
@@ -229,6 +253,7 @@ function checkRuntimeDeps(){
   if(cfg.loadLodash&&!window._) warns.push("lodash未加载");
   if(cfg.loadElementPlus&&!window.ElementPlus) warns.push("ElementPlus未加载");
   if(cfg.loadLayui&&!window.layui) warns.push("layui未加载");
+  if(!global.axios) warns.push("axios未加载");
   warns.forEach(m=>console.warn("[DynCore]依赖警告："+m));
   return warns.length===0;
 }
@@ -253,8 +278,8 @@ function mountCore(el){
   let useSharedModel = null;
   if(bindScopeId) useSharedModel = getScopeModel(el);
   const reactiveModel = useSharedModel ?? Vue.reactive(srcModel);
-  const $ = global.jQuery;
-  $(el).find('script').remove();
+  // 移除容器内script标签，避免Vue模板解析干扰（原生DOM，无jQuery）
+  [].slice.call(el.querySelectorAll('script')).forEach(s=>s.remove());
   const nested = [];
   maskNested(el,nested);
 
@@ -278,10 +303,13 @@ function mountCore(el){
   }
 
   const app = Vue.createApp(component);
+  ///////////////////////
+  // 插件注册
   if(global.ElementPlus) app.use(global.ElementPlus);
   if(global.ElementPlusIconsVue) Object.keys(global.ElementPlusIconsVue).forEach(k=>app.component(k,global.ElementPlusIconsVue[k]));
   if(global.DynRender) app.component('DynRender',global.DynRender);
-
+  /////////////////////
+  // 全局属性注册
   app.config.globalProperties.$dyn = global.dyn;
   el.__dynApp = app;
   el.__dynModel = reactiveModel;
@@ -296,17 +324,15 @@ function mountCore(el){
     if(item.host&&item.host.parentNode) item.host.appendChild(item.child);
     mount(item.child);
   });
+  // mount完成后（含ajax载入片段），自动扫描执行容器内 data-dyn-init-* 初始化动作
+  if(global.dyn&&typeof dyn.initActions==='function'){
+    dyn.initActions(el);
+  }
   return app;
 }
 
 /**
- * @description 挂载dyn-init-createApp容器，自动处理url加载
- * @param {string|HTMLElement} el
- * @returns {Promise<any>}
- * @demo dyn.mount("#container")
- */
-/**
- * @description 挂载dyn‑mode=createApp容器，自动处理url远程加载
+ * @description 挂载dyn-mode=createApp容器，自动处理url远程加载
  * @param {string|HTMLElement} el
  * @returns {Promise<any>}
  * @demo dyn.mount("#container")
@@ -339,7 +365,7 @@ function mount(el){
         }
       }).catch(err=>{
         el.__dynMounting = false;
-        el.innerHTML = '<div class="dyn‑loading">加载失败：'+((err&&err.message)||err)+'</div>';
+        el.innerHTML = '<div class="dyn-loading">加载失败：'+((err&&err.message)||err)+'</div>';
         promiseResolve(null);
       });
     }else{
@@ -405,30 +431,33 @@ function getModel(el){
 }
 
 /**
- * @description 表单序列化，收集name表单字段
+ * @description 表单序列化，收集name表单字段（原生DOM，无jQuery）
  * @param {HTMLElement} root
  * @returns {object|null}
  */
 function serializeForm(root){
-  if(!root||!root.querySelectorAll||!global.jQuery) return null;
-  const $inputs = $(':input',root).filter(function(){
-    const n = this.name||'';
-    return !!n&&!/^dyn-|^data-|^v-/.test(n);
-  });
-  if(!$inputs.length) return null;
+  if(!root||!root.querySelectorAll) return null;
+  const inputs = [].slice.call(root.querySelectorAll('input,select,textarea'));
   const o = {};
-  $inputs.each(function(){
-    const $e = $(this);
-    const n = this.name;
-    if(this.type==='radio'){ if(this.checked) o[n] = $e.val(); return; }
-    if(this.type==='checkbox'){ if(this.checked) o[n] = $e.val(); return; }
-    o[n] = $e.val();
+  inputs.forEach(input=>{
+    const n = input.name||'';
+    if(!n||/^dyn-|^data-|^v-/.test(n)) return;
+    const t = input.type;
+    if(t==='radio'){
+      if(input.checked) o[n] = input.value;
+      return;
+    }
+    if(t==='checkbox'){
+      if(input.checked) o[n] = input.value;
+      return;
+    }
+    o[n] = input.value;
   });
-  return o;
+  return Object.keys(o).length>0 ? o : null;
 }
 
 /**
- * @description 收集参数：model + 表单 + data‑*属性
+ * @description 收集参数：model + 表单 + data-*属性
  * @param {HTMLElement} targetEl
  * @param {object} extra
  * @returns {object}
@@ -437,7 +466,7 @@ function collectParams(targetEl,extra){
   const params = {};
   const cfg = targetEl.__dynCfg||{};
   Object.assign(params,cfg.params||{});
-  const inner = targetEl.hasAttribute(CONST.ATTR_MODE+'="createApp"')?targetEl:(targetEl.querySelector('['+CONST.ATTR_MODE+'="createApp"]')||null);
+  const inner = isCreateApp(targetEl)?targetEl:(targetEl.querySelector('['+CONST.ATTR_MODE+'="createApp"]')||null);
   const app = inner?getAppByEl(inner):null;
   if(app&&app._instance) Object.assign(params,deepClone(app._instance.proxy.model));
   else if(inner) Object.assign(params,parseModel(inner)||{});
@@ -448,7 +477,7 @@ function collectParams(targetEl,extra){
 }
 
 /**
- * @description 刷新dyn-init容器，识别后端返回dyn‑actions字段自动执行动作
+ * @description 刷新dyn-init容器，识别后端返回dyn-actions字段自动执行动作
  * @param {HTMLElement|string} target
  * @param {object} opts
  * @returns {Promise<any>}
@@ -463,7 +492,7 @@ async function reload(target,opts){
     return Promise.resolve(null);
   }
   let targetEl = null;
-  if(el.hasAttribute(CONST.ATTR_MODE+'="createApp"')||el.hasAttribute(CONST.ATTR_URL)) targetEl = el;
+  if(isCreateApp(el)||el.hasAttribute(CONST.ATTR_URL)) targetEl = el;
   else targetEl = findAncestor(el,'['+CONST.ATTR_URL+']');
   if(!targetEl) return Promise.resolve(null);
   const cfg = targetEl.__dynCfg||{};
@@ -473,7 +502,7 @@ async function reload(target,opts){
   return fetchPartial(url,params,opts.method||cfg.method||'POST','text').then(text=>{
     let data=null;
     try{ data=JSON.parse(text); }catch(e){}
-    // 后端返回dyn‑actions自动执行动作
+    // 后端返回dyn-actions自动执行动作
     if(data && typeof data === 'object' && Array.isArray(data['dyn-actions']) && global.dyn && global.dyn.runJsonActions){
       global.dyn.runJsonActions({ actions: data['dyn-actions'] }, targetEl);
     }
@@ -501,7 +530,8 @@ function getVueModel(el,targetEl){
   if(targetEl) src = typeof targetEl==='string'?document.querySelector(targetEl):targetEl;
   if(!src) src = el;
   if(!src) return null;
-  if(src.hasAttribute&&src.hasAttribute(CONST.ATTR_MODE+'="createApp"')) host = src;
+  let host = null;
+  if(isCreateApp(src)) host = src;
   else if(src.querySelector) host = src.querySelector('['+CONST.ATTR_MODE+'="createApp"]');
   if(!host) host = closestDynInit(src)||src;
   return getModel(host);
@@ -512,9 +542,23 @@ function getByPath(obj,path){
   return String(path).split('.').reduce((o,k)=>o==null?undefined:o[k],obj);
 }
 
+/**
+ * @description 设置对象路径值，lodash _.set 优先，原生降级实现
+ * @param {object} obj
+ * @param {string} path
+ * @param {any} value
+ */
 function setPathVal(obj,path,value){
   if(global._&&typeof global._.set==='function'){ global._.set(obj,path,value); return; }
-  console.warn("[DynCore] setPathVal需要lodash _.set");
+  const keys = String(path).split('.');
+  const last = keys.pop();
+  let cur = obj;
+  for(let i=0;i<keys.length;i++){
+    const k = keys[i];
+    if(!cur[k]||typeof cur[k]!=='object') cur[k]={};
+    cur = cur[k];
+  }
+  cur[last] = value;
 }
 
 const dyn = {
@@ -523,7 +567,7 @@ const dyn = {
   showMessage,confirmAsync,
   resolve,findAncestor,closestDynInit,
   mount,unmount,render,
-  getApp:getAppByEl,getProxy,getModel,getScopeModel,
+  getApp:getAppByEl,getClosestApp,getProxy,getModel,getScopeModel,
   fetchPartial,serializeForm,collectParams,
   reload,setDynCfg,getVueModel,
   getByPath,setPathVal,deepClone

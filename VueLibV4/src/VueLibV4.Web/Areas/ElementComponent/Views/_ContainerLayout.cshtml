@@ -1,0 +1,35 @@
+@{
+    Layout = "~/Areas/ElementComponent/Views/_BaseLayout.cshtml";
+}
+   @RenderBody()
+@* <template>
+    <div v-if="shellShow"
+         :class="[...getClass(jc.options.itemoptions), ...shellClass]"
+         :style="[getStyle(jc.options.itemoptions), shellStyle]">
+     
+
+        <!-- 渲染子控件集合 childrenctrls，使用动态包装组件 DynDynamicCom -->
+        <DynDynamicCom
+            v-for="(childCfg, idx) in safeChildren"
+            :key="childCfg.component + '_' + idx"
+            :jsonconfig="childCfg"
+            :parentmodelinfo="props.parentmodelinfo"
+            :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
+        </DynDynamicCom>
+    </div>
+</template> *@
+@section setupScripts{
+
+// 容器：合并自身uiGlobalProps，向下provide给后代组件
+const finalUiGlobalProps = computed(() => {
+    return mergePatch(originUiGlobalMerged.value, effectivePatch.comoptions);
+});
+
+// 向下透传UI全局配置
+provide('ui_global_props', finalUiGlobalProps.value);
+// 向下透传label默认配置
+provide('defaultLabelOptions', jc.options.defaultLabelOptions);
+
+comExtra.finalUiGlobalProps = finalUiGlobalProps;
+ @RenderSection("setupScripts", false)
+}

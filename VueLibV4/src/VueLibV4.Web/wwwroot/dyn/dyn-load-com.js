@@ -1,4 +1,4 @@
-/* dyn‑load‑com.js DynLoadCom：后端动态加载自定义组件，原vueLoadCom重命名 */
+/* dyn-load-com.js DynLoadCom：后端动态加载自定义组件，原vueLoadCom重命名 */
 (function(global){
 'use strict';
 const componentCache = new Map();
