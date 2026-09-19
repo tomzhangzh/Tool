@@ -3,20 +3,19 @@
 }
 
 <template>
-<div class="dyn-grid-container"
+<div class="dyn-children-wrap dyn-grid-container"
          :style="gridStyle"
          :class="[...getClass(jc.options.itemoptions), designRootClass]">
-        <div class="dyn-children-wrap"><n-dynamic-com v-for="(child, idx) in safeChildren" :key="child.__uid" :jsonconfig="child" :parentmodelinfo="props.parentmodelinfo" :node-path="props.nodePath + '.childrenctrls[' + idx + ']'"></n-dynamic-com></div>
-    </div>
+    <n-dynamic-com v-for="(child, idx) in safeChildren" :key="child.__uid" :jsonconfig="child" :parentmodelinfo="props.parentmodelinfo" :node-path="props.nodePath + '.childrenctrls[' + idx + ']'"></n-dynamic-com>
+</div>
 </template>
 
 @section setupScripts{
     DVALUE = null;
-    // 栅格容器：comoptions 即 CSS 样式（display:grid / grid-template-columns / gap 等），
-    // itemoptions.style 叠加；子组件通过 itemoptions.class 配置 col-span-2 等 Tailwind 类
     const gridStyle = computed(() => {
         const co = jc.options?.comoptions || {};
         const io = jc.options?.itemoptions?.style || {};
         return Object.assign({ display: 'grid' }, co, io);
     });
+    comExtra.gridStyle = gridStyle;
 }

@@ -8,8 +8,8 @@
              :inline="!!jc.options.comoptions.inline"
              :label-position="jc.options.comoptions.labelPosition || 'right'"
              :style="getStyle(jc.options.itemoptions)"
-             :class="[...getClass(jc.options.itemoptions), designRootClass]">
-        <div class="dyn-children-wrap"><n-dynamic-com v-for="(child, idx) in safeChildren"
+             :class="getClass(jc.options.itemoptions)">
+        <div class="dyn-children-wrap" :class="designRootClass"><n-dynamic-com v-for="(child, idx) in safeChildren"
                        :key="child.__uid"
                        :jsonconfig="child"
                        :parentmodelinfo="formModel"

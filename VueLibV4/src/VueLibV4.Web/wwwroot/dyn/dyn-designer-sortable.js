@@ -94,10 +94,16 @@
             },
 
             onMove: function (evt) {
-                clearHighlight();
-                if (evt.to) {
-                    var wrap = evt.to.classList && evt.to.classList.contains("dyn-children-wrap")
-                        ? evt.to : evt.to.closest ? evt.to.closest(".dyn-children-wrap") : null;
+                // 清除所有高亮
+                document.querySelectorAll(".dyn-container-hover").forEach(function (el) {
+                    el.classList.remove("dyn-container-hover");
+                });
+                // 找鼠标下最内层的 dyn-children-wrap 高亮
+                var target = evt.to;
+                if (target) {
+                    var wrap = target.classList && target.classList.contains("dyn-children-wrap")
+                        ? target
+                        : (target.closest ? target.closest(".dyn-children-wrap") : null);
                     if (wrap) {
                         wrap.classList.add("dyn-container-hover");
                         highlightTarget = wrap;
@@ -108,7 +114,9 @@
 
             onEnd: function () {
                 listEl.classList.remove("dyn-dragging-active");
-                clearHighlight();
+                document.querySelectorAll(".dyn-container-hover").forEach(function (el) {
+                    el.classList.remove("dyn-container-hover");
+                });
                 if (scope && window.DynDesignerOps) {
                     setTimeout(function () { window.DynDesignerOps.updateOverlay(scope); }, 50);
                 }

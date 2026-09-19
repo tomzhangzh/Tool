@@ -308,7 +308,7 @@ var comConfig = {
                 var isContainer = lookupIsContainer(compName);
                 var isGrid = compName === "DynGridContainer";
                 if (isContainer) {
-                    var listEl = rootEl.querySelector(".dyn-children-wrap");
+                    var listEl = rootEl.classList && rootEl.classList.contains("dyn-children-wrap") ? rootEl : rootEl.querySelector(".dyn-children-wrap");
                     if (listEl) {
                         var designerScope = injectDesignerScope;
                         _sortableIns = window.DesignerSortable.createCanvasContainer(listEl, jc, designerScope, isGrid);
