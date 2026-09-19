@@ -119,6 +119,7 @@
   <script tag="dynconfig">
   var dynConfig = {
     data: function () { return { propTab: 'base', comPropsActive: ['comAttr'], styleJsonError: '', componentMetaList: [] }; },
+
     mounted: function () {
       var self = this;
       // 从共享scope同步componentMetaList，确保响应式
@@ -147,7 +148,16 @@
         if (!pj) return null;
         try {
           var parsed = typeof pj === 'string' ? JSON.parse(pj) : pj;
-          return parsed && parsed.component ? parsed : null;
+          if(parsed && parsed.component) {
+            // 右侧属性面板统一 small + 左右label布局
+            if(!parsed.options) parsed.options = {};
+            if(!parsed.options.comInnerInfo) parsed.options.comInnerInfo = {};
+            if(!parsed.options.comInnerInfo.size) parsed.options.comInnerInfo.size = 'small';
+            if(!parsed.options.comInnerInfo.labelPosition) parsed.options.comInnerInfo.labelPosition = 'left';
+            if(!parsed.options.comInnerInfo.labelWidth) parsed.options.comInnerInfo.labelWidth = '90px';
+            return parsed;
+          }
+          return null;
         } catch(e) {
           console.warn('PropertyConfigJson parse error:', e);
           return null;

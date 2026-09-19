@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
  * VueLibV3  dyn.css  动态组件/设计器公共样式
  * ============================================================ */
 
@@ -345,4 +345,16 @@ body.dyn-dragging,
   content: "*";
   color: #f56c6c;
   margin-right: 4px;
+}
+
+/* ===== Form Item 布局：水平（label左+控件右）/ 垂直（label上+控件下） ===== */
+.dyn-form-item--horizontal .el-form-item__label {
+    line-height: 32px;
+}
+.dyn-form-item--horizontal .el-form-item__content {
+    line-height: 32px;
+}
+.dyn-form-item--vertical .el-form-item__label {
+    line-height: 1.5;
+    margin-bottom: 4px;
 }

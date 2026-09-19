@@ -101,6 +101,15 @@ var comConfig = {
         const injectParentDefaultLabelOptions = inject('defaultLabelOptions', null);
         const injectUiGlobalProps = inject('ui_global_props', null);
         const injectDesignerScope = inject("designer", null);
+        const injectParentComInnerInfo = inject('comInnerInfo', () => ({}));
+
+        // 合并父容器穿透的 comInnerInfo（size / labelPosition / labelWidth 等），子组件自身配置优先
+        // 数据格式：{ size: 'small', labelPosition: 'left', labelWidth: '100px' }
+        const mergedComInnerInfo = reactive(Object.assign({},
+            injectParentComInnerInfo || {},
+            jc.options?.comInnerInfo || {}
+        ));
+        provide('comInnerInfo', mergedComInnerInfo);
         function lookupIsContainer(compName) {
             if (!injectDesignerScope || !injectDesignerScope.componentMetaList) return false;
             var list = injectDesignerScope.componentMetaList;
@@ -162,9 +171,26 @@ var comConfig = {
         const shellClass = computed(() => effectivePatch.shell?.class ?? []);
         const shellStyle = computed(() => effectivePatch.shell?.style ?? {});
 
-        const originMergedLabelOpts = computed(() => mergeLabelOptions(jc.options.labeloptions, parentDefaultLabelOpts));
+        const originMergedLabelOpts = computed(() => {
+            const base = mergeLabelOptions(jc.options.labeloptions, parentDefaultLabelOpts);
+            // 从 comInnerInfo 穿透 labelPosition / labelWidth（容器配置，子组件未单独设置时生效）
+            if (mergedComInnerInfo.labelPosition && !jc.options.labeloptions?.labelPosition) {
+                base.labelPosition = mergedComInnerInfo.labelPosition;
+            }
+            if (mergedComInnerInfo.labelWidth && !jc.options.labeloptions?.labelWidth) {
+                base.labelWidth = mergedComInnerInfo.labelWidth;
+            }
+            return base;
+        });
         const finalLabelOptions = computed(() => mergePatch(originMergedLabelOpts.value, effectivePatch.labeloptions));
-        const finalComOptions = computed(() => mergePatch(jc.options.comoptions, effectivePatch.comoptions));
+        const finalComOptions = computed(() => {
+            const base = mergePatch(jc.options.comoptions, effectivePatch.comoptions);
+            // 从合并后的 comInnerInfo 穿透 size（容器设置的 size 会被子组件继承）
+            if (mergedComInnerInfo.size && !base.size) {
+                base.size = mergedComInnerInfo.size;
+            }
+            return base;
+        });
         const originUiGlobalMerged = computed(() => Object.assign({}, parentUiGlobal || {}, jc.options.uiGlobalProps));
 
         @RenderSection("setupScripts", false)
