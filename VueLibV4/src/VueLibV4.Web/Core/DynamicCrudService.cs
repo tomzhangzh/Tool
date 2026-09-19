@@ -171,7 +171,13 @@ public class DynamicCrudService
         if (colInfos.TryGetValue("Id", out var idCol) && idCol.IsIdentity)
         {
             db.InsertableByObject(dict).AS(table).ExecuteCommand();
-            try { return db.Ado.GetLong("SELECT CAST(SCOPE_IDENTITY() AS BIGINT)"); }
+            try
+            {
+                // 自增主键取回：SQLite 用 last_insert_rowid()，SQL Server 用 SCOPE_IDENTITY()
+                var isSqlite = db.CurrentConnectionConfig.DbType == SqlSugar.DbType.Sqlite;
+                var sql = isSqlite ? "SELECT last_insert_rowid()" : "SELECT CAST(SCOPE_IDENTITY() AS BIGINT)";
+                return db.Ado.GetLong(sql);
+            }
             catch { return 1; }
         }
         return db.InsertableByObject(dict).AS(table).ExecuteCommand();

@@ -13,12 +13,9 @@ namespace VueLibV4.Web.Services;
 /// <summary>
 /// Razor 组件渲染器 - 将 .cshtml 组件定义渲染并解析为 ComponentDefineDto
 ///
-/// 组件 View 约定（两种格式均支持）:
-///   1. V4 标记格式: Views/Shared/Components/{ComponentName}.cshtml
-///       用 <!--TEMPLATE_START-->...<!--TEMPLATE_END--> 等标记包裹
-///   2. V1 Area 格式: Areas/ElementComponent/Views/{Container|Common|FormItem}/{ComponentName}.cshtml
-///       输出 <template>...</template> + <script tag='comconfig'>var comConfig = {...}</script>
-///       其中 comconfig script 即 Vue 组件选项（setup 内使用全局 Vue / inject 依赖注入）
+/// 组件 View 约定（由 ComponentMeta.ViewPath 指定，按路径直接渲染）:
+///   Areas/Component/ElementUI/{ComponentName}.cshtml 或 Areas/Component/Common/{ComponentName}.cshtml
+///   输出 <template>...</template> + <script tag='comconfig'>var comConfig = {...}</script>
 ///
 /// 文件头元数据注释:
 ///   @* ComponentType: Page *@
@@ -44,54 +41,22 @@ public class RazorComponentRenderer
         _logger = logger;
     }
 
-    /// <summary>Area 组件搜索目录（对应 V1 ElementComponent 三个控制器）</summary>
-    private static readonly string[] AreaViewDirs = { "Container", "Common", "FormItem" };
-
-    /// <summary>检查指定名称的 Razor 组件是否存在</summary>
-    public bool Exists(string componentName)
+    /// <summary>按已知 ViewPath 直接渲染组件并解析为 ComponentDefineDto（路径来自 ComponentMeta，不再轮询目录）</summary>
+    public async Task<ComponentDefineDto?> RenderByPath(string viewPath, string componentName)
     {
-        return FindViewPath(componentName) != null;
-    }
-
-    /// <summary>查找组件 View 路径（V4 标记格式优先，V1 Area 格式回退）</summary>
-    private string? FindViewPath(string componentName)
-    {
-        var v4Path = $"/Views/Shared/Components/{componentName}.cshtml";
-        if (_viewEngine.GetView(null, v4Path, false).Success) return v4Path;
-
-        foreach (var dir in AreaViewDirs)
-        {
-            var areaPath = $"/Areas/ElementComponent/Views/{dir}/{componentName}.cshtml";
-            if (_viewEngine.GetView(null, areaPath, false).Success) return areaPath;
-        }
-        return null;
-    }
-
-    /// <summary>渲染指定 Razor 组件并解析为 ComponentDefineDto</summary>
-    public async Task<ComponentDefineDto?> RenderAsync(string componentName)
-    {
-        var viewPath = FindViewPath(componentName);
-        if (viewPath == null)
-        {
-            _logger.LogDebug("Razor 组件不存在: {ComponentName}", componentName);
-            return null;
-        }
-
         var viewResult = _viewEngine.GetView(null, viewPath, false);
         if (!viewResult.Success)
         {
-            _logger.LogDebug("Razor 组件不存在: {ViewPath}", viewPath);
+            _logger.LogDebug("Razor 视图不存在: {ViewPath}", viewPath);
             return null;
         }
-
         try
         {
             var html = await RenderViewToStringAsync(viewResult.View, componentName);
+
             var define = ParseComponentHtml(html, componentName);
             if (define != null)
-            {
                 _logger.LogInformation("从 Razor View 加载组件: {ComponentName} ({ViewPath})", componentName, viewPath);
-            }
             return define;
         }
         catch (Exception ex)

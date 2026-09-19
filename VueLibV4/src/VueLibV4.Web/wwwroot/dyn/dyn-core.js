@@ -263,7 +263,7 @@ function checkRuntimeDeps(){
  * @param {HTMLElement} el
  * @returns {Promise<any>}
  */
-function mountCore(el){
+async function mountCore(el){
   checkRuntimeDeps();
   let cfgScript = null;
   const cfgDom = el.querySelector('script[tag="dynconfig"]');
@@ -305,8 +305,10 @@ function mountCore(el){
   const app = Vue.createApp(component);
   ///////////////////////
   // 插件注册
+  el.__dynApp = app;
+  storeApp(el,app);
   global.DynCom.setupApp(app);
-  global.DynCom.ensureRegistered(app);
+  await global.DynCom.ensureRegistered(app);
   /////////////////////
   // 全局属性注册
   app.config.globalProperties.$dyn = global.dyn;
@@ -314,7 +316,6 @@ function mountCore(el){
   el.__dynModel = reactiveModel;
   app.__dynModel = reactiveModel;
   el.__dynLoaded = true;
-  storeApp(el,app);
   try{ el.__dynProxy = app.mount(el)||null; }catch(e){ el.__dynProxy=null; throw e; }
   app.__dynProxy = el.__dynProxy;
   app.model = el.__dynProxy?el.__dynProxy.model:Vue.reactive(srcModel);

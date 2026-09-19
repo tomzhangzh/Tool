@@ -88,6 +88,7 @@ async function registerComponents(app,metas){
     if(name&&m.loadUrl&&global.DynLoadCom){
       const comp = global.DynLoadCom(name);
       if(name!=='Button') app.component(name,comp);
+      if(name==='DynDynamicCom'){ app.component('n-dynamic-com',comp); }
       _registry[name]=comp; count++;
     }
   });

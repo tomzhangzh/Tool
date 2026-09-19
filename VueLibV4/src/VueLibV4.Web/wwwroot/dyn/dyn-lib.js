@@ -61,9 +61,10 @@ if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"../lib/axios.min.js",name:"
 // 模块加载顺序：dyn-render 优先 dyn-com
 const DYN_MODULES = [
   "dyn-load-com.js",
-  // "dyn-render.js",
+  "dyn-render.js",
   "dyn-com.js",
   "dyn-core.js",
+  "dyn-designer-ops.js",
   "dyn-action.js",
   "dyn-template.js"
 ];
@@ -74,7 +75,7 @@ const DynLib = {
   _libs:{},
   _ready:false,
   _queue:[],
-  script(rel){ return BASE+rel; },
+  script(rel){ return BASE+rel+(rel.indexOf('?')>=0?'&':'?')+'v='+this.version; },
   lib(rel){ return BASE+'../lib/'+rel; },
   use(name){ return this._libs[name]?global[name]:null; },
   /**

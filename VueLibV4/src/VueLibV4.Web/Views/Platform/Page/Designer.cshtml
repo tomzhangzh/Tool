@@ -2,13 +2,39 @@
     Layout = "_Layout";
     ViewData["Title"] = "页面设计器 - VueLibV4";
 }
-<div id="app">正在加载设计器…</div>
 
 @section Scripts {
     <script>
-        // 设计器主逻辑在 dyn-designer.js（DynDesigner.create）。
-        // 选中框采用"绝对定位悬浮层"，不包装额外 DOM，
-        // 网格/弹性布局（grid-template-columns: 1fr 1fr + col-span-2）设计与运行时完全一致。
-        DynDesigner.create('#app');
+        // 各分区独立 createApp，通过 data-dyn-use-scope 共享同一份 scope
+        (function () {
+            function mountRegions() {
+                document.querySelectorAll('[data-dyn-mode="createApp"], [data-dyn-init-createapp]').forEach(function (el) {
+                    if (!el.getAttribute('data-dyn-mode')) el.setAttribute('data-dyn-mode', 'createApp');
+                    dyn.mount(el);
+                });
+            }
+            if (document.readyState === 'complete') mountRegions();
+            else window.addEventListener('load', mountRegions);
+        })();
     </script>
 }
+
+@*
+  设计器四分区（平台原生约定）：
+  root          data-dyn-shared-scope="designer" + data-dyn-scope-json  → 全局共享 reactive model
+    TopBar / LeftPanel / Canvas / RightPanel  各为独立 partial，根元素各自 data-dyn-init-createapp data-dyn-use-scope="designer"
+                  → 每个分区一个独立 VueApp，但 model 指向同一份共享 scope
+    模板里通过 model.xxx 读写共享数据；各区局部逻辑写在各自 partial 的 <script tag="dynconfig"> 里。
+*@
+<div class="flex flex-col h-screen m-0 bg-gray-100"
+     data-dyn-shared-scope="designer"
+     data-dyn-scope-json='{ "current": null, "componentGroups": [], "pageJson": { "component": "DynForm", "options": { "comoptions": {}, "labeloptions": { "label": "表单", "show": true }, "itemoptions": {} }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insert": false, "top": 0, "left": 0, "width": 0, "height": 0 } }'>
+
+  <partial name="~/Views/Platform/Page/Designer/TopBar.cshtml" />
+
+  <div class="flex flex-1 overflow-hidden min-h-0">
+    <partial name="~/Views/Platform/Page/Designer/LeftPanel.cshtml" />
+    <partial name="~/Views/Platform/Page/Designer/Canvas.cshtml" />
+    <partial name="~/Views/Platform/Page/Designer/RightPanel.cshtml" />
+  </div>
+</div>

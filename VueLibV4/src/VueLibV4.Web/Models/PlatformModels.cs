@@ -36,7 +36,7 @@ public class DynProject
 
     public DateTime CreateTime { get; set; } = DateTime.Now;
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }
 }
 
@@ -68,7 +68,7 @@ public class DynDict
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Remark { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }
 }
 
@@ -95,48 +95,55 @@ public class ComponentMeta
     [SugarColumn(Length = 200, IsNullable = true)]
     public string? Icon { get; set; }
 
+    /// <summary>所属 UI 平台：Common（公用）/ ElementUI / NutUI</summary>
+    [SugarColumn(Length = 50, IsNullable = false)]
+    public string UiPlatform { get; set; } = "Common";
+
+    /// <summary>前端动态加载组件定义的接口地址（为空=全局组件无需动态加载）</summary>
+    [SugarColumn(Length = 300, IsNullable = true)]
+    public string? LoadUrl { get; set; }
+
+    /// <summary>后端 Razor View 路径（仅后端渲染用），不再运行时轮询目录</summary>
+    [SugarColumn(Length = 300, IsNullable = true)]
+    public string? ViewPath { get; set; }
+
     public bool AcceptAll { get; set; } = false;
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? AllowDrop { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? CanDropInto { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? SlotsDefine { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? PropsMeta { get; set; }
 
     /// <summary>组件 template（DB 双定义源之一；Razor View 定义优先）</summary>
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? TemplateContent { get; set; }
 
     /// <summary>组件 script（export default {...}）</summary>
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ScriptContent { get; set; }
 
     /// <summary>组件 style</summary>
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? StyleContent { get; set; }
 
     /// <summary>属性 schema（旧字段，PropsMeta 的别名）</summary>
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? PropertyConfigJson { get; set; }
 
     /// <summary>默认配置（拖入画布时的初始配置）</summary>
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? DefaultConfigJson { get; set; }
-
-    public bool IsElementPlus { get; set; } = true;
-
-    [SugarColumn(Length = 50, IsNullable = true)]
-    public string? Version { get; set; }
 
     public bool IsActive { get; set; } = true;
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }
 }
 
@@ -160,13 +167,13 @@ public class DynActionHelper
     [SugarColumn(Length = 50, IsNullable = true)]
     public string? ActionType { get; set; } = "script";
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? Script { get; set; }
 
     [SugarColumn(Length = 50, IsNullable = true)]
     public string? Language { get; set; } = "javascript";
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ParamsJson { get; set; }
 
     [SugarColumn(Length = 500, IsNullable = true)]
@@ -200,10 +207,10 @@ public class DynTemplate
     [SugarColumn(Length = 200, IsNullable = true)]
     public string? Icon { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? TemplateJson { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ConfigJson { get; set; }
 
     [SugarColumn(Length = 500, IsNullable = true)]
@@ -238,10 +245,10 @@ public class DynWebPage
     /// <summary>使用的模板 Id（DynTemplate.Id）</summary>
     public int? TemplateId { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? PageJson { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ConfigJson { get; set; }
 
     [SugarColumn(Length = 500, IsNullable = true)]
@@ -251,7 +258,7 @@ public class DynWebPage
 
     public DateTime CreateTime { get; set; } = DateTime.Now;
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }
 }
 
@@ -278,7 +285,7 @@ public class DynCom
     [SugarColumn(Length = 100, IsNullable = true)]
     public string? ComponentName { get; set; }
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ConfigJson { get; set; }
 
     [SugarColumn(Length = 500, IsNullable = true)]
@@ -289,6 +296,6 @@ public class DynCom
 
     public DateTime CreateTime { get; set; } = DateTime.Now;
 
-    [SugarColumn(ColumnDataType = "nvarchar(max)", IsNullable = true)]
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }
 }

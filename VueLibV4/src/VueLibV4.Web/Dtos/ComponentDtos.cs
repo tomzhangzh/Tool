@@ -20,10 +20,10 @@ public class ComponentListItemDto
     [JsonProperty("routePath")] public string RoutePath { get; set; }
     [JsonProperty("description")] public string Description { get; set; }
     [JsonProperty("sortOrder")] public int SortOrder { get; set; }
-    /// <summary>组件定义加载地址（前端 vueLoadCom 拉取：Razor 优先 / DB 回退）</summary>
+    /// <summary>组件定义加载地址（前端动态加载；为空=全局组件无需加载）</summary>
     [JsonProperty("loadUrl")] public string LoadUrl { get; set; }
-    /// <summary>组件版本（如 ElementPlus 3.x / 1.0.0）</summary>
-    [JsonProperty("version")] public string Version { get; set; }
+    /// <summary>所属 UI 平台：Common / ElementUI / NutUI</summary>
+    [JsonProperty("uiPlatform")] public string UiPlatform { get; set; }
     /// <summary>是否为组合组件（compositeComponents 表驱动）</summary>
     [JsonProperty("isComposite")] public bool IsComposite { get; set; }
 }

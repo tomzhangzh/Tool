@@ -30,7 +30,7 @@ public class DynComRegistryViewComponent : ViewComponent
                 type = c.ComponentType,
                 icon = c.Icon,
                 loadUrl = c.LoadUrl,
-                version = c.Version,
+                uiPlatform = c.UiPlatform,
                 isComposite = c.IsComposite
             }).Cast<object>().ToList();
         }

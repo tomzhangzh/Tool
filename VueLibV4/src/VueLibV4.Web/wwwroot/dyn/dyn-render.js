@@ -135,6 +135,35 @@ const DynRender = {
       return h('div', { class: 'dyn-unknown' }, "未知组件:" + component);
     }
 
+    // 设计模式下：对 Dyn* 组合组件渲染大纲节点（不走 n-dynamic-com，避免失去 data-dyn-uid / 拖拽）
+    const _designMode = !!(this.pageCtx && this.pageCtx.designMode);
+    const _isDynComposite = component.indexOf('Dyn') === 0 && component !== 'DynDynamicCom' && component !== 'DynText';
+    if (_designMode && _isDynComposite) {
+      const wrapOn = {};
+      if (this.pageCtx.onDragStartCfg) wrapOn.onDragstart = (e) => { e.stopPropagation(); this.pageCtx.onDragStartCfg(cfg, e); };
+      if (this.pageCtx.onSelect) wrapOn.onClickCapture = (e) => {
+        const parent = (this.pageCtx.parentOf && this.pageCtx.selected === cfg) ? this.pageCtx.parentOf(cfg) : null;
+        this.pageCtx.onSelect(parent || cfg, e);
+      };
+      if (this.pageCtx.onDragOver) {
+        wrapOn.onDragover = (e) => { e.preventDefault(); e.stopPropagation(); this.pageCtx.onDragOver(cfg, e); };
+        wrapOn.onDrop = (e) => { e.preventDefault(); e.stopPropagation(); this.pageCtx.onDrop(cfg, e); };
+        wrapOn.onDragleave = (e) => { e.stopPropagation(); this.pageCtx.onDragLeave(cfg, e); };
+      }
+      const outerProps = { style: { display: 'contents' }, draggable: true };
+      if (this.pageCtx.uidOf) outerProps['data-dyn-uid'] = this.pageCtx.uidOf(cfg);
+      const label = (global.DynDesignerOps && global.DynDesignerOps.metaOf(component).Label) || component;
+      const outlineStyle = {
+        border: '1px dashed #c0c4cc', borderRadius: '4px', margin: '4px', padding: '6px',
+        background: 'rgba(64,158,255,0.06)', display: 'block'
+      };
+      const outlineNode = h('div', { style: outlineStyle }, [
+        h('div', { style: { fontSize: '11px', color: '#909399', marginBottom: '2px' } }, '📦 ' + label),
+        h('div', { style: { paddingLeft: '8px' } }, (childrenctrls || []).map(c => h(DynRender, { cfg: c })))
+      ]);
+      return h('span', outerProps, [outlineNode]);
+    }
+
     const props = {};
     const isTextBtn = (component === 'ElButton' || component === 'ElTag');
     Object.keys(comoptions).forEach(k => {

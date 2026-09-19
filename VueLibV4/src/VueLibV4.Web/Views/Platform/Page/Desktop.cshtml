@@ -151,7 +151,7 @@
 
 @section Scripts {
 <script>
-(function () {
+DynLib.ready(function () {
     var app = Vue.createApp({
         data: function () {
             return {
@@ -235,6 +235,6 @@
         }
     });
     app.mount('#app');
-})();
+});
 </script>
 }

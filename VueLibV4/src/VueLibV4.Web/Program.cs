@@ -23,18 +23,15 @@ builder.Services.AddScoped<ComponentService>();
 
 var app = builder.Build();
 
-// 启动建库 + 种子
-if (builder.Configuration.GetValue<bool>("Seed:RunOnStartup", true))
+// 启动初始化平台 SQLite 库（建表 + 种子 SQL）
+try
 {
-    try
-    {
-        var seeder = new Seeder(builder.Configuration, app.Logger);
-        seeder.Run();
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogError(ex, "种子数据初始化失败，请检查 SQL Server 连接字符串");
-    }
+    var seeder = new Seeder(builder.Configuration, app.Logger);
+    seeder.Run();
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "平台库初始化失败");
 }
 
 // 页面全部由 Razor View 返回
