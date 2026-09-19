@@ -1,0 +1,76 @@
+﻿@* JSON 编辑弹窗：独立 dyn app，通过共享 scope 读写 model.current *@
+<div data-dyn-init-createapp data-dyn-use-scope="designer">
+  <el-dialog v-model="visible" title="组件配置 JSON" width="700px" :close-on-click-modal="false" append-to-body>
+    <el-input
+      v-model="jsonText"
+      type="textarea"
+      :rows="20"
+      placeholder="组件配置 JSON"
+      style="font-family:monospace;font-size:12px;"
+    ></el-input>
+    <div v-if="errorMsg" style="color:#f56c6c;font-size:12px;margin-top:8px;">{{ errorMsg }}</div>
+    <template #footer>
+      <el-button @@click="onCancel">取消</el-button>
+      <el-button type="primary" @@click="onApply">应用到设计器</el-button>
+    </template>
+  </el-dialog>
+
+  <script tag="dynconfig">
+  var dynConfig = {
+    data: function () {
+      return { jsonText: '', errorMsg: '', innerVisible: false };
+    },
+    computed: {
+      visible: {
+        get: function () { return this.model.showJsonEditor && this.innerVisible; },
+        set: function (v) {
+          if (!v) { this.model.showJsonEditor = false; this.innerVisible = false; }
+        }
+      }
+    },
+    watch: {
+      'model.showJsonEditor': function (v) {
+        if (v) {
+          this.innerVisible = true;
+          var cur = this.model.current;
+          if (!cur) {
+            this.$message.warning('请先选中一个组件');
+            this.model.showJsonEditor = false;
+            return;
+          }
+          try {
+            this.jsonText = JSON.stringify(cur, null, 2);
+            this.errorMsg = '';
+          } catch (e) {
+            this.jsonText = '{}';
+            this.errorMsg = '序列化失败: ' + e.message;
+          }
+        }
+      }
+    },
+    methods: {
+      onCancel: function () {
+        this.model.showJsonEditor = false;
+        this.innerVisible = false;
+      },
+      onApply: function () {
+        try {
+          var obj = JSON.parse(this.jsonText);
+          if (!obj.component) {
+            this.errorMsg = 'JSON 中必须包含 component 字段';
+            return;
+          }
+          var cur = this.model.current;
+          Object.keys(cur).forEach(function (k) { delete cur[k]; });
+          Object.assign(cur, obj);
+          this.model.showJsonEditor = false;
+          this.innerVisible = false;
+          this.$message.success('已应用到设计器');
+        } catch (e) {
+          this.errorMsg = 'JSON 语法错误: ' + e.message;
+        }
+      }
+    }
+  };
+  </script>
+</div>

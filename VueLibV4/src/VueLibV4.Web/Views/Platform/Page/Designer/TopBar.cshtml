@@ -1,4 +1,4 @@
-@* 顶部工具栏：独立 dyn app，通过 scope 共享 model *@
+﻿@* 顶部工具栏：独立 dyn app，通过 scope 共享 model *@
 <header class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5 bg-white border-b border-gray-200 shrink-0 text-sm"
         data-dyn-init-createapp data-dyn-use-scope="designer">
   <b class="text-orange-500 text-base">🎨 低代码设计器</b>
@@ -33,11 +33,16 @@
   </el-radio-group>
   <el-switch v-model="model.showCode" size="small"></el-switch>
   <span class="text-gray-400 text-xs">HTML</span>
-  <el-button size="small">查看数据</el-button>
+  <el-button size="small" @@click="onViewJson">查看JSON</el-button>
   <el-button size="small" type="danger">新窗口预览</el-button>
 
   <script tag="dynconfig">
   var dynConfig = {
+    methods: {
+      onViewJson: function () {
+        this.model.showJsonEditor = true;
+      }
+    },
     mounted() {
       if (!this.model.pageName) this.model.pageName = '未命名页面';
       if (!this.model.device) this.model.device = 'desktop';

@@ -41,7 +41,7 @@
         @* 组件属性（动态渲染，comProps） *@
         <el-collapse v-model="comPropsActive" class="px-2 pb-2">
           <el-collapse-item title="组件属性" name="comAttr">
-            <dyn-dynamic-com v-if="comProps" :jsonconfig="comProps" :parentmodelinfo="model.current"></dyn-dynamic-com>
+            <dyn-dynamic-com v-if="comProps" :key="propKey" :jsonconfig="comProps" :parentmodelinfo="model.current"></dyn-dynamic-com>
             <div v-if="!comProps" class="text-xs text-gray-400 text-center py-2">该组件暂无扩展属性</div>
           </el-collapse-item>
         </el-collapse>
@@ -162,6 +162,10 @@
           console.warn('PropertyConfigJson parse error:', e);
           return null;
         }
+      },
+      propKey: function () {
+        var c = this.model.current;
+        return c ? (c.component + '_' + (c.__uid || 0)) : 'none';
       },
       allMetaList: function () {
         return this.model.componentMetaList || [];

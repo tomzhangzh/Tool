@@ -103,12 +103,46 @@ var comConfig = {
         const injectDesignerScope = inject("designer", null);
         const injectParentComInnerInfo = inject('comInnerInfo', () => ({}));
 
-        // 合并父容器穿透的 comInnerInfo（size / labelPosition / labelWidth 等），子组件自身配置优先
-        // 数据格式：{ size: 'small', labelPosition: 'left', labelWidth: '100px' }
-        const mergedComInnerInfo = reactive(Object.assign({},
-            injectParentComInnerInfo || {},
-            jc.options?.comInnerInfo || {}
-        ));
+        // comInnerInfo 白名单穿透：只有 comPassThrough 中声明的 key 才从父容器继承
+        // 子组件自身配置优先级更高
+        // 数据格式：{ size: 'small', labelPosition: 'left', labelWidth: '100px', comPassThrough: 'size,labelPosition,labelWidth' }
+        const mergedComInnerInfo = reactive({ validation: { valid: true, touched: false, errors: [] } });
+
+        function recalcComInnerInfo() {
+            const localComInner = jc.options?.comInnerInfo || {};
+            const parentComInner = injectParentComInnerInfo || {};
+
+            // 解析穿透白名单（字符串逗号分隔，默认只穿透 size）
+            let passKeys = ['size'];
+            if (parentComInner.comPassThrough && typeof parentComInner.comPassThrough === 'string') {
+                passKeys = parentComInner.comPassThrough.split(',').map(k => k.trim()).filter(k => !!k);
+            }
+            if (localComInner.comPassThrough && typeof localComInner.comPassThrough === 'string') {
+                const localKeys = localComInner.comPassThrough.split(',').map(k => k.trim()).filter(k => !!k);
+                passKeys = [...new Set([...passKeys, ...localKeys])];
+            }
+
+            // 只把白名单内的属性从父层继承
+            const inheritFromParent = {};
+            for (const key of passKeys) {
+                if (parentComInner[key] !== undefined) {
+                    inheritFromParent[key] = parentComInner[key];
+                }
+            }
+            // comPassThrough 本身必须穿透，否则孙组件不知道要继承什么
+            if (parentComInner.comPassThrough !== undefined) {
+                inheritFromParent.comPassThrough = parentComInner.comPassThrough;
+            }
+
+            // 清空再赋值，保持响应式（保留 validation 不被删除）
+            Object.keys(mergedComInnerInfo).forEach(k => { if (k !== 'validation') delete mergedComInnerInfo[k]; });
+            Object.assign(mergedComInnerInfo, inheritFromParent, localComInner);
+        }
+
+        recalcComInnerInfo();
+        // 监听自身 comInnerInfo 和父层 comInnerInfo 变化，重新计算
+        watch(() => [jc.options?.comInnerInfo, injectParentComInnerInfo], recalcComInnerInfo, { deep: true });
+
         provide('comInnerInfo', mergedComInnerInfo);
         function lookupIsContainer(compName) {
             if (!injectDesignerScope || !injectDesignerScope.componentMetaList) return false;
