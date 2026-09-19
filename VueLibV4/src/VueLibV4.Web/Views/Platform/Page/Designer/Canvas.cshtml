@@ -16,7 +16,7 @@
        @@drop.prevent="onDropRoot">
 
   <!-- 页面纸张（design mode：所有 n-dynamic-com 节点自带 data-dyn-uid + 可拖拽） -->
-  <div class="bg-white shadow-lg m-4 relative"
+  <div class="bg-white shadow-lg m-4 relative design-mode"
        data-designer-canvas
        :style="{ width: (model.pageWidth || 1200) + 'px', minHeight: (model.pageHeight || 800) + 'px' }"
        @@click.self="onCanvasClick">
@@ -71,6 +71,7 @@
     provide: function () {
       var self = this;
       return {
+        designer: self.model,
         pageCtx: {
           designMode: true,
           uidOf: function (cfg) { return window.DynDesignerOps.uidOf(cfg); },

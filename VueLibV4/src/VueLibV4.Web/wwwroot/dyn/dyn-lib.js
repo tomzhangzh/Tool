@@ -1,4 +1,4 @@
-/* dyn-lib.js V4 资源加载控制器 */
+﻿/* dyn-lib.js V4 资源加载控制器 */
 /* 就绪后自动执行 dyn.initActions(document.body)，扫描 data-dyn-init-* 初始化动作 */
 (function(global){
 'use strict';
@@ -51,6 +51,7 @@ if(DYN_LIB_CONFIG.loadLayui){
   DEFAULT_LIBS.push({url:"../lib/layui/layui.js",name:"layui"});
 }
 if(DYN_LIB_CONFIG.loadTailwind) DEFAULT_LIBS.push({url:"../lib/tailwind.css",name:"tailwind"});
+DEFAULT_LIBS.push({url:"../lib/sortable.min.js",name:"sortable"});
 if(DYN_LIB_CONFIG.loadCodemirror){
   DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.css",name:"codemirror-css"});
   DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.js",name:"codemirror"});
@@ -65,6 +66,7 @@ const DYN_MODULES = [
   "dyn-com.js",
   "dyn-core.js",
   "dyn-designer-ops.js",
+  "dyn-designer-sortable.js",
   "dyn-action.js",
   "dyn-template.js"
 ];

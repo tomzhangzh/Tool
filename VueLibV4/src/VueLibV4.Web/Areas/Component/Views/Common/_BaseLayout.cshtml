@@ -7,7 +7,7 @@ var comConfig = {
         nodePath: { type: String, default: '' }
     },
     setup(props, context) {
-        const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted } = Vue;
+        const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted, onBeforeUnmount, getCurrentInstance } = Vue;
         const _ = window._;
 
         const inst = Vue.getCurrentInstance();
@@ -41,8 +41,16 @@ var comConfig = {
             });
         }
 
-        const rawConfig = props.jsonconfig ?? {};
-        const jc = deepMerge({}, JSON.parse(JSON.stringify(defaults)), rawConfig);
+        // 直接引用 reactive 的 jsonconfig，不深拷贝；补齐缺失的默认字段
+        const jc = props.jsonconfig || {};
+        if (!jc.options) jc.options = {};
+        if (!jc.options.comoptions) jc.options.comoptions = {};
+        if (!jc.options.labeloptions) jc.options.labeloptions = { label: "", required: false, show: true };
+        if (!jc.options.itemoptions) jc.options.itemoptions = { style: {}, class: "" };
+        if (!Array.isArray(jc.childrenctrls)) jc.childrenctrls = [];
+        if (!Array.isArray(jc.validators)) jc.validators = [];
+        if (!jc.slots) jc.slots = {};
+        if (!jc.extendinfo) jc.extendinfo = {};
 
         function mergePatch(origin, patch) {
             const res = Object.assign({}, origin);
@@ -92,6 +100,7 @@ var comConfig = {
         const injectParentModelPrefix = inject('parentModelPrefix', null);
         const injectParentDefaultLabelOptions = inject('defaultLabelOptions', null);
         const injectUiGlobalProps = inject('ui_global_props', null);
+        const injectDesignerScope = inject("designer", null);
 
         // 璁捐鍣ㄤ笂涓嬫枃锛歞esignMode 鏃剁敱鐢诲竷 provide锛屾墍鏈?n-dynamic-com 鑺傜偣鑷姩娉ㄥ叆
         const pageCtx = inject('pageCtx', null);
@@ -111,6 +120,14 @@ var comConfig = {
         function onDesignDrop(e) { if (designMode && pageCtx.onDrop) { e.preventDefault(); e.stopPropagation(); pageCtx.onDrop(props.jsonconfig, e); } }
         function onDesignDragleave(e) { if (designMode && pageCtx.onDragLeave) { e.stopPropagation(); pageCtx.onDragLeave(props.jsonconfig, e); } }
 
+        // 空容器在设计态加占位 class
+        const designRootClass = computed(() => {
+            if (!designMode) return "";
+            var c = jc.component || "";
+            var isContainer = /Container|Form|Card|Tabs|Collapse|Row|Col|Panel/.test(c);
+            if (isContainer && (!jc.childrenctrls || jc.childrenctrls.length === 0)) return "designer-empty-container";
+            return "";
+        });
         let parentModelPrefixVal = injectParentModelPrefix;
         let parentDefaultLabelOpts = injectParentDefaultLabelOptions;
         let parentUiGlobal = injectUiGlobalProps;
@@ -263,8 +280,10 @@ var comConfig = {
 
         const safeChildren = computed(() => (jc.childrenctrls || []).filter(c => c && typeof c === 'object'));
 
+        var _sortableIns = null;
+        var _instance = getCurrentInstance();
         onMounted(() => {
-            const rootEl = context.root?.el;
+            const rootEl = (_instance && _instance.proxy && _instance.proxy.$el) || context.root?.el;
             if (rootEl) {
                 rootEl.__dynUiMeta = {
                     parentModelPrefix: fullModelName.value,
@@ -272,6 +291,24 @@ var comConfig = {
                     uiGlobalProps: originUiGlobalMerged.value
                 };
             }
+            // 设计模式下，容器组件初始化 Sortable
+            nextTick(() => {
+            if (designMode && window.DesignerSortable && rootEl) {
+                var compName = jc.component || "";
+                var isContainer = /Container|Form|Card|Tabs|Collapse/.test(compName);
+                var isGrid = compName === "DynGridContainer";
+                if (isContainer) {
+                    var listEl = rootEl.querySelector(".dyn-children-wrap");
+                    if (listEl) {
+                        var designerScope = injectDesignerScope;
+                        _sortableIns = window.DesignerSortable.createCanvasContainer(listEl, jc, designerScope, isGrid);
+                    }
+                }
+            }
+            });
+        });
+        onBeforeUnmount(() => {
+            if (_sortableIns) window.DesignerSortable.destroy(_sortableIns);
         });
 
         return {
@@ -298,6 +335,7 @@ var comConfig = {
             dyn,
             designMode,
             designUid,
+            designRootClass,
             onDesignDragstart,
             onDesignClick,
             onDesignDragover,

@@ -171,3 +171,21 @@
 
 /* CRUD 页 */
 .dyn-crud-page .el-card__body { padding: 12px; }
+
+/* grid 子项跨列 */
+.grid-span-2 { grid-column: span 2 / span 2; }
+.grid-span-3 { grid-column: span 3 / span 3; }
+
+/* 设计态容器 hover 高亮 */
+.design-mode [data-dyn-uid]:hover > * { outline: 1px dashed #409eff; outline-offset: -1px; }
+.design-mode [data-dyn-uid].dyn-node-selected > * { outline: 2px solid #409eff; outline-offset: -1px; }
+
+/* ============= SortableJS 拖拽样式 ============= */
+.dyn-sortable-ghost { opacity: 0.4; background-color: #409eff; border-radius: 4px; }
+.dyn-sortable-drag { opacity: 0.8; }
+.dyn-designer-ghost { background: #c6e2ff; outline: 2px dashed #409eff; border-radius: 4px; }
+.dyn-designer-chosen { outline: 2px solid #409eff; }
+.dyn-designer-dragging { opacity: 0.7; }
+
+/* 容器 children 包裹层 */
+.dyn-children-wrap { min-height: 4px; }

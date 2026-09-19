@@ -1,12 +1,12 @@
-@{
+﻿@{
     Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
 }
 
 <template>
 <div class="dyn-grid-container"
          :style="gridStyle"
-         :class="getClass(jc.options.itemoptions)">
-        <DynRender v-for="(child, idx) in safeChildren" :key="child.component + '_' + idx" :cfg="child" />
+         :class="[...getClass(jc.options.itemoptions), designRootClass]">
+        <div class="dyn-children-wrap"><n-dynamic-com v-for="(child, idx) in safeChildren" :key="child.component + '_' + idx" :jsonconfig="child" :parentmodelinfo="props.parentmodelinfo" :node-path="props.nodePath + '.childrenctrls[' + idx + ']'"></n-dynamic-com></div>
     </div>
 </template>
 

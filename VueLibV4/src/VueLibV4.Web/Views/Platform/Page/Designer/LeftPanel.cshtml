@@ -1,4 +1,4 @@
-@* 左侧面板：组件库 / 组件树 两个 tab；组件卡片 grid 可拖拽；结构树可点选 *@
+﻿@* 左侧面板：组件库 / 组件树 两个 tab；组件卡片 grid 可拖拽；结构树可点选 *@
 <aside class="w-72 shrink-0 bg-white border-r border-gray-200 flex flex-col min-h-0"
        data-dyn-init-createapp data-dyn-use-scope="designer">
   <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
@@ -23,11 +23,10 @@
           {{ c }}
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-2 overflow-y-auto pb-2">
+      <div id="component-lib-wrap" class="grid grid-cols-2 gap-2 overflow-y-auto pb-2">
         <div v-for="c in filteredComponents" :key="c.ComponentName"
              class="border border-gray-200 rounded p-2 flex flex-col items-center cursor-grab hover:border-blue-400 hover:bg-blue-50 transition"
-             draggable="true"
-             @@dragstart="onDragStartMeta($event, c)">
+             :data-meta="c.ComponentName" draggable="true">
           <div class="text-3xl leading-none mb-1">{{ c.Icon }}</div>
           <div class="text-xs text-gray-600">{{ c.Label || c.ComponentName }}</div>
         </div>
@@ -72,14 +71,21 @@
           var flat = [];
           groups.forEach(function (g) { g.components.forEach(function (c) { c.Category = g.category; flat.push(c); }); });
           self.allComponents = flat;
+          // 存到共享 scope 供 Sortable onAdd 查找 DefaultConfigJson
+          self.model.componentMetaList = flat;
+          // 初始化 Sortable 组件库拖拽
+          self.$nextTick(function () {
+            var libDom = document.getElementById("component-lib-wrap");
+            if (libDom && window.DesignerSortable) {
+              self._libSortable = window.DesignerSortable.createComponentLibrary(libDom, self.model);
+            }
+          });
         });
       // 加载元数据到 DynCom.metaMap（供 metaOf 取 Label/Icon）
       if (window.DynCom && window.DynCom.loadMeta) window.DynCom.loadMeta();
     },
     methods: {
-      onDragStartMeta: function (e, c) {
-        window.DynDesignerOps.onDragStartMeta(this.model, c, e);
-      },
+
       onTreeNodeClick: function (data) {
         if (data && data.cfg) window.DynDesignerOps.select(this.model, data.cfg);
       }
