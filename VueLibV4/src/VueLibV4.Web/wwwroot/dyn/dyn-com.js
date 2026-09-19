@@ -102,9 +102,9 @@ function setupApp(app){
   if(global.ElementPlusIconsVue){
     Object.keys(global.ElementPlusIconsVue).forEach(k=>app.component(k,global.ElementPlusIconsVue[k]));
   }
-  if(global.DynRender){
-    app.component('DynRender', global.DynRender);
-  }
+  // if(global.DynRender){
+  //   app.component('DynRender', global.DynRender);
+  // }
   Object.keys(_registry).forEach(k=>{ if(k!=='Button') app.component(k,_registry[k]); });
 }
 

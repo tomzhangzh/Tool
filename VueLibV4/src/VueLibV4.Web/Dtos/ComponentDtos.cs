@@ -12,7 +12,7 @@ public enum ComponentType
 /// <summary>组件清单项（注册表 / 设计器组件库用）</summary>
 public class ComponentListItemDto
 {
-    [JsonProperty("name")] public string ComponentName { get; set; }
+    [JsonProperty("componentName")] public string ComponentName { get; set; }
     [JsonProperty("label")] public string Label { get; set; }
     [JsonProperty("category")] public string Category { get; set; }
     [JsonProperty("icon")] public string Icon { get; set; }

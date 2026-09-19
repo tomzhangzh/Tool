@@ -305,9 +305,8 @@ function mountCore(el){
   const app = Vue.createApp(component);
   ///////////////////////
   // 插件注册
-  if(global.ElementPlus) app.use(global.ElementPlus);
-  if(global.ElementPlusIconsVue) Object.keys(global.ElementPlusIconsVue).forEach(k=>app.component(k,global.ElementPlusIconsVue[k]));
-  if(global.DynRender) app.component('DynRender',global.DynRender);
+  global.DynCom.setupApp(app);
+  global.DynCom.ensureRegistered(app);
   /////////////////////
   // 全局属性注册
   app.config.globalProperties.$dyn = global.dyn;
