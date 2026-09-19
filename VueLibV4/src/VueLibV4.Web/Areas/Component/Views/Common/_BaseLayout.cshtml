@@ -170,6 +170,10 @@ var comConfig = {
         @RenderSection("setupScripts", false)
 
         const fullModelName = computed(() => {
+            // 透明渲染器（n-dynamic-com）：直接透传 inject 的 prefix，不根据 jc.modelname 计算
+            if (comExtra.transparentMode) {
+                return parentModelPrefixVal || '';
+            }
             const raw = jc.modelname || '';
             if (!raw) {
                 const p = parentModelPrefixVal || '';
@@ -193,7 +197,7 @@ var comConfig = {
         const modelinfo = computed({
             get() {
                 if (props.parentmodelinfo && fullModelName.value) {
-                    const val = getByPath(props.parentmodelinfo, fullModelName.value);
+                    const val = getByPath(props.parentmodelinfo, fullModelName.value); 
                     return val === undefined ? DVALUE : val;
                 }
                 return innerValue.value;
@@ -308,7 +312,7 @@ var comConfig = {
                 var isContainer = lookupIsContainer(compName);
                 var isGrid = compName === "DynGridContainer";
                 if (isContainer) {
-                    var listEl = rootEl.classList && rootEl.classList.contains("dyn-children-wrap") ? rootEl : rootEl.querySelector(".dyn-children-wrap");
+                    var listEl = (rootEl.classList && rootEl.classList.contains("dyn-children-wrap")) ? rootEl : (typeof rootEl.querySelector === "function" ? rootEl.querySelector(".dyn-children-wrap") : null);
                     if (listEl) {
                         var designerScope = injectDesignerScope;
                         _sortableIns = window.DesignerSortable.createCanvasContainer(listEl, jc, designerScope, isGrid);

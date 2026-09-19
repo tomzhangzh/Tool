@@ -20,10 +20,30 @@
 
 @section setupScripts{
     DVALUE = null;
-    // 表单容器：labeloptions.labelWidth 支持（用户要求"容器中设置标签宽度"）
     const formModel = computed(() => {
         const pm = props.parentmodelinfo;
         if (pm) return pm;
         return modelinfo.value && typeof modelinfo.value === 'object' ? modelinfo.value : {};
+    });
+
+    // 无 wrapper：itemoptions（子项布局）统一合并进 options.itemoptions（组件根样式）
+    comExtra.safeChildren = computed(() => {
+        const rawList = (jc.childrenctrls || []).filter(c => c && typeof c === 'object');
+        return rawList.map(child => {
+            const io = child.itemoptions;
+            if (!io || (!io.class && !io.style)) return child;
+            const newChild = {
+                ...child,
+                options: { ...(child.options || {}), itemoptions: { ...((child.options || {}).itemoptions || {}) } }
+            };
+            const targetIo = newChild.options.itemoptions;
+            if (io.class) {
+                targetIo.class = [targetIo.class || "", io.class].filter(Boolean).join(" ");
+            }
+            if (io.style) {
+                targetIo.style = { ...(targetIo.style || {}), ...io.style };
+            }
+            return newChild;
+        });
     });
 }

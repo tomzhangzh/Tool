@@ -21,4 +21,8 @@
 @section setupScripts{
 // 数据库jsonconfig.component直接存储Vue真实注册组件名，无需转换
 comExtra.targetComponentName = jc?.component;
+
+// 透明渲染器：不根据 jc.modelname 计算 parentModelPrefix，直接透传 inject 的值
+// 否则会把子节点的 modelname 拼进 prefix，导致子组件路径双重拼接
+comExtra.transparentMode = true;
 }

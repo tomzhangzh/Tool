@@ -1,4 +1,4 @@
-﻿@* 右侧属性面板：tab 切换 基础/组件属性/布局/校验/高级 *@
+﻿@* 右侧属性面板：基础(含控件类型+组件属性) / 布局样式 / 校验 / 高级 *@
 <aside class="w-80 shrink-0 bg-white border-l border-gray-200 flex flex-col min-h-0"
        data-dyn-init-createapp data-dyn-use-scope="designer">
   <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
@@ -12,74 +12,104 @@
       <span class="text-gray-600 font-medium">{{ model.current.component }}</span>
     </div>
 
-    <el-tabs v-model="propTab" class="flex-1 overflow-hidden flex flex-col px-2">
+    <el-tabs v-model="propTab" class="flex-1 overflow-hidden flex flex-col" size="small" type="border-card">
+      @* ===== 基础：控件类型 + 通用字段 + 组件属性(comProps动态渲染) ===== *@
       <el-tab-pane label="基础" name="base" class="overflow-y-auto">
-        <div class="space-y-3 py-3 pr-1">
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">组件字段标识</label>
+        <el-form size="small" label-position="left" label-width="90px" class="p-3">
+          @* 控件类型（可切换组件） *@
+          <el-form-item label="控件类型">
+            <el-select v-model="model.current.component" size="small" filterable @@change="onComponentTypeChange">
+              <el-option-group v-for="g in componentGroups" :key="g.group" :label="g.group">
+                <el-option v-for="m in g.items" :key="m.ComponentName" :label="m.Label || m.ComponentName" :value="m.ComponentName"></el-option>
+              </el-option-group>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="字段标识">
             <el-input v-model="model.current.modelname" size="small" placeholder="绑定数据字段名" clearable></el-input>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">标签文本</label>
+          </el-form-item>
+          <el-form-item label="标签文本">
             <el-input v-model="model.current.options.labeloptions.label" size="small" placeholder="请输入标签文本" clearable></el-input>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-500">显示标签</span>
+          </el-form-item>
+          <el-form-item label="显示标签">
             <el-switch v-model="model.current.options.labeloptions.show" size="small"></el-switch>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-500">是否必填</span>
+          </el-form-item>
+          <el-form-item label="是否必填">
             <el-switch v-model="model.current.options.labeloptions.required" size="small"></el-switch>
-          </div>
-        </div>
+          </el-form-item>
+        </el-form>
+
+        @* 组件属性（动态渲染，comProps） *@
+        <el-collapse v-model="comPropsActive" class="px-2 pb-2">
+          <el-collapse-item title="组件属性" name="comAttr">
+            <dyn-dynamic-com v-if="comProps" :jsonconfig="comProps" :parentmodelinfo="model.current"></dyn-dynamic-com>
+            <div v-if="!comProps" class="text-xs text-gray-400 text-center py-2">该组件暂无扩展属性</div>
+          </el-collapse-item>
+        </el-collapse>
       </el-tab-pane>
 
-      <el-tab-pane label="组件属性" name="comAttr" class="overflow-y-auto">
-        <div class="py-2">
-          <dyn-dynamic-com v-if="comProps.length" :jsonconfig="comProps" :parentmodelinfo="model.current"></dyn-dynamic-com>
-          <div v-if="!comProps.length" class="p-4 text-xs text-gray-400 text-center">该组件暂无扩展属性</div>
-        </div>
-      </el-tab-pane>
-
+      @* ===== 布局样式 ===== *@
       <el-tab-pane label="布局样式" name="style" class="overflow-y-auto">
-        <div class="space-y-3 py-3 pr-1">
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">Label 宽度</label>
+        <el-form size="small" label-position="left" label-width="90px" class="p-3">
+          <el-form-item label="Label对齐">
+            <el-select v-model="model.current.options.comInnerInfo.labelPosition" size="small" clearable>
+              <el-option label="左对齐" value="left"></el-option>
+              <el-option label="右对齐" value="right"></el-option>
+              <el-option label="顶部" value="top"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="Label宽度">
             <el-input v-model="model.current.options.labeloptions.labelWidth" size="small" placeholder="auto / 100px"></el-input>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">组件宽度</label>
+          </el-form-item>
+          <el-form-item label="子控件尺寸">
+            <el-select v-model="model.current.options.comInnerInfo.size" size="small" clearable>
+              <el-option label="默认" value="default"></el-option>
+              <el-option label="大号" value="large"></el-option>
+              <el-option label="小号" value="small"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="组件宽度">
             <el-input v-model="model.current.options.itemoptions.style.width" size="small" placeholder="100%"></el-input>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">上边距</label>
+          </el-form-item>
+          <el-form-item label="上边距">
             <el-input v-model="model.current.options.itemoptions.style.marginTop" size="small"></el-input>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">下边距</label>
+          </el-form-item>
+          <el-form-item label="下边距">
             <el-input v-model="model.current.options.itemoptions.style.marginBottom" size="small"></el-input>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">自定义类名</label>
+          </el-form-item>
+          <el-form-item label="自定义类名">
             <el-input v-model="model.current.options.itemoptions.class" size="small"></el-input>
-          </div>
+          </el-form-item>
+          <el-form-item label="跨列">
+            <el-select v-model="model.current.options.itemoptions.class" size="small" clearable placeholder="选择跨列">
+              <el-option label="不跨列" value=""></el-option>
+              <el-option label="跨2列" value="grid-span-2"></el-option>
+            </el-select>
+          </el-form-item>
+        </el-form>
+
+        <div class="px-3 pb-3">
+          <div class="text-xs text-gray-500 mb-1">Style (JSON)</div>
+          <textarea v-model="styleJsonText" @@blur="onStyleJsonBlur" rows="6"
+                    class="w-full text-xs p-1 rounded"
+                    style="font-family:monospace;border:1px solid #dcdfe6;min-height:80px;"></textarea>
+          <div v-if="styleJsonError" class="text-xs text-red-500 mt-1">{{ styleJsonError }}</div>
         </div>
       </el-tab-pane>
 
+      @* ===== 校验 ===== *@
       <el-tab-pane label="校验" name="validate" class="overflow-y-auto">
-        <div class="space-y-3 py-3 pr-1">
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-500">必填校验</span>
+        <el-form size="small" label-position="left" label-width="90px" class="p-3">
+          <el-form-item label="必填校验">
             <el-switch :model-value="!!validators[0] && validators[0].type === 'required'"
                        @@change="onRequiredChange($event)" size="small"></el-switch>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">必填提示文字</label>
+          </el-form-item>
+          <el-form-item label="必填提示">
             <el-input v-model="validators[0].message" size="small" placeholder="请输入必填提示"></el-input>
-          </div>
-        </div>
+          </el-form-item>
+        </el-form>
       </el-tab-pane>
 
+      @* ===== 高级 ===== *@
       <el-tab-pane label="高级" name="advanced" class="overflow-y-auto">
         <div class="p-3 text-xs text-gray-400">高级配置（待实现）</div>
       </el-tab-pane>
@@ -88,7 +118,20 @@
 
   <script tag="dynconfig">
   var dynConfig = {
-    data: function () { return { propTab: 'base' }; },
+    data: function () { return { propTab: 'base', comPropsActive: ['comAttr'], styleJsonError: '', componentMetaList: [] }; },
+    mounted: function () {
+      var self = this;
+      // 从共享scope同步componentMetaList，确保响应式
+      var root = document.querySelector('[data-dyn-shared-scope="designer"]');
+      var scope = window.dyn.getScopeModel(root);
+      if (scope.componentMetaList) {
+        self.componentMetaList = scope.componentMetaList;
+      }
+      // 监听current变化，强制刷新组件属性
+      this.$watch(function(){ return self.model && self.model.current && self.model.current.component; }, function(){
+        self.$forceUpdate();
+      });
+    },
     computed: {
       validators: function () {
         if (!this.model.current.validators) this.model.current.validators = [];
@@ -97,12 +140,88 @@
       },
       comProps: function () {
         var cur = this.model.current;
-        if (!cur) return [];
+        if (!cur) return null;
         var m = window.DynDesignerOps.metaOf(cur.component);
-        return m.PropsMeta || [];
+        if (!m) return null;
+        var pj = m.PropertyConfigJson;
+        if (!pj) return null;
+        try {
+          var parsed = typeof pj === 'string' ? JSON.parse(pj) : pj;
+          return parsed && parsed.component ? parsed : null;
+        } catch(e) {
+          console.warn('PropertyConfigJson parse error:', e);
+          return null;
+        }
+      },
+      allMetaList: function () {
+        return this.model.componentMetaList || [];
+      },
+      componentGroups: function () {
+        var list = this.allMetaList;
+        var map = {};
+        list.forEach(function (m) {
+          if (!m.ComponentName) return;
+          var g = m.UiPlatform || '通用';
+          if (!map[g]) map[g] = { group: g, items: [] };
+          map[g].items.push(m);
+        });
+        // 排序：通用在前，然后按平台
+        var keys = Object.keys(map).sort(function(a,b){
+          if(a==='Common') return -1;
+          if(b==='Common') return 1;
+          return a.localeCompare(b);
+        });
+        return keys.map(function(k){ return map[k]; });
+      },
+      styleJsonText: function () {
+        var s = this.model.current && this.model.current.options && this.model.current.options.itemoptions && this.model.current.options.itemoptions.style;
+        if (!s) return '{}';
+        try { return JSON.stringify(s, null, 2); } catch (e) { return '{}'; }
       }
     },
     methods: {
+      onComponentTypeChange: function (newName) {
+        var cur = this.model.current;
+        if (!cur || !newName || cur.component === newName) return;
+        var m = window.DynDesignerOps.metaOf(newName);
+        if (!m) return;
+        // 保留布局配置和modelname
+        var keepItemOptions = cur.options && cur.options.itemoptions ? JSON.parse(JSON.stringify(cur.options.itemoptions)) : {};
+        var keepModelName = cur.modelname || '';
+        var keepValidators = cur.validators || [];
+        var keepChildren = cur.childrenctrls || [];
+        // 加载新组件默认配置
+        var defaultCfg = m.DefaultConfigJson ?
+          (typeof m.DefaultConfigJson === 'string' ? JSON.parse(m.DefaultConfigJson) : m.DefaultConfigJson)
+          : { component: newName, options: {} };
+        // 应用新配置
+        cur.component = newName;
+        cur.modelname = keepModelName;
+        cur.options = defaultCfg.options || {};
+        // 恢复布局配置
+        if (Object.keys(keepItemOptions).length > 0) {
+          cur.options.itemoptions = keepItemOptions;
+        }
+        // 恢复校验和子组件
+        cur.validators = keepValidators;
+        // 容器才保留子组件，非容器清空
+        if (!window.DynDesignerOps.isContainer(newName)) {
+          cur.childrenctrls = [];
+        } else {
+          cur.childrenctrls = keepChildren;
+        }
+      },
+      onStyleJsonBlur: function () {
+        this.styleJsonError = '';
+        try {
+          var obj = JSON.parse(this.styleJsonText || '{}');
+          if (!this.model.current.options) this.model.current.options = {};
+          if (!this.model.current.options.itemoptions) this.model.current.options.itemoptions = {};
+          this.model.current.options.itemoptions.style = obj;
+        } catch (e) {
+          this.styleJsonError = 'JSON格式错误: ' + e.message;
+        }
+      },
       onRequiredChange: function (val) {
         if (!this.model.current.validators) this.model.current.validators = [];
         if (!this.model.current.validators.length) this.model.current.validators.push({});

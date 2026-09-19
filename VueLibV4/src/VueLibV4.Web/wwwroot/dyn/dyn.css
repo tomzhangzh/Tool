@@ -339,3 +339,10 @@ body.dyn-dragging,
 .grid-span-2 {
   grid-column: span 2;
 }
+
+/* 必填星号 */
+.el-form-item__label.is-required::before {
+  content: "*";
+  color: #f56c6c;
+  margin-right: 4px;
+}
