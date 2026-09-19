@@ -1,0 +1,64 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+
+<div class="dyn-calc-box">
+    <div v-if="jc.options.comoptions.showExpr !== false && jc.options.comoptions.expression"
+         class="dyn-calc-expr" style="font-size:12px;color:#909399;margin-bottom:2px">
+        {{ jc.options.comoptions.expression }}
+    </div>
+    <div class="dyn-calc-value" :class="{ 'is-error': calcError }"
+         :style="{ fontSize: jc.options.comoptions.fontSize || '16px', fontWeight: jc.options.comoptions.bold ? 600 : 400, color: calcError ? '#f56c6c' : (jc.options.comoptions.color || '#303133') }">
+        <span v-if="prefix && !calcError" style="margin-right:2px">{{ prefix }}</span>
+        <span>{{ display }}</span>
+        <span v-if="suffix && !calcError" style="margin-left:2px">{{ suffix }}</span>
+    </div>
+    <div v-if="!jc.options.comoptions.expression" style="font-size:12px;color:#c0c4cc;padding:4px 0">
+        未配置表达式：请在右侧属性面板填写计算表达式（如 price * qty）
+    </div>
+</div>
+
+
+
+@section setupScripts{
+    DVALUE = '';
+    // ===== 计算组件：类似 Vue 计算表达式 =====
+    // 表达式可直接引用页面模型顶层字段（如 price * qty、(a + b) / 100、status == '启用' ? '正常' : '异常'），
+    // 也支持嵌套对象路径（如 order.total * 0.9）。字段变化时响应式重算（computed 依赖追踪）。
+    const prefix = computed(() => jc.options.comoptions.prefix || '');
+    const suffix = computed(() => jc.options.comoptions.suffix || '');
+    const calcError = ref(false);
+
+    function evalCalcExpression(expr, model) {
+        if (!expr || !String(expr).trim()) return '';
+        // new Function 默认非严格模式，with(model) 允许按字段名直接引用（Vue 计算表达式同款体验）
+        var fn = new Function('model', 'with (model || {}) { return (' + expr + '); }');
+        return fn(model || {});
+    }
+
+    function formatCalcValue(v) {
+        if (v == null || v === '') return jc.options.comoptions.emptyText || '—';
+        var dec = jc.options.comoptions.decimals;
+        if (typeof v === 'number' && dec !== undefined && dec !== null && dec !== '') {
+            return v.toFixed(Number(dec));
+        }
+        return String(v);
+    }
+
+    const calcValue = computed(() => {
+        var expr = jc.options.comoptions.expression || '';
+        if (!String(expr).trim()) return '';
+        var m = props.parentmodelinfo || {};
+        try {
+            var v = evalCalcExpression(expr, m);
+            calcError.value = false;
+            return formatCalcValue(v);
+        } catch (e) {
+            calcError.value = true;
+            return '表达式错误：' + (e && e.message ? e.message : String(e));
+        }
+    });
+
+    const display = computed(() => calcValue.value);
+    const comExtra = { prefix, suffix, calcError, display };
+}

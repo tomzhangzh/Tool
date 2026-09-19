@@ -1,0 +1,310 @@
+﻿@RenderBody()
+<script tag='comconfig'>
+var comConfig = {
+    props: {
+        jsonconfig: { type: Object, default: null },
+        parentmodelinfo: { type: Object, default: null },
+        nodePath: { type: String, default: '' }
+    },
+    setup(props, context) {
+        const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted } = Vue;
+        const _ = window._;
+
+        const inst = Vue.getCurrentInstance();
+        const dyn = inst?.proxy?.$dyn;
+
+        const defaults = {
+            component: null,
+            modelname: null,
+            options: {
+                comoptions: {},
+                comlisteners: {},
+                labeloptions: { label: '', required: false, show: true },
+                itemoptions: { style: {}, class: '' },
+                wrapperoptions: {},
+                uiGlobalProps: { size: undefined, disabled: undefined },
+                defaultLabelOptions: { labelWidth: "auto", requiredMark: true },
+                evalCondition: ""
+            },
+            validators: [],
+            childrenctrls: [],
+            slots: {},
+            extendinfo: {}
+        };
+
+        function deepMerge(target, ...sources) {
+            return _.mergeWith(target, ...sources, (objValue, srcValue) => {
+                if (Array.isArray(srcValue)) {
+                    return srcValue;
+                }
+                return undefined;
+            });
+        }
+
+        const rawConfig = props.jsonconfig ?? {};
+        const jc = deepMerge({}, JSON.parse(JSON.stringify(defaults)), rawConfig);
+
+        function mergePatch(origin, patch) {
+            const res = Object.assign({}, origin);
+            if (!patch || typeof patch !== "object") return res;
+            for (const key in origin) {
+                if (patch[key] !== undefined) {
+                    res[key] = patch[key];
+                }
+            }
+            return res;
+        }
+
+        function mergeLabelOptions(selfOpt, parentDefaultOpt) {
+            const result = Object.assign({}, parentDefaultOpt || {});
+            for (const key in selfOpt) {
+                const v = selfOpt[key];
+                if (v === null) {
+                    result[key] = null;
+                } else if (v !== undefined) {
+                    result[key] = v;
+                }
+            }
+            return result;
+        }
+
+        function getStyle(...opts) { return Object.assign({}, ...opts.map(o => o?.style || {})); }
+        function getClass(...opts) { return opts.flatMap(o => (o?.class || '').split(' ')).filter(Boolean); }
+
+        function getComlisteners() {
+            const listeners = jc.options?.comlisteners || {};
+            const result = {};
+            for (const key in listeners) {
+                const val = listeners[key];
+                if (typeof val === 'function') result[key] = val;
+            }
+            return result;
+        }
+
+        // 杩愯鏃剁姸鎬侊紝浜ょ敱閫夋嫨绫诲瓙缁勪欢鑷繁缁存姢
+        const comInnerInfo = reactive({
+            validation: { valid: true, errors: [], touched: false }
+        });
+        let DVALUE = null;
+        let comExtra = {};
+
+        // inject before section scripts
+        const injectParentModelPrefix = inject('parentModelPrefix', null);
+        const injectParentDefaultLabelOptions = inject('defaultLabelOptions', null);
+        const injectUiGlobalProps = inject('ui_global_props', null);
+
+        // 璁捐鍣ㄤ笂涓嬫枃锛歞esignMode 鏃剁敱鐢诲竷 provide锛屾墍鏈?n-dynamic-com 鑺傜偣鑷姩娉ㄥ叆
+        const pageCtx = inject('pageCtx', null);
+        const designMode = !!(pageCtx && pageCtx.designMode);
+        const designUid = (designMode && pageCtx.uidOf) ? pageCtx.uidOf(jc) : null;
+        function onDesignDragstart(e) { if (designMode && pageCtx.onDragStartCfg) { e.stopPropagation(); pageCtx.onDragStartCfg(props.jsonconfig, e); } }
+        function onDesignClick(e) {
+            if (!designMode || !pageCtx.onSelect) return;
+            var selfUid = designUid;
+            if (selfUid) {
+                var inner = e.target.closest('[data-dyn-uid]');
+                if (inner && inner.getAttribute('data-dyn-uid') !== selfUid) return;
+            }
+            pageCtx.onSelect(props.jsonconfig, e);
+        }
+        function onDesignDragover(e) { if (designMode && pageCtx.onDragOver) { e.preventDefault(); e.stopPropagation(); pageCtx.onDragOver(props.jsonconfig, e); } }
+        function onDesignDrop(e) { if (designMode && pageCtx.onDrop) { e.preventDefault(); e.stopPropagation(); pageCtx.onDrop(props.jsonconfig, e); } }
+        function onDesignDragleave(e) { if (designMode && pageCtx.onDragLeave) { e.stopPropagation(); pageCtx.onDragLeave(props.jsonconfig, e); } }
+
+        let parentModelPrefixVal = injectParentModelPrefix;
+        let parentDefaultLabelOpts = injectParentDefaultLabelOptions;
+        let parentUiGlobal = injectUiGlobalProps;
+
+        if (!parentModelPrefixVal && dyn) {
+            const hostEl = dyn.findAncestor(context.root?.el, '[data-dyn-mode="createApp"]');
+            if (hostEl && hostEl.__dynUiMeta) {
+                const meta = hostEl.__dynUiMeta;
+                parentModelPrefixVal = meta.parentModelPrefix;
+                parentDefaultLabelOpts = meta.defaultLabelOptions;
+                parentUiGlobal = meta.uiGlobalProps;
+            }
+        }
+
+        const effectivePatch = reactive({
+            shell: null,
+            labeloptions: null,
+            comoptions: null
+        });
+
+        const shellShow = computed(() => effectivePatch.shell?.show ?? true);
+        const shellClass = computed(() => effectivePatch.shell?.class ?? []);
+        const shellStyle = computed(() => effectivePatch.shell?.style ?? {});
+
+        const originMergedLabelOpts = computed(() => mergeLabelOptions(jc.options.labeloptions, parentDefaultLabelOpts));
+        const finalLabelOptions = computed(() => mergePatch(originMergedLabelOpts.value, effectivePatch.labeloptions));
+        const finalComOptions = computed(() => mergePatch(jc.options.comoptions, effectivePatch.comoptions));
+        const originUiGlobalMerged = computed(() => Object.assign({}, parentUiGlobal || {}, jc.options.uiGlobalProps));
+
+        @RenderSection("setupScripts", false)
+
+        const fullModelName = computed(() => {
+            const raw = jc.modelname || '';
+            if (!raw) {
+                const p = parentModelPrefixVal || '';
+                return p?.startsWith('~') ? p.slice(1) : p;
+            }
+            if (raw.startsWith('~')) return raw.slice(1);
+            const prefix = parentModelPrefixVal;
+            if (prefix) {
+                if (raw.startsWith('[')) return prefix + raw;
+                return prefix + '.' + raw;
+            }
+            return raw;
+        });
+
+        provide('parentModelPrefix', fullModelName.value);
+
+        const innerValue = ref(DVALUE);
+        function getByPath(obj, path) { return !obj || !path ? undefined : _.get(obj, path); }
+        function setByPath(obj, path, value) { if (!obj || !path) return; _.set(obj, path, value); }
+
+        const modelinfo = computed({
+            get() {
+                if (props.parentmodelinfo && fullModelName.value) {
+                    const val = getByPath(props.parentmodelinfo, fullModelName.value);
+                    return val === undefined ? DVALUE : val;
+                }
+                return innerValue.value;
+            },
+            set(val) {
+                if (props.parentmodelinfo && fullModelName.value) {
+                    setByPath(props.parentmodelinfo, fullModelName.value, val);
+                } else {
+                    innerValue.value = val;
+                }
+                if (comInnerInfo.validation.touched) validate();
+            }
+        });
+
+        function validate() {
+            const rules = jc.validators || [];
+            const val = modelinfo.value;
+            const errors = [];
+            for (const rule of rules) {
+                if (rule.enableWhen !== undefined) {
+                    try {
+                        const fn = new Function("ctx", rule.enableWhen);
+                        const enable = fn({ value: val, model: props.parentmodelinfo, getByPath });
+                        if (!enable) continue;
+                    } catch (e) {
+                        console.warn("[validator enableWhen error]", e);
+                    }
+                }
+                const validatorsMap = {
+                    required: (v) => v !== null && v !== undefined && v !== '',
+                    min: (v, m) => Number(v) >= m,
+                    max: (v, m) => Number(v) <= m,
+                    pattern: (v, p) => new RegExp(p).test(String(v || '')),
+                    email: (v) => /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(String(v || '')),
+                    number: (v) => !isNaN(Number(v))
+                };
+                const fn = validatorsMap[rule.type];
+                if (!fn) continue;
+                if (!fn(val, rule.value)) errors.push(rule.message || `楠岃瘉澶辫触: ${rule.type}`);
+            }
+            comInnerInfo.validation.valid = errors.length === 0;
+            comInnerInfo.validation.errors = errors;
+            comInnerInfo.validation.touched = true;
+            return comInnerInfo.validation.valid;
+        }
+
+        function resetValidation() {
+            comInnerInfo.validation.valid = true;
+            comInnerInfo.validation.errors = [];
+            comInnerInfo.validation.touched = false;
+        }
+
+        provide('component_validate', validate);
+        provide('component_resetValidation', resetValidation);
+
+        watch(modelinfo, () => {
+            effectivePatch.shell = null;
+            effectivePatch.labeloptions = null;
+            effectivePatch.comoptions = null;
+
+            const scriptText = jc.options?.evalCondition;
+            if (!scriptText) return;
+            if (window.DYN_LIB_CONFIG?.disableEvalJs) {
+                console.warn("[BaseLayout] evalCondition宸插叏灞€鍏抽棴");
+                return;
+            }
+            try {
+                const safeGet = (path) => dyn?.getByPath(props.parentmodelinfo, path);
+                const fn = new Function("ctx", scriptText);
+                const ret = fn({
+                    value: modelinfo.value,
+                    model: props.parentmodelinfo,
+                    fullModelName: fullModelName.value,
+                    getByPath,
+                    safeGet
+                });
+                if (ret && typeof ret === "object") {
+                    effectivePatch.shell = ret.shell ?? null;
+                    effectivePatch.labeloptions = ret.labeloptions ?? null;
+                    effectivePatch.comoptions = ret.comoptions ?? null;
+                }
+            } catch (e) {
+                console.error("[evalCondition鑴氭湰鎵ц寮傚父]", e, scriptText);
+            }
+        }, { deep: true });
+
+        function getSlot(slotName) {
+            if (context.slots[slotName]) {
+                return context.slots[slotName];
+            }
+            const slotDef = jc.slots?.[slotName];
+            return slotDef ?? null;
+        }
+
+        const safeChildren = computed(() => (jc.childrenctrls || []).filter(c => c && typeof c === 'object'));
+
+        onMounted(() => {
+            const rootEl = context.root?.el;
+            if (rootEl) {
+                rootEl.__dynUiMeta = {
+                    parentModelPrefix: fullModelName.value,
+                    defaultLabelOptions: finalLabelOptions.value,
+                    uiGlobalProps: originUiGlobalMerged.value
+                };
+            }
+        });
+
+        return {
+            jc,
+            modelinfo,
+            comInnerInfo,
+            shellShow,
+            shellClass,
+            shellStyle,
+            finalLabelOptions,
+            finalComOptions,
+            originUiGlobalMerged,
+            validate,
+            resetValidation,
+            getStyle,
+            getClass,
+            getComlisteners,
+            safeChildren,
+            getSlot,
+            fullModelName,
+            parentModelPrefixVal,
+            props,
+            context,
+            dyn,
+            designMode,
+            designUid,
+            onDesignDragstart,
+            onDesignClick,
+            onDesignDragover,
+            onDesignDrop,
+            onDesignDragleave,
+            ...comExtra
+        };
+    }
+};
+</script>

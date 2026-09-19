@@ -1,0 +1,119 @@
+﻿@* 右侧属性面板：tab 切换 基础/组件属性/布局/校验/高级 *@
+<aside class="w-80 shrink-0 bg-white border-l border-gray-200 flex flex-col min-h-0"
+       data-dyn-init-createapp data-dyn-use-scope="designer">
+  <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
+    <span class="font-semibold text-gray-700">属性配置</span>
+  </div>
+
+  <div v-if="!model.current" class="p-6 text-sm text-gray-300 text-center">选中组件后在此配置属性</div>
+
+  <template v-else>
+    <div class="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between text-xs shrink-0">
+      <span class="text-gray-600 font-medium">{{ model.current.component }}</span>
+    </div>
+
+    <el-tabs v-model="propTab" class="flex-1 overflow-hidden flex flex-col px-2">
+      <el-tab-pane label="基础" name="base" class="overflow-y-auto">
+        <div class="space-y-3 py-3 pr-1">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">组件字段标识</label>
+            <el-input v-model="model.current.modelname" size="small" placeholder="绑定数据字段名" clearable></el-input>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">标签文本</label>
+            <el-input v-model="model.current.options.labeloptions.label" size="small" placeholder="请输入标签文本" clearable></el-input>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500">显示标签</span>
+            <el-switch v-model="model.current.options.labeloptions.show" size="small"></el-switch>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500">是否必填</span>
+            <el-switch v-model="model.current.options.labeloptions.required" size="small"></el-switch>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="组件属性" name="comAttr" class="overflow-y-auto">
+        <div class="py-2">
+          <dyn-dynamic-com v-if="comProps.length" :jsonconfig="comProps" :parentmodelinfo="model.current"></dyn-dynamic-com>
+          <div v-if="!comProps.length" class="p-4 text-xs text-gray-400 text-center">该组件暂无扩展属性</div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="布局样式" name="style" class="overflow-y-auto">
+        <div class="space-y-3 py-3 pr-1">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Label 宽度</label>
+            <el-input v-model="model.current.options.labeloptions.labelWidth" size="small" placeholder="auto / 100px"></el-input>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">组件宽度</label>
+            <el-input v-model="model.current.options.itemoptions.style.width" size="small" placeholder="100%"></el-input>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">上边距</label>
+            <el-input v-model="model.current.options.itemoptions.style.marginTop" size="small"></el-input>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">下边距</label>
+            <el-input v-model="model.current.options.itemoptions.style.marginBottom" size="small"></el-input>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">自定义类名</label>
+            <el-input v-model="model.current.options.itemoptions.class" size="small"></el-input>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="校验" name="validate" class="overflow-y-auto">
+        <div class="space-y-3 py-3 pr-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500">必填校验</span>
+            <el-switch :model-value="!!validators[0] && validators[0].type === 'required'"
+                       @@change="onRequiredChange($event)" size="small"></el-switch>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">必填提示文字</label>
+            <el-input v-model="validators[0].message" size="small" placeholder="请输入必填提示"></el-input>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="高级" name="advanced" class="overflow-y-auto">
+        <div class="p-3 text-xs text-gray-400">高级配置（待实现）</div>
+      </el-tab-pane>
+    </el-tabs>
+  </template>
+
+  <script tag="dynconfig">
+  var dynConfig = {
+    data: function () { return { propTab: 'base' }; },
+    computed: {
+      validators: function () {
+        if (!this.model.current.validators) this.model.current.validators = [];
+        if (!this.model.current.validators.length) this.model.current.validators.push({});
+        return this.model.current.validators;
+      },
+      comProps: function () {
+        var cur = this.model.current;
+        if (!cur) return [];
+        var m = window.DynDesignerOps.metaOf(cur.component);
+        return m.PropsMeta || [];
+      }
+    },
+    methods: {
+      onRequiredChange: function (val) {
+        if (!this.model.current.validators) this.model.current.validators = [];
+        if (!this.model.current.validators.length) this.model.current.validators.push({});
+        if (val) {
+          this.model.current.validators[0].type = 'required';
+          if (!this.model.current.validators[0].message) this.model.current.validators[0].message = '该项为必填项';
+        } else {
+          delete this.model.current.validators[0].type;
+        }
+      }
+    }
+  };
+  </script>
+</aside>

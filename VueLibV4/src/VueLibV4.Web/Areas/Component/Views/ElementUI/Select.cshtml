@@ -1,0 +1,32 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+
+<el-select v-model="modelinfo"
+               :key="'sel' + (comInnerInfo.options || []).length"
+               style="width: 100%;"
+               v-bind="jc.options.comoptions"
+               v-on="getComlisteners()">
+        <el-option v-for="item in comInnerInfo.options"
+                   :key="item.value"
+                   :label="item.label"
+                   :value="item.value">
+        </el-option>
+    </el-select>
+
+
+
+@section setupScripts{
+    DVALUE = '';
+    // 下拉选项由本组件自行加载（公共 _BaseLayout 不提供 options）
+    comInnerInfo.options = [];
+    (function () {
+        const co = jc.options && jc.options.comoptions || {};
+        const staticRaw = jc.options && (jc.options.optionValues || co.optionValues);
+        if (Array.isArray(staticRaw)) {
+            comInnerInfo.options = staticRaw.map(function (v) {
+                return (typeof v === 'object' && v !== null) ? { label: v.label != null ? v.label : v.value, value: v.value != null ? v.value : v.label } : { label: String(v), value: String(v) };
+            });
+        }
+    })();
+}

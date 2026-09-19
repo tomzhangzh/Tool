@@ -1,0 +1,49 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+<template>
+<div class="dyn-desktop"
+         :style="getStyle(jc.options.itemoptions)"
+         :class="getClass(jc.options.itemoptions)">
+        <div class="dyn-desktop-grid">
+            <div v-for="(sc, idx) in shortcuts" :key="sc.Id || idx"
+                 class="dyn-desktop-icon"
+                 v-on:click="openShortcut(sc)"
+                 v-on:dblclick="openShortcut(sc)"
+                 :title="sc.Description || sc.Name">
+                <span class="dyn-desktop-emoji">{{ sc.Icon || '📄' }}</span>
+                <span class="dyn-desktop-label">{{ sc.Name }}</span>
+            </div>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    // 桌面组件：comoptions.solutionId 或 comoptions.shortcuts（快捷方式数组）
+    const shortcuts = ref([]);
+    async function loadShortcuts() {
+        const sc = jc.options?.comoptions?.shortcuts;
+        if (Array.isArray(sc)) { shortcuts.value = sc; return; }
+        const solutionId = jc.options?.comoptions?.solutionId;
+        if (!solutionId) return;
+        try {
+            const r = await fetch('/api/platform/desktopshortcut/all?solutionId=' + encodeURIComponent(solutionId)).then(r => r.json());
+            if (r.code === 0 && Array.isArray(r.data)) shortcuts.value = r.data.filter(s => s.IsActive !== '0' && s.IsActive !== false);
+        } catch (e) { console.error('桌面快捷方式加载失败', e); }
+    }
+    function openShortcut(sc) {
+        const target = sc.TargetType || sc.targetType || 'page';
+        const url = sc.Url || sc.url;
+        if (target === 'url' && url) { window.open(url, '_blank'); return; }
+        if (target === 'action' && sc.Action) {
+            if (global.DynActionHelper && typeof global.DynActionHelper.run === 'function') {
+                global.DynActionHelper.run(sc.Action, { args: [] }, {});
+            }
+            return;
+        }
+        if (url) window.open(url, '_blank');
+    }
+    onMounted(function () { loadShortcuts(); });
+}

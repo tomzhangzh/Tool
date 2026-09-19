@@ -1,0 +1,29 @@
+﻿@{
+    Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
+}
+<template>
+    <div v-if="shellShow"
+         :class="[...getClass(jc.options.itemoptions), ...shellClass]"
+         :style="[getStyle(jc.options.itemoptions), shellStyle]">
+
+        <label v-if="finalLabelOptions.show !== false"
+               class="el-form-item__label"
+               :style="{ width: finalLabelOptions.labelWidth }"
+               :class="{ 'is-required': finalLabelOptions.required }">
+            {{ finalLabelOptions.label }}
+        </label>
+
+        <div class="el-form-item__content">
+            @RenderBody()
+
+            <div v-if="!comInnerInfo.validation.valid && comInnerInfo.validation.touched && comInnerInfo.validation.errors.length"
+                 class="el-form-item__error">
+                <div v-for="err in comInnerInfo.validation.errors" :key="err">{{err}}</div>
+            </div>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+    @RenderSection("setupScripts", false)
+}

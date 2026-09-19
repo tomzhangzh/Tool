@@ -1,0 +1,52 @@
+@* 顶部工具栏：独立 dyn app，通过 scope 共享 model *@
+<header class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5 bg-white border-b border-gray-200 shrink-0 text-sm"
+        data-dyn-init-createapp data-dyn-use-scope="designer">
+  <b class="text-orange-500 text-base">🎨 低代码设计器</b>
+  <el-input v-model="model.pageName" size="small" placeholder="未命名页面" class="w-44"></el-input>
+  <el-button size="small">新建</el-button>
+  <el-button size="small" type="primary">保存</el-button>
+  <el-switch v-model="model.openConfig" size="small"></el-switch>
+  <span class="text-gray-400 text-xs">开放配置</span>
+  <el-button size="small" type="warning">存组合</el-button>
+
+  <div class="flex-1"></div>
+
+  <!-- 设备切换 -->
+  <el-radio-group v-model="model.device" size="small">
+    <el-radio-button value="mobile">手机</el-radio-button>
+    <el-radio-button value="desktop">电脑</el-radio-button>
+  </el-radio-group>
+  <el-input-number v-model="model.pageWidth" size="small" :min="320" :max="1920" class="w-28"></el-input-number>
+  <el-input-number v-model="model.pageHeight" size="small" :min="200" :max="4000" class="w-28"></el-input-number>
+  <el-switch v-model="model.showRuler" size="small"></el-switch>
+  <span class="text-gray-400 text-xs">标尺</span>
+  <span class="text-gray-400 text-xs">缩放</span>
+  <el-slider v-model="model.zoom" :min="50" :max="150" class="w-24"></el-slider>
+  <span class="text-gray-500 w-10">{{ model.zoom }}%</span>
+
+  <div class="flex-1"></div>
+
+  <el-radio-group v-model="model.mode" size="small">
+    <el-radio-button value="design">设计</el-radio-button>
+    <el-radio-button value="preview">预览</el-radio-button>
+    <el-radio-button value="json">JSON</el-radio-button>
+  </el-radio-group>
+  <el-switch v-model="model.showCode" size="small"></el-switch>
+  <span class="text-gray-400 text-xs">HTML</span>
+  <el-button size="small">查看数据</el-button>
+  <el-button size="small" type="danger">新窗口预览</el-button>
+
+  <script tag="dynconfig">
+  var dynConfig = {
+    mounted() {
+      if (!this.model.pageName) this.model.pageName = '未命名页面';
+      if (!this.model.device) this.model.device = 'desktop';
+      if (!this.model.pageWidth) this.model.pageWidth = 1200;
+      if (!this.model.pageHeight) this.model.pageHeight = 800;
+      if (!this.model.zoom) this.model.zoom = 100;
+      if (!this.model.mode) this.model.mode = 'design';
+      if (this.model.showRuler === undefined) this.model.showRuler = true;
+    }
+  };
+  </script>
+</header>

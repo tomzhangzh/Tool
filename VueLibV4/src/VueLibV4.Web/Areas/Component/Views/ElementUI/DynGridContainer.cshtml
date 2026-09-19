@@ -1,0 +1,22 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+<template>
+<div class="dyn-grid-container"
+         :style="gridStyle"
+         :class="getClass(jc.options.itemoptions)">
+        <DynRender v-for="(child, idx) in safeChildren" :key="child.component + '_' + idx" :cfg="child" />
+    </div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    // 栅格容器：comoptions 即 CSS 样式（display:grid / grid-template-columns / gap 等），
+    // itemoptions.style 叠加；子组件通过 itemoptions.class 配置 col-span-2 等 Tailwind 类
+    const gridStyle = computed(() => {
+        const co = jc.options?.comoptions || {};
+        const io = jc.options?.itemoptions?.style || {};
+        return Object.assign({ display: 'grid' }, co, io);
+    });
+}

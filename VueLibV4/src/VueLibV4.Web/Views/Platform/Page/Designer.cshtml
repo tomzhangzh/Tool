@@ -1,4 +1,4 @@
-@{
+﻿@{
     Layout = "_Layout";
     ViewData["Title"] = "页面设计器 - VueLibV4";
 }
@@ -28,7 +28,7 @@
 *@
 <div class="flex flex-col h-screen m-0 bg-gray-100"
      data-dyn-shared-scope="designer"
-     data-dyn-scope-json='{ "current": null, "componentGroups": [], "pageJson": { "component": "DynForm", "options": { "comoptions": {}, "labeloptions": { "label": "表单", "show": true }, "itemoptions": {} }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insert": false, "top": 0, "left": 0, "width": 0, "height": 0 } }'>
+     data-dyn-scope-json='{ "current": null, "componentGroups": [], "pageJson": { "component": "DynForm", "options": { "comoptions": {}, "labeloptions": { "label": "表单", "show": true }, "itemoptions": {} }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 } }'>
 
   <partial name="~/Views/Platform/Page/Designer/TopBar.cshtml" />
 
@@ -37,4 +37,6 @@
     <partial name="~/Views/Platform/Page/Designer/Canvas.cshtml" />
     <partial name="~/Views/Platform/Page/Designer/RightPanel.cshtml" />
   </div>
-</div>
+<style>
+.drag-target-active { outline: 2px dashed #409eff !important; outline-offset: 2px; }
+</style></div>

@@ -1,0 +1,6 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+<span class="dyn-com-label" :style="jc.options.comoptions.style">
+    {{ modelinfo === null || modelinfo === undefined || modelinfo === '' ? (jc.options.comoptions.emptyText || '—') : modelinfo }}
+</span>

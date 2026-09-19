@@ -1,0 +1,14 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+
+<el-switch v-model="modelinfo"
+               v-bind="jc.options.comoptions"
+               v-on="getComlisteners()">
+    </el-switch>
+
+
+
+@section setupScripts{
+    DVALUE = false;
+}

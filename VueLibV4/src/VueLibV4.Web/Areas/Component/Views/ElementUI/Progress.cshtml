@@ -1,0 +1,7 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<template>
+<el-progress v-model="modelinfo" v-bind="jc.options.comoptions" v-on="getComlisteners()"></el-progress>
+</template>
+
+@section setupScripts{ DVALUE = 0; }

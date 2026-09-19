@@ -1,0 +1,89 @@
+@* 左侧面板：组件库 / 组件树 两个 tab；组件卡片 grid 可拖拽；结构树可点选 *@
+<aside class="w-72 shrink-0 bg-white border-r border-gray-200 flex flex-col min-h-0"
+       data-dyn-init-createapp data-dyn-use-scope="designer">
+  <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
+    <span class="font-semibold text-gray-700">组件</span>
+    <div class="flex gap-1">
+      <button class="px-2 py-0.5 text-xs rounded hover:bg-gray-100">◀</button>
+      <button class="px-2 py-0.5 text-xs rounded hover:bg-gray-100">✕</button>
+    </div>
+  </div>
+
+  <el-tabs v-model="tab" class="px-2 flex-1 overflow-hidden flex flex-col">
+    <el-tab-pane label="组件库" name="lib" class="flex-1 flex flex-col min-h-0">
+      <el-select v-model="category" size="small" class="w-full mb-2" placeholder="全部组件">
+        <el-option label="全部组件" value=""></el-option>
+        <el-option v-for="c in allCategories" :key="c" :label="c" :value="c"></el-option>
+      </el-select>
+      <div class="flex flex-wrap gap-1 mb-3">
+        <div v-for="c in allCategories" :key="c"
+             class="px-2.5 py-1 text-xs rounded cursor-pointer"
+             :class="category === c ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+             @@click="category = (category === c ? '' : c)">
+          {{ c }}
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2 overflow-y-auto pb-2">
+        <div v-for="c in filteredComponents" :key="c.ComponentName"
+             class="border border-gray-200 rounded p-2 flex flex-col items-center cursor-grab hover:border-blue-400 hover:bg-blue-50 transition"
+             draggable="true"
+             @@dragstart="onDragStartMeta($event, c)">
+          <div class="text-3xl leading-none mb-1">{{ c.Icon }}</div>
+          <div class="text-xs text-gray-600">{{ c.Label || c.ComponentName }}</div>
+        </div>
+      </div>
+    </el-tab-pane>
+
+    <el-tab-pane label="组件树" name="tree" class="flex-1 overflow-auto">
+      <el-tree :data="treeData" :props="{ label: 'label', children: 'children' }"
+               default-expand-all node-key="uid" highlight-current
+               :current-node-key="model.selectedUid"
+               @@node-click="onTreeNodeClick">
+        <template #default="{ data }">
+          <span><span>{{ data.icon }}</span> {{ data.label }}</span>
+        </template>
+      </el-tree>
+    </el-tab-pane>
+  </el-tabs>
+
+  <script tag="dynconfig">
+  var dynConfig = {
+    data: function () {
+      return { tab: 'lib', category: '', allCategories: [], allComponents: [] };
+    },
+    computed: {
+      filteredComponents: function () {
+        var list = this.allComponents || [];
+        var self = this;
+        if (!this.category) return list;
+        return list.filter(function (c) { return c.Category === self.category; });
+      },
+      treeData: function () {
+        return window.DynDesignerOps.buildTreeData(this.model.pageJson);
+      }
+    },
+    mounted: function () {
+      var self = this;
+      fetch('/api/platform/componentmeta/grouped')
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var groups = (res && res.data) || [];
+          self.allCategories = groups.map(function (g) { return g.category; });
+          var flat = [];
+          groups.forEach(function (g) { g.components.forEach(function (c) { c.Category = g.category; flat.push(c); }); });
+          self.allComponents = flat;
+        });
+      // 加载元数据到 DynCom.metaMap（供 metaOf 取 Label/Icon）
+      if (window.DynCom && window.DynCom.loadMeta) window.DynCom.loadMeta();
+    },
+    methods: {
+      onDragStartMeta: function (e, c) {
+        window.DynDesignerOps.onDragStartMeta(this.model, c, e);
+      },
+      onTreeNodeClick: function (data) {
+        if (data && data.cfg) window.DynDesignerOps.select(this.model, data.cfg);
+      }
+    }
+  };
+  </script>
+</aside>

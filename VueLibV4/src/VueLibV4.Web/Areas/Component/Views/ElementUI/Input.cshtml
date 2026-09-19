@@ -1,0 +1,15 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+
+<el-input
+        v-model="modelinfo"
+        v-bind="finalComOptions"
+        v-on="getComlisteners()"
+    ></el-input>
+
+
+
+@section setupScripts{
+    DVALUE = '';
+}

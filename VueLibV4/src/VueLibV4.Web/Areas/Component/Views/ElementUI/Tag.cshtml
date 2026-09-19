@@ -1,0 +1,9 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<template>
+<el-tag v-bind="jc.options.comoptions" v-on="getComlisteners()">
+        {{ jc.options?.comoptions.text || '标签' }}
+    </el-tag>
+</template>
+
+@section setupScripts{ DVALUE = null; }

@@ -1,0 +1,4 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+<el-checkbox v-model="modelinfo" v-bind="jc.options.comoptions" v-on="getComlisteners()">{{ jc.options.labeloptions.label || '复选框' }}</el-checkbox>

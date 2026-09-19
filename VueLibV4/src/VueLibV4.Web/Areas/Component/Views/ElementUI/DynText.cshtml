@@ -1,0 +1,16 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
+}
+
+<template>
+<component :is="jc.options.comoptions.tag || 'div'"
+               class="dyn-text"
+               :style="getStyle(jc.options.itemoptions)"
+               :class="getClass(jc.options.itemoptions)">
+        {{ jc.options.comoptions.text || '' }}
+    </component>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+}

@@ -1,0 +1,36 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
+}
+
+<template>
+<div class="dyn-echart"
+         ref="chartEl"
+         :style="chartStyle"
+         :class="getClass(jc.options.itemoptions)"></div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    // ECharts 图表：comoptions.option 为图表配置（JSON），comoptions.height 设置高度
+    const chartEl = ref(null);
+    let chart = null;
+    const chartStyle = computed(() => {
+        const st = getStyle(jc.options.itemoptions);
+        const h = jc.options?.comoptions?.height || 300;
+        return Object.assign({ width: '100%', height: typeof h === 'number' ? h + 'px' : h }, st);
+    });
+    function renderChart() {
+        if (!chartEl.value || !window.echarts) return;
+        if (!chart) chart = echarts.init(chartEl.value);
+        const opt = jc.options?.comoptions?.option;
+        if (opt && typeof opt === 'object') chart.setOption(opt);
+    }
+    onMounted(function () {
+        renderChart();
+        if (window.ResizeObserver) {
+            new ResizeObserver(function () { if (chart) chart.resize(); }).observe(chartEl.value);
+        }
+    });
+    // 配置变化时重绘（设计器修改 option 后实时预览）
+    watch(function () { return JSON.stringify(jc.options?.comoptions?.option || {}); }, function () { renderChart(); }, { deep: true });
+}

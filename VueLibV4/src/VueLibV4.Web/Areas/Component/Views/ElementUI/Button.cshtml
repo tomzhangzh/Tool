@@ -1,0 +1,14 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
+}
+
+<template>
+<el-button v-bind="jc.options.comoptions"
+               v-on="getComlisteners()">
+        {{ jc.options?.comoptions.text || '按钮' }}
+    </el-button>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+}

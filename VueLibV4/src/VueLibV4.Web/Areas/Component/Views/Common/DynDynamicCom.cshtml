@@ -1,0 +1,32 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
+}
+
+<template>
+<span v-if="jc?.component"
+          :data-dyn-uid="designMode ? designUid : null"
+          :draggable="designMode ? true : null"
+          @@dragstart="designMode && onDesignDragstart($event)"
+          @@click.capture="designMode && onDesignClick($event)"
+          @@dragover.prevent.stop="designMode && onDesignDragover($event)"
+          @@drop.prevent.stop="designMode && onDesignDrop($event)"
+          @@dragleave="designMode && onDesignDragleave($event)"
+          style="display:contents">
+        <component
+            :is="jc.component"
+            :jsonconfig="jc"
+            :parentmodelinfo="props.parentmodelinfo"
+            :node-path="props.nodePath"
+        >
+        </component>
+    </span>
+    <div v-else class="dyn-component-error" style="color:red;padding:4px;">
+        组件未配置或不存在: {{ jc?.component ?? "empty" }}
+    </div>
+</template>
+
+@section setupScripts{
+// 数据库jsonconfig.component直接存储Vue真实注册组件名，无需转换
+comExtra.targetComponentName = jc?.component;
+
+}

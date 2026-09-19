@@ -1,0 +1,111 @@
+﻿@* 中间画布：标尺 + DynRender 递归渲染 + overlay 选中浮层 + drop 指示线 + 底部路径 *@
+<main class="flex-1 overflow-auto bg-gray-100 relative"
+      data-dyn-init-createapp data-dyn-use-scope="designer">
+  <!-- 标尺 -->
+  <div v-if="model.showRuler" class="sticky top-0 z-10 h-5 bg-gray-200 border-b border-gray-300 relative overflow-hidden">
+    <div v-for="n in rulerTicks" :key="n"
+         class="absolute top-0 h-2 border-l border-gray-400"
+         :style="{ left: (n * 25) + 'px' }">
+      <span class="text-[8px] text-gray-500 absolute left-0.5 -top-0.5">{{ n * 25 }}</span>
+    </div>
+  </div>
+
+  <!-- 拖拽背景层：空区域 drop 到根 -->
+  <div class="min-h-full"
+       @@dragover.prevent="onDragOverRoot"
+       @@drop.prevent="onDropRoot">
+
+  <!-- 页面纸张（design mode：所有 n-dynamic-com 节点自带 data-dyn-uid + 可拖拽） -->
+  <div class="bg-white shadow-lg m-4 relative"
+       data-designer-canvas
+       :style="{ width: (model.pageWidth || 1200) + 'px', minHeight: (model.pageHeight || 800) + 'px' }"
+       @@click.self="onCanvasClick">
+    <dyn-dynamic-com :jsonconfig="model.pageJson"></dyn-dynamic-com>
+
+    <!-- drop 指示线/高亮 -->
+    <div v-if="model.dropIndicator.show && model.dropIndicator.insertInto"
+         class="absolute border-2 border-dashed border-blue-400 bg-blue-50 opacity-60 pointer-events-none z-20 rounded"
+         :style="{ top: model.dropIndicator.top + 'px', left: model.dropIndicator.left + 'px', width: model.dropIndicator.width + 'px', height: model.dropIndicator.height + 'px' }"></div>
+    <div v-if="model.dropIndicator.show && (model.dropIndicator.insertBefore || model.dropIndicator.insertAfter)"
+         class="absolute bg-blue-500 pointer-events-none z-20"
+         style="height:3px;border-radius:2px;"
+         :style="{ top: model.dropIndicator.top + 'px', left: model.dropIndicator.left + 'px', width: model.dropIndicator.width + 'px' }"></div>
+
+    <!-- overlay：不干扰容器自身 style/class，纯绝对定位覆盖层 -->
+    <div v-if="model.overlay.uid"
+         class="absolute border-2 border-blue-400 pointer-events-none z-30"
+         :style="{ top: model.overlay.top + 'px', left: model.overlay.left + 'px', width: model.overlay.width + 'px', height: model.overlay.height + 'px' }">
+      <div class="absolute -top-7 left-0 bg-blue-500 text-white text-xs px-2 py-0.5 flex items-center gap-1 pointer-events-auto rounded" @@click.stop>
+        <span class="mr-1">{{ model.overlay.label }}</span>
+        <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveSelected(model,-1)" title="上移">↑</button>
+        <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveSelected(model,1)" title="下移">↓</button>
+        <button class="hover:bg-blue-600 px-1" @@click.stop="ops.duplicateSelected(model)" title="复制">⧉</button>
+        <button class="hover:bg-red-600 px-1" @@click.stop="ops.removeSelected(model)" title="删除">✕</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- 底部组件路径面包屑 -->
+  <div class="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-1.5 text-xs flex items-center gap-1 z-10">
+    <span class="text-gray-400">路径：</span>
+    <template v-if="model.pathList.length">
+      <span v-for="(p, i) in model.pathList" :key="i" class="flex items-center gap-1">
+        <span class="cursor-pointer hover:text-blue-500" @@click="ops.select(model, p)">{{ ops.metaOf(p.component).Label || p.component }}</span>
+        <span v-if="i < model.pathList.length - 1" class="text-gray-300">/</span>
+      </span>
+    </template>
+    <span v-else class="text-gray-300">未选中</span>
+  </div>
+
+  <script tag="dynconfig">
+  var dynConfig = {
+    data: function () {
+      return { ops: window.DynDesignerOps };
+    },
+    computed: {
+      rulerTicks: function () {
+        return Math.ceil((this.model.pageWidth || 1200) / 25) + 1;
+      }
+    },
+    provide: function () {
+      var self = this;
+      return {
+        pageCtx: {
+          designMode: true,
+          uidOf: function (cfg) { return window.DynDesignerOps.uidOf(cfg); },
+          onDragStartCfg: function (cfg, e) { window.DynDesignerOps.onDragStartCfg(self.model, cfg, e); },
+          onSelect: function (cfg, e) { if (e) e.stopPropagation(); window.DynDesignerOps.select(self.model, cfg); },
+          onHover: function () {},
+          onDragOver: function (cfg, e) { window.DynDesignerOps.onDragOver(self.model, cfg, e); },
+          onDragLeave: function (cfg, e) { window.DynDesignerOps.onDragLeave(self.model, cfg, e); },
+          onDrop: function (cfg, e) { window.DynDesignerOps.onDrop(self.model, cfg, e); },
+          parentOf: function (cfg) { var h = window.DynDesignerOps.findParent(self.model.pageJson, cfg); return h ? h.parent : null; }
+        }
+      };
+    },
+    mounted: function () {
+      var self = this;
+      // 初次挂载后，选中变化时重算 overlay 位置
+      this._stopWatch = this.$watch(function () { return self.model.selectedUid; }, function () {
+        setTimeout(function () { window.DynDesignerOps.updateOverlay(self.model); }, 50);
+      });
+      window.addEventListener('resize', function () { window.DynDesignerOps.updateOverlay(self.model); });
+    },
+    beforeUnmount: function () { if (this._stopWatch) this._stopWatch(); },
+    methods: {
+      onDragOverRoot: function (e) {
+        if (!this.model.dragging) return;
+        e.preventDefault();
+        this.model.dropIndicator.show = false;
+      },
+      onDropRoot: function (e) {
+        window.DynDesignerOps.dropToRoot(this.model, e);
+      },
+      onCanvasClick: function () {
+        window.DynDesignerOps.select(this.model, null);
+      }
+    }
+  };
+  </script>
+</main>
