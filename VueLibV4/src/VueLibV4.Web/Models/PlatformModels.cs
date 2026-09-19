@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using SqlSugar;
 
 namespace VueLibV4.Web.Models;
@@ -142,6 +142,9 @@ public class ComponentMeta
     public string? DefaultConfigJson { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>是否容器组件（可拖入子组件，设计器自动创建 Sortable）</summary>
+    public bool IsContainer { get; set; } = false;
 
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }

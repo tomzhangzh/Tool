@@ -5,13 +5,11 @@
 <template>
 <span v-if="jc?.component"
           :data-dyn-uid="designMode ? designUid : null"
-          :draggable="designMode ? true : null"
-          @@dragstart="designMode && onDesignDragstart($event)"
           @@click.capture="designMode && onDesignClick($event)"
           @@dragover.prevent.stop="designMode && onDesignDragover($event)"
           @@drop.prevent.stop="designMode && onDesignDrop($event)"
           @@dragleave="designMode && onDesignDragleave($event)"
-          style="display:contents">
+          style="display:block; width:100%;">
         <component
             :is="jc.component"
             :jsonconfig="jc"

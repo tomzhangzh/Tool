@@ -52,6 +52,7 @@ if(DYN_LIB_CONFIG.loadLayui){
 }
 if(DYN_LIB_CONFIG.loadTailwind) DEFAULT_LIBS.push({url:"../lib/tailwind.css",name:"tailwind"});
 DEFAULT_LIBS.push({url:"../lib/sortable.min.js",name:"sortable"});
+DEFAULT_LIBS.push({url:"../lib/vue-draggable-plus.umd.js",name:"vue-draggable-plus"});
 if(DYN_LIB_CONFIG.loadCodemirror){
   DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.css",name:"codemirror-css"});
   DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.js",name:"codemirror"});

@@ -101,6 +101,16 @@ var comConfig = {
         const injectParentDefaultLabelOptions = inject('defaultLabelOptions', null);
         const injectUiGlobalProps = inject('ui_global_props', null);
         const injectDesignerScope = inject("designer", null);
+        function lookupIsContainer(compName) {
+            if (!injectDesignerScope || !injectDesignerScope.componentMetaList) return false;
+            var list = injectDesignerScope.componentMetaList;
+            for (var i = 0; i < list.length; i++) {
+                var m = list[i];
+                var nm = m.ComponentName || m.componentName;
+                if (nm === compName) return !!(m.IsContainer || m.isContainer);
+            }
+            return false;
+        }
 
         // 璁捐鍣ㄤ笂涓嬫枃锛歞esignMode 鏃剁敱鐢诲竷 provide锛屾墍鏈?n-dynamic-com 鑺傜偣鑷姩娉ㄥ叆
         const pageCtx = inject('pageCtx', null);
@@ -295,7 +305,7 @@ var comConfig = {
             nextTick(() => {
             if (designMode && window.DesignerSortable && rootEl) {
                 var compName = jc.component || "";
-                var isContainer = /Container|Form|Card|Tabs|Collapse/.test(compName);
+                var isContainer = lookupIsContainer(compName);
                 var isGrid = compName === "DynGridContainer";
                 if (isContainer) {
                     var listEl = rootEl.querySelector(".dyn-children-wrap");

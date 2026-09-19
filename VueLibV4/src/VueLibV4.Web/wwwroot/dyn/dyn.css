@@ -189,3 +189,104 @@
 
 /* 容器 children 包裹层 */
 .dyn-children-wrap { min-height: 4px; }
+
+/* Sortable container hover highlight */
+.dyn-container-hover { outline: 3px dashed #409eff !important; outline-offset: 2px; background: rgba(64,158,255,0.05) !important; }
+
+/* 拖拽容器高亮（强化） */
+.dyn-container-hover {
+    outline: 4px solid #409eff !important;
+    outline-offset: 3px;
+    background-color: rgba(64, 158, 255, 0.12) !important;
+    border-radius: 4px;
+}
+
+/* 拖拽进行中隐藏空容器占位 */
+.dyn-dragging-active.designer-empty-container::before {
+    display: none !important;
+}
+/* fallback拖拽预览（鼠标跟随的组件快照） */
+.dyn-fallback-drag {
+    opacity: 0.85 !important;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+/* 放置占位线条（原来的蓝线，保留作为放置指示器） */
+.dyn-designer-ghost {
+    background: #409EFF !important;
+    height: 4px !important;
+    border-radius: 2px;
+}
+/* 容器高亮 */
+.dyn-container-hover {
+    outline:4px solid #409EFF !important;
+    outline-offset:4px;
+    background:rgba(64,158,255,0.15) !important;
+    border-radius:6px;
+}
+/* 拖拽激活时，隐藏空容器提示文字 */
+.dyn-dragging-active.designer-empty-container::before {
+    display:none !important;
+}
+.design-mode .designer-empty-container::before {
+    content:"📦 空容器，请拖入组件";
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:130px;
+    color:#909399;
+    border:1px dashed #dcdfe6;
+    margin:8px;
+}
+.dyn-move-move {
+    transition: transform 0.2s ease;
+}
+.dyn-move-enter-from {
+    opacity:0;
+    transform: translateY(-12px);
+}
+.dyn-move-enter-to {
+    opacity:1;
+    transform: translateY(0);
+}
+.dyn-move-leave-active {
+    position:absolute;
+    pointer-events:none;
+}
+
+/* vue-draggable-plus 拖拽样式 */
+.dyn-designer-ghost {
+  background: #409eff !important;
+  height: 4px !important;
+  min-height: 4px !important;
+  border-radius: 2px;
+  opacity: 1;
+}
+.dyn-fallback-drag {
+  opacity: 0.9 !important;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  border-radius: 4px;
+}
+.dyn-designer-chosen {
+  opacity: 0.4;
+}
+.dyn-container-hover {
+  outline: 4px solid #409eff !important;
+  outline-offset: 4px;
+  background: rgba(64,158,255,0.12) !important;
+  border-radius: 6px;
+}
+.dyn-dragging-active.designer-empty-container::before {
+  display: none !important;
+}
+
+/* 禁止原生HTML5拖拽干扰 */
+.design-mode img, .design-mode video {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+.design-mode [data-dyn-uid] {
+  -webkit-user-select: none;
+  user-select: none;
+}
