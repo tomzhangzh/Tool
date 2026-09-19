@@ -112,14 +112,14 @@ var comConfig = {
             const localComInner = jc.options?.comInnerInfo || {};
             const parentComInner = injectParentComInnerInfo || {};
 
-            // 解析穿透白名单（字符串逗号分隔，默认只穿透 size）
-            let passKeys = ['size'];
-            if (parentComInner.comPassThrough && typeof parentComInner.comPassThrough === 'string') {
-                passKeys = parentComInner.comPassThrough.split(',').map(k => k.trim()).filter(k => !!k);
-            }
+            // 解析穿透白名单：当前层定义则覆盖父层，没定义则继承父层，都没定义则默认只穿透 size
+            let passKeys;
             if (localComInner.comPassThrough && typeof localComInner.comPassThrough === 'string') {
-                const localKeys = localComInner.comPassThrough.split(',').map(k => k.trim()).filter(k => !!k);
-                passKeys = [...new Set([...passKeys, ...localKeys])];
+                passKeys = localComInner.comPassThrough.split(',').map(k => k.trim()).filter(k => !!k);
+            } else if (parentComInner.comPassThrough && typeof parentComInner.comPassThrough === 'string') {
+                passKeys = parentComInner.comPassThrough.split(',').map(k => k.trim()).filter(k => !!k);
+            } else {
+                passKeys = ['size'];
             }
 
             // 只把白名单内的属性从父层继承
@@ -129,8 +129,10 @@ var comConfig = {
                     inheritFromParent[key] = parentComInner[key];
                 }
             }
-            // comPassThrough 本身必须穿透，否则孙组件不知道要继承什么
-            if (parentComInner.comPassThrough !== undefined) {
+            // comPassThrough 向下传递：当前层有定义用当前层的，否则继承父层的
+            if (localComInner.comPassThrough !== undefined) {
+                inheritFromParent.comPassThrough = localComInner.comPassThrough;
+            } else if (parentComInner.comPassThrough !== undefined) {
                 inheritFromParent.comPassThrough = parentComInner.comPassThrough;
             }
 
@@ -225,6 +227,12 @@ var comConfig = {
             }
             return base;
         });
+        // 自动把穿透来的 size 同步到 jc.options.comoptions.size，让所有 v-bind="jc.options.comoptions" 的组件模板自动生效
+        watch(() => mergedComInnerInfo.size, (newSize) => {
+            if (newSize && !jc.options.comoptions.size) {
+                jc.options.comoptions.size = newSize;
+            }
+        }, { immediate: true });
         const originUiGlobalMerged = computed(() => Object.assign({}, parentUiGlobal || {}, jc.options.uiGlobalProps));
 
         @RenderSection("setupScripts", false)
