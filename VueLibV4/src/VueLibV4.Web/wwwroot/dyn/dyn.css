@@ -122,14 +122,26 @@
 /* 悬停高亮（display:contents 包裹层无盒子，hover 由 JS 加到组件根） */
 .dyn-hover-active { outline: 1px dashed #409eff; outline-offset: -1px; }
 
-/* 空容器设计态占位（class 由 DynRender 设计态附加到组件根） */
-.design-mode .designer-empty-container::before {
-  content: '📦 空容器，请拖入组件';
-  display: flex; align-items: center; justify-content: center;
-  min-height: 56px; color: #b1b3b8; font-size: 12px;
-  border: 1px dashed #c0c4cc; border-radius: 4px; background: #fafbfc;
-  cursor: default;
+/* 两种场景隐藏空提示：
+1.本容器正在拖拽 dyn‑dragging‑active
+2.鼠标悬浮作为投放目标 dyn‑container‑hover
+*/
+.dyn-children-wrap.dyn-dragging-active.designer-empty-container::before,
+.dyn-children-wrap.dyn-container-hover.designer-empty-container::before {
+    display: none !important;
 }
+
+.design-mode .designer-empty-container::before {
+    content: "📦 空容器，请拖入组件";
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 20px;
+    color: #909399;
+    border: 1px dashed #dcdfe6;
+    margin: 8px;
+}
+
 .design-mode .designer-empty-container:hover::before { border-color: #409eff; color: #409eff; }
 
 /* 组件树节点 */
@@ -311,4 +323,19 @@ body.dyn-dragging,
   -webkit-user-select: none !important;
   -moz-user-select: none !important;
   user-select: none !important;
+}
+
+/* 设计器包裹层：默认块级100%宽；grid/flex容器内交给布局系统接管 */
+.design-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.dyn-children-wrap.dyn-is-grid > .design-wrap,
+.dyn-children-wrap.dyn-is-flex > .design-wrap {
+  display: unset;
+  width: unset;
+}
+.grid-span-2 {
+  grid-column: span 2;
 }
