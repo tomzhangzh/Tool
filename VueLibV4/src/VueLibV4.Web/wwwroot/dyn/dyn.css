@@ -290,3 +290,25 @@
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* 拖拽时禁止文字选中（消除蓝底） */
+body.dyn-dragging,
+.dyn-dragging-active,
+.dyn-fallback-drag,
+.dyn-designer-chosen {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  user-select: none !important;
+}
+.design-mode, .design-mode * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+/* 左侧组件库卡片禁止文字选中 */
+#component-lib-wrap, #component-lib-wrap * {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  user-select: none !important;
+}

@@ -61,6 +61,12 @@
         return window.DynDesignerOps.buildTreeData(this.model.pageJson);
       }
     },
+    watch: {
+      category: function () {
+        var self = this;
+        self.$nextTick(function () { self._initLibDrag(); });
+      }
+    },
     mounted: function () {
       var self = this;
       fetch('/api/platform/componentmeta/grouped')
@@ -71,21 +77,26 @@
           var flat = [];
           groups.forEach(function (g) { g.components.forEach(function (c) { c.Category = g.category; flat.push(c); }); });
           self.allComponents = flat;
-          // 存到共享 scope 供 Sortable onAdd 查找 DefaultConfigJson
           self.model.componentMetaList = flat;
-          // 初始化 Sortable 组件库拖拽
-          self.$nextTick(function () {
-            var libDom = document.getElementById("component-lib-wrap");
-            if (libDom && window.DesignerSortable) {
-              self._libSortable = window.DesignerSortable.createComponentLibrary(libDom, self.allComponents, self.model);
-            }
-          });
+          self.$nextTick(function () { self._initLibDrag(); });
         });
-      // 加载元数据到 DynCom.metaMap（供 metaOf 取 Label/Icon）
       if (window.DynCom && window.DynCom.loadMeta) window.DynCom.loadMeta();
     },
+    beforeDestroy: function () {
+      if (this._libSortable && this._libSortable.destroy) {
+        try { this._libSortable.destroy(); } catch (e) {}
+      }
+    },
     methods: {
-
+      _initLibDrag: function () {
+        if (this._libSortable && this._libSortable.destroy) {
+          try { this._libSortable.destroy(); } catch (e) {}
+        }
+        var libDom = document.getElementById("component-lib-wrap");
+        if (libDom && window.DesignerSortable) {
+          this._libSortable = window.DesignerSortable.createComponentLibrary(libDom, this.filteredComponents, this.model);
+        }
+      },
       onTreeNodeClick: function (data) {
         if (data && data.cfg) window.DynDesignerOps.select(this.model, data.cfg);
       }
