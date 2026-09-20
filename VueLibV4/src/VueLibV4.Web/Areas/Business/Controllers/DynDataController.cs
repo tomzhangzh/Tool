@@ -16,23 +16,12 @@ namespace VueLibV4.Web.Areas.Business.Controllers;
 [ApiController]
 public class DynDataController : ControllerBase
 {
-    private readonly DbFactory _dbs;
     private readonly DynamicCrudService _svc;
-    public DynDataController(DbFactory dbs, DynamicCrudService svc) { _dbs = dbs; _svc = svc; }
+    private readonly ProjectDbResolver _projects;
+    public DynDataController(DynamicCrudService svc, ProjectDbResolver projects) { _svc = svc; _projects = projects; }
 
     /// <summary>解析项目库：project 可为 DynProject.Code（推荐）或数字 Id，缺省用 BusinessDb</summary>
-    private SqlSugarClient ResolveDb(string project)
-    {
-        if (string.IsNullOrWhiteSpace(project))
-            return _dbs.BusinessDb();
-        using var pdb = _dbs.PlatformDb();
-        JObject proj = long.TryParse(project, out var pid)
-            ? _svc.First(pdb, "DynProject", "[Id]=@id", new { id = pid })
-            : _svc.First(pdb, "DynProject", "[Code]=@code", new { code = project });
-        if (proj == null) return _dbs.BusinessDb();
-        var cs = proj["ConnectionString"]?.ToString();
-        return string.IsNullOrWhiteSpace(cs) ? _dbs.BusinessDb() : _dbs.ProjectDb(cs);
-    }
+    private SqlSugarClient ResolveDb(string project) => _projects.Resolve(project);
 
     // ---------------- 元数据 ----------------
 

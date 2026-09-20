@@ -10,9 +10,9 @@
         <!-- 组合组件：开放属性(comoptions) / 开放容器(childrenctrls) / 开放插槽(slots) -->
         <template v-for="(slotList, slotName) in (jc.slots || {})" :key="slotName">
             <slot :name="slotName"></slot>
-            <DynRender v-for="(child, idx) in slotList" :key="child.component + '_' + idx" :cfg="child" />
+            <dyn-dynamic-com v-for="(child, idx) in slotList" :key="child.component + '_' + idx" :jsonconfig="child" />
 
-        <DynRender v-for="(child, idx) in safeChildren" :key="child.component + '_' + idx" :cfg="child" />
+        <dyn-dynamic-com v-for="(child, idx) in safeChildren" :key="child.component + '_' + idx" :jsonconfig="child" />
     </component>
 </template>
 </template>

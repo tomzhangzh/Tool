@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "_Layout";
     ViewData["Title"] = "页面设计器 - VueLibV4";
 }
@@ -6,16 +6,15 @@
 @section Scripts {
     <script>
         // 各分区独立 createApp，通过 data-dyn-use-scope 共享同一份 scope
-        (function () {
+        DynLib.ready(function () {
             function mountRegions() {
                 document.querySelectorAll('[data-dyn-mode="createApp"], [data-dyn-init-createapp]').forEach(function (el) {
                     if (!el.getAttribute('data-dyn-mode')) el.setAttribute('data-dyn-mode', 'createApp');
                     dyn.mount(el);
                 });
             }
-            if (document.readyState === 'complete') mountRegions();
-            else window.addEventListener('load', mountRegions);
-        })();
+            mountRegions();
+        });
     </script>
 }
 

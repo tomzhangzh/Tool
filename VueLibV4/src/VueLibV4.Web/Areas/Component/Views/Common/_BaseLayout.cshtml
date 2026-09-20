@@ -1,4 +1,4 @@
-﻿@RenderBody()
+@RenderBody()
 <script tag='comconfig'>
 var comConfig = {
     props: {
@@ -85,12 +85,86 @@ var comConfig = {
             }
             return result;
         }
-        // comInnerInfo：仅用于校验状态，不再做属性穿透
+        // comInnerInfo：校验状态 + 选项型组件的远程 options 数据
         const comInnerInfo = reactive({
-            validation: { valid: true, errors: [], touched: false }
+            validation: { valid: true, errors: [], touched: false },
+            options: []
         });
         let DVALUE = null;
         let comExtra = {};
+
+        // ============ 选项数据源公共能力（DynSelect/ComSelect/Radio/Checkbox 共用） ============
+        /** 把任意形态（字符串或 {value,label}）归一为 {value,label}，支持 valueKey/labelKey 映射 */
+        function _normOptionList(list, valueKey, labelKey) {
+            return (Array.isArray(list) ? list : []).map(function (x) {
+                if (x !== null && typeof x === 'object') {
+                    var v = valueKey ? x[valueKey] : x.value;
+                    var l = labelKey ? x[labelKey] : x.label;
+                    return { value: v !== undefined ? v : x.value, label: l !== undefined ? l : x.label };
+                }
+                return { value: x, label: String(x) };
+            });
+        }
+        /** static 数据源：从 comoptions.optionValues 读取静态选项 */
+        function initOptionsFromConfig() {
+            var ov = jc.options && jc.options.comoptions ? jc.options.comoptions.optionValues : null;
+            comInnerInfo.options = _normOptionList(ov);
+        }
+        /**
+         * 按 comoptions.sourceType 加载下拉选项：
+         *   static - 静态 optionValues
+         *   dict   - 平台字典 DynDict（dictType）
+         *   table  - 工程表（projectId/table/valueField/textField，parentField+parentValuePath 联动）
+         *   ajax   - 任意接口（url 支持 {{model.field}} 占位，valueKey/labelKey 映射）
+         */
+        function loadComOptions(forceType) {
+            var s = (jc.options && jc.options.comoptions) || {};
+            var t = forceType || s.sourceType || 'static';
+            if (t === 'static') { initOptionsFromConfig(); return; }
+            if (t === 'dict') {
+                if (!s.dictType) return;
+                fetch('/api/dyncommon/dicts?type=' + encodeURIComponent(s.dictType))
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) { if (res && res.code === 0) comInnerInfo.options = _normOptionList(res.data); })
+                    .catch(function (e) { console.warn('[dict options]', e); });
+                return;
+            }
+            if (t === 'table') {
+                if (!s.projectId || !s.table) return;
+                var qs = 'projectId=' + encodeURIComponent(s.projectId)
+                    + '&table=' + encodeURIComponent(s.table)
+                    + '&valueField=' + encodeURIComponent(s.valueField || 'Id')
+                    + '&textField=' + encodeURIComponent(s.textField || 'Name');
+                if (s.parentField) {
+                    var pv = '';
+                    if (s.parentValuePath) pv = getByPath(props.parentmodelinfo, s.parentValuePath);
+                    else if (s.parentValue !== undefined) pv = s.parentValue;
+                    if (pv !== undefined && pv !== null && pv !== '') {
+                        qs += '&parentField=' + encodeURIComponent(s.parentField)
+                            + '&parentValue=' + encodeURIComponent(pv);
+                    }
+                }
+                fetch('/api/dyncommon/options?' + qs)
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) { if (res && res.code === 0) comInnerInfo.options = _normOptionList(res.data); })
+                    .catch(function (e) { console.warn('[table options]', e); });
+                return;
+            }
+            if (t === 'ajax') {
+                if (!s.url) return;
+                var url = String(s.url).replace(/\{\{\s*model\.([\w.]+)\s*\}\}/g, function (_, p) {
+                    var v = getByPath(props.parentmodelinfo, p);
+                    return encodeURIComponent(v == null ? '' : v);
+                });
+                fetch(url)
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        var list = res && res.code === 0 ? res.data : (Array.isArray(res) ? res : (res && res.data) || []);
+                        comInnerInfo.options = _normOptionList(list, s.valueKey, s.labelKey);
+                    })
+                    .catch(function (e) { console.warn('[ajax options]', e); });
+            }
+        }
         // ========== 新增：属性穿透相关 ==========
         /**
          * 按 comExtra.comPassThrough 白名单合并父穿透配置

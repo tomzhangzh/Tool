@@ -1,4 +1,4 @@
-﻿/* dyn-lib.js V4 资源加载控制器 */
+/* dyn-lib.js V4 资源加载控制器 */
 /* 就绪后自动执行 dyn.initActions(document.body)，扫描 data-dyn-init-* 初始化动作 */
 (function(global){
 'use strict';
@@ -60,10 +60,9 @@ if(DYN_LIB_CONFIG.loadCodemirror){
 // axios UMD：默认false，页面可自行引入CDN；如需本地加载，把 axios.min.js 放入 ../lib/ 并设置 loadAxios:true
 if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"../lib/axios.min.js",name:"axios"});
 
-// 模块加载顺序：dyn-render 优先 dyn-com
+// 模块加载顺序：dyn-com（组件注册表）→ dyn-core（挂载内核，递归统一走 DynDynamicCom）→ 动作系统
 const DYN_MODULES = [
   "dyn-load-com.js",
-  "dyn-render.js",
   "dyn-com.js",
   "dyn-core.js",
   "dyn-designer-ops.js",
@@ -73,7 +72,7 @@ const DYN_MODULES = [
 ];
 
 const DynLib = {
-  version:"4.0.0",
+  version:"4.0.1",
   base:BASE,
   _libs:{},
   _ready:false,

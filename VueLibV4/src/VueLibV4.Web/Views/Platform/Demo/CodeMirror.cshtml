@@ -52,7 +52,7 @@
 
 @section Scripts {
     <script>
-        (function () {
+        DynLib.ready(function () {
             var sample = {
                 component: 'DynGridContainer',
                 modelname: '',
@@ -136,6 +136,6 @@
             });
             DynCom.setupApp(app);
             DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
-        })();
+        });
     </script>
 }

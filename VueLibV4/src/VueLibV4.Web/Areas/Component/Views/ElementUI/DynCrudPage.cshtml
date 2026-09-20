@@ -273,5 +273,5 @@
     }
 
     onMounted(function () { initCrud(); });
-    const comExtra = { crud, comoptions, loadList, resetFilter, openDetail, saveDetail, remove, onSizeChange, onSortChange, showMsg };
+    Object.assign(comExtra, { crud, comoptions, loadList, resetFilter, openDetail, saveDetail, remove, onSizeChange, onSortChange, showMsg });
 }

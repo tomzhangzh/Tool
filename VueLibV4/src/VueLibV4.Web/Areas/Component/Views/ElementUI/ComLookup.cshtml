@@ -2,12 +2,15 @@
     Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
 }
 @section setupScripts{
-    // Lookup 选择器：从工程任意表弹出表格选择
+    // Lookup 选择器：从工程任意表弹出表格选择（弹窗统一走 layui layer）
     const _lk = jc.options.comoptions || {};
     const lookup = Vue.reactive({
-        visible: false, loading: false, keyword: '', rows: [], total: 0, page: 1, pageSize: 8,
+        loading: false, keyword: '', rows: [], total: 0, page: 1, pageSize: 8,
         cols: []
     });
+    const lkHost = Vue.ref(null);
+    const lkPanel = Vue.ref(null);
+    let _layerIndex = null;
     function _lkCols() {
         const cols = (_lk.columns || 'Id,Name').split(',').map(c => c.trim()).filter(Boolean);
         lookup.cols = cols;
@@ -22,36 +25,62 @@
             + (lookup.keyword ? '&keyword=' + encodeURIComponent(lookup.keyword) + '&searchField=' + encodeURIComponent(_lk.searchField || 'Name') : '');
         fetch('/api/dyncommon/tablelist?' + qs)
             .then(r => r.json()).then(res => {
-                if (res && res.success) { lookup.rows = res.data || []; lookup.total = res.total || 0; }
+                if (res && res.code === 0 && res.data) {
+                    lookup.rows = res.data.rows || [];
+                    lookup.total = res.data.total || 0;
+                }
             }).finally(() => { lookup.loading = false; });
     }
-    function openLookup() { _lkCols(); lookup.page = 1; lookup.keyword = ''; lookup.visible = true; loadLookup(); }
+    function openLookup() {
+        _lkCols(); lookup.page = 1; lookup.keyword = ''; loadLookup();
+        dyn.getLayer().then(function (layer) {
+            _layerIndex = layer.open({
+                type: 1,
+                title: '选择记录',
+                area: ['680px', '520px'],
+                content: '',
+                success: function (layero) {
+                    // 面板节点由 Vue 管理：打开时移入 layer，关闭时在 end 中移回隐藏宿主复用
+                    layero.find('.layui-layer-content').append(lkPanel.value);
+                },
+                end: function () {
+                    if (lkHost.value && lkPanel.value) lkHost.value.appendChild(lkPanel.value);
+                    _layerIndex = null;
+                }
+            });
+        });
+    }
     function pickLookup(row) {
         const vf = _lk.valueField || 'Id';
         modelinfo.value = row[vf];
-        lookup.visible = false;
+        dyn.getLayer().then(function (layer) {
+            if (_layerIndex !== null) { layer.close(_layerIndex); }
+        });
     }
     function lookupPage(p) { lookup.page = p; loadLookup(); }
-    const comExtra = { lookup, openLookup, pickLookup, loadLookup, lookupPage, _lk };
+    Object.assign(comExtra, { lookup, lkHost, lkPanel, openLookup, pickLookup, loadLookup, lookupPage, _lk });
 }
 <div style="display:flex; gap:4px; width:100%;">
     <el-input v-model="modelinfo" :placeholder="_lk.placeholder || '点击右侧按钮选择'" readonly
               :style="jc.options.comoptions.inputStyle || { width: '100%' }"></el-input>
     <el-button v-on:click="openLookup" :disabled="!_lk.projectId || !_lk.table">…</el-button>
 </div>
-<el-dialog v-model="lookup.visible" title="选择记录" width="640px" append-to-body top="10vh">
-    <div style="display:flex; gap:8px; margin-bottom:8px;">
-        <el-input v-model="lookup.keyword" placeholder="搜索关键词" clearable size="small"
-                  v-on:keyup.enter="lookupPage(1)"></el-input>
-        <el-button size="small" type="primary" v-on:click="lookupPage(1)">查询</el-button>
+<!-- 弹窗面板的隐藏宿主：openLookup 时把 lkPanel 移入 layer，关闭时移回复用 -->
+<div ref="lkHost" style="display:none;">
+    <div ref="lkPanel" style="padding:12px 16px;">
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <el-input v-model="lookup.keyword" placeholder="搜索关键词" clearable size="small"
+                      v-on:keyup.enter="lookupPage(1)"></el-input>
+            <el-button size="small" type="primary" v-on:click="lookupPage(1)">查询</el-button>
+        </div>
+        <el-table :data="lookup.rows" border stripe size="small" v-loading="lookup.loading" max-height="320"
+                  highlight-current-row @@current-change="row => row && pickLookup(row)">
+            <el-table-column v-for="col in lookup.cols" :key="col" :prop="col" :label="col" show-overflow-tooltip></el-table-column>
+        </el-table>
+        <div style="margin-top:8px; text-align:right;">
+            <el-pagination small layout="prev, pager, next, total" :total="lookup.total"
+                           :page-size="lookup.pageSize" :current-page="lookup.page"
+                           @@current-change="lookupPage"></el-pagination>
+        </div>
     </div>
-    <el-table :data="lookup.rows" border stripe size="small" v-loading="lookup.loading" max-height="320"
-              highlight-current-row @@current-change="row => row && pickLookup(row)">
-        <el-table-column v-for="col in lookup.cols" :key="col" :prop="col" :label="col" show-overflow-tooltip></el-table-column>
-    </el-table>
-    <div style="margin-top:8px; text-align:right;">
-        <el-pagination small layout="prev, pager, next, total" :total="lookup.total"
-                       :page-size="lookup.pageSize" :current-page="lookup.page"
-                       @@current-change="lookupPage"></el-pagination>
-    </div>
-</el-dialog>
+</div>

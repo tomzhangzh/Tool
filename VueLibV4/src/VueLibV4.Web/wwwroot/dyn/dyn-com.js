@@ -1,4 +1,4 @@
-/* dyn-com.js V4 组件注册表，组合组件解析；DynRender已剥离至dyn-render.js */
+/* dyn-com.js V4 组件注册表，组合组件解析；路径工具统一使用 dyn-core 的 setPathVal（lodash 驱动） */
 (function(global){
 'use strict';
 const Vue = global.Vue;
@@ -7,6 +7,8 @@ if(!Vue){ console.error("[DynCom] 未加载Vue"); return; }
 const compositeComponents = {};
 const _registry = {};
 const _metaMap = {};
+/** 组件清单加载去重（模块级，不能声明在 ensureRegistered 函数内部——否则缓存永远失效） */
+let _regPromise = null;
 
 /**
  * @description 组合组件属性展开，把外部props/slots合并进组件内部cfg树
@@ -45,21 +47,21 @@ function applyCompositeProps(tree,config,externalProps,externalSlots){
 }
 
 /**
- * @description 设置对象路径值，依赖dyn-render导出的setPath
+ * @description 设置对象路径值，统一走 dyn-core（lodash _.set，支持点路径/数组下标）
  */
 function setPath(obj,path,value){
-  if(global.DynRender && typeof global.DynRender.setPath === 'function'){
-    return global.DynRender.setPath(obj,path,value);
+  const core = global.dyn||global.dynCore;
+  if(core&&typeof core.setPathVal==='function'){
+    return core.setPathVal(obj,path,value);
   }
   if(global._ && global._.set){
     global._.set(obj,path,value);
     return;
   }
-  console.warn("[DynCom] setPath缺少实现，请确保dyn-render.js已加载");
+  console.warn("[DynCom] setPath缺少实现，请确保dyn-core.js已加载");
 }
 
 async function ensureRegistered(app){
-  let _regPromise = null;
   if(_regPromise) return _regPromise;
   _regPromise = fetch('/api/component/list')
   .then(r=>r.json())
@@ -103,9 +105,7 @@ function setupApp(app){
   if(global.ElementPlusIconsVue){
     Object.keys(global.ElementPlusIconsVue).forEach(k=>app.component(k,global.ElementPlusIconsVue[k]));
   }
-  // if(global.DynRender){
-  //   app.component('DynRender', global.DynRender);
-  // }
+  // 递归渲染统一使用 DynDynamicCom（组件清单中已注册），不再有独立的 DynRender h() 内核
   Object.keys(_registry).forEach(k=>{ if(k!=='Button') app.component(k,_registry[k]); });
 }
 

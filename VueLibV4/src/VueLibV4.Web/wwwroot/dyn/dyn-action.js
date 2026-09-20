@@ -38,6 +38,9 @@ const CONST = {
   ATTR_INIT_PREFIX: 'data-dyn-init-',
   DATA_DYN_ACTIONS: 'dyn-actions',
   ACTION_EVENTS: ['click','dblclick','change','select'],
+  // 字符串管道语法：dyn-click="ActionHelper.Submit|ActionHelper.Toast('保存成功')"
+  PIPE_EVENT_ATTR: { click:'dyn-click', dblclick:'dyn-dblclick', change:'dyn-change', select:'dyn-select' },
+  PIPE_INIT_ATTR: 'dyn-init',
   MSG_ACTION_NOT_FOUND: '动作[{name}]未注册，请检查配置',
   MSG_MISS_URL: '[{action}]缺少url参数',
   MSG_CHAIN_NEED_STEPS: 'chain动作需要steps数组',
@@ -224,6 +227,67 @@ function parseActionOptions(raw){
 }
 
 /**
+ * @description 解析管道动作的单个括号参数：'保存成功' / "x" / {"a":1} / 123 / true
+ * @param {string} raw
+ * @returns {any}
+ */
+function parsePipeArg(raw){
+  const t = (raw||'').trim();
+  if(t==='') return '';
+  if((t.charAt(0)==='{'||t.charAt(0)==='[') || /^(true|false|null|-?\d+(\.\d+)?)$/.test(t)){
+    try{ return JSON.parse(t); }catch(e){ return t; }
+  }
+  // 单/双引号字符串：'保存成功' 或 "保存成功"
+  if((t.charAt(0)==="'"&&t.charAt(t.length-1)==="'")||(t.charAt(0)==='"'&&t.charAt(t.length-1)==='"')){
+    return t.slice(1,-1);
+  }
+  return t;
+}
+
+/**
+ * @description 解析动作管道字符串："ActionHelper.Submit|ActionHelper.Toast('保存成功')|Reload"
+ * @param {string} expr
+ * @returns {Array<{action:string,options:object}>}
+ */
+function parsePipe(expr){
+  if(!expr||typeof expr!=='string') return [];
+  return expr.split('|').map(s=>s.trim()).filter(Boolean).map(tok=>{
+    const m = tok.match(/^([A-Za-z_$][\w$.]*)\s*(\(([\s\S]*)\))?\s*$/);
+    if(!m) return null;
+    const action = m[1].replace(/^ActionHelper\./i,'');
+    let options = {};
+    if(m[3]!==undefined && m[3].trim()!==''){
+      const arg = parsePipeArg(m[3]);
+      options = (arg&&typeof arg==='object'&&!Array.isArray(arg)) ? arg : { value:arg };
+    }
+    return { action, options };
+  }).filter(Boolean);
+}
+
+/**
+ * @description 按序执行动作管道，某步返回 false 中止；返回最后一步结果
+ * @param {Array<{action:string,options:object}>} steps
+ * @param {HTMLElement} el
+ * @param {string} eventName
+ * @param {Event} $event
+ * @returns {Promise<any>}
+ */
+async function runPipe(steps,el,eventName,$event){
+  let last = null;
+  for(let i=0;i<steps.length;i++){
+    const s = steps[i];
+    const fn = resolveAction(s.action);
+    if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',s.action),'warning'); continue; }
+    const c = buildCtx(el,eventName||'pipe',$event,s.options||{},s.action);
+    c.$step = i; c.$result = last;
+    const r = await wrapCompositeAction(fn)(c);
+    if(r===false) break;
+    last = r;
+  }
+  return last;
+}
+
+/**
  * @description 解析动作配置：支持DOM属性 + 隐藏配置块data-dyn-action-cfg（支持vue挂载__dynObj对象）
  * @param {HTMLElement} el 触发元素
  * @param {string} attrRaw 属性上原始json字符串
@@ -334,7 +398,8 @@ defineAction('postback',async function(ctx){
       data:body
     });
     const res = ajax.data;
-    if(res.success===false||res.Success===false){ dyn.showMessage(res.Message||'操作失败','error'); throw new Error(res.Message||'操作失败'); }
+    const failed = res.success===false||res.Success===false||(typeof res.code==='number'&&res.code!==0);
+    if(failed){ dyn.showMessage(res.msg||res.Message||'操作失败','error'); throw new Error(res.msg||res.Message||'操作失败'); }
     //识别dyn-actions
     if(res&&Array.isArray(res[CONST.DATA_DYN_ACTIONS])){
       runJsonActions({actions:res[CONST.DATA_DYN_ACTIONS]},ctx.element);
@@ -357,68 +422,141 @@ defineAction('load',async ctx=>{
   await dyn.render(ctx.element,html);
 });
 
+/**
+ * updateEl 局部刷新（原则2核心）：
+ *   <button dyn-click="ActionHelper.Submit" data-dyn-target="#resultPanel" data-url="/Home/QueryBlock">查询</button>
+ * 提交当前 scope model → Controller 返回 HTML 片段替换目标区块并重新 mount；
+ * 若返回 ApiResult JSON，则执行其中 dyn-actions，data 为片段字符串时同样替换区块。
+ */
+defineAction('updateel',async ctx=>{
+  const o = ctx.options||{};
+  const targetSel = o.target||o.selector
+    ||(ctx.element?ctx.element.getAttribute('data-dyn-target'):null);
+  if(!targetSel){ dyn.showMessage('[updateEl]缺少 target 选择器（如 data-dyn-target="#resultPanel"）','warning'); return false; }
+  const targetEl = dyn.resolve(targetSel);
+  if(!targetEl){ dyn.showMessage('[updateEl]未找到目标元素：'+targetSel,'warning'); return false; }
+  const url = o.url
+    ||(ctx.element&&ctx.element.getAttribute('data-dyn-url'))
+    ||(ctx.element&&ctx.element.getAttribute('data-url'))
+    ||ctx.url;
+  if(!url){ dyn.showMessage('[updateEl]缺少url参数','error'); return false; }
+  if(o.confirm){
+    const ok = await dyn.confirmAsync(o.confirm===true?'确定执行该操作吗？':o.confirm);
+    if(!ok) return false;
+  }
+  const body = Object.assign({},dyn.deepClone(ctx.model||{}),o.params||{});
+  const text = await dyn.fetchPartial(url,body,o.method||'POST','text');
+  let parsed = null;
+  try{ parsed = JSON.parse(text); }catch(e){ parsed = null; }
+  if(parsed&&typeof parsed==='object'){
+    if(Array.isArray(parsed[CONST.DATA_DYN_ACTIONS])){
+      runJsonActions({actions:parsed[CONST.DATA_DYN_ACTIONS]},targetEl);
+    }
+    if(typeof parsed.data==='string'&&parsed.data.indexOf('<')>=0){
+      return await dyn.render(targetEl,parsed.data);
+    }
+    return parsed;
+  }
+  return await dyn.render(targetEl,text);
+});
+// 语义别名：Submit=提交并刷新区块；ReloadTarget=刷新指定区块
+defineAction('submit',ctx=>_actions.updateel(ctx));
+defineAction('reloadtarget',ctx=>_actions.updateel(ctx));
+
+/**
+ * open 弹窗（原则4：统一 layui layer）
+ *   mode:'iframe'（或 openwindow）→ layer type:2 直接打开 MVC 页面
+ *   默认 mode:'fragment'          → 拉 HTML 片段注入 layer，自动 dyn.mount（data-dyn-init 动作生效）
+ *   onopen/onclose 动作钩子；reloadSelf 关闭后刷新触发容器
+ */
 defineAction('open',async ctx=>{
   const o = ctx.options||{};
-  if(!o.url){ dyn.showMessage("[open]缺少url",'error'); return; }
+  const url = o.url||ctx.url;
+  if(!url){ dyn.showMessage("[open]缺少url",'error'); return; }
   const triggerEl = ctx.element;
-  const holder = document.createElement('div');
-  holder.className='dyn-modal-host';
-  holder.id='dyn-modal-'+Math.random().toString(36);
-  document.body.appendChild(holder);
-  const app = Vue.createApp({
-    data(){ return { visible:true,title:o.title||'对话框',width:o.width||'60%',loading:true,html:'',err:''}; },
-    template:`
-<el-dialog v-model="visible" :title="title" :width="width" top="6vh" :close-on-click-modal="false" teleported="false" @closed="onClosed">
-  <div v-if="loading">加载中...</div>
-  <div v-else-if="err">{{err}}</div>
-  <div v-else v-html="html"></div>
-</el-dialog>`,
-    methods:{
-      async load(){
+  const layer = await dyn.getLayer();
+  const onEnd = async ()=>{
+    await _runEvents(normActionSteps(o.onclose),Object.assign({},ctx,{}));
+    if(o.reloadSelf){
+      const host = dyn.findAncestor(triggerEl,'[data-dyn-url]')||triggerEl;
+      await dyn.reload(host);
+    }
+  };
+  if(layer){
+    if(o.mode==='iframe'||o.iframe===true){
+      const idx = layer.open({
+        type:2,
+        title:o.title||'对话框',
+        area:[o.width||'60%',o.height||'80%'],
+        shadeClose:!!o.shadeClose,
+        content:url,
+        end:()=>{ onEnd().catch(e=>console.error('[open onEnd]',e)); }
+      });
+      return { index:idx };
+    }
+    const holder = document.createElement('div');
+    holder.className='dyn-modal-host dyn-layer-fragment';
+    holder.style.padding='12px';
+    const idx = layer.open({
+      type:1,
+      title:o.title||'对话框',
+      area:[o.width||'60%',o.height||'80%'],
+      shadeClose:!!o.shadeClose,
+      content:holder,
+      success:async ()=>{
         try{
-          this.html = await dyn.fetchPartial(o.url,o.params||{},o.method||'GET');
-          this.loading = false;
-          await dyn.mount(holder.querySelector('.el-dialog__body'));
+          holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
+          const html = await dyn.fetchPartial(url,o.params||{},o.method||'GET');
+          holder.innerHTML = html;
+          await dyn.mount(holder);
           await _runEvents(normActionSteps(o.onopen),Object.assign({},ctx,{holder}));
-        }catch(e){ this.err=e.message; this.loading=false; }
-      },
-      async onClosed(){
-        await _runEvents(normActionSteps(o.onclose),Object.assign({},ctx,{holder}));
-        // reloadSelf:true 关闭弹窗后自动刷新触发按钮所在容器
-        if(o.reloadSelf){
-          const host = dyn.findAncestor(triggerEl,'[data-dyn-url]')||triggerEl;
-          await dyn.reload(host);
+        }catch(e){
+          holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：'+(e.message||e)+'</div>';
         }
-        dyn.unmount(holder); app.unmount(); holder.remove();
-      }
-    },
-    mounted(){ this.load(); }
-  });
-  if(global.ElementPlus) app.use(global.ElementPlus);
-  holder.__dynApp = app;
-  app.mount(holder);
-  return holder;
+      },
+      end:()=>{ try{dyn.unmount(holder);}catch(e){} onEnd().catch(e=>console.error('[open onEnd]',e)); }
+    });
+    return { index:idx, holder };
+  }
+  // layer 不可用时降级为浏览器新窗口
+  global.open(url,'_blank');
+  return null;
 });
 
-defineAction('close',ctx=>{
-  const el = ctx.element;
-  let host = null;
-  let p = el;
-  while(p){
-    if(p.classList&&p.classList.contains('dyn-modal-host')){ host=p; break; }
-    p = p.parentNode;
+/** openWindow：以 iframe 方式打开完整 MVC 页面（V1 同名动作） */
+defineAction('openwindow',ctx=>_actions.open(Object.assign({},ctx,{options:Object.assign({mode:'iframe'},ctx.options||{})})));
+
+/** close/closeWindow：关闭最近 layer；在 iframe 子页内调用则关闭父窗 layer */
+defineAction('close',async ctx=>{
+  // iframe 子页面关闭父窗弹窗
+  try{
+    if(window.parent&&window.parent!==window&&window.parent.layui&&window.parent.layui.layer){
+      const pidx = new URLSearchParams(window.location.search).get('layerIndex');
+      if(pidx!=null) window.parent.layui.layer.close(pidx);
+      else window.parent.layui.layer.closeAll();
+      return;
+    }
+  }catch(e){}
+  const layer = await dyn.getLayer();
+  if(!layer) return;
+  const start = ctx.element;
+  const layero = start&&start.closest?start.closest('.layui-layer'):null;
+  if(layero){
+    const times = layero.getAttribute('times');
+    if(times!=null&&times!==''){ layer.close(times); return; }
   }
-  if(host&&host.__dynApp&&host.__dynApp._instance){
-    host.__dynApp._instance.proxy.visible = false;
-  }
+  layer.closeAll();
 });
+defineAction('closewindow',ctx=>_actions.close(ctx));
 
 defineAction('toast',ctx=>{
   const o = ctx.options||{};
-  const msg = o.message||o.msg||'';
+  const msg = o.message||o.msg||(o.value!==undefined?String(o.value):'');
   if(!msg) return;
   dyn.showMessage(msg,o.type||'success');
 });
+// V1 服务端动作名 showmessage 与 toast 等价
+defineAction('showmessage',ctx=>_actions.toast(ctx));
 
 defineAction('notify',ctx=>{
   const o = ctx.options||{};
@@ -572,6 +710,41 @@ defineAction('setattr',ctx=>{
   if(o.style) Object.keys(o.style).forEach(k=>el.style[k]=o.style[k]);
   if(o.text!==undefined) el.textContent = o.text;
   if(o.html!==undefined) el.innerHTML = o.html;
+});
+
+/**
+ * setDynCom：运行时修改某个 dyn 组件的 jsonconfig（响应式，视图立即刷新）
+ *   options: { selector:'#com1', path:'options.comoptions.disabled', value:true }
+ *   或 patch 整体合并：{ selector:'#com1', patch:{...} }
+ */
+defineAction('setdyncom',ctx=>{
+  const o = ctx.options||{};
+  const targetEl = o.selector?document.querySelector(o.selector):ctx.element;
+  if(!targetEl){ dyn.showMessage('setdyncom未找到元素','warning'); return; }
+  let inst = targetEl.__vueParentComponent||null;
+  while(inst){
+    const props = inst.props;
+    if(props&&props.jsonconfig&&typeof props.jsonconfig==='object'){
+      if(o.path) dyn.setPathVal(props.jsonconfig,o.path,o.value);
+      else if(o.patch&&typeof o.patch==='object') Object.assign(props.jsonconfig,o.patch);
+      return props.jsonconfig;
+    }
+    inst = inst.parent;
+  }
+  dyn.showMessage('setdyncom：目标不是 dyn 组件（缺少 jsonconfig）','warning');
+});
+
+/**
+ * setWindow：向 layer iframe 弹窗内的页面投递数据（postMessage）；
+ * 也支持在 iframe 子页面内向父窗口回传。子页面可监听 window 的 "message" 事件消费 {type:'dyn-setwindow'}
+ */
+defineAction('setwindow',ctx=>{
+  const o = ctx.options||{};
+  const payload = { type:'dyn-setwindow', path:o.path, value:o.value, data:o.data };
+  const iframe = o.selector?document.querySelector(o.selector):document.querySelector('.layui-layer-iframe iframe');
+  if(iframe&&iframe.contentWindow){ iframe.contentWindow.postMessage(payload,'*'); return true; }
+  if(window.parent&&window.parent!==window){ window.parent.postMessage(payload,'*'); return true; }
+  dyn.showMessage('setwindow：未找到可投递的窗口','warning');
 });
 
 defineAction('copy',async ctx=>{
@@ -750,11 +923,112 @@ function initActions(root){
         wrappedFn(c).catch(e=>console.error("[init-action异常]",e));
       }
     });
+    // 字符串管道初始化：dyn-init="ActionHelper.A|ActionHelper.B"
+    if(el.hasAttribute&&el.hasAttribute(CONST.PIPE_INIT_ATTR)){
+      const steps = parsePipe(el.getAttribute(CONST.PIPE_INIT_ATTR)||'');
+      el.removeAttribute(CONST.PIPE_INIT_ATTR);
+      if(steps.length) runPipe(steps,el,'init',null).catch(e=>console.error("[init-pipe异常]",e));
+    }
   });
 }
 
+/** @type {Record<string,object>} 数据库动作原始定义（Code → 行记录），供动作助手页面展示 */
+const _dbActions = Object.create(null);
+
+/**
+ * 脚本类 DB 动作执行器。
+ * 脚本内可用：ctx（页面上下文，含 options=本次参数）/ args（=ctx.options 快捷方式）
+ *            action（动作定义行）/ api（showMessage/confirm/fetch 等工具）
+ * 平台内置 reload 种子脚本即：ctx.reload();
+ */
+function runDbScript(row,args,ctx){
+  const api = {
+    showMessage:function(m,t){ return dyn.showMessage(m,t||'success'); },
+    confirm:function(msg){ return dyn.confirmAsync ? dyn.confirmAsync(msg) : Promise.resolve(confirm(msg)); },
+    toast:function(m,t){ return dyn.showMessage(m,t||'success'); },
+    fetch:function(url,opt){ return fetch(url,opt).then(function(r){return r.json();}); },
+    bus:_bus
+  };
+  // eslint-disable-next-line no-new-func
+  const fn = new Function('ctx','args','action','api','return (function(){\n'+(row.Script||'')+'\n})();');
+  return fn(ctx||{},args||{},row,api);
+}
+
+/** api 类 DB 动作：Script 为 URL 或 {"url","method","body"} JSON，返回 JSON 响应 */
+async function runDbApi(row,args){
+  let cfg = { url:row.Script||'', method:null, body:null };
+  try{
+    const parsed = JSON.parse(row.Script||'');
+    if(parsed&&typeof parsed==='object') cfg = Object.assign(cfg,parsed);
+  }catch(e){ /* 非 JSON 即纯 URL */ }
+  const url = applyTpl(cfg.url,args)||'';
+  if(!url) throw new Error('api 动作缺少 url');
+  const opt = { method:(cfg.method||(cfg.body||args&&args.body?'POST':'GET')).toUpperCase(), headers:{} };
+  const body = cfg.body!==undefined&&cfg.body!==null ? cfg.body : (args&&args.body);
+  if(body!==undefined&&body!==null){ opt.headers['Content-Type']='application/json'; opt.body=typeof body==='string'?body:JSON.stringify(body); }
+  const resp = await fetch(url,opt);
+  const json = await resp.json().catch(()=>null);
+  if(json&&(json.code!==undefined&&json.code!==0)) throw new Error(json.msg||'接口返回失败');
+  return json;
+}
+
+/** chain 类 DB 动作：Script 为 [{action,options}] 或 {"steps":[...]} JSON，顺序执行管道 */
+async function runDbChain(row,args,ctx){
+  let steps = [];
+  try{
+    const parsed = JSON.parse(row.Script||'[]');
+    steps = Array.isArray(parsed)?parsed:(Array.isArray(parsed.steps)?parsed.steps:[]);
+  }catch(e){ throw new Error('chain 动作 Script 不是合法 JSON'); }
+  // 步骤 options 支持 {{args.xxx}} 占位
+  steps = steps.map(function(s){
+    return { action:s.action, options:applyTpl(s.options||{},args) };
+  });
+  return runPipe(steps,(ctx&&ctx.element)||document.body,'chain',null);
+}
+
+/**
+ * 注册一个数据库动作助手（同时登记原始行到 _dbActions，供页面展示/管理）。
+ * 兼容两种入参：DB 行（Code/ActionType/Script）与 /script 生成器风格（code/actionType）。
+ */
+function registerDbAction(row){
+  if(!row) return;
+  const code = row.Code||row.code;
+  if(!code) return;
+  const norm = {
+    Id:row.Id||row.id||0,
+    Code:code,
+    Name:row.Name||row.name||code,
+    ActionType:row.ActionType||row.actionType||'script',
+    Script:row.Script!==undefined?row.Script:(row.script||''),
+    ParamsJson:row.ParamsJson||row.paramsJson||null
+  };
+  _dbActions[code]=norm;
+  defineAction(code,async function(ctx){
+    const args = (ctx&&ctx.options)||{};
+    const type = (norm.ActionType||'script').toLowerCase();
+    if(type==='url'){
+      const url = norm.Script||args.url||'';
+      if(url) global.location.href = applyTpl(url,args);
+      return true;
+    }
+    if(type==='api') return runDbApi(norm,args,ctx);
+    if(type==='chain') return runDbChain(norm,args,ctx);
+    return runDbScript(norm,args,ctx);
+  });
+  // 在元信息上保留原始字段（动作助手页面直接读 Id/Name/Code/ActionType/ParmsJson）
+  if(_actionMeta[code]) Object.assign(_actionMeta[code],norm);
+}
+
+/**
+ * @description 从 /api/platform/dynactionhelper/all 拉取全部启用动作并动态注册
+ * @returns {Promise<Array>} 动作行数组
+ */
 async function loadDbActionHelpers(){
-  //可在此扩展从后端/api/platform/dynactionhelper/all加载数据库自定义动作
+  const resp = await fetch('/api/platform/dynactionhelper/all',{cache:'no-store'});
+  const res = await resp.json().catch(()=>null);
+  const rows = res&&res.code===0&&Array.isArray(res.data)?res.data:[];
+  rows.forEach(registerDbAction);
+  return rows;
 }
 
 let _delegationBound = false;
@@ -787,6 +1061,7 @@ function bindDelegation(){
   if(_delegationBound) return;
   _delegationBound = true;
   const doBind = ()=>{
+    // 1) 短语法：data-dyn-{event}-{actionName}
     CONST.ACTION_EVENTS.forEach(ev=>{
       const prefix = 'data-dyn-'+ev+'-';
       document.addEventListener(ev,async e=>{
@@ -805,7 +1080,11 @@ function bindDelegation(){
         });
         if(!hitAttr||!actNameRaw) return;
         const optRaw = hitAttr.value;
+        // 裸选择器值（如 data-dyn-click-updateel="#panel"）直接作为 target
         const options = parseActionOptions(optRaw);
+        if(actNameRaw==='updateel'&&optRaw&&optRaw.trim()&&optRaw.trim().charAt(0)!=='{'){
+          options.target = optRaw.trim();
+        }
         const fn = resolveAction(actNameRaw);
         if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',actNameRaw),'warning'); return; }
         const ctx = buildCtx(target, ev, e, options, actNameRaw);
@@ -817,6 +1096,24 @@ function bindDelegation(){
           await wrappedFn(ctx);
         }catch(err){
           console.error("[DynAction]动作执行异常",actNameRaw,err);
+          dyn.showMessage("操作失败："+err.message,'error');
+        }
+      },true);
+    });
+    // 2) 字符串管道语法：dyn-click="ActionHelper.Submit|ActionHelper.Toast('保存成功')"
+    Object.keys(CONST.PIPE_EVENT_ATTR).forEach(ev=>{
+      const attrName = CONST.PIPE_EVENT_ATTR[ev];
+      document.addEventListener(ev,async e=>{
+        const target = e.target&&e.target.closest?e.target.closest('['+attrName+']'):null;
+        if(!target) return;
+        const steps = parsePipe(target.getAttribute(attrName)||'');
+        if(!steps.length) return;
+        const prevent = !steps[0].options || steps[0].options.prevent!==false;
+        if(prevent){ e.preventDefault(); e.stopPropagation(); }
+        try{
+          await runPipe(steps,target,ev,e);
+        }catch(err){
+          console.error("[DynAction]管道执行异常",steps,err);
           dyn.showMessage("操作失败："+err.message,'error');
         }
       },true);
@@ -854,7 +1151,16 @@ global.DynAction = {
     const fakeCtx = Object.assign({},ctx||{},{options:args||{}});
     return Promise.resolve(fn(fakeCtx));
   },
+  /** 从数据库加载并注册全部启用的动作助手（幂等，可重复调用刷新） */
+  loadAll:loadDbActionHelpers,
+  /** 动态注册单个动作助手（与 /script 生成的 DynActionHelper.register 等价） */
+  register:registerDbAction,
+  /** 已注册的 DB 动作原始定义（Code → 行记录） */
+  actions:_dbActions,
   bus:_bus
 };
 global.DynActionHelper = global.DynAction;
+
+// 启动后自动拉取数据库动作，使任意页面 dyn-click="ActionHelper.Xxx" 管道可直接使用
+loadDbActionHelpers().catch(function(e){ console.warn("[DynAction]加载数据库动作助手失败",e&&e.message); });
 })(window);

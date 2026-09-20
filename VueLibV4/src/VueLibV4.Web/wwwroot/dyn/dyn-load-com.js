@@ -22,7 +22,8 @@ function config(options){
  */
 async function fetchComponentDefine(componentName){
   const url = API_BASE+'/define/'+encodeURIComponent(componentName);
-  const resp = await fetch(url,{method:'GET',headers:{'Accept':'application/json'}});
+  // 组件定义为动态内容，禁止 HTTP 缓存（避免改了 Razor View 后前端仍用旧 JSON）
+  const resp = await fetch(url,{method:'GET',cache:'no-store',headers:{'Accept':'application/json','Cache-Control':'no-cache'}});
   if(!resp.ok) throw new Error("加载组件["+componentName+"]HTTP "+resp.status);
   const res = await resp.json();
   if(!res.success||!res.data) throw new Error("加载组件["+componentName+"]失败:"+(res.message||"未知错误"));

@@ -21,7 +21,7 @@ const CONST = {
   SCRIPT_TYPE_JSON:'application/json'
 };
 
-const _uidSeq = 0;
+let _uidSeq = 0;
 const _appMap = typeof WeakMap!=='undefined'?new WeakMap():null;
 /** scope共享作用域存储：DOM宿主元素 -> reactive对象 */
 const _scopeStore = new WeakMap();
@@ -167,31 +167,68 @@ async function fetchPartial(url,params,type,dataType){
 }
 
 /**
- * @description 消息提示
- * @param {string} msg
- * @param {string} [type] success|error
+ * @description 获取 layui layer 对象（原则4：弹窗统一使用 layui layer）；不可用时返回 null
+ * @returns {Promise<object|null>}
  */
-function showMessage(msg,type){
-  if(!msg) return;
-  try{
-    if(global.ElementPlus&&global.ElementPlus.ElMessage){
-      return type==='error'?global.ElementPlus.ElMessage.error(msg):global.ElementPlus.ElMessage.success(msg);
-    }
-  }catch(e){}
-  console[(type==='error'?'error':'log')]('[DynCore]',msg);
+function getLayer(){
+  return new Promise(resolve=>{
+    try{
+      if(global.layui){
+        if(global.layui.layer) return resolve(global.layui.layer);
+        if(typeof global.layui.use==='function'){
+          global.layui.use(['layer'],()=>resolve(global.layui.layer||null));
+          return;
+        }
+      }
+    }catch(e){}
+    resolve(null);
+  });
 }
 
 /**
- * @description 确认弹窗
+ * @description 消息提示（优先 layui layer.msg，降级 ElementPlus ElMessage）
+ * @param {string} msg
+ * @param {string} [type] success|error|warning
+ */
+function showMessage(msg,type){
+  if(!msg) return;
+  getLayer().then(layer=>{
+    if(layer){
+      const icon = type==='error'?2:(type==='warning'?0:1);
+      layer.msg(String(msg),{icon:icon,time:2200});
+      return;
+    }
+    try{
+      if(global.ElementPlus&&global.ElementPlus.ElMessage){
+        if(type==='error') return global.ElementPlus.ElMessage.error(msg);
+        if(type==='warning') return global.ElementPlus.ElMessage.warning(msg);
+        return global.ElementPlus.ElMessage.success(msg);
+      }
+    }catch(e){}
+    console[(type==='error'?'error':'log')]('[DynCore]',msg);
+  });
+}
+
+/**
+ * @description 确认弹窗（优先 layui layer.confirm，降级 ElementPlus/native）
  * @param {string} msg
  * @returns {Promise<boolean>}
  */
 function confirmAsync(msg){
-  if(global.ElementPlus&&global.ElementPlus.ElMessageBox){
-    return global.ElementPlus.ElMessageBox.confirm(msg,'提示',{type:'warning',confirmButtonText:'确定',cancelButtonText:'取消'})
-    .then(()=>true).catch(()=>false);
-  }
-  return Promise.resolve(!!global.confirm(msg));
+  return getLayer().then(layer=>new Promise(resolve=>{
+    if(layer){
+      layer.confirm(String(msg||'确定执行？'),{icon:3,title:'提示'},function(idx){
+        layer.close(idx); resolve(true);
+      },function(){ resolve(false); });
+      return;
+    }
+    if(global.ElementPlus&&global.ElementPlus.ElMessageBox){
+      global.ElementPlus.ElMessageBox.confirm(msg,'提示',{type:'warning',confirmButtonText:'确定',cancelButtonText:'取消'})
+      .then(()=>resolve(true)).catch(()=>resolve(false));
+      return;
+    }
+    resolve(!!global.confirm(msg));
+  }));
 }
 
 function storeApp(el,app){
@@ -332,12 +369,71 @@ async function mountCore(el){
 }
 
 /**
- * @description 挂载dyn-mode=createApp容器，自动处理url远程加载
- * @param {string|HTMLElement} el
+ * @description 规范化组件配置树：补齐 options/childrenctrls/slots/validators/extendinfo 默认结构（原地修改并返回）
+ * @param {object} cfg
+ * @returns {object}
+ */
+function normalize(cfg){
+  if(!cfg||typeof cfg!=='object') return cfg;
+  if(!cfg.options||typeof cfg.options!=='object') cfg.options={};
+  if(!cfg.options.comoptions||typeof cfg.options.comoptions!=='object') cfg.options.comoptions={};
+  if(!Array.isArray(cfg.childrenctrls)) cfg.childrenctrls=[];
+  if(!cfg.slots||typeof cfg.slots!=='object') cfg.slots={};
+  if(!Array.isArray(cfg.validators)) cfg.validators=[];
+  if(!cfg.extendinfo||typeof cfg.extendinfo!=='object') cfg.extendinfo={};
+  cfg.childrenctrls.forEach(normalize);
+  Object.keys(cfg.slots).forEach(k=>{
+    if(Array.isArray(cfg.slots[k])) cfg.slots[k].forEach(normalize);
+  });
+  return cfg;
+}
+
+/**
+ * @description 把组件配置树挂载到目标元素（统一走 DynDynamicCom，替代旧 DynRender h() 内核）
+ * @param {object} cfg 组件配置树
+ * @param {string|HTMLElement} target 目标元素
+ * @param {object} [model] 初始数据模型
+ * @returns {Promise<any>}
+ * @demo DynCore.mount({component:'DynCrudPage',options:{...}}, '#page-root')
+ */
+async function mountConfig(cfg,target,model){
+  target = resolve(target);
+  if(!target) return null;
+  unmount(target);
+  normalize(cfg);
+  const reactiveModel = Vue.reactive(model||{});
+  target.setAttribute(CONST.ATTR_MODE,'createApp');
+  const component = {
+    template:'<dyn-dynamic-com :jsonconfig="__pageCfg"></dyn-dynamic-com>',
+    data(){ return { __pageCfg:cfg }; },
+    setup(){ return { model:reactiveModel, element:target, dyn:global.dyn }; }
+  };
+  const app = Vue.createApp(component);
+  storeApp(target,app);
+  global.DynCom.setupApp(app);
+  await global.DynCom.ensureRegistered(app);
+  target.__dynApp = app;
+  target.__dynModel = reactiveModel;
+  app.__dynModel = reactiveModel;
+  target.__dynLoaded = true;
+  try{ target.__dynProxy = app.mount(target)||null; }catch(e){ target.__dynProxy=null; throw e; }
+  if(global.dyn&&typeof dyn.initActions==='function') dyn.initActions(target);
+  return app;
+}
+
+/**
+ * @description 挂载。两种签名：
+ *   dyn.mount(el)                                  挂载 dyn-mode=createApp 容器（支持 data-dyn-url 远程片段）
+ *   dyn.mount(cfg, targetEl, model)                把组件配置树通过 DynDynamicCom 挂到目标元素
  * @returns {Promise<any>}
  * @demo dyn.mount("#container")
  */
-function mount(el){
+function mount(elOrCfg,targetEl,model){
+  // 配置树挂载：DynCore.mount(cfg, element, model)
+  if(elOrCfg&&typeof elOrCfg==='object'&&elOrCfg.nodeType!==1&&elOrCfg.component){
+    return mountConfig(elOrCfg,targetEl,model);
+  }
+  const el = elOrCfg;
   return new Promise(promiseResolve=>{
     // 这里调用的是dyn的dom解析工具函数，不再和promise回调冲突
     el = dyn.resolve(el);
@@ -564,9 +660,9 @@ function setPathVal(obj,path,value){
 const dyn = {
   VERSION:"4.0.0",
   CFG:CONST,
-  showMessage,confirmAsync,
+  showMessage,confirmAsync,getLayer,
   resolve,findAncestor,closestDynInit,
-  mount,unmount,render,
+  mount,mountConfig,normalize,unmount,render,
   getApp:getAppByEl,getClosestApp,getProxy,getModel,getScopeModel,
   fetchPartial,serializeForm,collectParams,
   reload,setDynCfg,getVueModel,

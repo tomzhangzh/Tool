@@ -22,7 +22,7 @@
 
 @section Scripts {
     <script>
-        (function () {
+        DynLib.ready(function () {
             var app = Vue.createApp({
                 data: function () {
                     return { pageName: '', pageCode: '@pageCode' };
@@ -57,6 +57,6 @@
             });
             DynCom.setupApp(app);
             app.mount('#app');
-        })();
+        });
     </script>
 }

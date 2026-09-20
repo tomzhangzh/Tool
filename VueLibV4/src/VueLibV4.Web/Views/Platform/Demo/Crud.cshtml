@@ -9,14 +9,7 @@
         <el-tag size="small" type="success">SqlSugar 读取主键/字段信息</el-tag>
     </div>
     <div class="main">
-        <dyn-crud-page
-            title="学生管理（免模型）"
-            table="Student"
-            project="Business-School"
-            page-size="20"
-            :columns="columns"
-            :search-fields="searchFields"
-            :form-fields="formFields"></dyn-crud-page>
+        <dyn-crud-page :jsonconfig="crudConfig"></dyn-crud-page>
         <el-card shadow="never" style="margin-top:16px">
             <template #header><b>数据接口说明</b></template>
             <div style="font-size:13px;color:#606266;line-height:2">
@@ -39,41 +32,57 @@
 
 @section Scripts {
     <script>
-        (function () {
+        DynLib.ready(function () {
             var app = Vue.createApp({
                 data: function () {
-                    return {
-                        columns: [
-                            { prop: 'Name', label: '姓名', width: '120' },
-                            { prop: 'Gender', label: '性别', width: '80' },
-                            { prop: 'Age', label: '年龄', width: '80' },
-                            { prop: 'ClassName', label: '班级', width: '120' },
-                            { prop: 'Score', label: '成绩', width: '100' },
-                            { prop: 'Phone', label: '电话', width: '150' },
+                    // V4 配置驱动：免模型 CRUD 组件统一吃 jsonconfig（comoptions 内声明表/项目/列/查询/表单）
+                    var columns = [
+                            { prop: 'Name', label: '姓名', width: 120 },
+                            { prop: 'Gender', label: '性别', width: 80 },
+                            { prop: 'Age', label: '年龄', width: 80 },
+                            { prop: 'ClassName', label: '班级', width: 120 },
+                            { prop: 'Score', label: '成绩', width: 100 },
+                            { prop: 'Phone', label: '电话', width: 150 },
                             { prop: 'Address', label: '地址' },
-                            { prop: 'CreateTime', label: '创建时间', width: '160' }
-                        ],
-                        searchFields: [
+                            { prop: 'CreateText', label: '创建时间', width: 160 }
+                        ];
+                    var searchFields = [
                             { prop: 'Name', label: '姓名', op: 'like' },
-                            { prop: 'ClassName', label: '班级', op: 'eq' },
-                            { prop: 'Gender', label: '性别', op: 'eq', component: 'ElSelect', options: [{ label: '男', value: '男' }, { label: '女', value: '女' }] }
-                        ],
-                        formFields: [
-                            { prop: 'Name', label: '姓名', component: 'ElInput', required: true, props: { placeholder: '请输入姓名' } },
-                            { prop: 'Gender', label: '性别', component: 'ElRadioGroup', options: [{ label: '男', value: '男' }, { label: '女', value: '女' }] },
-                            { prop: 'Age', label: '年龄', component: 'ElInputNumber', props: { min: 1, max: 100 } },
-                            { prop: 'ClassName', label: '班级', component: 'ElSelect', options: [{ label: '一班', value: '一班' }, { label: '二班', value: '二班' }, { label: '三班', value: '三班' }] },
-                            { prop: 'Score', label: '成绩', component: 'ElInputNumber', props: { min: 0, max: 100 } },
+                            { prop: 'ClassName', label: '班级', op: 'eq', component: 'ElSelect', options: [{ label: '高一(1)班', value: '高一(1)班' }, { label: '高一(2)班', value: '高一(2)班' }, { label: '高二(1)班', value: '高二(1)班' }, { label: '高二(2)班', value: '高二(2)班' }] },
+                            { prop: 'Gender', label: '性别', op: 'eq', component: 'ElSelect', options: [{ label: '男', value: 'M' }, { label: '女', value: 'F' }] }
+                        ];
+                    var formFields = [
+                            { prop: 'Name', label: '姓名', component: 'ElInput', required: true },
+                            { prop: 'Gender', label: '性别', component: 'ElSelect', options: [{ label: '男', value: 'M' }, { label: '女', value: 'F' }] },
+                            { prop: 'Age', label: '年龄', component: 'ElInputNumber' },
+                            { prop: 'ClassName', label: '班级', component: 'ElSelect', options: [{ label: '高一(1)班', value: '高一(1)班' }, { label: '高一(2)班', value: '高一(2)班' }, { label: '高二(1)班', value: '高二(1)班' }, { label: '高二(2)班', value: '高二(2)班' }] },
+                            { prop: 'Score', label: '成绩', component: 'ElInputNumber' },
                             { prop: 'Phone', label: '电话', component: 'ElInput' },
                             { prop: 'Address', label: '地址', component: 'ElInput' },
-                            { prop: 'CreateTime', label: '创建时间', component: 'ElDatePicker', props: { valueFormat: 'YYYY-MM-DD HH:mm:ss' } }
-                        ]
+                            { prop: 'CreateText', label: '创建时间', component: 'ElDatePicker' }
+                        ];
+                    return {
+                        crudConfig: {
+                            component: 'DynCrudPage',
+                            modelname: '',
+                            options: {
+                                comoptions: {
+                                    title: '学生管理（免模型）',
+                                    table: 'Student',
+                                    project: 'Business-School',
+                                    pageSize: 20,
+                                    columns: columns,
+                                    searchFields: searchFields,
+                                    formFields: formFields
+                                }
+                            }
+                        }
                     };
                 },
                 methods: { go: function (url) { window.location.href = url; } }
             });
             DynCom.setupApp(app);
             DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
-        })();
+        });
     </script>
 }

@@ -13,9 +13,10 @@ builder.Services.AddControllersWithViews()
         options.SerializerSettings.DateFormatString = "yyyy-MM-dd HH:mm:ss";
     });
 
-// 基础设施：数据库工厂 + 免模型动态 CRUD
+// 基础设施：数据库工厂 + 免模型动态 CRUD + 项目库解析
 builder.Services.AddSingleton<DbFactory>();
 builder.Services.AddScoped<DynamicCrudService>();
+builder.Services.AddScoped<ProjectDbResolver>();
 
 // 组件双定义源：Razor View 渲染器 + 组件服务（View 代码优先，DB 回退）
 builder.Services.AddScoped<RazorComponentRenderer>();

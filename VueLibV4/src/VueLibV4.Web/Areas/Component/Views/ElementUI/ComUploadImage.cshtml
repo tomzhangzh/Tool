@@ -3,11 +3,11 @@
 }
 @section setupScripts{
     function upOk(res) {
-        if (res && res.success) { modelinfo.value = res.url; }
-        else { (window.dyn && dyn.showMessage ? dyn.showMessage((res && res.message) || '上传失败', 'error') : alert((res && res.message) || '上传失败')); }
+        if (res && res.code === 0 && res.data) { modelinfo.value = res.data.url; }
+        else { dyn.showMessage((res && res.msg) || '上传失败', 'error'); }
     }
-    function upError() { (window.dyn && dyn.showMessage ? dyn.showMessage('上传失败', 'error') : alert('上传失败')); }
-    const comExtra = { upOk, upError };
+    function upError() { dyn.showMessage('上传失败', 'error'); }
+    Object.assign(comExtra, { upOk, upError });
 }
 <el-upload action="/api/dyncommon/upload" :show-file-list="false" :on-success="upOk" :on-error="upError"
            accept="image/*" v-bind="jc.options.comoptions" style="width:100%">
