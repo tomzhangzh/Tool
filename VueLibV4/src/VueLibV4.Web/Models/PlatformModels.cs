@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using SqlSugar;
 
 namespace VueLibV4.Web.Models;
@@ -248,6 +248,15 @@ public class DynWebPage
     /// <summary>使用的模板 Id（DynTemplate.Id）</summary>
     public int? TemplateId { get; set; }
 
+    /// <summary>筛选区 PageSetting Id（三屏固定模板 filter-list-detail 使用）</summary>
+    public int? FilterPageSettingId { get; set; }
+
+    /// <summary>列表区 PageSetting Id</summary>
+    public int? ListPageSettingId { get; set; }
+
+    /// <summary>详情区 PageSetting Id</summary>
+    public int? DetailPageSettingId { get; set; }
+
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? PageJson { get; set; }
 
@@ -263,6 +272,44 @@ public class DynWebPage
 
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }
+}
+
+/// <summary>
+/// 三屏页面设置（M4）：一条记录对应“筛选区 / 列表区 / 详情区”之一的组件配置树（ConfigJson）。
+/// DynWebPage 通过 Filter/List/DetailPageSettingId 三个外键绑定三屏，由固定模板 View 渲染。
+/// </summary>
+[SugarTable("PageSetting")]
+public class PageSetting
+{
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+    public int Id { get; set; }
+
+    [SugarColumn(Length = 64, IsNullable = false)]
+    public string Code { get; set; } = string.Empty;
+
+    [SugarColumn(Length = 100, IsNullable = false)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Filter=筛选区 / List=列表区 / Detail=详情区</summary>
+    [SugarColumn(Length = 20, IsNullable = false)]
+    public string SettingType { get; set; } = "List";
+
+    public int? ProjectId { get; set; }
+
+    [SugarColumn(Length = 100, IsNullable = true)]
+    public string? TableName { get; set; }
+
+    /// <summary>组件配置树（与设计器 PageJson 同构）</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? ConfigJson { get; set; }
+
+    /// <summary>列定义（字段中文名/宽度/控件等元信息，向导生成时落库）</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? ColumnDefsJson { get; set; }
+
+    public int SortNo { get; set; } = 0;
+    public bool IsActive { get; set; } = true;
+    public DateTime CreateTime { get; set; } = DateTime.Now;
 }
 
 /// <summary>

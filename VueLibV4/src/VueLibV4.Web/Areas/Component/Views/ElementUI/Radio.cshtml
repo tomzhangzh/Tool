@@ -6,4 +6,13 @@
 
 
 
-@section setupScripts{ DVALUE = ''; }
+@section setupScripts{
+    DVALUE = '';
+    // 单选项统一走 _BaseLayout.loadComOptions：static(optionValuesText/optionValues) / dict / table / ajax
+    comInnerInfo.options = [];
+    loadComOptions();
+    watch(function () {
+        var co = (jc.options && jc.options.comoptions) || {};
+        return [co.sourceType, co.dictType, co.optionValuesText, co.table, co.url];
+    }, function () { loadComOptions(); }, { deep: true });
+}

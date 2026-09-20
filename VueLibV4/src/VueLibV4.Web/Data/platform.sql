@@ -123,17 +123,35 @@ CREATE TABLE IF NOT EXISTS DynTemplate (
 
 -- ---------------- 8. 动态网页 ----------------
 CREATE TABLE IF NOT EXISTS DynWebPage (
-    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    Code        TEXT NOT NULL UNIQUE,
-    ProjectId   INTEGER NULL,
-    Name        TEXT NOT NULL,
-    TemplateId  INTEGER NULL,
-    PageJson    TEXT NULL,
-    ConfigJson  TEXT NULL,
-    Url         TEXT NULL,
-    IsActive    INTEGER NOT NULL DEFAULT 1,
-    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-    ExtJson     TEXT NULL
+    Id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    Code                  TEXT NOT NULL UNIQUE,
+    ProjectId             INTEGER NULL,
+    Name                  TEXT NOT NULL,
+    TemplateId            INTEGER NULL,
+    FilterPageSettingId   INTEGER NULL,
+    ListPageSettingId     INTEGER NULL,
+    DetailPageSettingId   INTEGER NULL,
+    PageJson              TEXT NULL,
+    ConfigJson            TEXT NULL,
+    Url                   TEXT NULL,
+    IsActive              INTEGER NOT NULL DEFAULT 1,
+    CreateTime            TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    ExtJson               TEXT NULL
+);
+
+-- ---------------- 8b. 三屏页面设置（筛选/列表/详情） ----------------
+CREATE TABLE IF NOT EXISTS PageSetting (
+    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    Code            TEXT NOT NULL,
+    Name            TEXT NOT NULL,
+    SettingType     TEXT NOT NULL DEFAULT 'List',  -- Filter / List / Detail
+    ProjectId       INTEGER NULL,
+    TableName       TEXT NULL,
+    ConfigJson      TEXT NULL,
+    ColumnDefsJson  TEXT NULL,
+    SortNo          INTEGER NOT NULL DEFAULT 0,
+    IsActive        INTEGER NOT NULL DEFAULT 1,
+    CreateTime      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- ---------------- 9. 动态组件库 ----------------

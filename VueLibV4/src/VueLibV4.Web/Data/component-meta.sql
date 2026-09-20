@@ -101,4 +101,8 @@ VALUES
  '{"component":"DynElCollapse","modelname":"","options":{"comoptions":{"accordion":false},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),
 ('DynElCollapseItem','折叠面板项','通用','ElementUI','/api/component/define/DynElCollapseItem','/Areas/Component/Views/ElementUI/DynElCollapseItem.cshtml','📁',1,'[]','[]','["default"]','[]',
  '{"component":"DynElCollapseItem","modelname":"","options":{"comoptions":{"name":"","label":"","expand":true},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),('DynElFormItem','表单项','表单','ElementUI',NULL,NULL,'🏷️',1,'[]','["DynForm"]','["default"]','[]',
- '{"component":"DynElFormItem","modelname":"","options":{"comoptions":{},"comlisteners":{},"labeloptions":{"label":"标签","required":false,"show":true},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1);
+ '{"component":"DynElFormItem","modelname":"","options":{"comoptions":{},"comlisteners":{},"labeloptions":{"label":"标签","required":false,"show":true},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),
+
+-- ============ 栅格容器（设计器默认根组件） ============
+('DynGridContainer','栅格容器','容器','Common','/api/component/define/DynGridContainer','/Areas/Component/Views/ElementUI/DynGridContainer.cshtml','🔲',1,'[]','[]','["default"]','[]',
+ '{"component":"DynGridContainer","modelname":"","options":{"comoptions":{"gridTemplateColumns":"1fr 1fr","gap":"16px"},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{},"class":"p-4"}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1);

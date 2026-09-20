@@ -62,19 +62,33 @@ function setPath(obj,path,value){
 }
 
 async function ensureRegistered(app){
-  if(_regPromise) return _regPromise;
-  _regPromise = fetch('/api/component/list')
-  .then(r=>r.json())
-  .then(res=>{
-    if(res&&res.data&&Array.isArray(res.data)){
-      return registerComponents(app,res.data);
+  if(!_regPromise){
+    _regPromise = fetch('/api/component/list')
+    .then(r=>r.json())
+    .then(res=>{
+      if(res&&res.data&&Array.isArray(res.data)){
+        return registerComponents(app,res.data);
+      }
+      return {count:0,composites:0,registry:{}};
+    }).catch(e=>{
+      console.error("[DynCom]加载组件清单失败",e);
+      return {count:0,composites:0,registry:{}};
+    });
+  }
+  const ret = await _regPromise;
+  // 多 createApp 场景（设计器四分区各自一个 app、并发 mount）：清单只拉一次，
+  // 但注册必须对每个调用方 app 各做一次——否则后挂载 app 里 dyn-* 组件会退化成未注册的原生自定义元素。
+  if(app){
+    const existing = app._context && app._context.components ? app._context.components : {};
+    Object.keys(_registry).forEach(k=>{
+      if(k==='Button') return;
+      if(!existing[k]) app.component(k,_registry[k]);
+    });
+    if(_registry['DynDynamicCom'] && !existing['n-dynamic-com']){
+      app.component('n-dynamic-com',_registry['DynDynamicCom']);
     }
-    return {count:0,composites:0,registry:{}};
-  }).catch(e=>{
-    console.error("[DynCom]加载组件清单失败",e);
-    return {count:0,composites:0,registry:{}};
-  });
-  return _regPromise;
+  }
+  return ret;
 }
 
 async function registerComponents(app,metas){

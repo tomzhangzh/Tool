@@ -26,12 +26,16 @@ public class PageController : Controller
         return View(string.Format(Page, "Desktop"));
     }
 
-    /// <summary>页面设计器（三栏：组件库 / 画布 / 属性面板）</summary>
+    /// <summary>
+    /// 页面设计器（三栏：组件库 / 画布 / 属性面板）。
+    /// embed=1 时为弹窗嵌入模式（Layout=null 独立壳 + postMessage 协议，供 DynDesignerDialog 使用）。
+    /// </summary>
     [HttpGet("/Platform/Page/Designer")]
-    public IActionResult Designer()
+    public IActionResult Designer(string embed = null)
     {
-        ViewData["Title"] = "页面设计器 - VueLibV4";
+        ViewData["Title"] = embed == "1" ? "页面设计器（嵌入） - VueLibV4" : "页面设计器 - VueLibV4";
         ViewData["ApiBase"] = "/api";
+        ViewBag.Embed = embed;
         return View(string.Format(Page, "Designer"));
     }
 
@@ -44,6 +48,15 @@ public class PageController : Controller
         ViewData["PageCode"] = code;
         ViewData["PageId"] = id;
         return View(string.Format(Page, "WebPageRender"));
+    }
+
+    /// <summary>页面生成向导（M4）：选项目/选表/选字段 → 生成三屏页面</summary>
+    [HttpGet("/Platform/Page/PageGen")]
+    public IActionResult PageGen()
+    {
+        ViewData["Title"] = "页面生成向导 - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View(string.Format(Page, "PageGen"));
     }
 
     [HttpGet("/Platform/Page/Demo/ActionHelper")]

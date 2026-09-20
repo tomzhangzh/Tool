@@ -81,9 +81,35 @@ SELECT 'DynCrudPage', '免模型增删改查页', '业务', 'ElementUI',
        1
 WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynCrudPage');
 
+-- ---------------- 组件元数据补充：栅格容器（设计器默认根组件；旧库增量补齐） ----------------
+INSERT INTO ComponentMeta (ComponentName, Label, Category, UiPlatform, LoadUrl, ViewPath, Icon, AcceptAll, AllowDrop, CanDropInto, SlotsDefine, PropsMeta, DefaultConfigJson, IsActive)
+SELECT 'DynGridContainer', '栅格容器', '容器', 'Common',
+       '/api/component/define/DynGridContainer',
+       '/Areas/Component/Views/ElementUI/DynGridContainer.cshtml',
+       '🔲', 1, '[]', '[]', '[]', '[]',
+       '{"component":"DynGridContainer","modelname":"","options":{"comoptions":{"gridTemplateColumns":"1fr 1fr","gap":"16px"},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{},"class":"p-4"}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',
+       1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynGridContainer');
+
 -- ---------------- 动态网页登记：学生管理 ----------------
 INSERT INTO DynWebPage (Code, ProjectId, Name, TemplateId, Url, IsActive)
 SELECT 'student-manage',
        (SELECT Id FROM DynProject WHERE Code='Business-School'),
        '学生管理', NULL, '/Platform/Page/Demo/Crud', 1
 WHERE NOT EXISTS (SELECT 1 FROM DynWebPage WHERE Code='student-manage');
+
+-- ---------------- M4 三屏固定模板（筛选区/列表区/详情区；固定 Razor View 渲染，配置树存 PageSetting） ----------------
+INSERT INTO DynTemplate (Code, Name, Category, Icon, TemplateJson, ConfigJson, Description, SortNo, IsActive)
+SELECT 'filter-list-detail', '三屏列表页（筛选/列表/详情）', '固定模板', '🗂️',
+       NULL,
+       '{"params":["code"],"regions":["filter","list","detail"],"runUrl":"/Business/Templates/Run?code={code}","detailUrl":"/Business/Templates/Detail?code={code}","saveUrl":"/Business/Templates/Save?code={code}"}',
+       '筛选区与列表区共享 scope；详情区 layer 片段打开，保存后 dyn-actions 刷新表格并关窗',
+       10, 1
+WHERE NOT EXISTS (SELECT 1 FROM DynTemplate WHERE Code='filter-list-detail');
+
+-- ---------------- 桌面快捷方式：页面生成向导 ----------------
+INSERT INTO DesktopShortcut (Code, SolutionId, Name, Url, Icon, TargetType, SortNo, IsActive)
+SELECT 'page-gen',
+       (SELECT Id FROM DesktopSolution WHERE Code='default'),
+       '页面生成向导', '/Platform/Page/PageGen', '🧩', 'page', 4, 1
+WHERE NOT EXISTS (SELECT 1 FROM DesktopShortcut WHERE Code='page-gen');

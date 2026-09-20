@@ -297,8 +297,23 @@ public class DynamicCrudService
 
     private string BuildOrderBy(SqlSugarClient db, string table, JObject filter)
     {
+        // __orderby 白名单：仅允许“真实列名 + asc/desc”单字段，防止 SQL 注入
         if (filter?["__orderby"] != null && !string.IsNullOrWhiteSpace(filter["__orderby"].ToString()))
-            return filter["__orderby"].ToString();
+        {
+            var raw = filter["__orderby"].ToString().Trim();
+            var match = System.Text.RegularExpressions.Regex.Match(
+                raw, @"^\[?(?<col>[A-Za-z_][A-Za-z0-9_]*)\]?\s+(?<dir>asc|desc)$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                var col = match.Groups["col"].Value;
+                var dir = match.Groups["dir"].Value.ToLower();
+                var cols = db.DbMaintenance.GetColumnInfosByTableName(table, false)
+                    .Select(c => c.DbColumnName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (cols.Contains(col)) return $"[{col}] {dir}";
+            }
+            // 非法排序子句直接忽略（回退主键排序），不抛异常以免影响列表加载
+        }
         var pks = PrimaryKeys(db, table);
         if (pks.Count > 0) return $"[{pks[0]}] desc";
         var first = db.DbMaintenance.GetColumnInfosByTableName(table, false).FirstOrDefault();

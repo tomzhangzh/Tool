@@ -1,0 +1,48 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = ViewBag.PageName + " - VueLibV4";
+}
+@section Head {
+    <style>
+        .tpl-filter-block .el-form-item { margin-bottom: 8px; }
+    </style>
+}
+
+@*
+  三屏固定模板（filter-list-detail）：
+  根 data-dyn-shared-scope 提供一份共享 model；筛选区写入的字段即表格的查询条件（DynTable filterFromScope）。
+  两个区块各自 dyn.mountConfig 挂载配置树（PageSetting.ConfigJson，由页面生成向导产出）。
+  详情区以 layer fragment 打开 /Business/Templates/Detail；保存后服务端下发 dyn-actions 自动刷新表格+关弹窗+提示。
+*@
+<div class="p-4 space-y-3"
+     data-dyn-shared-scope="tpl-@ViewBag.PageCode"
+     data-dyn-scope-json='{}'>
+
+    <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold text-gray-700">@ViewBag.PageName</h3>
+        <button type="button"
+                class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-sm"
+                data-dyn-click-open='{"url":"@ViewBag.DetailUrl","title":"新增","width":"760px","height":"85vh"}'>+ 新增</button>
+    </div>
+
+    @* 筛选区 *@
+    <div id="tplFilterBlock" class="tpl-filter-block bg-white rounded border border-gray-200 p-3"></div>
+
+    @* 列表区 *@
+    <div id="tplListBlock" class="bg-white rounded border border-gray-200 p-3"></div>
+</div>
+
+<div id="tplFilterCfg" style="display:none">@Html.Raw(ViewBag.FilterCfgJson)</div>
+<div id="tplListCfg" style="display:none">@Html.Raw(ViewBag.ListCfgJson)</div>
+
+@section Scripts {
+<script>
+    // 平台固定模板的一次性挂载代码（非业务页面 JS）：两块配置树挂到同一共享 scope
+    DynLib.ready(async function () {
+        var filterCfg = JSON.parse(document.getElementById('tplFilterCfg').textContent || '{}');
+        var listCfg = JSON.parse(document.getElementById('tplListCfg').textContent || '{}');
+        await dyn.mountConfig(window.dyn.normalize(filterCfg), '#tplFilterBlock');
+        await dyn.mountConfig(window.dyn.normalize(listCfg), '#tplListBlock');
+    });
+</script>
+}

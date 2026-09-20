@@ -1,7 +1,18 @@
 @{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-input-number v-model="modelinfo" v-bind="jc.options.comoptions" v-on="getComlisteners()"></el-input-number>
+<el-input-number v-model="modelinfo" v-bind="numBind" v-on="getComlisteners()"></el-input-number>
 
 
 
-@section setupScripts{ DVALUE = 0; }
+
+@section setupScripts{
+    DVALUE = 0;
+    // min/max 为 null 时必须剔除：显式 null 会覆盖组件默认的 -Infinity/Infinity，
+    // 该版本 ElementPlus 的数值钳制逻辑会把合法值判为越界并 emit(null)，反写把模型字段清空。
+    comExtra.numBind = computed(() => {
+        const o = Object.assign({}, jc.options.comoptions || {});
+        if (o.min === null || o.min === undefined || o.min === '') delete o.min;
+        if (o.max === null || o.max === undefined || o.max === '') delete o.max;
+        return o;
+    });
+}

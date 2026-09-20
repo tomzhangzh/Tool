@@ -414,6 +414,21 @@ defineAction('postdata',ctx=>_actions.postback(ctx));
 
 defineAction('reload',ctx=>dyn.reload(ctx.options.selector||ctx.element,ctx.options));
 
+/**
+ * grid 表格动作（M4 三屏模板）：按 gridId 刷新注册到 window.DynGrids 的 DynTable
+ *   dyn-click="grid('grid_student')"
+ *   或配置式：{"gridId":"grid_student","page":1,"reset":true}  reset=true 先清空筛选区字段
+ */
+defineAction('grid',async ctx=>{
+  const o = ctx.options||{};
+  const id = o.gridId||o.target||(typeof o.value==='string'&&o.value?o.value:null);
+  if(!id){ dyn.showMessage('[grid]缺少 gridId（如 grid(\'grid_xxx\')）','warning'); return false; }
+  const g = (window.DynGrids||global.DynGrids) && (window.DynGrids||global.DynGrids)[id];
+  if(!g){ console.warn('[grid]未找到已注册表格：'+id+'（检查 DynTable comoptions.gridId）'); return false; }
+  if(o.reset && typeof g.resetFilter==='function') g.resetFilter();
+  return g.refresh(o.page||1);
+});
+
 defineAction('load',async ctx=>{
   const o = ctx.options||{};
   const url = o.url||ctx.url;
@@ -449,6 +464,11 @@ defineAction('updateel',async ctx=>{
   let parsed = null;
   try{ parsed = JSON.parse(text); }catch(e){ parsed = null; }
   if(parsed&&typeof parsed==='object'){
+    // ApiResult 失败（code 非 0）：明确提示，不执行 dyn-actions、不关闭弹窗
+    if(parsed.code!==undefined&&parsed.code!==null&&Number(parsed.code)!==0){
+      dyn.showMessage(parsed.msg||'操作失败','error');
+      return parsed;
+    }
     if(Array.isArray(parsed[CONST.DATA_DYN_ACTIONS])){
       runJsonActions({actions:parsed[CONST.DATA_DYN_ACTIONS]},targetEl);
     }
@@ -497,24 +517,44 @@ defineAction('open',async ctx=>{
     const holder = document.createElement('div');
     holder.className='dyn-modal-host dyn-layer-fragment';
     holder.style.padding='12px';
+    // layui layer type:1 的 DOM 内容必须【已存在于文档中】：内部对 content 执行
+    // wrap/show/移动定位，游离元素会导致弹层与内容都不进 DOM（且无任何报错）。
+    // 先挂到 body 并隐藏，layer.open 会把它移入内容区并 .show()。
+    holder.style.display='none';
+    document.body.appendChild(holder);
+    // layui layer 还会直接调用 content.parents()/data()，必须传其内置 jQuery 包装对象；
+    // 传原生元素会抛 "d.parents is not a function"
+    const holderContent = (global.layui && global.layui.$) ? global.layui.$(holder) : holder;
     const idx = layer.open({
       type:1,
       title:o.title||'对话框',
       area:[o.width||'60%',o.height||'80%'],
       shadeClose:!!o.shadeClose,
-      content:holder,
+      content:holderContent,
       success:async ()=>{
         try{
           holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
           const html = await dyn.fetchPartial(url,o.params||{},o.method||'GET');
           holder.innerHTML = html;
-          await dyn.mount(holder);
+          // 片段约定：内部以 [data-dyn-init-createapp] 块作为 Vue 挂载根，配置数据块
+          // （#detailCfgData 等）是它的兄弟节点。必须挂在这个内部块上——配置数据留在
+          // 挂载根之外；若直接挂外层 holder，Vue 挂载清空容器内容时 data() 里
+          // document.getElementById('detailCfgData') 会读到 null。
+          const appRoot = holder.querySelector('[data-dyn-init-createapp]')
+                       || holder.querySelector('[data-dyn-mode="createApp"]');
+          if(appRoot){
+            appRoot.removeAttribute('data-dyn-init-createapp');
+            appRoot.setAttribute('data-dyn-mode','createApp');
+            await dyn.mount(appRoot);
+          }else{
+            await dyn.mount(holder);
+          }
           await _runEvents(normActionSteps(o.onopen),Object.assign({},ctx,{holder}));
         }catch(e){
           holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：'+(e.message||e)+'</div>';
         }
       },
-      end:()=>{ try{dyn.unmount(holder);}catch(e){} onEnd().catch(e=>console.error('[open onEnd]',e)); }
+      end:()=>{ try{dyn.unmount(holder);}catch(e){} try{holder.remove();}catch(e){} onEnd().catch(e=>console.error('[open onEnd]',e)); }
     });
     return { index:idx, holder };
   }

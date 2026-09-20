@@ -77,7 +77,28 @@ public class DynWebPageController : ControllerBase
         result["config"] = config ?? new JObject();
         try { result["configjson"] = JObject.Parse(row.ConfigJson ?? "{}"); }
         catch { result["configjson"] = new JObject(); }
+
+        // M4 三屏固定模板：返回模板 Code、运行 URL 与筛选/列表/详情三份配置树
+        string templateCode = null;
+        if (row.TemplateId != null)
+        {
+            var tpl2 = db.Queryable<DynTemplate>().First(t => t.Id == row.TemplateId);
+            templateCode = tpl2?.Code;
+        }
+        result["templateCode"] = templateCode;
+        result["url"] = row.Url;
+        result["filterConfig"] = LoadSettingConfig(db, row.FilterPageSettingId);
+        result["listConfig"] = LoadSettingConfig(db, row.ListPageSettingId);
+        result["detailConfig"] = LoadSettingConfig(db, row.DetailPageSettingId);
         return ApiResult.Ok(result);
+    }
+
+    private static JObject LoadSettingConfig(SqlSugarClient db, int? settingId)
+    {
+        if (settingId == null) return null;
+        var s = db.Queryable<PageSetting>().First(x => x.Id == settingId);
+        if (s == null || string.IsNullOrWhiteSpace(s.ConfigJson)) return null;
+        try { return JObject.Parse(s.ConfigJson); } catch { return null; }
     }
 
     [HttpPost("save")]

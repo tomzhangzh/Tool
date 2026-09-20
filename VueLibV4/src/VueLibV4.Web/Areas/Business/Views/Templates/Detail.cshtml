@@ -1,0 +1,18 @@
+@* 详情区 HTML 片段（layui layer fragment；open 动作拉取后 dyn.mount） *@
+<div id="detailCfgData" style="display:none">@Html.Raw(ViewBag.DetailCfgJson)</div>
+<div id="detailFragment" class="p-4">
+    <div data-dyn-init-createapp>
+        <dyn-dynamic-com :jsonconfig="detailCfg" :parentmodelinfo="model"></dyn-dynamic-com>
+
+        <script tag="dynconfig">
+        var dynConfig = {
+            data: function () {
+                return {
+                    detailCfg: JSON.parse(document.getElementById('detailCfgData').textContent || '{}')
+                };
+            }
+        };
+        </script>
+        <script type="application/json" tag="dynmodel">@Html.Raw(ViewBag.RowJson)</script>
+    </div>
+</div>

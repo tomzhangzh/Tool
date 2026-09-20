@@ -62,6 +62,14 @@ public class CloseDialogJavaScript : DynJavaScript
     public override object? Options => new { };
 }
 
+/// <summary>刷新指定 gridId 的 DynTable（三屏模板保存成功后刷新列表）</summary>
+public class GridReloadJavaScript : DynJavaScript
+{
+    public string GridId { get; set; } = "";
+    public override string Action => "grid";
+    public override object? Options => new { gridId = GridId };
+}
+
 /// <summary>Controller / View 扩展：注册并渲染服务端 dyn 动作</summary>
 public static class DynControllerExtensions
 {

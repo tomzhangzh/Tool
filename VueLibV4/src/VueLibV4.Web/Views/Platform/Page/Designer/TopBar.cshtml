@@ -1,46 +1,172 @@
-﻿@* 顶部工具栏：独立 dyn app，通过 scope 共享 model *@
+@* 顶部工具栏：独立 dyn app，通过 scope 共享 model *@
 <header class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5 bg-white border-b border-gray-200 shrink-0 text-sm"
         data-dyn-init-createapp data-dyn-use-scope="designer">
   <b class="text-orange-500 text-base">🎨 低代码设计器</b>
-  <el-input v-model="model.pageName" size="small" placeholder="未命名页面" class="w-44"></el-input>
-  <el-button size="small">新建</el-button>
-  <el-button size="small" type="primary">保存</el-button>
-  <el-switch v-model="model.openConfig" size="small"></el-switch>
-  <span class="text-gray-400 text-xs">开放配置</span>
-  <el-button size="small" type="warning">存组合</el-button>
 
-  <div class="flex-1"></div>
+  @* ===== 弹窗嵌入模式：确定 / 取消 / 默认数据模型 ===== *@
+  <template v-if="model.embed">
+    <el-input v-model="model.pageName" size="small" placeholder="未命名页面" class="w-44"></el-input>
+    <div class="flex-1"></div>
+    <el-button size="small" @@click="onEditModel">默认模型</el-button>
+    <el-button size="small" type="info" @@click="onCancelEmbed">取消</el-button>
+    <el-button size="small" type="primary" @@click="onConfirmEmbed">确定</el-button>
+  </template>
 
-  <!-- 设备切换 -->
-  <el-radio-group v-model="model.device" size="small">
-    <el-radio-button value="mobile">手机</el-radio-button>
-    <el-radio-button value="desktop">电脑</el-radio-button>
-  </el-radio-group>
-  <el-input-number v-model="model.pageWidth" size="small" :min="320" :max="1920" class="w-28"></el-input-number>
-  <el-input-number v-model="model.pageHeight" size="small" :min="200" :max="4000" class="w-28"></el-input-number>
-  <el-switch v-model="model.showRuler" size="small"></el-switch>
-  <span class="text-gray-400 text-xs">标尺</span>
-  <span class="text-gray-400 text-xs">缩放</span>
-  <el-slider v-model="model.zoom" :min="50" :max="150" class="w-24"></el-slider>
-  <span class="text-gray-500 w-10">{{ model.zoom }}%</span>
+  @* ===== 独立页模式：新建 / 保存 / 预览 ===== *@
+  <template v-else>
+    <el-input v-model="model.pageName" size="small" placeholder="未命名页面" class="w-44"></el-input>
+    <el-button size="small" @@click="onNew">新建</el-button>
+    <el-button size="small" type="primary" @@click="onSave(false)">保存</el-button>
+    <el-switch v-model="model.openConfig" size="small"></el-switch>
+    <span class="text-gray-400 text-xs">开放配置</span>
+    <el-button size="small" type="warning">存组合</el-button>
 
-  <div class="flex-1"></div>
+    <div class="flex-1"></div>
 
-  <el-radio-group v-model="model.mode" size="small">
-    <el-radio-button value="design">设计</el-radio-button>
-    <el-radio-button value="preview">预览</el-radio-button>
-    <el-radio-button value="json">JSON</el-radio-button>
-  </el-radio-group>
-  <el-switch v-model="model.showCode" size="small"></el-switch>
-  <span class="text-gray-400 text-xs">HTML</span>
-  <el-button size="small" @@click="onViewJson">查看JSON</el-button>
-  <el-button size="small" type="danger">新窗口预览</el-button>
+    <!-- 设备切换 -->
+    <el-radio-group v-model="model.device" size="small">
+      <el-radio-button value="mobile">手机</el-radio-button>
+      <el-radio-button value="desktop">电脑</el-radio-button>
+    </el-radio-group>
+    <el-input-number v-model="model.pageWidth" size="small" :min="320" :max="1920" class="w-28"></el-input-number>
+    <el-input-number v-model="model.pageHeight" size="small" :min="200" :max="4000" class="w-28"></el-input-number>
+    <el-switch v-model="model.showRuler" size="small"></el-switch>
+    <span class="text-gray-400 text-xs">标尺</span>
+    <span class="text-gray-400 text-xs">缩放</span>
+    <el-slider v-model="model.zoom" :min="50" :max="150" class="w-24"></el-slider>
+    <span class="text-gray-500 w-10">{{ model.zoom }}%</span>
+
+    <div class="flex-1"></div>
+
+    <el-radio-group v-model="model.mode" size="small">
+      <el-radio-button value="design">设计</el-radio-button>
+      <el-radio-button value="preview">预览</el-radio-button>
+      <el-radio-button value="json">JSON</el-radio-button>
+    </el-radio-group>
+    <el-switch v-model="model.showCode" size="small"></el-switch>
+    <span class="text-gray-400 text-xs">HTML</span>
+    <el-button size="small" @@click="onViewJson">查看JSON</el-button>
+    <el-button size="small" type="danger" @@click="onSave(true)">新窗口预览</el-button>
+  </template>
 
   <script tag="dynconfig">
   var dynConfig = {
     methods: {
       onViewJson: function () {
         this.model.showJsonEditor = true;
+      },
+      // ---------- 独立页：新建 / 保存 / 预览 ----------
+      onNew: function () {
+        var self = this;
+        var layer = window.layui && window.layui.layer;
+        var doReset = function () {
+          self.model.pageJson = {
+            component: 'DynGridContainer',
+            options: {
+              comoptions: { gridTemplateColumns: '1fr 1fr', gap: '16px' },
+              labeloptions: { label: '', show: false },
+              itemoptions: { style: {}, class: 'p-4' }
+            },
+            childrenctrls: []
+          };
+          self.model.pageName = '未命名页面';
+          self.model.pageId = 0;
+          self.model.pageCode = '';
+          self.model.current = null;
+          self.model.selectedUid = '';
+          if (layer) layer.msg('已新建空白页面', { icon: 1 });
+        };
+        if (layer) layer.confirm('新建将清空当前画布（未保存内容会丢失），确定？', { title: '新建页面' }, function (idx) { layer.close(idx); doReset(); });
+        else if (window.confirm('新建将清空当前画布，确定？')) doReset();
+      },
+      onSave: function (thenPreview) {
+        var self = this;
+        var layer = window.layui && window.layui.layer;
+        var cfg = window.DynDesignerOps.getCleanJson(this.model);
+        if (!cfg) { if (layer) layer.msg('页面配置为空', { icon: 2 }); return; }
+        var name = this.model.pageName || '未命名页面';
+        var finish = function (code) {
+          var payload = {
+            Id: self.model.pageId || 0,
+            Code: code,
+            Name: name,
+            PageJson: JSON.stringify(cfg),
+            Url: '/Platform/Page/WebPageRender?code=' + encodeURIComponent(code),
+            IsActive: true
+          };
+          fetch('/api/platform/dynwebpage/save', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          }).then(function (r) { return r.json(); }).then(function (res) {
+            if (res && res.code === 0) {
+              self.model.pageId = (res.data && res.data.Id) || self.model.pageId;
+              self.model.pageCode = code;
+              if (layer) layer.msg(thenPreview ? '已保存，打开预览' : '保存成功', { icon: 1 });
+              if (thenPreview) window.open(payload.Url, '_blank');
+            } else if (layer) layer.msg((res && res.msg) || '保存失败', { icon: 2 });
+          }).catch(function (e) { if (layer) layer.msg('保存失败：' + (e.message || e), { icon: 2 }); });
+        };
+        if (this.model.pageId && this.model.pageCode) { finish(this.model.pageCode); return; }
+        if (layer) {
+          layer.prompt({ title: '请输入页面编码（英文/数字，保存后可在运行时按 code 打开）', value: this.model.pageCode || '' }, function (val, index) {
+            var code = (val || '').trim();
+            if (!code) { layer.msg('编码不能为空'); return; }
+            layer.close(index);
+            finish(code);
+          });
+        } else {
+          var code = (window.prompt('请输入页面编码') || '').trim();
+          if (code) finish(code);
+        }
+      },
+      // ---------- 弹窗嵌入：确定 / 取消 / 默认模型 ----------
+      onConfirmEmbed: function () {
+        var layer = window.layui && window.layui.layer;
+        var cfg = window.DynDesignerOps.getCleanJson(this.model);
+        if (!cfg) { if (layer) layer.msg('页面配置为空', { icon: 2 }); return; }
+        // postMessage 结构化克隆不能传 Vue reactive Proxy，必须先序列化为纯对象
+        var payload;
+        try {
+          payload = {
+            type: 'dyn-designer-result',
+            configJson: JSON.parse(JSON.stringify(cfg)),
+            defaultModel: JSON.parse(JSON.stringify(this.model.defaultModel || {}))
+          };
+        } catch (e2) {
+          console.error('[designer embed result] serialize', e2);
+          if (layer) layer.msg('配置含无法序列化的内容：' + e2.message, { icon: 2 });
+          return;
+        }
+        try {
+          window.parent.postMessage(payload, '*');
+        } catch (e) {
+          console.error('[designer embed result]', e);
+          if (layer) layer.msg('回传失败：' + e.message, { icon: 2 });
+        }
+      },
+      onCancelEmbed: function () {
+        try { window.parent.postMessage({ type: 'dyn-designer-cancel' }, '*'); } catch (e) {}
+      },
+      onEditModel: function () {
+        var self = this;
+        var layer = window.layui && window.layui.layer;
+        if (!layer) return;
+        var text = JSON.stringify(this.model.defaultModel || {}, null, 2);
+        layer.open({
+          type: 1,
+          title: '默认数据模型 JSON（保存后随配置一并回传）',
+          area: ['620px', '70%'],
+          btn: ['确定', '取消'],
+          content: '<div style="padding:12px;"><textarea id="dynEmbedModelJson" class="layui-textarea" style="height:46vh;font-family:monospace;">'
+            + String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>',
+          yes: function (idx) {
+            try {
+              var val = document.getElementById('dynEmbedModelJson').value;
+              self.model.defaultModel = val.trim() ? JSON.parse(val) : {};
+              layer.close(idx);
+              layer.msg('默认模型已更新', { icon: 1 });
+            } catch (e) { layer.msg('JSON 格式错误：' + e.message, { icon: 2 }); }
+          }
+        });
       }
     },
     mounted() {

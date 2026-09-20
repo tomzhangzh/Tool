@@ -60,19 +60,21 @@ if(DYN_LIB_CONFIG.loadCodemirror){
 // axios UMD：默认false，页面可自行引入CDN；如需本地加载，把 axios.min.js 放入 ../lib/ 并设置 loadAxios:true
 if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"../lib/axios.min.js",name:"axios"});
 
-// 模块加载顺序：dyn-com（组件注册表）→ dyn-core（挂载内核，递归统一走 DynDynamicCom）→ 动作系统
+// 模块加载顺序：dyn-com（组件注册表）→ dyn-core（挂载内核，递归统一走 DynDynamicCom）→ 校验器 → 动作系统 → 设计器弹窗
 const DYN_MODULES = [
   "dyn-load-com.js",
   "dyn-com.js",
   "dyn-core.js",
+  "dyn-validator.js",
   "dyn-designer-ops.js",
   "dyn-designer-sortable.js",
   "dyn-action.js",
+  "dyn-designer-dialog.js",
   "dyn-template.js"
 ];
 
 const DynLib = {
-  version:"4.0.1",
+  version:"4.0.8",
   base:BASE,
   _libs:{},
   _ready:false,

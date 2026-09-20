@@ -5,36 +5,37 @@
 <template>
 <div class="dyn-table" :style="getStyle(jc.options.itemoptions)" :class="getClass(jc.options.itemoptions)">
         <el-table :data="rows"
-                  v-bind="jc.options.comoptions"
+                  v-bind="tableBind"
                   v-loading="loading"
                   stripe
                   size="small"
                   border
-                  v-on:sort-change="onSortChange">
-            <el-table-column v-for="col in columns"
+                  v-on:sort-change="onSortChange"
+                  v-on:row-click="onRowClick">
+            @* 所有列（含操作列）必须由同一个 v-for 数组驱动：该版本 ElementPlus 的列收集对
+               v-for 片段之后的条件 vnode（template v-if / 列上 v-if）处理异常，会导致
+               hidden-columns 查询时 vnode.el 为注释、整表渲染失败。操作列以 isOps 标记并入数组。 *@
+            <el-table-column v-for="col in tableColumns"
                              :key="col.prop"
-                             :prop="col.prop"
+                             :prop="col.isOps ? undefined : col.prop"
                              :label="col.label"
                              :width="col.width"
-                             :sortable="col.sortable ? 'custom' : false">
+                             :sortable="(!col.isOps && col.sortable) ? 'custom' : false"
+                             :fixed="col.isOps ? 'right' : undefined">
                 <template #default="scope">
-                    <slot :name="'cell-' + col.prop" :row="scope.row">
+                    <template v-if="col.isOps">
+                        <el-button v-for="act in actions" :key="act.label"
+                                   size="small" :type="act.type || 'primary'" link
+                                   v-on:click="runAction(act, scope.row, $event)">{{ act.label }}</el-button>
+                    </template>
+                    <slot v-else :name="'cell-' + col.prop" :row="scope.row">
                         <span v-if="col.type === 'tag'">
                             <el-tag :type="(col.tagMap && col.tagMap[scope.row[col.prop]]) || 'info'">{{ scope.row[col.prop] }}</el-tag>
                         </span>
                         <span v-else>{{ scope.row[col.prop] }}</span>
                     </slot>
-
+                </template>
             </el-table-column>
-            <template v-if="jc.options.comoptions.actions && jc.options.comoptions.actions.length">
-                <el-table-column label="操作" :width="jc.options.comoptions.actionsWidth || 150" fixed="right">
-                    <template #default="scope">
-                        <el-button v-for="act in jc.options.comoptions.actions" :key="act.label"
-                                   size="small" :type="act.type || 'primary'" link
-                                   v-on:click="runAction(act, scope.row)">{{ act.label }}</el-button>
-                    </template>
-                </el-table-column>
-            </template>
         </el-table>
         <div v-if="pager" class="dyn-table-pager">
             <el-pagination background layout="total, sizes, prev, pager, next"
@@ -44,33 +45,65 @@
         </div>
     </div>
 </template>
-</template>
 
 @section setupScripts{
     DVALUE = null;
-    // 免模型表格：只要知道 table 即可查询（SqlSugar 读取主键/字段）
-    const table = jc.options?.comoptions?.table || '';
-    const project = jc.options?.comoptions?.project || null;
+    // ============ 免模型表格：知道 table 即可查询（SqlSugar 读主键/字段） ============
+    const co = jc.options && jc.options.comoptions || {};
+    const table = co.table || '';
+    const project = co.project || null;
+    const gridId = co.gridId || '';
     const apiBase = '/api/business/dyndata';
     const rows = ref([]);
     const total = ref(0);
     const page = ref(1);
-    const size = ref(jc.options?.comoptions?.size || 10);
+    const size = ref(co.size || 10);
     const loading = ref(false);
-    const pager = computed(() => !!jc.options?.comoptions?.pager);
-    const columns = computed(() => (jc.options?.comoptions?.columns || []).filter(c => c && c.prop));
-    const orderBy = ref('');
+    const pkField = ref('Id');
+    const pager = computed(() => !!co.pager);
+    const columns = computed(() => (co.columns || []).filter(c => c && c.prop));
+    // 操作列并入同一数组驱动（避免 el-table-column 上的条件 vnode 触发表格列收集缺陷）
+    const tableColumns = computed(() => {
+        const list = columns.value.slice();
+        if (Array.isArray(co.actions) && co.actions.length) {
+            list.push({ prop: '__ops__', label: '操作', width: actionsWidth, isOps: true });
+        }
+        return list;
+    });
+    const actions = computed(() => co.actions || []);
+    const actionsWidth = co.actionsWidth || 150;
+    // 绑定到 el-table 的属性：剔除业务自定义键，避免污染 DOM
+    const tableBind = computed(() => {
+        const skip = { table:1, project:1, columns:1, filter:1, filterFields:1, filterFromScope:1,
+            pager:1, size:1, actions:1, actionsWidth:1, gridId:1, rowClickAction:1 };
+        const out = {};
+        Object.keys(co).forEach(k => { if (!skip[k]) out[k] = co[k]; });
+        return out;
+    });
+    const orderField = ref('');
     const orderDir = ref('');
 
+    // 合并：静态 filter + 共享 scope 过滤条件（三屏模板核心：筛选区与表格共享一个 model）
     function buildFilter() {
         const f = {};
-        const conds = jc.options?.comoptions?.filter || {};
+        const conds = co.filter || {};
         Object.keys(conds).forEach(function (k) {
             const v = conds[k];
             if (v === undefined || v === null || v === '') return;
             if (typeof v === 'object' && v.op) f[k] = v;
             else f[k] = { op: 'eq', value: v };
         });
+        if (co.filterFromScope && Array.isArray(co.filterFields)) {
+            co.filterFields.forEach(function (ff) {
+                if (!ff || !ff.field) return;
+                const path = ff.path || ff.field;
+                let v;
+                try { v = _.get(props.parentmodelinfo, path); } catch (e) { v = undefined; }
+                if (v === undefined || v === null || v === '') return;
+                f[ff.field] = { op: ff.op || 'eq', value: v };
+            });
+        }
+        if (orderField.value) f.__orderby = orderField.value + ' ' + orderDir.value;
         return f;
     }
 
@@ -79,7 +112,7 @@
         loading.value = true;
         fetch(apiBase + '/search', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table: table, project: project, page: p || page.value, size: size.value, filter: buildFilter(), orderBy: orderBy.value, orderDir: orderDir.value })
+            body: JSON.stringify({ table: table, project: project, page: p || page.value, size: size.value, filter: buildFilter() })
         }).then(r => r.json()).then(res => {
             if (res && res.code === 0 && res.data) {
                 const d = res.data;
@@ -93,17 +126,86 @@
     function onPageChange(p) { loadList(p); }
     function onSizeChange(s) { size.value = s; loadList(1); }
     function onSortChange(s) {
-        orderBy.value = s && s.order ? s.prop : '';
-        orderDir.value = s && s.order === 'ascending' ? 'asc' : (s && s.order === 'descending' ? 'desc' : '');
+        // 仅允许列定义中标记 sortable 的列（与服务端 __orderby 白名单双重防护）
+        const allow = columns.value.some(c => c.prop === s.prop && c.sortable);
+        if (allow && s.order) {
+            orderField.value = s.prop;
+            orderDir.value = s.order === 'ascending' ? 'asc' : 'desc';
+        } else {
+            orderField.value = '';
+            orderDir.value = '';
+        }
         loadList(1);
     }
-    function runAction(act, row) {
-        const handler = act.handler || act.action;
-        if (!handler) return;
-        if (typeof handler === 'function') { handler(row); return; }
-        if (global.DynActionHelper && typeof global.DynActionHelper.run === 'function') {
-            global.DynActionHelper.run(handler, { args: [row] }, { pageData: { row: row } });
+
+    // 行操作：act.action 走动作系统（open/grid/postback/数据库助手等），params 自动带整行数据与 id
+    function fillUrl(url, row) {
+        return String(url || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, function (_, k) {
+            var v = _.get(row, k);
+            return v === undefined || v === null ? '' : encodeURIComponent(v);
+        });
+    }
+    function runAction(act, row, ev) {
+        // 兼容旧配置：handler 为函数
+        if (typeof act.handler === 'function') { act.handler(row); return; }
+        const code = act.action || act.handler;
+        if (!code) return;
+        let opts = act.options ? JSON.parse(JSON.stringify(act.options)) : {};
+        if (opts.url) opts.url = fillUrl(opts.url, row);
+        opts.params = Object.assign({}, opts.params || {}, row || {}, { id: row ? row[pkField.value] : undefined });
+        const el = ev && ev.currentTarget ? ev.currentTarget : (ev && ev.target) || null;
+        if (window.DynAction && typeof window.DynAction.run === 'function') {
+            window.DynAction.run(code, opts, { element: el, model: props.parentmodelinfo });
         }
     }
-    onMounted(function () { loadList(1); });
+    function onRowClick(row) {
+        const cfg = co.rowClickAction;
+        if (cfg && cfg.action) runAction(cfg, row, null);
+    }
+
+    // 清空共享 scope 上的筛选字段（grid 动作 reset:true 调用）
+    function resetFilter() {
+        if (co.filterFromScope && Array.isArray(co.filterFields) && props.parentmodelinfo) {
+            co.filterFields.forEach(function (ff) {
+                if (!ff || !ff.field) return;
+                try { _.set(props.parentmodelinfo, ff.path || ff.field, null); } catch (e) {}
+            });
+        }
+        orderField.value = ''; orderDir.value = '';
+    }
+
+    onMounted(function () {
+        // 注册到全局表格注册表，供 grid 动作 / 外部 API 刷新：window.DynGrids[gridId].refresh()
+        if (gridId) {
+            window.DynGrids = window.DynGrids || {};
+            window.DynGrids[gridId] = {
+                refresh: function (p) { loadList(p || 1); },
+                resetFilter: resetFilter,
+                getRows: function () { return rows.value; }
+            };
+        }
+        // 取主键名（行操作 params.id / 编辑弹窗用）
+        fetch(apiBase + '/meta?table=' + encodeURIComponent(table) + (project ? '&project=' + encodeURIComponent(project) : ''),
+              { cache: 'no-store' })
+            .then(r => r.json())
+            .then(res => {
+                const cols = res && res.code === 0 && Array.isArray(res.data) ? res.data : [];
+                const pk = cols.find(c => c.IsPrimaryKey);
+                if (pk) pkField.value = pk.Name;
+                loadList(1);
+            })
+            .catch(() => loadList(1));
+    });
+    onBeforeUnmount(function () {
+        if (gridId && window.DynGrids && window.DynGrids[gridId]) delete window.DynGrids[gridId];
+    });
+
+    // 暴露给模板（_BaseLayout 的 setup 仅 return 公共变量与 comExtra，业务变量必须显式挂入，
+    // 否则模板中 rows/columns 等恒为 undefined：表格无列无数据且无报错）
+    Object.assign(comExtra, {
+        rows, total, page, size, loading, pkField,
+        pager, columns, tableColumns, actions, actionsWidth, tableBind,
+        orderField, orderDir,
+        loadList, onPageChange, onSizeChange, onSortChange, runAction, onRowClick
+    });
 }

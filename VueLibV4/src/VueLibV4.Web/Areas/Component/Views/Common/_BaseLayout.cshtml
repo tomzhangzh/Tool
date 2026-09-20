@@ -105,9 +105,21 @@ var comConfig = {
                 return { value: x, label: String(x) };
             });
         }
-        /** static 数据源：从 comoptions.optionValues 读取静态选项 */
+        /** static 数据源：优先 optionValuesText（每行“值,标签”，无逗号时值即标签），否则读 optionValues 数组 */
         function initOptionsFromConfig() {
-            var ov = jc.options && jc.options.comoptions ? jc.options.comoptions.optionValues : null;
+            var co = jc.options && jc.options.comoptions ? jc.options.comoptions : {};
+            if (typeof co.optionValuesText === 'string' && co.optionValuesText.trim()) {
+                comInnerInfo.options = co.optionValuesText.split(/\r?\n/).map(function (line) {
+                    var s = line.trim();
+                    if (!s) return null;
+                    var parts = s.split(/[,，]/);
+                    var v = parts[0].trim();
+                    var lab = parts.length > 1 ? parts.slice(1).join(',').trim() : v;
+                    return { value: v, label: lab || v };
+                }).filter(Boolean);
+                return;
+            }
+            var ov = co.optionValues;
             comInnerInfo.options = _normOptionList(ov);
         }
         /**
@@ -344,12 +356,20 @@ var comConfig = {
                     }
                 }
                 const validatorsMap = {
-                    required: (v) => v !== null && v !== undefined && v !== '',
-                    min: (v, m) => Number(v) >= m,
-                    max: (v, m) => Number(v) <= m,
-                    pattern: (v, p) => new RegExp(p).test(String(v || '')),
-                    email: (v) => /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(String(v || '')),
-                    number: (v) => !isNaN(Number(v))
+                    required: (v) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0),
+                    min: (v, m) => v === '' || v === null || v === undefined || Number(v) >= Number(m),
+                    max: (v, m) => v === '' || v === null || v === undefined || Number(v) <= Number(m),
+                    length: (v, m) => !v || String(v).length >= Number(m),
+                    pattern: (v, p) => !v || new RegExp(p).test(String(v)),
+                    email: (v) => !v || /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(String(v)),
+                    phone: (v) => !v || /^1[3-9]\d{9}$/.test(String(v)),
+                    number: (v) => v === '' || v === null || v === undefined || !isNaN(Number(v)),
+                    // custom：rule.value 为返回布尔值的 JS 表达式脚本（参数 v=当前值, model=表单模型）
+                    custom: (v, script) => {
+                        if (!script) return true;
+                        try { return !!new Function('v', 'model', 'return (' + script + ');')(val, props.parentmodelinfo); }
+                        catch (e) { console.warn('[validator custom error]', e); return false; }
+                    }
                 };
                 const fn = validatorsMap[rule.type];
                 if (!fn) continue;

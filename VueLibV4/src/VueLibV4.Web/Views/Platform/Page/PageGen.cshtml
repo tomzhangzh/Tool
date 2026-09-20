@@ -1,0 +1,223 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "页面生成向导 - VueLibV4";
+}
+<div id="app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">页面生成向导（三屏：筛选区 + 列表区 + 详情区）</span>
+    </div>
+
+    <div class="main">
+        <el-card shadow="never" class="step-card">
+            <template #header><b>1. 选择项目与业务表</b></template>
+            <el-form :inline="true" label-width="80px">
+                <el-form-item label="项目">
+                    <el-select v-model="form.project" placeholder="选择项目（空=默认业务库）" clearable style="width:240px" @@change="loadTables">
+                        <el-option v-for="p in projects" :key="p.Id" :label="p.Name + '（' + p.Code + '）'" :value="p.Code"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="业务表">
+                    <el-select v-model="form.table" placeholder="选择表" style="width:240px" @@change="loadColumns">
+                        <el-option v-for="t in tables" :key="t" :label="t" :value="t"></el-option>
+                    </el-select>
+                </el-form-item>
+            </el-form>
+        </el-card>
+
+        <el-card shadow="never" class="step-card" v-loading="loadingCols">
+            <template #header><b>2. 配置字段（勾选三屏归属 / 标签 / 控件 / 查询操作符）</b></template>
+            <el-table :data="fields" border size="small">
+                <el-table-column label="字段" prop="name" width="150"></el-table-column>
+                <el-table-column label="类型" width="100">
+                    <template #default="s"><el-tag size="small" type="info">{{ s.row.dataType }}</el-tag></template>
+                </el-table-column>
+                <el-table-column label="标签" width="140">
+                    <template #default="s"><el-input v-model="s.row.label" size="small"></el-input></template>
+                </el-table-column>
+                <el-table-column label="筛选" width="55" align="center">
+                    <template #default="s"><el-checkbox v-model="s.row.inFilter"></el-checkbox></template>
+                </el-table-column>
+                <el-table-column label="列表" width="55" align="center">
+                    <template #default="s"><el-checkbox v-model="s.row.inList"></el-checkbox></template>
+                </el-table-column>
+                <el-table-column label="详情" width="55" align="center">
+                    <template #default="s"><el-checkbox v-model="s.row.inDetail"></el-checkbox></template>
+                </el-table-column>
+                <el-table-column label="操作符" width="110">
+                    <template #default="s">
+                        <el-select v-model="s.row.op" size="small" :disabled="!s.row.inFilter">
+                            <el-option label="like 包含" value="like"></el-option>
+                            <el-option label="= 等于" value="eq"></el-option>
+                            <el-option label="> 大于" value="gt"></el-option>
+                            <el-option label=">= 大于等于" value="ge"></el-option>
+                            <el-option label="< 小于" value="lt"></el-option>
+                            <el-option label="<= 小于等于" value="le"></el-option>
+                        </el-select>
+                    </template>
+                </el-table-column>
+                <el-table-column label="控件" width="130">
+                    <template #default="s">
+                        <el-select v-model="s.row.control" size="small">
+                            <el-option label="文本框" value="input"></el-option>
+                            <el-option label="多行文本" value="textarea"></el-option>
+                            <el-option label="数字" value="number"></el-option>
+                            <el-option label="开关" value="switch"></el-option>
+                            <el-option label="日期" value="date"></el-option>
+                            <el-option label="下拉选择" value="select"></el-option>
+                        </el-select>
+                    </template>
+                </el-table-column>
+                <el-table-column label="列表宽度" width="100">
+                    <template #default="s"><el-input-number v-model="s.row.width" :min="60" :max="500" :step="10" size="small" controls-position="right" style="width:90px"></el-input-number></template>
+                </el-table-column>
+                <el-table-column label="可排序" width="70" align="center">
+                    <template #default="s"><el-checkbox v-model="s.row.sortable"></el-checkbox></template>
+                </el-table-column>
+            </el-table>
+        </el-card>
+
+        <el-card shadow="never" class="step-card">
+            <template #header><b>3. 页面信息与生成</b></template>
+            <el-form :inline="true" label-width="90px">
+                <el-form-item label="页面编码">
+                    <el-input v-model="form.code" placeholder="如 student" style="width:200px"></el-input>
+                </el-form-item>
+                <el-form-item label="页面名称">
+                    <el-input v-model="form.name" placeholder="如 学生管理" style="width:200px"></el-input>
+                </el-form-item>
+                <el-form-item>
+                    <el-button type="primary" :loading="generating" @@click="generate">生成三屏页面</el-button>
+                </el-form-item>
+            </el-form>
+        </el-card>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; }
+    .main { padding: 16px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+</style>
+
+@section Scripts {
+<script>
+    DynLib.ready(function () {
+        // 字段中文名兜底提示（可在表格中手工修改）
+        var LABEL_HINTS = {
+            Id: '编号', Name: '姓名', Gender: '性别', Age: '年龄', ClassName: '班级',
+            Score: '成绩', Phone: '电话', Address: '地址', CreateText: '创建时间'
+        };
+        var DICT_HINTS = { Gender: 'gender', ClassName: 'classname' };
+
+        var app = Vue.createApp({
+            data: function () {
+                return {
+                    projects: [],
+                    tables: [],
+                    fields: [],
+                    loadingCols: false,
+                    generating: false,
+                    form: { project: '', table: '', code: '', name: '' }
+                };
+            },
+            mounted: function () {
+                var self = this;
+                fetch('/api/platform/dynproject/all', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.code === 0) self.projects = res.data || [];
+                });
+            },
+            methods: {
+                go: function (url) { window.location.href = url; },
+                loadTables: function () {
+                    var self = this;
+                    self.tables = []; self.form.table = ''; self.fields = [];
+                    var url = '/api/business/dyndata/tables' + (self.form.project ? '?project=' + encodeURIComponent(self.form.project) : '');
+                    fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (res && res.code === 0) self.tables = res.data || [];
+                    });
+                },
+                inferControl: function (name, dataType) {
+                    var t = (dataType || '').toUpperCase();
+                    if (/INT|DECIMAL|NUMERIC|REAL|DOUBLE|FLOAT/.test(t)) return 'number';
+                    if (/DATE|TIME/.test(t)) return 'date';
+                    if (DICT_HINTS[name]) return 'select';
+                    return 'input';
+                },
+                loadColumns: function () {
+                    var self = this;
+                    self.fields = [];
+                    self.loadingCols = true;
+                    if (!self.form.code) self.form.code = (self.form.table || '').toLowerCase();
+                    if (!self.form.name) self.form.name = self.form.table + '管理';
+                    var url = '/api/business/dyndata/columns?table=' + encodeURIComponent(self.form.table)
+                        + (self.form.project ? '&project=' + encodeURIComponent(self.form.project) : '');
+                    fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (res && res.code === 0) {
+                            var cols = res.data || [];
+                            self.fields = cols.map(function (c) {
+                                var name = c.Name;
+                                var isPk = c.IsPrimaryKey === true;
+                                var dt = (c.DataType || '').toUpperCase();
+                                return {
+                                    name: name,
+                                    dataType: dt,
+                                    isPk: isPk,
+                                    label: LABEL_HINTS[name] || name,
+                                    inFilter: !isPk,
+                                    inList: true,
+                                    inDetail: true,
+                                    op: /TEXT|CHAR|CLOB/.test(dt) ? 'like' : 'eq',
+                                    control: self.inferControl(name, dt),
+                                    width: null,
+                                    sortable: /INT|DECIMAL|NUMERIC|REAL|DOUBLE|FLOAT/.test(dt),
+                                    dictType: DICT_HINTS[name] || null
+                                };
+                            });
+                        }
+                    }).finally(function () { self.loadingCols = false; });
+                },
+                generate: function () {
+                    var self = this;
+                    if (!self.form.table) { layui.layer.msg('请选择业务表', { icon: 2 }); return; }
+                    if (!self.form.code) { layui.layer.msg('请填写页面编码', { icon: 2 }); return; }
+                    var chosen = self.fields.filter(function (f) { return f.inFilter || f.inList || f.inDetail; });
+                    if (chosen.length === 0) { layui.layer.msg('请至少勾选一个字段', { icon: 2 }); return; }
+                    var pkField = (self.fields.find(function (f) { return f.isPk; }) || {}).name || 'Id';
+                    var payload = {
+                        project: self.form.project || null,
+                        table: self.form.table,
+                        pk: pkField,
+                        code: self.form.code,
+                        name: self.form.name,
+                        fields: chosen.map(function (f) {
+                            return {
+                                name: f.name, label: f.label, dataType: f.dataType,
+                                control: f.control, inFilter: f.inFilter, inList: f.inList, inDetail: f.inDetail,
+                                op: f.op, width: f.width, sortable: f.sortable, dictType: f.dictType
+                            };
+                        })
+                    };
+                    self.generating = true;
+                    fetch('/api/business/pagegen/generate', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (res && res.code === 0 && res.data && res.data.url) {
+                            layui.layer.msg('生成成功，正在打开页面…', { icon: 1, time: 1200 });
+                            setTimeout(function () { window.location.href = res.data.url; }, 1200);
+                        } else {
+                            layui.layer.msg((res && res.msg) || '生成失败', { icon: 2 });
+                        }
+                    }).catch(function (e) {
+                        layui.layer.msg('生成异常：' + e.message, { icon: 2 });
+                    }).finally(function () { self.generating = false; });
+                }
+            }
+        });
+        DynCom.setupApp(app);
+        DynCom.ensureRegistered(app).then(function () { app.mount('#app'); });
+    });
+</script>
+}

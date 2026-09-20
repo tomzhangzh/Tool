@@ -401,11 +401,14 @@ async function mountConfig(cfg,target,model){
   if(!target) return null;
   unmount(target);
   normalize(cfg);
-  const reactiveModel = Vue.reactive(model||{});
+  // 目标位于 data-dyn-shared-scope 内时，自动挂载到同一份共享 scope model（三屏模板：筛选区/列表区共享数据）
+  const scopeHost = target.closest&&target.closest('['+CONST.ATTR_SHARED_SCOPE+']');
+  const reactiveModel = scopeHost ? (getScopeModel(target)||Vue.reactive(model||{})) : Vue.reactive(model||{});
   target.setAttribute(CONST.ATTR_MODE,'createApp');
   const component = {
-    template:'<dyn-dynamic-com :jsonconfig="__pageCfg"></dyn-dynamic-com>',
-    data(){ return { __pageCfg:cfg }; },
+    // 注意：data 键不能以 _ 开头——Vue3 不会把 _/$ 前缀属性代理到组件实例，模板将恒取到 undefined
+    template:'<dyn-dynamic-com :jsonconfig="pageCfg" :parentmodelinfo="model"></dyn-dynamic-com>',
+    data(){ return { pageCfg:cfg }; },
     setup(){ return { model:reactiveModel, element:target, dyn:global.dyn }; }
   };
   const app = Vue.createApp(component);
@@ -433,7 +436,7 @@ function mount(elOrCfg,targetEl,model){
   if(elOrCfg&&typeof elOrCfg==='object'&&elOrCfg.nodeType!==1&&elOrCfg.component){
     return mountConfig(elOrCfg,targetEl,model);
   }
-  const el = elOrCfg;
+  let el = elOrCfg;
   return new Promise(promiseResolve=>{
     // 这里调用的是dyn的dom解析工具函数，不再和promise回调冲突
     el = dyn.resolve(el);

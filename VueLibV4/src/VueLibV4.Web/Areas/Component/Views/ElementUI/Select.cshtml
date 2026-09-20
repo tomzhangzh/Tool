@@ -18,15 +18,11 @@
 
 @section setupScripts{
     DVALUE = '';
-    // 下拉选项由本组件自行加载（公共 _BaseLayout 不提供 options）
+    // 下拉选项统一走 _BaseLayout.loadComOptions：static(optionValuesText/optionValues) / dict / table / ajax
     comInnerInfo.options = [];
-    (function () {
-        const co = jc.options && jc.options.comoptions || {};
-        const staticRaw = jc.options && (jc.options.optionValues || co.optionValues);
-        if (Array.isArray(staticRaw)) {
-            comInnerInfo.options = staticRaw.map(function (v) {
-                return (typeof v === 'object' && v !== null) ? { label: v.label != null ? v.label : v.value, value: v.value != null ? v.value : v.label } : { label: String(v), value: String(v) };
-            });
-        }
-    })();
+    loadComOptions();
+    watch(function () {
+        var co = (jc.options && jc.options.comoptions) || {};
+        return [co.sourceType, co.dictType, co.optionValuesText, co.table, co.url];
+    }, function () { loadComOptions(); }, { deep: true });
 }

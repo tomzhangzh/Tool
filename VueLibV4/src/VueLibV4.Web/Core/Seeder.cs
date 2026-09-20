@@ -57,6 +57,10 @@ public class Seeder
                     _logger.LogInformation("[Init] ComponentMeta 已存在且组件齐全");
                     // 增量追加种子仍需执行（新增项目/字典/快捷方式幂等补齐）
                     ExecScript(conn, "seed-extra.sql");
+                    // 属性面板 PCJ（M3）：仅补齐空值，幂等
+                    ExecScript(conn, "update-property-config.sql");
+                    // 旧库结构增量迁移（幂等）
+                    MigrateSchema(conn);
                     return;
                 }
             }
@@ -64,6 +68,8 @@ public class Seeder
             using (var del = conn.CreateCommand()) { del.CommandText = "DELETE FROM ComponentMeta;"; del.ExecuteNonQuery(); }
             ExecScript(conn, "component-meta.sql");
             ExecScript(conn, "seed-extra.sql");
+            ExecScript(conn, "update-property-config.sql");
+            MigrateSchema(conn);
             return;
         }
 
@@ -71,7 +77,61 @@ public class Seeder
         ExecScript(conn, "platform.sql");
         ExecScript(conn, "component-meta.sql");
         ExecScript(conn, "seed-extra.sql");
+        ExecScript(conn, "update-property-config.sql");
+        MigrateSchema(conn);
         _logger.LogInformation("[Init] 平台库初始化完成");
+    }
+
+    /// <summary>
+    /// 旧库增量迁移（SQLite 不支持 IF NOT EXISTS 加列，用 PRAGMA table_info 检查后幂等 ALTER）。
+    /// 新库的建表 SQL 已包含这些列，ALTER 会因列已存在而跳过。
+    /// </summary>
+    private void MigrateSchema(SqliteConnection conn)
+    {
+        // 旧库补建 PageSetting 表（M4 三屏配置存储；platform.sql 仅空库执行）
+        if (!TableExists(conn, "PageSetting"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE PageSetting (
+    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    Code            TEXT NOT NULL,
+    Name            TEXT NOT NULL,
+    SettingType     TEXT NOT NULL DEFAULT 'List',
+    ProjectId       INTEGER NULL,
+    TableName       TEXT NULL,
+    ConfigJson      TEXT NULL,
+    ColumnDefsJson  TEXT NULL,
+    SortNo          INTEGER NOT NULL DEFAULT 0,
+    IsActive        INTEGER NOT NULL DEFAULT 1,
+    CreateTime      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);";
+            create.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 PageSetting");
+        }
+        EnsureColumn(conn, "DynWebPage", "FilterPageSettingId", "INTEGER NULL");
+        EnsureColumn(conn, "DynWebPage", "ListPageSettingId", "INTEGER NULL");
+        EnsureColumn(conn, "DynWebPage", "DetailPageSettingId", "INTEGER NULL");
+    }
+
+    private void EnsureColumn(SqliteConnection conn, string table, string column, string definition)
+    {
+        if (!TableExists(conn, table)) return;
+        using var check = conn.CreateCommand();
+        check.CommandText = $"PRAGMA table_info({table});";
+        var exists = false;
+        using (var rd = check.ExecuteReader())
+        {
+            while (rd.Read())
+            {
+                if (string.Equals(rd.GetString(1), column, StringComparison.OrdinalIgnoreCase)) { exists = true; break; }
+            }
+        }
+        if (exists) return;
+        using var alter = conn.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+        alter.ExecuteNonQuery();
+        _logger.LogInformation("[Init] 迁移：{Table} 新增列 {Column}", table, column);
     }
 
     // ---------------- 业务库 ----------------

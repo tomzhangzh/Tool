@@ -1,4 +1,4 @@
-﻿@* 右侧属性面板：基础(含控件类型+组件属性) / 布局样式 / 校验 / 高级 *@
+@* 右侧属性面板：基础(含控件类型+组件属性) / 布局样式 / 校验规则 / 高级 *@
 <aside class="w-80 shrink-0 bg-white border-l border-gray-200 flex flex-col min-h-0"
        data-dyn-init-createapp data-dyn-use-scope="designer">
 <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
@@ -33,7 +33,7 @@
             <el-switch v-model="model.current.options.labeloptions.show" size="small"></el-switch>
           </el-form-item>
           <el-form-item label="是否必填">
-            <el-switch v-model="model.current.options.labeloptions.required" size="small"></el-switch>
+            <el-switch :model-value="isRequired" @@change="onRequiredChange($event)" size="small"></el-switch>
           </el-form-item>
         </el-form>
 
@@ -75,13 +75,7 @@
             <el-input v-model="model.current.options.itemoptions.style.marginBottom" size="small"></el-input>
           </el-form-item>
           <el-form-item label="自定义类名">
-            <el-input v-model="model.current.options.itemoptions.class" size="small"></el-input>
-          </el-form-item>
-          <el-form-item label="跨列">
-            <el-select v-model="model.current.options.itemoptions.class" size="small" clearable placeholder="选择跨列">
-              <el-option label="不跨列" value=""></el-option>
-              <el-option label="跨2列" value="grid-span-2"></el-option>
-            </el-select>
+            <el-input v-model="model.current.options.itemoptions.class" size="small" placeholder="如 grid-span-2 可实现跨列"></el-input>
           </el-form-item>
         </el-form>
 
@@ -94,91 +88,74 @@
         </div>
       </el-tab-pane>
 
-      @* ===== 校验 ===== *@
-      <el-tab-pane label="校验" name="validate" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3">
-          <el-form-item label="必填校验">
-            <el-switch :model-value="!!validators[0] && validators[0].type === 'required'"
-                       @@change="onRequiredChange($event)" size="small"></el-switch>
-          </el-form-item>
-          <el-form-item label="必填提示">
-            <el-input v-model="validators[0].message" size="small" placeholder="请输入必填提示"></el-input>
-          </el-form-item>
-        </el-form>
+      @* ===== 校验规则（规则数组，与组件 validators 直连） ===== *@
+      <el-tab-pane label="校验" name="validate" class="overflow-y-auto">
+        <div class="p-3">
+          <div v-for="(rule, idx) in validators" :key="idx" class="border border-gray-200 rounded p-2 mb-2">
+            <div class="flex items-center gap-1 mb-1">
+              <el-select v-model="rule.type" size="small" class="flex-1" placeholder="选择规则">
+                <el-option v-for="t in validatorTypes" :key="t.value" :label="t.label" :value="t.value"></el-option>
+              </el-select>
+              <el-button size="small" type="danger" link @@click="removeValidator(idx)">删除</el-button>
+            </div>
+            <el-input v-if="ruleNeedsValue(rule.type)" v-model="rule.value" size="small" class="mb-1"
+                      :placeholder="validatorValuePlaceholder(rule.type)"></el-input>
+            <el-input v-model="rule.message" size="small" placeholder="校验失败提示语（可空）"></el-input>
+          </div>
+          <el-button size="small" type="primary" plain class="w-full" @@click="addValidator">+ 新增校验规则</el-button>
+          <div class="text-xs text-gray-400 mt-2 leading-5">
+            支持：必填 / 邮箱 / 手机号 / 正则 / 最小最大值 / 最小长度 / 数字 / 自定义表达式。<br/>
+            自定义的值填写返回布尔的 JS 表达式，可用变量 v（当前值）、model（表单数据）。
+          </div>
+        </div>
       </el-tab-pane>
 
-      @* ===== 高级 ===== *@
+      @* ===== 高级（联动脚本 evalCondition） ===== *@
       <el-tab-pane label="高级" name="advanced" class="overflow-y-auto">
-        <div class="p-3 text-xs text-gray-400">高级配置（待实现）</div>
+        <div class="p-3">
+          <div class="text-xs text-gray-500 mb-1">联动脚本 evalCondition（值变化时执行）</div>
+          <textarea v-model="model.current.options.evalCondition" rows="8"
+                    class="w-full text-xs p-1 rounded"
+                    style="font-family:monospace;border:1px solid #dcdfe6;min-height:120px;"
+                    placeholder="// ctx: { value, model, getByPath, safeGet }&#10;// 返回 { shell:{show:false}, labeloptions:{...}, comoptions:{...} } 动态控制显隐与属性"></textarea>
+          <div class="text-xs text-gray-400 mt-2 leading-5">
+            例：值为 1 时隐藏本组件：<br/>
+            if(ctx.value===1) return { shell:{ show:false } };
+          </div>
+        </div>
       </el-tab-pane>
     </el-tabs>
   </template>
 
   <script tag="dynconfig">
   var dynConfig = {
-        data: function () { return { propTab: 'base', comPropsActive: ['comAttr'], styleJsonError: '', componentMetaList: [], _sameAsScope: '?', lp: '', fs: '', lw: '' } },
-    setup: function(props) { return {}; },
-
-    mounted: function () {
-      var self = this;
-      var root = document.querySelector('[data-dyn-shared-scope="designer"]');
-      var scope = window.dyn.getScopeModel(root);
-      self._sameAsScope = (self.model === scope) ? 'YES' : 'NO';
-      if (scope.componentMetaList) { self.componentMetaList = scope.componentMetaList; }
-      function syncStyleProps() {
-        var cur = scope.current;
-        if (cur) {
-          if (!cur.labelOptions) cur.labelOptions = {};
-          if (!cur.options) cur.options = {};
-          if (!cur.options.comInnerInfo) cur.options.comInnerInfo = {};
-          self.lp = cur.labelOptions.labelPosition || "";
-          self.lw = cur.labelOptions.labelWidth || "";
-      }}
-      syncStyleProps();
-      this.$watch(function(){ return scope.current && scope.current.component; }, function(){
-        syncStyleProps();
-        self.$forceUpdate();
-      });
-      // 深度监听 labelPosition 变化，强制刷新 el-select
-      this.$watch(function(){ try { return scope.current.labelOptions.labelPosition; } catch(e) { return undefined; } }, function(){ syncStyleProps(); });
-      this.$watch(function(){ try { return scope.current.options.comInnerInfo.size; } catch(e) { return undefined; } }, function(){ syncStyleProps(); });
-      this.$watch(function(){ try { return scope.current.labelOptions.labelWidth; } catch(e) { return undefined; } }, function(){ syncStyleProps(); });
-      this.$watch("lp", function(v) { var cur = scope.current; if(cur) { if(!cur.labelOptions) cur.labelOptions = {}; cur.labelOptions.labelPosition = v; } });
-      this.$watch("fs", function(v) { var cur = scope.current; if(cur && cur.options) { if(!cur.options.comInnerInfo) cur.options.comInnerInfo = {}; cur.options.comInnerInfo.size = v; } });
-      this.$watch("lw", function(v) { var cur = scope.current; if(cur) { if(!cur.labelOptions) cur.labelOptions = {}; cur.labelOptions.labelWidth = v; } });
-    },
-    methods: {
-      onLpChange: function(v) { console.log('[onLpChange]', v);
-        this.lp = v;
-        var cur = this.model && this.model.current;
-        if (cur && cur.options) { if(!cur.options.comInnerInfo) cur.options.comInnerInfo = {}; cur.options.comInnerInfo.labelPosition = v; }
-      },
-      onFsChange: function(v) {
-        this.fs = v;
-        var cur = this.model && this.model.current;
-        if (cur && cur.options) { if(!cur.options.comInnerInfo) cur.options.comInnerInfo = {}; cur.options.comInnerInfo.size = v; }
-      },
-      onLwChange: function(v) {
-        this.lw = v;
-        var cur = this.model && this.model.current;
-        if (cur && cur.options && cur.options.labeloptions) cur.options.labeloptions.labelWidth = v;
-      }
+    data: function () {
+      return {
+        propTab: 'base',
+        comPropsActive: ['comAttr'],
+        styleJsonError: '',
+        validatorTypes: [
+          { value: 'required', label: '必填' },
+          { value: 'email', label: '邮箱格式' },
+          { value: 'phone', label: '手机号格式' },
+          { value: 'pattern', label: '正则表达式' },
+          { value: 'min', label: '最小值' },
+          { value: 'max', label: '最大值' },
+          { value: 'length', label: '最小长度' },
+          { value: 'number', label: '数字' },
+          { value: 'custom', label: '自定义表达式' }
+        ]
+      };
     },
     computed: {
-      labelPosition: {
-        get: function() { return this.model.current?.options?.comInnerInfo?.labelPosition; },
-        set: function(v) { console.log('[labelPosition set]', v, 'model.current?', !!this.model.current, 'options?', !!this.model.current?.options); if(this.model.current?.options) { if(!this.model.current.options.comInnerInfo) this.model.current.options.comInnerInfo = {}; this.model.current.options.comInnerInfo.labelPosition = v; } }
-      },
-      formSize: {
-        get: function() { return this.model.current?.options?.comInnerInfo?.size; },
-        set: function(v) { if(this.model.current?.options) { if(!this.model.current.options.comInnerInfo) this.model.current.options.comInnerInfo = {}; this.model.current.options.comInnerInfo.size = v; } }
-      },
-      labelWidth: {
-        get: function() { return this.model.current?.options?.labeloptions?.labelWidth; },
-        set: function(v) { if(this.model.current?.options?.labeloptions) this.model.current.options.labeloptions.labelWidth = v; }
+      isRequired: function () {
+        var list = this.model.current && this.model.current.validators;
+        return Array.isArray(list) && list.some(function (r) { return r && r.type === 'required'; });
       },
       validators: function () {
-        if (!this.model.current.validators) this.model.current.validators = [];
-        if (!this.model.current.validators.length) this.model.current.validators.push({});
+        if (!this.model.current.validators || !Array.isArray(this.model.current.validators)) {
+          this.model.current.validators = [];
+        }
         return this.model.current.validators;
       },
       comProps: function () {
@@ -190,18 +167,18 @@
         if (!pj) return null;
         try {
           var parsed = typeof pj === 'string' ? JSON.parse(pj) : pj;
-          if(parsed && parsed.component) {
+          if (parsed && parsed.component) {
             // 右侧属性面板统一 small + 左右label布局
-            if(!parsed.options) parsed.options = {};
-            if(!parsed.options.comInnerInfo) parsed.options.comInnerInfo = {};
-            if(!parsed.options.comInnerInfo.size) parsed.options.comInnerInfo.size = 'small';
-            if(!parsed.options.comInnerInfo.labelPosition) parsed.options.comInnerInfo.labelPosition = 'left';
-            if(!parsed.options.comInnerInfo.labelWidth) parsed.options.comInnerInfo.labelWidth = '90px';
-            if(!parsed.options.comInnerInfo.comPassThrough) parsed.options.comInnerInfo.comPassThrough = 'size,labelPosition,labelWidth';
+            if (!parsed.options) parsed.options = {};
+            if (!parsed.options.comInnerInfo) parsed.options.comInnerInfo = {};
+            if (!parsed.options.comInnerInfo.size) parsed.options.comInnerInfo.size = 'small';
+            if (!parsed.options.comInnerInfo.labelPosition) parsed.options.comInnerInfo.labelPosition = 'left';
+            if (!parsed.options.comInnerInfo.labelWidth) parsed.options.comInnerInfo.labelWidth = '90px';
+            if (!parsed.options.comInnerInfo.comPassThrough) parsed.options.comInnerInfo.comPassThrough = 'size,labelPosition,labelWidth';
             return parsed;
           }
           return null;
-        } catch(e) {
+        } catch (e) {
           console.warn('PropertyConfigJson parse error:', e);
           return null;
         }
@@ -210,11 +187,8 @@
         var c = this.model.current;
         return c ? (c.component + '_' + (c.__uid || 0)) : 'none';
       },
-      allMetaList: function () {
-        return this.model.componentMetaList || [];
-      },
       componentGroups: function () {
-        var list = this.allMetaList;
+        var list = this.model.componentMetaList || [];
         var map = {};
         list.forEach(function (m) {
           if (!m.ComponentName) return;
@@ -223,20 +197,60 @@
           map[g].items.push(m);
         });
         // 排序：通用在前，然后按平台
-        var keys = Object.keys(map).sort(function(a,b){
-          if(a==='Common') return -1;
-          if(b==='Common') return 1;
+        var keys = Object.keys(map).sort(function (a, b) {
+          if (a === 'Common') return -1;
+          if (b === 'Common') return 1;
           return a.localeCompare(b);
         });
-        return keys.map(function(k){ return map[k]; });
+        return keys.map(function (k) { return map[k]; });
       },
-      styleJsonText: function () {
-        var s = this.model.current && this.model.current.options && this.model.current.options.itemoptions && this.model.current.options.itemoptions.style;
-        if (!s) return '{}';
-        try { return JSON.stringify(s, null, 2); } catch (e) { return '{}'; }
+      styleJsonText: {
+        get: function () {
+          var s = this.model.current && this.model.current.options && this.model.current.options.itemoptions && this.model.current.options.itemoptions.style;
+          if (!s) return '{}';
+          try { return JSON.stringify(s, null, 2); } catch (e) { return '{}'; }
+        },
+        set: function (v) { this._styleText = v; }
       }
     },
     methods: {
+      ruleNeedsValue: function (type) {
+        return ['pattern', 'min', 'max', 'length', 'custom'].indexOf(type) >= 0;
+      },
+      validatorValuePlaceholder: function (type) {
+        if (type === 'pattern') return '正则，如 ^1[3-9]\\d{9}$';
+        if (type === 'min') return '最小值（数字）';
+        if (type === 'max') return '最大值（数字）';
+        if (type === 'length') return '最小长度';
+        if (type === 'custom') return '如 v && v.length>=2';
+        return '';
+      },
+      addValidator: function () {
+        if (!this.model.current.validators) this.model.current.validators = [];
+        this.model.current.validators.push({ type: 'required', message: '' });
+        this.syncRequiredFlag();
+      },
+      removeValidator: function (idx) {
+        this.model.current.validators.splice(idx, 1);
+        this.syncRequiredFlag();
+      },
+      onRequiredChange: function (val) {
+        if (!this.model.current.validators) this.model.current.validators = [];
+        var idx = this.model.current.validators.findIndex(function (r) { return r && r.type === 'required'; });
+        if (val) {
+          if (idx < 0) this.model.current.validators.unshift({ type: 'required', message: '该项为必填项' });
+        } else if (idx >= 0) {
+          this.model.current.validators.splice(idx, 1);
+        }
+        this.syncRequiredFlag();
+      },
+      // 必填开关与 labeloptions.required 保持同步（标签红星/运行时校验共用）
+      syncRequiredFlag: function () {
+        var cur = this.model.current;
+        if (!cur || !cur.options) return;
+        if (!cur.options.labeloptions) cur.options.labeloptions = {};
+        cur.options.labeloptions.required = this.isRequired;
+      },
       onComponentTypeChange: function (newName) {
         var cur = this.model.current;
         if (!cur || !newName || cur.component === newName) return;
@@ -271,23 +285,20 @@
       onStyleJsonBlur: function () {
         this.styleJsonError = '';
         try {
-          var obj = JSON.parse(this.styleJsonText || '{}');
+          var obj = JSON.parse(this._styleText || this.styleJsonText || '{}');
           if (!this.model.current.options) this.model.current.options = {};
           if (!this.model.current.options.itemoptions) this.model.current.options.itemoptions = {};
           this.model.current.options.itemoptions.style = obj;
         } catch (e) {
           this.styleJsonError = 'JSON格式错误: ' + e.message;
         }
-      },
-      onRequiredChange: function (val) {
-        if (!this.model.current.validators) this.model.current.validators = [];
-        if (!this.model.current.validators.length) this.model.current.validators.push({});
-        if (val) {
-          this.model.current.validators[0].type = 'required';
-          if (!this.model.current.validators[0].message) this.model.current.validators[0].message = '该项为必填项';
-        } else {
-          delete this.model.current.validators[0].type;
-        }
+      }
+    },
+    watch: {
+      // 规则增删/类型变化时同步必填星标
+      'model.current.validators': {
+        handler: function () { this.syncRequiredFlag(); },
+        deep: true
       }
     }
   };

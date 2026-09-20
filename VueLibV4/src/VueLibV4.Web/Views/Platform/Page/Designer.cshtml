@@ -1,21 +1,10 @@
 @{
-    Layout = "_Layout";
-    ViewData["Title"] = "页面设计器 - VueLibV4";
+    var isEmbed = ViewBag.Embed as string == "1";
+    Layout = isEmbed ? null : "_Layout";
 }
-
-@section Scripts {
-    <script>
-        // 各分区独立 createApp，通过 data-dyn-use-scope 共享同一份 scope
-        DynLib.ready(function () {
-            function mountRegions() {
-                document.querySelectorAll('[data-dyn-mode="createApp"], [data-dyn-init-createapp]').forEach(function (el) {
-                    if (!el.getAttribute('data-dyn-mode')) el.setAttribute('data-dyn-mode', 'createApp');
-                    dyn.mount(el);
-                });
-            }
-            mountRegions();
-        });
-    </script>
+@if (isEmbed)
+{
+    @Html.Raw("<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /><title>" + ViewData["Title"] + "</title><link rel=\"icon\" href=\"data:,\"><link rel=\"stylesheet\" href=\"/dyn/dyn.css\" /><style>html,body{margin:0;padding:0;height:100%;overflow:hidden;}</style></head><body>")
 }
 
 @*
@@ -23,11 +12,15 @@
   root          data-dyn-shared-scope="designer" + data-dyn-scope-json  → 全局共享 reactive model
     TopBar / LeftPanel / Canvas / RightPanel  各为独立 partial，根元素各自 data-dyn-init-createapp data-dyn-use-scope="designer"
                   → 每个分区一个独立 VueApp，但 model 指向同一份共享 scope
-    模板里通过 model.xxx 读写共享数据；各区局部逻辑写在各自 partial 的 <script tag="dynconfig"> 里。
+  embed=1（弹窗模式）：由 DynDesignerDialog 打开 iframe：
+    子页加载完 → postMessage {type:'dyn-designer-ready'}
+    父页     → postMessage {type:'dyn-designer-init', configJson, defaultModel, title}
+    子页确定 → postMessage {type:'dyn-designer-result', configJson, defaultModel}
+    子页取消 → postMessage {type:'dyn-designer-cancel'}
 *@
 <div class="flex flex-col h-screen m-0 bg-gray-100"
      data-dyn-shared-scope="designer"
-     data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 } }'>
+     data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 }, "embed": @(isEmbed ? "true" : "false"), "pageId": 0, "pageCode": "", "defaultModel": {} }'>
 
   <partial name="~/Views/Platform/Page/Designer/TopBar.cshtml" />
 
@@ -41,3 +34,50 @@
   <style>
 .drag-target-active { outline: 2px dashed #409eff !important; outline-offset: 2px; }
 </style></div>
+
+@if (isEmbed)
+{
+    @await Component.InvokeAsync("DynComRegistry")
+    <script src="~/dyn/dyn-lib.js" asp-append-version="true"></script>
+    <script>
+        // 弹窗嵌入模式：postMessage 协议（与 dyn-designer-dialog.js 配对）
+        DynLib.ready(function () {
+            // 挂载四个共享 scope 的分区
+            document.querySelectorAll('[data-dyn-mode="createApp"], [data-dyn-init-createapp]').forEach(function (el) {
+                if (!el.getAttribute('data-dyn-mode')) el.setAttribute('data-dyn-mode', 'createApp');
+                dyn.mount(el);
+            });
+            var root = document.querySelector('[data-dyn-shared-scope="designer"]');
+            var scope = window.dyn.getScopeModel(root);
+            window.addEventListener('message', function (e) {
+                var d = e.data || {};
+                if (d.type === 'dyn-designer-init') {
+                    try {
+                        if (d.configJson) scope.pageJson = d.configJson;
+                        if (d.defaultModel) scope.defaultModel = d.defaultModel;
+                        scope.pageName = d.title || scope.pageName || '未命名页面';
+                        scope.pageId = d.pageId || 0;
+                        scope.pageCode = d.pageCode || '';
+                    } catch (err) { console.error('[designer embed init]', err); }
+                }
+            });
+            // 通知父页面设计器已就绪，父页面随后下发 init
+            try { window.parent.postMessage({ type: 'dyn-designer-ready' }, '*'); } catch (err) {}
+        });
+    </script>
+    @Html.Raw("</body></html>")
+}
+else
+{
+    @section Scripts {
+        <script>
+            // 各分区独立 createApp，通过 data-dyn-use-scope 共享同一份 scope
+            DynLib.ready(function () {
+                document.querySelectorAll('[data-dyn-mode="createApp"], [data-dyn-init-createapp]').forEach(function (el) {
+                    if (!el.getAttribute('data-dyn-mode')) el.setAttribute('data-dyn-mode', 'createApp');
+                    dyn.mount(el);
+                });
+            });
+        </script>
+    }
+}
