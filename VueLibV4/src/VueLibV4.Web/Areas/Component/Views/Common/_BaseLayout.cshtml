@@ -9,10 +9,8 @@ var comConfig = {
     setup(props, context) {
         const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted, onBeforeUnmount, getCurrentInstance } = Vue;
         const _ = window._;
-
         const inst = Vue.getCurrentInstance();
         const dyn = inst?.proxy?.$dyn;
-
         const defaults = {
             component: null,
             modelname: null,
@@ -31,7 +29,6 @@ var comConfig = {
             slots: {},
             extendinfo: {}
         };
-
         function deepMerge(target, ...sources) {
             return _.mergeWith(target, ...sources, (objValue, srcValue) => {
                 if (Array.isArray(srcValue)) {
@@ -40,18 +37,21 @@ var comConfig = {
                 return undefined;
             });
         }
-
         // 直接引用 reactive 的 jsonconfig，不深拷贝；补齐缺失的默认字段
         const jc = props.jsonconfig || {};
         if (!jc.options) jc.options = {};
         if (!jc.options.comoptions) jc.options.comoptions = {};
         if (!jc.options.labeloptions) jc.options.labeloptions = { label: "", required: false, show: true };
         if (!jc.options.itemoptions) jc.options.itemoptions = { style: {}, class: "" };
+        if (!jc.options.comInnerInfo) jc.options.comInnerInfo = {};
         if (!Array.isArray(jc.childrenctrls)) jc.childrenctrls = [];
         if (!Array.isArray(jc.validators)) jc.validators = [];
         if (!jc.slots) jc.slots = {};
         if (!jc.extendinfo) jc.extendinfo = {};
-
+        // labelOptions 顶层配置（新结构）；兼容旧的 jc.options.labeloptions
+        if (!jc.options.labeloptions) {
+          jc.options.labeloptions = Object.assign({}, jc.options.labeloptions || {});
+        }
         function mergePatch(origin, patch) {
             const res = Object.assign({}, origin);
             if (!patch || typeof patch !== "object") return res;
@@ -62,7 +62,6 @@ var comConfig = {
             }
             return res;
         }
-
         function mergeLabelOptions(selfOpt, parentDefaultOpt) {
             const result = Object.assign({}, parentDefaultOpt || {});
             for (const key in selfOpt) {
@@ -75,10 +74,8 @@ var comConfig = {
             }
             return result;
         }
-
         function getStyle(...opts) { return Object.assign({}, ...opts.map(o => o?.style || {})); }
         function getClass(...opts) { return opts.flatMap(o => (o?.class || '').split(' ')).filter(Boolean); }
-
         function getComlisteners() {
             const listeners = jc.options?.comlisteners || {};
             const result = {};
@@ -88,64 +85,55 @@ var comConfig = {
             }
             return result;
         }
-
-        // 杩愯鏃剁姸鎬侊紝浜ょ敱閫夋嫨绫诲瓙缁勪欢鑷繁缁存姢
+        // comInnerInfo：仅用于校验状态，不再做属性穿透
         const comInnerInfo = reactive({
             validation: { valid: true, errors: [], touched: false }
         });
         let DVALUE = null;
         let comExtra = {};
-
+        // ========== 新增：属性穿透相关 ==========
+        /**
+         * 按 comExtra.comPassThrough 白名单合并父穿透配置
+         * @@param {object} localOptions 当前组件 jc.options
+         * @@param {object} parentPass 父注入的 comExtraPass
+         * @@param {string} passStr comExtra.comPassThrough 白名单字符串，支持 ,, 空项
+         * @@returns {object} 合并后的完整options
+         */
+        function applyPassThrough(localOptions, parentPass, passStr) {
+            const opts = _.cloneDeep(localOptions || {});
+            if (!parentPass || !passStr) return opts;
+            // 分割，trim，过滤空字符串，自动忽略 ,, 产生的空条目
+            const keys = passStr.split(',')
+                .map(i => i.trim())
+                .filter(path => !!path);
+            const parentVals = parentPass.passValues;
+            for (const path of keys) {
+                const localVal = _.get(opts, path);
+                // 子组件该路径未显式定义，才继承父的值
+                if (localVal === undefined) {
+                    const pVal = _.get(parentVals, path);
+                    if (pVal !== undefined) {
+                        _.set(opts, path, pVal);
+                    }
+                }
+            }
+            return opts;
+        }
+        // 白名单，支持逗号连续空项
+        comExtra.comPassThrough = "comOptions.size,labelOptions.css,labelOptions.style";
+        // 注入父穿透数据源
+        const parentPassSource = inject('comExtraPass', null);
+        // 合并本地配置 + 上层穿透
+        const mergedOptions = computed(() => {
+            return applyPassThrough(jc.options, parentPassSource, comExtra.comPassThrough);
+        });
+        // ========== end 属性穿透 ==========
         // inject before section scripts
         const injectParentModelPrefix = inject('parentModelPrefix', null);
         const injectParentDefaultLabelOptions = inject('defaultLabelOptions', null);
         const injectUiGlobalProps = inject('ui_global_props', null);
         const injectDesignerScope = inject("designer", null);
         const injectParentComInnerInfo = inject('comInnerInfo', () => ({}));
-
-        // comInnerInfo 白名单穿透：只有 comPassThrough 中声明的 key 才从父容器继承
-        // 子组件自身配置优先级更高
-        // 数据格式：{ size: 'small', labelPosition: 'left', labelWidth: '100px', comPassThrough: 'size,labelPosition,labelWidth' }
-        const mergedComInnerInfo = reactive({ validation: { valid: true, touched: false, errors: [] } });
-
-        function recalcComInnerInfo() {
-            const localComInner = jc.options?.comInnerInfo || {};
-            const parentComInner = injectParentComInnerInfo || {};
-
-            // 解析穿透白名单：当前层定义则覆盖父层，没定义则继承父层，都没定义则默认只穿透 size
-            let passKeys;
-            if (localComInner.comPassThrough && typeof localComInner.comPassThrough === 'string') {
-                passKeys = localComInner.comPassThrough.split(',').map(k => k.trim()).filter(k => !!k);
-            } else if (parentComInner.comPassThrough && typeof parentComInner.comPassThrough === 'string') {
-                passKeys = parentComInner.comPassThrough.split(',').map(k => k.trim()).filter(k => !!k);
-            } else {
-                passKeys = ['size'];
-            }
-
-            // 只把白名单内的属性从父层继承
-            const inheritFromParent = {};
-            for (const key of passKeys) {
-                if (parentComInner[key] !== undefined) {
-                    inheritFromParent[key] = parentComInner[key];
-                }
-            }
-            // comPassThrough 向下传递：当前层有定义用当前层的，否则继承父层的
-            if (localComInner.comPassThrough !== undefined) {
-                inheritFromParent.comPassThrough = localComInner.comPassThrough;
-            } else if (parentComInner.comPassThrough !== undefined) {
-                inheritFromParent.comPassThrough = parentComInner.comPassThrough;
-            }
-
-            // 清空再赋值，保持响应式（保留 validation 不被删除）
-            Object.keys(mergedComInnerInfo).forEach(k => { if (k !== 'validation') delete mergedComInnerInfo[k]; });
-            Object.assign(mergedComInnerInfo, inheritFromParent, localComInner);
-        }
-
-        recalcComInnerInfo();
-        // 监听自身 comInnerInfo 和父层 comInnerInfo 变化，重新计算
-        watch(() => [jc.options?.comInnerInfo, injectParentComInnerInfo], recalcComInnerInfo, { deep: true });
-
-        provide('comInnerInfo', mergedComInnerInfo);
         function lookupIsContainer(compName) {
             if (!injectDesignerScope || !injectDesignerScope.componentMetaList) return false;
             var list = injectDesignerScope.componentMetaList;
@@ -156,8 +144,6 @@ var comConfig = {
             }
             return false;
         }
-
-        // 璁捐鍣ㄤ笂涓嬫枃锛歞esignMode 鏃剁敱鐢诲竷 provide锛屾墍鏈?n-dynamic-com 鑺傜偣鑷姩娉ㄥ叆
         const pageCtx = inject('pageCtx', null);
         const designMode = !!(pageCtx && pageCtx.designMode);
         const designUid = (designMode && pageCtx.uidOf) ? pageCtx.uidOf(jc) : null;
@@ -174,8 +160,6 @@ var comConfig = {
         function onDesignDragover(e) { if (designMode && pageCtx.onDragOver) { e.preventDefault(); e.stopPropagation(); pageCtx.onDragOver(props.jsonconfig, e); } }
         function onDesignDrop(e) { if (designMode && pageCtx.onDrop) { e.preventDefault(); e.stopPropagation(); pageCtx.onDrop(props.jsonconfig, e); } }
         function onDesignDragleave(e) { if (designMode && pageCtx.onDragLeave) { e.stopPropagation(); pageCtx.onDragLeave(props.jsonconfig, e); } }
-
-        // 空容器在设计态加占位 class
         const designRootClass = computed(() => {
             if (!designMode) return "";
             var c = jc.component || "";
@@ -186,7 +170,6 @@ var comConfig = {
         let parentModelPrefixVal = injectParentModelPrefix;
         let parentDefaultLabelOpts = injectParentDefaultLabelOptions;
         let parentUiGlobal = injectUiGlobalProps;
-
         if (!parentModelPrefixVal && dyn) {
             const hostEl = dyn.findAncestor(context.root?.el, '[data-dyn-mode="createApp"]');
             if (hostEl && hostEl.__dynUiMeta) {
@@ -196,49 +179,33 @@ var comConfig = {
                 parentUiGlobal = meta.uiGlobalProps;
             }
         }
-
         const effectivePatch = reactive({
             shell: null,
             labeloptions: null,
             comoptions: null
         });
-
         const shellShow = computed(() => effectivePatch.shell?.show ?? true);
         const shellClass = computed(() => effectivePatch.shell?.class ?? []);
         const shellStyle = computed(() => effectivePatch.shell?.style ?? {});
-
+        // 从合并穿透后的 options 获取 labelOptions
         const originMergedLabelOpts = computed(() => {
-            const base = mergeLabelOptions(jc.options.labeloptions, parentDefaultLabelOpts);
-            // 从 comInnerInfo 穿透 labelPosition / labelWidth（容器配置，子组件未单独设置时生效）
-            if (mergedComInnerInfo.labelPosition && !jc.options.labeloptions?.labelPosition) {
-                base.labelPosition = mergedComInnerInfo.labelPosition;
-            }
-            if (mergedComInnerInfo.labelWidth && !jc.options.labeloptions?.labelWidth) {
-                base.labelWidth = mergedComInnerInfo.labelWidth;
-            }
+            const base = mergeLabelOptions(mergedOptions.value.labeloptions, parentDefaultLabelOpts);
             return base;
         });
         const finalLabelOptions = computed(() => mergePatch(originMergedLabelOpts.value, effectivePatch.labeloptions));
         const finalComOptions = computed(() => {
-            const base = mergePatch(jc.options.comoptions, effectivePatch.comoptions);
-            // 从合并后的 comInnerInfo 穿透 size（容器设置的 size 会被子组件继承）
-            if (mergedComInnerInfo.size && !base.size) {
-                base.size = mergedComInnerInfo.size;
-            }
+            const base = mergePatch(mergedOptions.value.comoptions, effectivePatch.comoptions);
             return base;
         });
         // 自动把穿透来的 size 同步到 jc.options.comoptions.size，让所有 v-bind="jc.options.comoptions" 的组件模板自动生效
-        watch(() => mergedComInnerInfo.size, (newSize) => {
+        watch(() => mergedOptions.value.comoptions.size, (newSize) => {
             if (newSize && !jc.options.comoptions.size) {
                 jc.options.comoptions.size = newSize;
             }
         }, { immediate: true });
         const originUiGlobalMerged = computed(() => Object.assign({}, parentUiGlobal || {}, jc.options.uiGlobalProps));
-
         @RenderSection("setupScripts", false)
-
         const fullModelName = computed(() => {
-            // 透明渲染器（n-dynamic-com）：直接透传 inject 的 prefix，不根据 jc.modelname 计算
             if (comExtra.transparentMode) {
                 return parentModelPrefixVal || '';
             }
@@ -255,13 +222,22 @@ var comConfig = {
             }
             return raw;
         });
-
         provide('parentModelPrefix', fullModelName.value);
-
+        // 【重要】容器组件需要向下继续传递穿透配置，实现链式穿透
+        // 如果当前是容器组件，则把自己合并后的配置继续provide给子
+        if(lookupIsContainer(jc.component)){
+            const passValues = reactive({
+                comOptions: mergedOptions.value.comoptions,
+                labelOptions: mergedOptions.value.labeloptions
+            });
+            provide('comExtraPass', {
+                passValues
+            });
+            comExtra.passValues = passValues;
+        }
         const innerValue = ref(DVALUE);
         function getByPath(obj, path) { return !obj || !path ? undefined : _.get(obj, path); }
         function setByPath(obj, path, value) { if (!obj || !path) return; _.set(obj, path, value); }
-
         const modelinfo = computed({
             get() {
                 if (props.parentmodelinfo && fullModelName.value) {
@@ -279,7 +255,6 @@ var comConfig = {
                 if (comInnerInfo.validation.touched) validate();
             }
         });
-
         function validate() {
             const rules = jc.validators || [];
             const val = modelinfo.value;
@@ -304,32 +279,29 @@ var comConfig = {
                 };
                 const fn = validatorsMap[rule.type];
                 if (!fn) continue;
-                if (!fn(val, rule.value)) errors.push(rule.message || `楠岃瘉澶辫触: ${rule.type}`);
+                if (!fn(val, rule.value)) errors.push(rule.message || `验证失败: ${rule.type}`);
             }
             comInnerInfo.validation.valid = errors.length === 0;
             comInnerInfo.validation.errors = errors;
             comInnerInfo.validation.touched = true;
             return comInnerInfo.validation.valid;
         }
-
         function resetValidation() {
             comInnerInfo.validation.valid = true;
             comInnerInfo.validation.errors = [];
             comInnerInfo.validation.touched = false;
         }
-
+        provide('comInnerInfo', comInnerInfo);
         provide('component_validate', validate);
         provide('component_resetValidation', resetValidation);
-
         watch(modelinfo, () => {
             effectivePatch.shell = null;
             effectivePatch.labeloptions = null;
             effectivePatch.comoptions = null;
-
             const scriptText = jc.options?.evalCondition;
             if (!scriptText) return;
             if (window.DYN_LIB_CONFIG?.disableEvalJs) {
-                console.warn("[BaseLayout] evalCondition宸插叏灞€鍏抽棴");
+                console.warn("[BaseLayout] evalCondition全局关闭");
                 return;
             }
             try {
@@ -348,10 +320,9 @@ var comConfig = {
                     effectivePatch.comoptions = ret.comoptions ?? null;
                 }
             } catch (e) {
-                console.error("[evalCondition鑴氭湰鎵ц寮傚父]", e, scriptText);
+                console.error("[evalCondition脚本执行异常]", e, scriptText);
             }
         }, { deep: true });
-
         function getSlot(slotName) {
             if (context.slots[slotName]) {
                 return context.slots[slotName];
@@ -359,9 +330,7 @@ var comConfig = {
             const slotDef = jc.slots?.[slotName];
             return slotDef ?? null;
         }
-
         const safeChildren = computed(() => (jc.childrenctrls || []).filter(c => c && typeof c === 'object'));
-
         var _sortableIns = null;
         var _instance = getCurrentInstance();
         onMounted(() => {
@@ -373,7 +342,7 @@ var comConfig = {
                     uiGlobalProps: originUiGlobalMerged.value
                 };
             }
-            // 设计模式下，容器组件初始化 Sortable
+  			// 设计模式下，容器组件初始化 Sortable
             nextTick(() => {
             if (designMode && window.DesignerSortable && rootEl) {
                 var compName = jc.component || "";
@@ -392,7 +361,6 @@ var comConfig = {
         onBeforeUnmount(() => {
             if (_sortableIns) window.DesignerSortable.destroy(_sortableIns);
         });
-
         return {
             jc,
             modelinfo,

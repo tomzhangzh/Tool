@@ -39,7 +39,7 @@
             return;
           }
           try {
-            this.jsonText = JSON.stringify(cur, null, 2);
+            this.jsonText = JSON.stringify(window.DynDesignerOps.cleanJson(cur), null, 2);
             this.errorMsg = '';
           } catch (e) {
             this.jsonText = '{}';

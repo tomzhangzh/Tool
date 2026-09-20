@@ -1,7 +1,7 @@
 ﻿@* 右侧属性面板：基础(含控件类型+组件属性) / 布局样式 / 校验 / 高级 *@
 <aside class="w-80 shrink-0 bg-white border-l border-gray-200 flex flex-col min-h-0"
        data-dyn-init-createapp data-dyn-use-scope="designer">
-  <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
+<div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
     <span class="font-semibold text-gray-700">属性配置</span>
   </div>
 
@@ -14,8 +14,7 @@
 
     <el-tabs v-model="propTab" class="flex-1 overflow-hidden flex flex-col" size="small" type="border-card">
       @* ===== 基础：控件类型 + 通用字段 + 组件属性(comProps动态渲染) ===== *@
-      <el-tab-pane label="基础" name="base" class="overflow-y-auto">
-        <el-form size="small" label-position="left" label-width="90px" class="p-3">
+      <el-tab-pane label="基础" name="base" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3">
           @* 控件类型（可切换组件） *@
           <el-form-item label="控件类型">
             <el-select v-model="model.current.component" size="small" filterable @@change="onComponentTypeChange">
@@ -48,24 +47,23 @@
       </el-tab-pane>
 
       @* ===== 布局样式 ===== *@
-      <el-tab-pane label="布局样式" name="style" class="overflow-y-auto">
-        <el-form size="small" label-position="left" label-width="90px" class="p-3">
+      <el-tab-pane label="布局样式" name="style" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3">
           <el-form-item label="Label对齐">
-            <el-select v-model="model.current.options.comInnerInfo.labelPosition" size="small" clearable>
-              <el-option label="左对齐" value="left"></el-option>
-              <el-option label="右对齐" value="right"></el-option>
-              <el-option label="顶部" value="top"></el-option>
-            </el-select>
+            <el-radio-group v-model="model.current.options.labeloptions.labelPosition" size="small">
+              <el-radio value="left">左</el-radio>
+              <el-radio value="right">右</el-radio>
+              <el-radio value="top">上</el-radio>
+            </el-radio-group>
           </el-form-item>
           <el-form-item label="Label宽度">
             <el-input v-model="model.current.options.labeloptions.labelWidth" size="small" placeholder="auto / 100px"></el-input>
           </el-form-item>
           <el-form-item label="子控件尺寸">
-            <el-select v-model="model.current.options.comInnerInfo.size" size="small" clearable>
-              <el-option label="默认" value="default"></el-option>
-              <el-option label="大号" value="large"></el-option>
-              <el-option label="小号" value="small"></el-option>
-            </el-select>
+            <el-radio-group v-model="model.current.options.comInnerInfo.size" size="small">
+              <el-radio value="default">默认</el-radio>
+              <el-radio value="large">大</el-radio>
+              <el-radio value="small">小</el-radio>
+            </el-radio-group>
           </el-form-item>
           <el-form-item label="组件宽度">
             <el-input v-model="model.current.options.itemoptions.style.width" size="small" placeholder="100%"></el-input>
@@ -97,8 +95,7 @@
       </el-tab-pane>
 
       @* ===== 校验 ===== *@
-      <el-tab-pane label="校验" name="validate" class="overflow-y-auto">
-        <el-form size="small" label-position="left" label-width="90px" class="p-3">
+      <el-tab-pane label="校验" name="validate" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3">
           <el-form-item label="必填校验">
             <el-switch :model-value="!!validators[0] && validators[0].type === 'required'"
                        @@change="onRequiredChange($event)" size="small"></el-switch>
@@ -118,22 +115,67 @@
 
   <script tag="dynconfig">
   var dynConfig = {
-    data: function () { return { propTab: 'base', comPropsActive: ['comAttr'], styleJsonError: '', componentMetaList: [] }; },
+        data: function () { return { propTab: 'base', comPropsActive: ['comAttr'], styleJsonError: '', componentMetaList: [], _sameAsScope: '?', lp: '', fs: '', lw: '' } },
+    setup: function(props) { return {}; },
 
     mounted: function () {
       var self = this;
-      // 从共享scope同步componentMetaList，确保响应式
       var root = document.querySelector('[data-dyn-shared-scope="designer"]');
       var scope = window.dyn.getScopeModel(root);
-      if (scope.componentMetaList) {
-        self.componentMetaList = scope.componentMetaList;
-      }
-      // 监听current变化，强制刷新组件属性
-      this.$watch(function(){ return self.model && self.model.current && self.model.current.component; }, function(){
+      self._sameAsScope = (self.model === scope) ? 'YES' : 'NO';
+      if (scope.componentMetaList) { self.componentMetaList = scope.componentMetaList; }
+      function syncStyleProps() {
+        var cur = scope.current;
+        if (cur) {
+          if (!cur.labelOptions) cur.labelOptions = {};
+          if (!cur.options) cur.options = {};
+          if (!cur.options.comInnerInfo) cur.options.comInnerInfo = {};
+          self.lp = cur.labelOptions.labelPosition || "";
+          self.lw = cur.labelOptions.labelWidth || "";
+      }}
+      syncStyleProps();
+      this.$watch(function(){ return scope.current && scope.current.component; }, function(){
+        syncStyleProps();
         self.$forceUpdate();
       });
+      // 深度监听 labelPosition 变化，强制刷新 el-select
+      this.$watch(function(){ try { return scope.current.labelOptions.labelPosition; } catch(e) { return undefined; } }, function(){ syncStyleProps(); });
+      this.$watch(function(){ try { return scope.current.options.comInnerInfo.size; } catch(e) { return undefined; } }, function(){ syncStyleProps(); });
+      this.$watch(function(){ try { return scope.current.labelOptions.labelWidth; } catch(e) { return undefined; } }, function(){ syncStyleProps(); });
+      this.$watch("lp", function(v) { var cur = scope.current; if(cur) { if(!cur.labelOptions) cur.labelOptions = {}; cur.labelOptions.labelPosition = v; } });
+      this.$watch("fs", function(v) { var cur = scope.current; if(cur && cur.options) { if(!cur.options.comInnerInfo) cur.options.comInnerInfo = {}; cur.options.comInnerInfo.size = v; } });
+      this.$watch("lw", function(v) { var cur = scope.current; if(cur) { if(!cur.labelOptions) cur.labelOptions = {}; cur.labelOptions.labelWidth = v; } });
+    },
+    methods: {
+      onLpChange: function(v) { console.log('[onLpChange]', v);
+        this.lp = v;
+        var cur = this.model && this.model.current;
+        if (cur && cur.options) { if(!cur.options.comInnerInfo) cur.options.comInnerInfo = {}; cur.options.comInnerInfo.labelPosition = v; }
+      },
+      onFsChange: function(v) {
+        this.fs = v;
+        var cur = this.model && this.model.current;
+        if (cur && cur.options) { if(!cur.options.comInnerInfo) cur.options.comInnerInfo = {}; cur.options.comInnerInfo.size = v; }
+      },
+      onLwChange: function(v) {
+        this.lw = v;
+        var cur = this.model && this.model.current;
+        if (cur && cur.options && cur.options.labeloptions) cur.options.labeloptions.labelWidth = v;
+      }
     },
     computed: {
+      labelPosition: {
+        get: function() { return this.model.current?.options?.comInnerInfo?.labelPosition; },
+        set: function(v) { console.log('[labelPosition set]', v, 'model.current?', !!this.model.current, 'options?', !!this.model.current?.options); if(this.model.current?.options) { if(!this.model.current.options.comInnerInfo) this.model.current.options.comInnerInfo = {}; this.model.current.options.comInnerInfo.labelPosition = v; } }
+      },
+      formSize: {
+        get: function() { return this.model.current?.options?.comInnerInfo?.size; },
+        set: function(v) { if(this.model.current?.options) { if(!this.model.current.options.comInnerInfo) this.model.current.options.comInnerInfo = {}; this.model.current.options.comInnerInfo.size = v; } }
+      },
+      labelWidth: {
+        get: function() { return this.model.current?.options?.labeloptions?.labelWidth; },
+        set: function(v) { if(this.model.current?.options?.labeloptions) this.model.current.options.labeloptions.labelWidth = v; }
+      },
       validators: function () {
         if (!this.model.current.validators) this.model.current.validators = [];
         if (!this.model.current.validators.length) this.model.current.validators.push({});

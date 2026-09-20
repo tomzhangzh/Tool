@@ -4,9 +4,9 @@
 
 <template>
 <el-form :model="formModel"
-             :label-width="jc.options.comoptions.labelWidth || jc.options.labeloptions.labelWidth || '100px'"
-             :inline="!!jc.options.comoptions.inline"
-             :label-position="jc.options.comoptions.labelPosition || 'right'"
+             :label-width="jc.options?.comoptions?.labelWidth || jc.options?.labeloptions?.labelWidth || '100px'"
+             :inline="!!jc.options?.comoptions?.inline"
+             :label-position="jc.options?.options.labeloptions?.labelPosition || 'right'"
              :style="getStyle(jc.options.itemoptions)"
              :class="getClass(jc.options.itemoptions)">
         <div class="dyn-children-wrap" :class="designRootClass"><n-dynamic-com v-for="(child, idx) in safeChildren"

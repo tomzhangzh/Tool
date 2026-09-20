@@ -118,6 +118,9 @@
     scope.selectedUid = cfg ? uidOf(cfg) : '';
     scope.pathList = getPathList(scope.pageJson, cfg);
     if (cfg) {
+      // 确保 options.comInnerInfo 存在，右侧面板 v-model 才能正确绑定
+      if (!cfg.options) cfg.options = {};
+      if (!cfg.options.comInnerInfo) cfg.options.comInnerInfo = {};
       const m = metaOf(cfg.component);
       scope.overlay.label = m.Label || cfg.component;
     }
@@ -334,10 +337,39 @@
     return [walk(root)];
   }
 
+  // 清理 JSON 中的空值：删除 {}、[]、null、""、undefined 的字段
+  function cleanJson(obj) {
+    if (obj === null || obj === undefined) return undefined;
+    if (Array.isArray(obj)) {
+      const arr = obj.map(cleanJson).filter(v => v !== undefined);
+      return arr.length ? arr : undefined;
+    }
+    if (typeof obj === 'object') {
+      const result = {};
+      for (const key in obj) {
+        // 跳过内部字段
+        if (key === '__uid' || key === '__dynId') continue;
+        const v = cleanJson(obj[key]);
+        if (v !== undefined) result[key] = v;
+      }
+      // 跳过空对象
+      const keys = Object.keys(result);
+      return keys.length ? result : undefined;
+    }
+    // 字符串空值跳过
+    if (typeof obj === 'string' && obj === '') return undefined;
+    return obj;
+  }
+
+  function getCleanJson(scope) {
+    return cleanJson(scope.pageJson);
+  }
+
   global.DynDesignerOps = {
     uidOf, metaOf, isContainer, checkCanDrop, findNode, findParent, getPathList,
     defaultCfg, select, updateOverlay,
     onDragStartMeta, onDragStartCfg, onDragOver, onDragLeave, onDrop, dropToRoot, clearDrag,
-    moveSelected, duplicateSelected, removeSelected, buildTreeData
+    moveSelected, duplicateSelected, removeSelected, buildTreeData,
+    cleanJson, getCleanJson
   };
 })(window);

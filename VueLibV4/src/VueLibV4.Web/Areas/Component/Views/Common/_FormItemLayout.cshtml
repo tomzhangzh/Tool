@@ -5,17 +5,14 @@
     <div v-if="shellShow"
          :class="[...getClass(jc.options.itemoptions), ...shellClass, formItemRootClass]"
          :style="[getStyle(jc.options.itemoptions), shellStyle, formItemRootStyle]">
-
         <label v-if="finalLabelOptions.show !== false"
                class="el-form-item__label"
                :style="labelStyle"
                :class="{ 'is-required': finalLabelOptions.required }">
             {{ finalLabelOptions.label }}
         </label>
-
         <div class="el-form-item__content" :style="contentStyle">
             @RenderBody()
-
             <div v-if="comInnerInfo.validation && !comInnerInfo.validation.valid && comInnerInfo.validation.touched && comInnerInfo.validation.errors && comInnerInfo.validation.errors.length"
                  class="el-form-item__error">
                 <div v-for="err in comInnerInfo.validation.errors" :key="err">{{err}}</div>
@@ -23,22 +20,22 @@
         </div>
     </div>
 </template>
-
 @section setupScripts{
     @RenderSection("setupScripts", false)
-
     // 布局方向从 finalLabelOptions.labelPosition 读取（已合并容器穿透的 comInnerInfo）
     const labelPos = computed(() => finalLabelOptions.value?.labelPosition || 'top');
 
     const formItemRootClass = computed(() => ({
-        'dyn-form-item--horizontal': labelPos.value === 'left',
-        'dyn-form-item--vertical': labelPos.value === 'top' || labelPos.value === 'right'
+        'dyn-form-item--horizontal': labelPos.value === 'left' || labelPos.value === 'right',
+        'dyn-form-item--vertical': labelPos.value === 'top'
     }));
 
     const formItemRootStyle = computed(() => {
-        if (labelPos.value === 'left') {
+        if (labelPos.value === 'left' || labelPos.value === 'right') {
+            // 标签在左：label + 内容
             return { display: 'flex', alignItems: 'flex-start' };
-        }
+        } 
+        // top 垂直布局
         return { display: 'block' };
     });
 
@@ -51,7 +48,16 @@
                 paddingRight: '12px',
                 lineHeight: '32px'
             };
+        } else if (labelPos.value === 'right') {
+            return {
+                width: finalLabelOptions.value?.labelWidth || 'auto',
+                flexShrink: '0',
+                textAlign: 'left',
+                paddingLeft: '12px',
+                lineHeight: '32px'
+            };
         }
+        // top
         return {
             width: '100%',
             display: 'block',
@@ -61,7 +67,7 @@
     });
 
     const contentStyle = computed(() => {
-        if (labelPos.value === 'left') {
+        if (labelPos.value === 'left' || labelPos.value === 'right') {
             return { flex: '1', minWidth: '0' };
         }
         return { width: '100%' };
