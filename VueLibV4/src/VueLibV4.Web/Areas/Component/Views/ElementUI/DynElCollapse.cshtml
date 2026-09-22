@@ -1,7 +1,7 @@
-@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
 
 <template>
-<el-collapse v-bind="jc.options.comoptions" v-on="getComlisteners()"
+<el-collapse v-bind="comBind" v-on="getComlisteners()"
                  :style="getStyle(jc.options.itemoptions)"
                  :class="getClass(jc.options.itemoptions)">
         <n-dynamic-com v-for="(child, idx) in safeChildren"

@@ -1,4 +1,4 @@
-@{
+﻿@{
     Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
 }
-<el-input v-model="modelinfo" type="textarea" :rows="jc.options.comoptions.rows || 4" v-bind="jc.options.comoptions" v-on="getComlisteners()"></el-input>
+<el-input v-model="modelinfo" type="textarea" :rows="jc.options.comoptions.rows || 4" v-bind="comBind" v-on="getComlisteners()"></el-input>

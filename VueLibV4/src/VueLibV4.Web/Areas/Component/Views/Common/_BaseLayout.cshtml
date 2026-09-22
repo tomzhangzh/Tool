@@ -11,6 +11,12 @@ var comConfig = {
         const _ = window._;
         const inst = Vue.getCurrentInstance();
         const dyn = inst?.proxy?.$dyn;
+        /**
+         * 组件【配置契约】默认结构：可序列化、会落库为 JSON（PageSetting.ConfigJson）。
+         * 键名约定一律全小写无分隔（comoptions/labeloptions/itemoptions/modelname/...），
+         * 与 SQL 种子、PageGen 生成器、设计器属性面板保持一致；勿新增驼峰配置键。
+         * 运行时状态/方法不入此结构，统一走下方 comExtra 扩展槽。
+         */
         const defaults = {
             component: null,
             modelname: null,
@@ -20,14 +26,25 @@ var comConfig = {
                 labeloptions: { label: '', required: false, show: true },
                 itemoptions: { style: {}, class: '' },
                 wrapperoptions: {},
+                // 父→子属性穿透白名单（逗号分隔的配置点路径，全小写契约）；
+                // 容器把自身 comoptions/labeloptions 向下 provide，子组件仅继承在此声明且自身未显式配置的路径
+                compassthrough: "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
                 uiGlobalProps: { size: undefined, disabled: undefined },
-                defaultLabelOptions: { labelWidth: "auto", requiredMark: true },
+                defaultLabelOptions: { labelwidth: "auto", requiredmark: true },
                 evalCondition: ""
             },
             validators: [],
             childrenctrls: [],
             slots: {},
             extendinfo: {}
+        };
+        // comoptions 中的"数据源私有键"：仅用于 loadComOptions 解析选项，
+        // 不得随 v-bind 透传到 Element 组件根节点（否则泄漏为 optionvalues=... 等无效 attribute）
+        const COM_OPTION_PRIVATE_KEYS = {
+            sourceType: 1, optionValues: 1, optionValuesText: 1, dictType: 1,
+            projectId: 1, table: 1, valueField: 1, textField: 1,
+            parentField: 1, parentValuePath: 1, parentValue: 1,
+            url: 1, valueKey: 1, labelKey: 1
         };
         function deepMerge(target, ...sources) {
             return _.mergeWith(target, ...sources, (objValue, srcValue) => {
@@ -43,15 +60,43 @@ var comConfig = {
         if (!jc.options.comoptions) jc.options.comoptions = {};
         if (!jc.options.labeloptions) jc.options.labeloptions = { label: "", required: false, show: true };
         if (!jc.options.itemoptions) jc.options.itemoptions = { style: {}, class: "" };
-        if (!jc.options.comInnerInfo) jc.options.comInnerInfo = {};
+        // === 旧命名兼容迁移（配置键全小写契约，原地修改；旧键迁移后删除，设计器保存即净化）===
+        // ① 驼峰选项组与全小写组本是同一物：仅补齐缺失键后删除旧组
+        // ② comInnerInfo 曾被误用作布局/尺寸配置槽（运行时实际不读）：size→comoptions.size，
+        //    labelPosition/labelWidth→labeloptions 全小写，comPassThrough→compassthrough
+        // ③ labeloptions 内驼峰子键 → 全小写
+        (function _migrateLegacyOptions(o) {
+            if (!o || typeof o !== 'object') return;
+            if (o.comOptions && typeof o.comOptions === 'object') {
+                Object.keys(o.comOptions).forEach(function (k) { if (!(k in o.comoptions)) o.comoptions[k] = o.comOptions[k]; });
+                delete o.comOptions;
+            }
+            if (o.labelOptions && typeof o.labelOptions === 'object') {
+                if (!o.labeloptions) o.labeloptions = {};
+                Object.keys(o.labelOptions).forEach(function (k) { if (!(k in o.labeloptions)) o.labeloptions[k] = o.labelOptions[k]; });
+                delete o.labelOptions;
+            }
+            var lo = o.labeloptions;
+            if (lo) {
+                if ('labelPosition' in lo) { if (!('labelposition' in lo)) lo.labelposition = lo.labelPosition; delete lo.labelPosition; }
+                if ('labelWidth' in lo) { if (!('labelwidth' in lo)) lo.labelwidth = lo.labelWidth; delete lo.labelWidth; }
+            }
+            var ci = o.comInnerInfo;
+            if (ci && typeof ci === 'object') {
+                if (ci.size != null && o.comoptions.size == null) o.comoptions.size = ci.size;
+                if (lo) {
+                    if (ci.labelPosition != null && lo.labelposition == null) lo.labelposition = ci.labelPosition;
+                    if (ci.labelWidth != null && lo.labelwidth == null) lo.labelwidth = ci.labelWidth;
+                }
+                if (ci.comPassThrough && !o.compassthrough) o.compassthrough = ci.comPassThrough;
+                delete o.comInnerInfo;
+            }
+        })(jc.options);
+        if (!jc.options.compassthrough) jc.options.compassthrough = defaults.options.compassthrough;
         if (!Array.isArray(jc.childrenctrls)) jc.childrenctrls = [];
         if (!Array.isArray(jc.validators)) jc.validators = [];
         if (!jc.slots) jc.slots = {};
         if (!jc.extendinfo) jc.extendinfo = {};
-        // labelOptions 顶层配置（新结构）；兼容旧的 jc.options.labeloptions
-        if (!jc.options.labeloptions) {
-          jc.options.labeloptions = Object.assign({}, jc.options.labeloptions || {});
-        }
         function mergePatch(origin, patch) {
             const res = Object.assign({}, origin);
             if (!patch || typeof patch !== "object") return res;
@@ -91,7 +136,18 @@ var comConfig = {
             options: []
         });
         let DVALUE = null;
-        let comExtra = {};
+        /**
+         * comExtra —— 组件【运行时扩展槽】（组件私有成员的唯一合法出口）
+         * 与上方 defaults / jc.options 的分工：
+         *   - jc.options 是可序列化【配置契约】，落库为 PageSetting.ConfigJson，只放纯数据；
+         *   - comExtra 只放运行时态：ref / reactive / computed / 方法，
+         *     例如 DynTable 的 rows/total/loadList、FormItem 的 labelPos/labelStyle。
+         * 用法：各组件在 setupScripts 内 Object.assign(comExtra, { ... }) 暴露，
+         * 基座 return 时统一展开到模板（模板内直接以 rows、loadList 等名字访问）。
+         * 约束：① 只许 Object.assign / 点赋值，不许整体重赋值；
+         *       ② 禁止把 ref/函数挂进 jc.options；③ 不参与设计器 JSON 导出。
+         */
+        const comExtra = {};
 
         // ============ 选项数据源公共能力（DynSelect/ComSelect/Radio/Checkbox 共用） ============
         /** 把任意形态（字符串或 {value,label}）归一为 {value,label}，支持 valueKey/labelKey 映射 */
@@ -205,8 +261,8 @@ var comConfig = {
             }
             return opts;
         }
-        // 白名单，支持逗号连续空项
-        comExtra.comPassThrough = "comOptions.size,labelOptions.css,labelOptions.style";
+        // 穿透白名单：来自组件持久化配置 options.compassthrough（见 defaults），不再写死
+        comExtra.comPassThrough = jc.options.compassthrough;
         // 注入父穿透数据源
         const parentPassSource = inject('comExtraPass', null);
         // 合并本地配置 + 上层穿透
@@ -289,6 +345,14 @@ var comConfig = {
                 jc.options.comoptions.size = newSize;
             }
         }, { immediate: true });
+        // 模板统一 v-bind="comBind"：与 jc.options.comoptions 同源（穿透 size 已由上方 watch 回写），
+        // 但剔除选项数据源私有键，避免泄漏到 Element 组件根节点
+        comExtra.comBind = computed(() => {
+            const co = jc.options.comoptions || {};
+            const o = {};
+            Object.keys(co).forEach(function (k) { if (!COM_OPTION_PRIVATE_KEYS[k]) o[k] = co[k]; });
+            return o;
+        });
         const originUiGlobalMerged = computed(() => Object.assign({}, parentUiGlobal || {}, jc.options.uiGlobalProps));
         @RenderSection("setupScripts", false)
         const fullModelName = computed(() => {
@@ -309,18 +373,8 @@ var comConfig = {
             return raw;
         });
         provide('parentModelPrefix', fullModelName.value);
-        // 【重要】容器组件需要向下继续传递穿透配置，实现链式穿透
-        // 如果当前是容器组件，则把自己合并后的配置继续provide给子
-        if(lookupIsContainer(jc.component)){
-            const passValues = reactive({
-                comOptions: mergedOptions.value.comoptions,
-                labelOptions: mergedOptions.value.labeloptions
-            });
-            provide('comExtraPass', {
-                passValues
-            });
-            comExtra.passValues = passValues;
-        }
+        // 父→子穿透数据源 comExtraPass 由容器布局（_ContainerLayout）统一 provide，
+        // 与是否处于设计器画布无关，保证属性面板/运行时/设计器三处穿透一致。
         const innerValue = ref(DVALUE);
         function getByPath(obj, path) { return !obj || !path ? undefined : _.get(obj, path); }
         function setByPath(obj, path, value) { if (!obj || !path) return; _.set(obj, path, value); }

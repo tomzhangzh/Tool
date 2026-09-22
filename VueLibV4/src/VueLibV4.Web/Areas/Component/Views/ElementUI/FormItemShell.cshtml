@@ -3,16 +3,16 @@
 }
 
 <template>
-@* 属性框条目外壳（组合组件 DynPropItem 展开后渲染 el-form-item）：
-   label/required/labelWidth 读 comoptions（开放属性合并结果），children 渲染控件槽 *@
+@* 属性框条目外壳（组合组件展开后渲染 el-form-item）：
+   label/required/labelwidth 统一读 labeloptions（全小写契约），children 渲染控件槽 *@
 <div class="el-form-item"
      :class="[{'is-error': !comInnerInfo.validation.valid && comInnerInfo.validation.touched}, getClass(jc.options.itemoptions)]"
      :style="getStyle(jc.options.itemoptions)">
     <label v-if="jc.options.labeloptions.show !== false"
            class="el-form-item__label"
-           :style="{ width: jc.options.comoptions.labelWidth || '110px' }"
-           :class="{ 'is-required': jc.options.comoptions.required }">
-        {{ jc.options.comoptions.label || '' }}
+           :style="{ width: jc.options.labeloptions.labelwidth || '110px' }"
+           :class="{ 'is-required': jc.options.labeloptions.required }">
+        {{ jc.options.labeloptions.label || '' }}
     </label>
     <div class="el-form-item__content">
         <n-dynamic-com v-for="(child, idx) in safeChildren" :key="idx"

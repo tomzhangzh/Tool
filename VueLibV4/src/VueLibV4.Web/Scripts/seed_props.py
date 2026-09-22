@@ -5,14 +5,15 @@ cur = conn.cursor()
 
 def item(modelname, label, kind, default, extra=None):
     """Create a form item bound to modelname with the given control kind"""
-    comoptions = {"label": label, "showLabel": True, "labelWidth": "80px"}
+    labeloptions = {"label": label, "show": True, "labelwidth": "80px"}
     child_opts = {"kind": kind, "default": default}
     if extra: child_opts.update(extra)
     return {
         "component": "DynElFormItem",
         "modelname": modelname,
         "options": {
-            "comoptions": comoptions,
+            "comoptions": {},
+            "labeloptions": labeloptions,
             "itemoptions": {"style": {"marginBottom": "8px"}}
         },
         "childrenctrls": [{

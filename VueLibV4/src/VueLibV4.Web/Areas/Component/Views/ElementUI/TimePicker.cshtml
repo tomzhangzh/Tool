@@ -1,6 +1,6 @@
-@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-time-picker v-model="modelinfo" v-bind="jc.options.comoptions" v-on="getComlisteners()"></el-time-picker>
+<el-time-picker v-model="modelinfo" v-bind="comBind" v-on="getComlisteners()"></el-time-picker>
 
 
 

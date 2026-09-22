@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
 }
 <template>
@@ -22,8 +22,8 @@
 </template>
 @section setupScripts{
     @RenderSection("setupScripts", false)
-    // 布局方向从 finalLabelOptions.labelPosition 读取（已合并容器穿透的 comInnerInfo）
-    const labelPos = computed(() => finalLabelOptions.value?.labelPosition || 'top');
+    // 布局方向从 finalLabelOptions.labelposition 读取（已合并容器穿透值）
+    const labelPos = computed(() => finalLabelOptions.value?.labelposition || 'top');
 
     const formItemRootClass = computed(() => ({
         'dyn-form-item--horizontal': labelPos.value === 'left' || labelPos.value === 'right',
@@ -42,7 +42,7 @@
     const labelStyle = computed(() => {
         if (labelPos.value === 'left') {
             return {
-                width: finalLabelOptions.value?.labelWidth || 'auto',
+                width: finalLabelOptions.value?.labelwidth || 'auto',
                 flexShrink: '0',
                 textAlign: 'right',
                 paddingRight: '12px',
@@ -50,7 +50,7 @@
             };
         } else if (labelPos.value === 'right') {
             return {
-                width: finalLabelOptions.value?.labelWidth || 'auto',
+                width: finalLabelOptions.value?.labelwidth || 'auto',
                 flexShrink: '0',
                 textAlign: 'left',
                 paddingLeft: '12px',

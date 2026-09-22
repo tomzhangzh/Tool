@@ -30,6 +30,17 @@ provide('ui_global_props', finalUiGlobalProps.value);
 // 向下透传label默认配置
 provide('defaultLabelOptions', jc.options.defaultLabelOptions);
 
+// 父→子属性穿透：把本容器【合并后】的 comoptions/labeloptions 作为数据源 provide。
+// 子组件按自身 options.compassthrough 白名单，仅继承自己未显式配置的路径。
+// 用 getter 跟随 mergedOptions，确保容器配置变化或多级链式穿透时始终取到最新值；
+// 不依赖设计器 metaList，属性面板/运行时/画布行为一致。
+provide('comExtraPass', {
+    get passValues() {
+        const mo = mergedOptions.value || {};
+        return { comoptions: mo.comoptions, labeloptions: mo.labeloptions };
+    }
+});
+
 comExtra.finalUiGlobalProps = finalUiGlobalProps;
  @RenderSection("setupScripts", false)
 }

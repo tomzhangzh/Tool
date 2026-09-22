@@ -16,7 +16,8 @@ def fi(modelname, label, kind, default, extra=None):
     return {
         "component": "DynElFormItem",
         "modelname": modelname,
-        "options": {"comoptions": {"label": label, "showLabel": True, "labelWidth": "80px"},
+        "options": {"comoptions": {},
+                    "labeloptions": {"label": label, "show": True, "labelwidth": "80px"},
                     "itemoptions": {"style": {"marginBottom": "8px"}}},
         "childrenctrls": [{
             "component": comp_map.get(kind, "DynElInput"),
@@ -34,15 +35,15 @@ def container(items):
 
 # 通用容器配置（label对齐、label宽度、size）
 common_container_items = [
-    fi("options.comInnerInfo.labelPosition", "Label对齐", "select", "right", {
+    fi("options.labeloptions.labelposition", "Label对齐", "select", "right", {
         "optionValues": [
             {"label": "左对齐", "value": "left"},
             {"label": "右对齐", "value": "right"},
             {"label": "顶部", "value": "top"},
         ]
     }),
-    fi("options.comInnerInfo.labelWidth", "Label宽度", "input", "100px"),
-    fi("options.comInnerInfo.size", "子控件尺寸", "select", "default", {
+    fi("options.labeloptions.labelwidth", "Label宽度", "input", "100px"),
+    fi("options.comoptions.size", "子控件尺寸", "select", "default", {
         "optionValues": [
             {"label": "默认", "value": "default"},
             {"label": "大号", "value": "large"},
@@ -69,7 +70,7 @@ configs = {
     "DynElContainer": container(common_container_items),
     "DynForm": container(common_container_items + [
         fi("options.comoptions.inline", "行内表单", "switch", False),
-        fi("options.comoptions.labelWidth", "表单Label宽度", "input", "100px"),
+        fi("options.labeloptions.labelwidth", "表单Label宽度", "input", "100px"),
     ]),
 }
 

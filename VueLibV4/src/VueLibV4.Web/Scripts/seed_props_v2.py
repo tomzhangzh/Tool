@@ -19,7 +19,7 @@ def prop(modelname, label, kind, default, extra=None):
         "modelname": modelname,
         "options": {
             "comoptions": child_opts,
-            "labeloptions": {"label": label, "show": True, "required": False, "labelWidth": "80px"},
+            "labeloptions": {"label": label, "show": True, "required": False, "labelwidth": "80px"},
             "itemoptions": {"style": {"marginBottom": "12px"}}
         },
         "childrenctrls": []
@@ -37,15 +37,15 @@ def container(items):
 
 # 通用容器配置（label对齐、label宽度、size）
 common_container_props = [
-    prop("options.comInnerInfo.labelPosition", "Label对齐", "select", "right", {
+    prop("options.labeloptions.labelposition", "Label对齐", "select", "right", {
         "optionValues": [
             {"label": "左对齐", "value": "left"},
             {"label": "右对齐", "value": "right"},
             {"label": "顶部", "value": "top"},
         ]
     }),
-    prop("options.comInnerInfo.labelWidth", "Label宽度", "input", "100px"),
-    prop("options.comInnerInfo.size", "子控件尺寸", "select", "default", {
+    prop("options.labeloptions.labelwidth", "Label宽度", "input", "100px"),
+    prop("options.comoptions.size", "子控件尺寸", "select", "default", {
         "optionValues": [
             {"label": "默认", "value": "default"},
             {"label": "大号", "value": "large"},

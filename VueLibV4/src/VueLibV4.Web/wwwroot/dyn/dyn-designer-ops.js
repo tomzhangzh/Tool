@@ -1,4 +1,4 @@
-﻿/* dyn-designer-ops.js 设计器树操作：选中/拖拽/移动/复制/删除/路径/overlay
+/* dyn-designer-ops.js 设计器树操作：选中/拖拽/移动/复制/删除/路径/overlay
  * 所有函数直接操作共享 scope（reactive），4 个分区 app 共用。 */
 (function (global) {
   'use strict';
@@ -118,9 +118,11 @@
     scope.selectedUid = cfg ? uidOf(cfg) : '';
     scope.pathList = getPathList(scope.pageJson, cfg);
     if (cfg) {
-      // 确保 options.comInnerInfo 存在，右侧面板 v-model 才能正确绑定
+      // 确保 options 下的全小写契约分组存在，右侧面板 v-model 才能正确绑定
       if (!cfg.options) cfg.options = {};
-      if (!cfg.options.comInnerInfo) cfg.options.comInnerInfo = {};
+      if (!cfg.options.comoptions) cfg.options.comoptions = {};
+      if (!cfg.options.labeloptions) cfg.options.labeloptions = { label: '', required: false, show: true };
+      if (!cfg.options.itemoptions) cfg.options.itemoptions = { style: {}, class: '' };
       const m = metaOf(cfg.component);
       scope.overlay.label = m.Label || cfg.component;
     }

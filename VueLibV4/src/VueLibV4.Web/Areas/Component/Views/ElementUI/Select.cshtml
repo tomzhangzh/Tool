@@ -1,11 +1,11 @@
-@{
+﻿@{
     Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
 }
 
 <el-select v-model="modelinfo"
                :key="'sel' + (comInnerInfo.options || []).length"
                style="width: 100%;"
-               v-bind="jc.options.comoptions"
+               v-bind="comBind"
                v-on="getComlisteners()">
         <el-option v-for="item in comInnerInfo.options"
                    :key="item.value"

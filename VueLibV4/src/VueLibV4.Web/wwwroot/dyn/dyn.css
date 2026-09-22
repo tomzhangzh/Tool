@@ -117,7 +117,7 @@
 .designer-right .prop-item .el-input, .designer-right .prop-item .el-select, .designer-right .prop-item .el-input-number { width: 100%; }
 
 /* 拖拽目标容器高亮占位 */
-.drag-target-active { outline: 2px dashed #409eff !important; outline-offset: 2px; background: rgba(64, 158, 255, .06) !important; }
+.drag-target-active { outline: 2px dashed #ff4066 !important; outline-offset: 2px; background: rgba(64, 158, 255, .06) !important; }
 
 /* 悬停高亮（display:contents 包裹层无盒子，hover 由 JS 加到组件根） */
 .dyn-hover-active { outline: 1px dashed #409eff; outline-offset: -1px; }

@@ -1,7 +1,7 @@
-@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
 
 <template>
-<el-badge v-bind="jc.options.comoptions" v-on="getComlisteners()">
+<el-badge v-bind="comBind" v-on="getComlisteners()">
         <span style="padding: 8px 16px; background: #f5f7fa; border-radius: 4px;">内容</span>
     </el-badge>
 </template>

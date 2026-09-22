@@ -1,9 +1,9 @@
-@{
+﻿@{
     Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
 }
 
 <template>
-<el-card v-bind="jc.options.comoptions"
+<el-card v-bind="comBind"
              v-on="getComlisteners()">
         <template #header>
             <span>{{ jc.options?.comoptions.title || '' }}</span>

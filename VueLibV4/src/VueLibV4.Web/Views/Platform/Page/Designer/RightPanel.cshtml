@@ -49,17 +49,17 @@
       @* ===== 布局样式 ===== *@
       <el-tab-pane label="布局样式" name="style" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3">
           <el-form-item label="Label对齐">
-            <el-radio-group v-model="model.current.options.labeloptions.labelPosition" size="small">
+            <el-radio-group v-model="model.current.options.labeloptions.labelposition" size="small">
               <el-radio value="left">左</el-radio>
               <el-radio value="right">右</el-radio>
               <el-radio value="top">上</el-radio>
             </el-radio-group>
           </el-form-item>
           <el-form-item label="Label宽度">
-            <el-input v-model="model.current.options.labeloptions.labelWidth" size="small" placeholder="auto / 100px"></el-input>
+            <el-input v-model="model.current.options.labeloptions.labelwidth" size="small" placeholder="auto / 100px"></el-input>
           </el-form-item>
-          <el-form-item label="子控件尺寸">
-            <el-radio-group v-model="model.current.options.comInnerInfo.size" size="small">
+          <el-form-item v-if="model.current.component !== 'DynTable'" label="子控件尺寸">
+            <el-radio-group v-model="model.current.options.comoptions.size" size="small">
               <el-radio value="default">默认</el-radio>
               <el-radio value="large">大</el-radio>
               <el-radio value="small">小</el-radio>
@@ -168,13 +168,15 @@
         try {
           var parsed = typeof pj === 'string' ? JSON.parse(pj) : pj;
           if (parsed && parsed.component) {
-            // 右侧属性面板统一 small + 左右label布局
+            // 右侧属性面板统一 small + 左右label布局：
+            // 作用于属性编辑器【容器】自身，容器再经 options.compassthrough 白名单
+            // 把 comoptions.size / labeloptions.labelposition|labelwidth 向下 provide 给各属性条目
             if (!parsed.options) parsed.options = {};
-            if (!parsed.options.comInnerInfo) parsed.options.comInnerInfo = {};
-            if (!parsed.options.comInnerInfo.size) parsed.options.comInnerInfo.size = 'small';
-            if (!parsed.options.comInnerInfo.labelPosition) parsed.options.comInnerInfo.labelPosition = 'left';
-            if (!parsed.options.comInnerInfo.labelWidth) parsed.options.comInnerInfo.labelWidth = '90px';
-            if (!parsed.options.comInnerInfo.comPassThrough) parsed.options.comInnerInfo.comPassThrough = 'size,labelPosition,labelWidth';
+            if (!parsed.options.comoptions) parsed.options.comoptions = {};
+            if (!parsed.options.comoptions.size) parsed.options.comoptions.size = 'small';
+            if (!parsed.options.labeloptions) parsed.options.labeloptions = {};
+            if (!parsed.options.labeloptions.labelposition) parsed.options.labeloptions.labelposition = 'left';
+            if (!parsed.options.labeloptions.labelwidth) parsed.options.labeloptions.labelwidth = '90px';
             return parsed;
           }
           return null;

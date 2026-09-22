@@ -1,7 +1,7 @@
-@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
 
 <template>
-<el-image v-bind="jc.options.comoptions" v-on="getComlisteners()"
+<el-image v-bind="comBind" v-on="getComlisteners()"
               :src="jc.options?.comoptions.src || ''"
               fit="cover">
     </el-image>
