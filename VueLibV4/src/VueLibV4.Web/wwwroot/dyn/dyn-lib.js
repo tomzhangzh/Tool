@@ -70,11 +70,12 @@ const DYN_MODULES = [
   "dyn-designer-sortable.js",
   "dyn-action.js",
   "dyn-designer-dialog.js",
-  "dyn-template.js"
+  "dyn-template.js",
+  "dyn-dsl.js"
 ];
 
 const DynLib = {
-  version:"4.0.9",
+  version:"4.1.2",
   base:BASE,
   _libs:{},
   _ready:false,

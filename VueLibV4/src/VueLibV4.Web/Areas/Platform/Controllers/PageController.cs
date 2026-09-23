@@ -59,6 +59,15 @@ public class PageController : Controller
         return View(string.Format(Page, "PageGen"));
     }
 
+    /// <summary>DSL 编辑器（类Markdown：DSL / JSON / 页面预览 三栏）</summary>
+    [HttpGet("/Platform/Page/Dsl")]
+    public IActionResult Dsl()
+    {
+        ViewData["Title"] = "DSL 编辑器 - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View(string.Format(Page, "Dsl"));
+    }
+
     [HttpGet("/Platform/Page/Demo/ActionHelper")]
     public IActionResult DemoActionHelper()
     {

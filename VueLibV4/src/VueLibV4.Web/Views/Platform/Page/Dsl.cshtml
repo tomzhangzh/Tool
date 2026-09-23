@@ -1,0 +1,204 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "DSL 编辑器 - VueLibV4";
+}
+@* DSL 编辑器：类 Markdown → 组件JSON → 页面预览（DynDynamicCom 渲染）
+   三栏布局：左侧 DSL 编辑器（CodeMirror + 自动提示）｜右上 JSON ｜右下 实时预览
+   依赖：dyn-lib.js（含 CodeMirror / ElementPlus / dyn-dsl.js）*@
+<div id="app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <b class="title">DSL 编辑器（类 Markdown）</b>
+        <el-tag size="small" type="info" effect="plain">>> 容器 / - 组件 / comoptions.* / labeloptions.*</el-tag>
+        <el-button size="small" @@click="loadSample">示例</el-button>
+        <el-button size="small" @@click="formatDsl">格式化DSL</el-button>
+        <el-button size="small" type="warning" @@click="jsonToDsl">JSON→DSL</el-button>
+        <el-button size="small" type="primary" @@click="applyDsl">DSL→应用</el-button>
+    </div>
+
+    <div class="main">
+        @* ===== 左：DSL 编辑器 ===== *@
+        <div class="col-editor">
+            <div class="pane-head">DSL（自动提示：组件名 / comoptions. / labeloptions. / 枚举值）</div>
+            <div class="editor-box">
+                <textarea id="dsl-host" class="cm-host" spellcheck="false"></textarea>
+            </div>
+            <div class="err-box">
+                <div v-if="errors.length" class="error-line" v-for="e in errors" :key="e.line + e.msg">⚠ 第 {{ e.line }} 行：{{ e.msg }}</div>
+                <div v-else-if="warnings.length" class="warn-line" v-for="w in warnings" :key="w.line + w.msg">⚡ {{ w.msg }}</div>
+                <div v-else class="ok-line">✓ DSL 语法正确</div>
+            </div>
+        </div>
+
+        @* ===== 右：JSON + 预览 ===== *@
+        <div class="col-right">
+             <div class="col-preview"></div>
+                <div class="pane-head">页面预览</div>
+                <div class="preview-box" :style="{ width: previewWidth + 'px', minHeight: '420px' }">
+                    <dyn-dynamic-com v-if="previewCfg && previewCfg.component" :jsonconfig="previewCfg" :parentmodelinfo="model" :key="previewKey"></dyn-dynamic-com>
+                    <div v-else class="empty-tip">等待 DSL 解析…</div>
+                </div>
+            </div>
+            <div class="col-json">
+                <div class="pane-head">组件 JSON（不含 __uid，由 DynDynamicCom 生成）</div>
+                <pre class="json-pre">{{ jsonText }}</pre>
+            </div>
+           
+        </div>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; margin-right: auto; }
+    .main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; height: calc(100vh - 64px); box-sizing: border-box; }
+    .col-editor, .col-right { display: flex; flex-direction: column; min-height: 0; gap: 8px; }
+    .col-right { display: grid; grid-template-rows: 1fr 1.2fr; }
+    .pane-head { font-size: 12px; font-weight: 600; color: #606266; padding: 6px 10px; background: #f5f7fa; border: 1px solid #e4e7ed; border-bottom: none; border-radius: 6px 6px 0 0; }
+    .editor-box { flex: 1; min-height: 0; background: #fff; border: 1px solid #e4e7ed; border-radius: 0 0 6px 6px; overflow: auto; }
+    .cm-host { width: 100%; height: 100%; box-sizing: border-box; }
+    /* CodeMirror 高度随内容自动增长（viewportMargin:Infinity 已渲染全部行） */
+    .editor-box .CodeMirror { height: auto; min-height: 100%; }
+    .editor-box .CodeMirror-scroll { height: auto; overflow-y: hidden !important; }
+    /* CodeMirror lint 波浪线标记 */
+    .CodeMirror .dyn-dsl-lint-error { text-decoration: underline wavy #f56c6c; background: rgba(245, 108, 108, .08); }
+    .CodeMirror .dyn-dsl-lint-warn { text-decoration: underline wavy #e6a23c; background: rgba(230, 162, 60, .10); }
+    .err-box { font-size: 12px; min-height: 22px; }
+    .error-line { color: #f56c6c; }
+    .warn-line { color: #e6a23c; }
+    .ok-line { color: #67c23a; }
+    .col-json { display: flex; flex-direction: column; min-height: 0; }
+    .json-pre { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 10px; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, Monaco, monospace; font-size: 12px; line-height: 1.5; border: 1px solid #e4e7ed; border-radius: 0 0 6px 6px; white-space: pre-wrap; word-break: break-all; }
+    .col-preview { display: flex; flex-direction: column; min-height: 0; }
+    .preview-box { flex: 1; min-height: 0; overflow: auto; background: #fff; border: 1px solid #e4e7ed; border-radius: 0 0 6px 6px; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .empty-tip { text-align: center; color: #909399; font-size: 13px; padding: 60px 0; }
+    @@media (max-width: 1100px) { .main { grid-template-columns: 1fr; height: auto; } }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            // ============ 示例 DSL ============
+            var SAMPLE_DSL = [
+                '// 表单容器：2列 Grid 布局，全局 size=small',
+                '>> DynGridContainer comoptions.gridTemplateColumns="1fr 1fr" comoptions.gap="16px" labeloptions.labelWidth="120px" comoptions.size="small"',
+                '  // 标题输入框',
+                '  - DynElInput modelname="title" label="标题" comoptions.placeholder="请输入标题" required=true',
+                '  // 排序数字',
+                '  - DynElInputNumber modelname="sort" label="排序" comoptions.min=0 comoptions.max=999',
+                '  // 嵌套容器占满2列',
+                '  >> DynElContainer comoptions.direction="vertical" itemoptions.class="grid-span-2"',
+                '    - DynElTextarea modelname="desc" label="描述" comoptions.rows=3',
+                '  // 下拉选择',
+                '  - DynElSelect modelname="type" label="类型" comoptions.size="small"'
+            ].join('\n');
+
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        model: Vue.reactive({}),
+                        jsonText: '',
+                        errors: [],
+                        warnings: [],
+                        previewCfg: null,
+                        previewWidth: 800,
+                        _cm: null,
+                        _renderTimer: null,
+                        previewKey: 0
+                    };
+                },
+                methods: {
+                    go: function (url) { window.location.href = url; },
+                    parseAndRender: function () {
+                        var self = this;
+                        var text = this._cm ? this._cm.getValue() : '';
+                        var hintIndex = window.DynDsl.getHintIndex();
+                        var res;
+                        try {
+                            res = window.DynDsl.parseDsl(text, hintIndex ? hintIndex.byName : null);
+                        } catch (e) {
+                            // 解析器异常：完整堆栈打控制台，页面不崩
+                            console.error('[Dsl] parseDsl 异常:', e);
+                            console.error(e && e.stack);
+                            this.errors = [{ line: 0, msg: '解析器异常: ' + (e && e.message) }];
+                            this.warnings = [];
+                            this.previewCfg = null;
+                            this.jsonText = '';
+                            window.DynDsl.markDslIssues(this._cm, this.errors, []);
+                            return;
+                        }
+                        this.errors = res.errors || [];
+                        this.warnings = res.warnings || [];
+                        // lint 标记：错误红波浪 / 警告黄波浪（随解析实时刷新）
+                        try { window.DynDsl.markDslIssues(this._cm, this.errors, this.warnings); }
+                        catch (e) { console.error('[Dsl] markDslIssues 异常:', e); }
+                        // 实时渲染：无论有无错误都更新预览（错误行跳过，其余正常渲染），输入即时生效
+                        if (!text.trim()) {
+                            this.previewCfg = null;
+                            this.jsonText = '{}';
+                            return;
+                        }
+                        this.previewCfg = res.cfg;
+                        this.previewKey++;
+                        try { this.jsonText = JSON.stringify(res.cfg, null, 2); }
+                        catch (e) {
+                            console.error('[Dsl] JSON.stringify 异常:', e);
+                            this.jsonText = '{}';
+                        }
+                    },
+                    loadSample: function () {
+                        if (this._cm) this._cm.setValue(SAMPLE_DSL);
+                        this.parseAndRender();
+                    },
+                    formatDsl: function () {
+                        // 重新解析 → 反向导出，得到规整的 DSL
+                        var self = this;
+                        var hintIndex = window.DynDsl.getHintIndex();
+                        var res = window.DynDsl.parseDsl(this._cm.getValue(), hintIndex ? hintIndex.byName : null);
+                        if (res.errors.length) { this.errors = res.errors; return; }
+                        this._cm.setValue(window.DynDsl.toDsl(res.cfg));
+                        this.parseAndRender();
+                    },
+                    jsonToDsl: function () {
+                        var self = this;
+                        try {
+                            var obj = JSON.parse(this.jsonText);
+                            if (!obj.component) { this.errors = [{ line: 0, msg: 'JSON 缺少 component' }]; return; }
+                            this._cm.setValue(window.DynDsl.toDsl(obj));
+                            this.parseAndRender();
+                        } catch (e) {
+                            console.error('[Dsl] JSON→DSL 解析失败:', e);
+                            this.errors = [{ line: 0, msg: 'JSON 解析失败: ' + e.message }];
+                            window.DynDsl.markDslIssues(this._cm, this.errors, []);
+                        }
+                    },
+                    applyDsl: function () { this.parseAndRender(); }
+                },
+                mounted: function () {
+                    var self = this;
+                    // 元数据加载 → 建提示索引
+                    window.DynDsl.loadMeta().then(function (hintIndex) {
+                        // 初始化 CodeMirror（DSL 模式 + 自动提示）
+                        if (typeof window.CodeMirror !== 'function') return;
+                        var host = document.getElementById('dsl-host');
+                        var cm = window.CodeMirror.fromTextArea(host, {
+                            mode: 'dsl',
+                            lineNumbers: true,
+                            lineWrapping: true,
+                            viewportMargin: Infinity,
+                            placeholder: '>> DynGridContainer comoptions.gridTemplateColumns="1fr 1fr"\n  - DynElInput modelname="title" label="标题"'
+                        });
+                        self._cm = cm;
+                        cm.setValue(SAMPLE_DSL);
+                        cm.on('change', function () { clearTimeout(self._renderTimer); self._renderTimer = setTimeout(function () { self.parseAndRender(); }, 200); });
+                        window.DynDsl.attachDslHints(cm, hintIndex);
+                        self.parseAndRender();
+                    });
+                }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function () { app.mount('#app'); });
+        });
+    </script>
+}
