@@ -102,11 +102,37 @@
     }
   }
 
+  // itemoptions.style 赋值：支持 JSON 字符串或简单 CSS（如 "gap:16px"）→ 解析为对象
+  function setItemStyle(node, val) {
+    if (val == null) return;
+    const s = String(val).trim();
+    if (s.startsWith('{')) {
+      try { node.options.itemoptions.style = JSON.parse(s); return; } catch (e) {}
+      // 兼容单引号/裸键 JSON：{width:'50%',padding:'8px'} 或 {'width':'50%'} → 合法 JSON
+      try {
+        const fixed = s
+          .replace(/([{,]\s*)([A-Za-z_$][\w$-]*)\s*:/g, '$1"$2":')  // 裸键加引号
+          .replace(/'/g, '"');                                       // 单引号值 → 双引号
+        node.options.itemoptions.style = JSON.parse(fixed);
+        return;
+      } catch (e2) {}
+    }
+    const obj = {};
+    s.split(/[;；]/).forEach(function (seg) {
+      const kv = seg.split(/:/);
+      if (kv.length >= 2) obj[kv[0].trim()] = kv.slice(1).join(':').trim();
+    });
+    node.options.itemoptions.style = Object.keys(obj).length ? obj : {};
+  }
+
   function applyAttr(node, key, val, errors, lineNo) {
     if (!key) return;
     if (key === 'modelname') { node.modelname = val == null ? '' : String(val); return; }
     if (key === 'label') { node.options.labeloptions.label = val == null ? '' : String(val); return; }
     if (key === 'required') { node.options.labeloptions.required = !!val; return; }
+    // 简写 class=/style= → itemoptions（布局 class/style）
+    if (key === 'class') { node.options.itemoptions.class = val == null ? '' : String(val); return; }
+    if (key === 'style') { setItemStyle(node, val); return; }
     if (key.startsWith('comoptions.')) {
       const p = key.slice('comoptions.'.length);
       node.options.comoptions[p] = val;
@@ -119,20 +145,7 @@
     }
     if (key.startsWith('itemoptions.')) {
       const p = key.slice('itemoptions.'.length);
-      if (p === 'style' && typeof val === 'string') {
-        // itemoptions.style="..." 支持 JSON 字符串或简单 CSS（如 "gap:16px"）→ 尽量解析为对象
-        const s = val.trim();
-        if (s.startsWith('{')) { try { node.options.itemoptions.style = JSON.parse(s); return; } catch (e) {} }
-        // CSS 简写：key:value; key2:value2
-        const obj = {};
-        s.split(/[;；]/).forEach(function (seg) {
-          const kv = seg.split(/:/);
-          if (kv.length >= 2) obj[kv[0].trim()] = kv.slice(1).join(':').trim();
-        });
-        if (Object.keys(obj).length) { node.options.itemoptions.style = obj; return; }
-        node.options.itemoptions.style = {};
-        return;
-      }
+      if (p === 'style' && typeof val === 'string') { setItemStyle(node, val); return; }
       node.options.itemoptions[p] = val;
       return;
     }
@@ -478,19 +491,19 @@
         e_stopHintKey(arguments);
         return acceptCurrent();
       },
-      'ArrowDown': function () {
+      'Down': function () {
         if (!hintBox) return false;
         active = Math.min(items.length - 1, active + 1);
         renderActive();
         return true;
       },
-      'ArrowUp': function () {
+      'Up': function () {
         if (!hintBox) return false;
         active = Math.max(0, active - 1);
         renderActive();
         return true;
       },
-      'Escape': function () {
+      'Esc': function () {
         if (!hintBox) return false;
         closeHint();
         return true;
@@ -528,17 +541,27 @@
         }
         return;
       }
-      // 解析当前行组件名（用于属性提示）
+      // 解析当前行组件名（用于属性提示）。支持缩进续行：本行无 >> / - 时向上找最近组件行
       const lineCompMatch = lineText.match(/^\s*(>>|-)\s+([\w]+)/);
-      const compName = lineCompMatch ? (ALIASES[lineCompMatch[2]] || lineCompMatch[2]) : null;
+      let compName = lineCompMatch ? (ALIASES[lineCompMatch[2]] || lineCompMatch[2]) : null;
+      if (!compName) {
+        for (let i = cur.line - 1; i >= 0; i--) {
+          const m = cm.getLine(i).match(/^\s*(>>|-)\s+([\w]+)/);
+          if (m) { compName = ALIASES[m[2]] || m[2]; break; }
+        }
+      }
       const group = compName ? hintIndex.propGroups[compName] : null;
 
-      // 上下文2：comoptions. / labeloptions. 补全属性key
-      const mProp = before.match(/(comoptions|labeloptions)\.([\w]*)$/);
+      // 上下文2：comoptions. / labeloptions. / itemoptions. 补全属性key
+      const mProp = before.match(/(comoptions|labeloptions|itemoptions)\.([\w]*)$/);
       if (mProp && group) {
         const gKey = mProp[1];
         const prefix = mProp[2] || '';
-        const list = (group[gKey] || []).filter(function (p) {
+        // itemoptions 固定 class/style；comoptions/labeloptions 取自元数据索引
+        const list = (gKey === 'itemoptions'
+          ? [{ key: 'class', label: '自定义类名(如 grid-span-2)' }, { key: 'style', label: '内联样式(JSON或CSS)' }]
+          : (group[gKey] || [])
+        ).filter(function (p) {
           return p.key.toLowerCase().indexOf(prefix.toLowerCase()) === 0;
         }).slice(0, 30);
         const items = list.map(function (p) {
@@ -574,6 +597,33 @@
               cm.focus();
             });
           }
+        }
+        return;
+      }
+
+      // 上下文4：组件行上输入属性 key → 提示 modelname/comoptions./labeloptions./itemoptions./label/required/class/style
+      const topAttrs = [
+        { label: 'modelname', detail: '绑定数据字段' },
+        { label: 'comoptions.', detail: '组件原生属性' },
+        { label: 'labeloptions.', detail: '标签配置(label/required/show/labelwidth...)' },
+        { label: 'itemoptions.', detail: '布局 class/style' },
+        { label: 'label', detail: '简写=标签文本' },
+        { label: 'required', detail: '简写=是否必填' },
+        { label: 'class', detail: '简写→itemoptions.class' },
+        { label: 'style', detail: '简写→itemoptions.style(JSON或CSS)' }
+      ];
+      if (compName && !/^\s*$/.test(before) && !/=/.test(before.slice(-4))) {
+        const mTop = /(?:^|\s)([\w]*)$/.exec(before);
+        const prefix = (mTop && mTop[1]) || '';
+        const items = topAttrs.filter(function (a) {
+          return a.label.toLowerCase().indexOf(prefix.toLowerCase()) === 0;
+        }).slice(0, 15);
+        if (items.length) {
+          const fromCh = before.length - prefix.length;
+          showHint(items, function (item) {
+            cm.replaceRange(item.label, { line: cur.line, ch: fromCh }, { line: cur.line, ch: before.length });
+            cm.focus();
+          });
         }
         return;
       }
