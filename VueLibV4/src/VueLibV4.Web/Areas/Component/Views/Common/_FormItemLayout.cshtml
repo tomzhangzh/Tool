@@ -32,37 +32,54 @@
 
     const formItemRootStyle = computed(() => {
         if (labelPos.value === 'left' || labelPos.value === 'right') {
-            // 标签在左：label + 内容
+            // 标签始终在左：label + 内容（right 仅表示标签文字右对齐）
             return { display: 'flex', alignItems: 'flex-start' };
-        } 
+        }
         // top 垂直布局
         return { display: 'block' };
     });
 
+    // comoptions.size 穿透后同步影响 label 字号与行高（与 el-input 高度匹配）
+    const finalSize = computed(() => finalComOptions.value?.size || 'default');
     const labelStyle = computed(() => {
+        const size = finalSize.value;
+        const fontSize = size === 'small' ? '12px' : '14px';
+        const lineHeight = size === 'small' ? '24px' : (size === 'large' ? '40px' : '32px');
+        // 注意：.el-form-item__label 默认 display:inline-flex，text-align 对 flex 容器不生效，
+        // 必须用 display:flex + justifyContent 控制文字水平对齐
         if (labelPos.value === 'left') {
+            // 标签在左、文字左对齐
             return {
+                height:'unset',
                 width: finalLabelOptions.value?.labelwidth || 'auto',
                 flexShrink: '0',
-                textAlign: 'right',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
                 paddingRight: '12px',
-                lineHeight: '32px'
+                fontSize,
+                lineHeight
             };
         } else if (labelPos.value === 'right') {
+            // 标签在左、文字右对齐（Element 语义），与内容留 12px 间距
             return {
                 width: finalLabelOptions.value?.labelwidth || 'auto',
                 flexShrink: '0',
-                textAlign: 'right',
-                paddingLeft: '12px',
-                lineHeight: '32px'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                paddingRight: '12px',
+                fontSize,
+                lineHeight
             };
         }
-        // top
+        // top：标签在顶部，字号随 size
         return {
             width: '100%',
             display: 'block',
             textAlign: 'left',
-            marginBottom: '4px'
+            marginBottom: '4px',
+            fontSize
         };
     });
 
@@ -78,5 +95,6 @@
     comExtra.formItemRootClass = formItemRootClass;
     comExtra.formItemRootStyle = formItemRootStyle;
     comExtra.labelStyle = labelStyle;
+    comExtra.finalSize = finalSize;
     comExtra.contentStyle = contentStyle;
 }
