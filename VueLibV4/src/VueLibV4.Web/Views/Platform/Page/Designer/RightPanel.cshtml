@@ -50,9 +50,9 @@
       <el-tab-pane label="布局样式" name="style" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3">
           <el-form-item label="Label对齐">
             <el-radio-group v-model="model.current.options.labeloptions.labelposition" size="small">
-              <el-radio value="left">左</el-radio>
-              <el-radio value="right">右</el-radio>
-              <el-radio value="top">上</el-radio>
+              <el-radio-button value="left">左</el-radio-button>
+              <el-radio-button value="right">右</el-radio-button>
+              <el-radio-button value="top">上</el-radio-button>
             </el-radio-group>
           </el-form-item>
           <el-form-item label="Label宽度">
@@ -60,9 +60,9 @@
           </el-form-item>
           <el-form-item v-if="model.current.component !== 'DynTable'" label="子控件尺寸">
             <el-radio-group v-model="model.current.options.comoptions.size" size="small">
-              <el-radio value="default">默认</el-radio>
-              <el-radio value="large">大</el-radio>
-              <el-radio value="small">小</el-radio>
+              <el-radio-button value="default">默认</el-radio-button>
+              <el-radio-button value="large">大</el-radio-button>
+              <el-radio-button value="small">小</el-radio-button>
             </el-radio-group>
           </el-form-item>
           <el-form-item label="组件宽度">

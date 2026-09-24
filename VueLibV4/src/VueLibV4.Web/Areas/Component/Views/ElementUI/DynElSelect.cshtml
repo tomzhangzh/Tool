@@ -1,0 +1,10 @@
+﻿@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+@section setupScripts{
+    // 数据源：static(optionValues) / dict(平台字典) / table(工程表，支持联动) / ajax —— 统一走 loadComOptions
+    loadComOptions();
+}
+<el-select v-model="modelinfo" v-bind="comBind" v-on="getComlisteners()">
+    <el-option v-for="opt in comInnerInfo.options" :key="opt.value" :label="opt.label" :value="opt.value"></el-option>
+</el-select>

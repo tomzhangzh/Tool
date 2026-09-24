@@ -1,0 +1,26 @@
+﻿@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+
+<el-radio-group v-model="modelinfo" v-bind="comBind" v-on="getComlisteners()">
+    <template v-if="comBind.type === 'button'">
+        <el-radio-button v-for="opt in comInnerInfo.options" :key="opt.value" :label="opt.value">
+            {{ opt.label }}
+        </el-radio-button>
+    </template>
+    <template v-else>
+        <el-radio v-for="opt in comInnerInfo.options" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+        </el-radio>
+    </template>
+</el-radio-group>
+@section setupScripts{
+    DVALUE = '';
+    // 单选项统一走 _BaseLayout.loadComOptions：static(optionValuesText/optionValues) / dict / table / ajax
+    comInnerInfo.options = [];
+    loadComOptions();
+    watch(function () {
+        var co = (jc.options && jc.options.comoptions) || {};
+        return [co.sourceType, co.dictType, co.optionValuesText, co.table, co.url];
+    }, function () { loadComOptions(); }, { deep: true });
+}
