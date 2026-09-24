@@ -373,6 +373,12 @@
         enumValues = childCo.optionValues.map(function (o) {
           return (o && typeof o === 'object') ? o.value : o;
         });
+      } else if (childCo.optionValuesText && typeof childCo.optionValuesText === 'string') {
+        // "radio,圆点单选\nbutton,按钮单选" → ['radio','button']（兼容 JSON 解析出的真实换行 / 字面 \n）
+        enumValues = childCo.optionValuesText
+          .split(/\r?\n|\\n/)
+          .map(function (line) { return String(line).split(',')[0].trim(); })
+          .filter(Boolean);
       } else if (child.component === 'DynElSwitch') {
         enumValues = ['true', 'false'];
       }
@@ -517,6 +523,15 @@
       // CM5 extraKeys 处理器已默认阻止，此辅助仅为兼容性兜底
     }
 
+    // labeloptions 平台标准键（无论组件 PCJ 是否配置都提示，DSL 简写 label=/required= 等价）
+    var LABELOPTIONS_STD = [
+      { key: 'label', label: '标签文本', enum: undefined },
+      { key: 'required', label: '必填', enum: ['true', 'false'] },
+      { key: 'show', label: '显示标签', enum: ['true', 'false'] },
+      { key: 'labelposition', label: '标签位置', enum: ['left', 'right', 'top'] },
+      { key: 'labelwidth', label: '标签宽度', enum: undefined }
+    ];
+
     function tryComplete(manual) {
       closeHint();
       const cur = cm.getCursor();
@@ -557,11 +572,18 @@
       if (mProp && group) {
         const gKey = mProp[1];
         const prefix = mProp[2] || '';
-        // itemoptions 固定 class/style；comoptions/labeloptions 取自元数据索引
-        const list = (gKey === 'itemoptions'
-          ? [{ key: 'class', label: '自定义类名(如 grid-span-2)' }, { key: 'style', label: '内联样式(JSON或CSS)' }]
-          : (group[gKey] || [])
-        ).filter(function (p) {
+        // itemoptions 固定 class/style；labeloptions 平台标准键 + PCJ 提取合并；comoptions 取自元数据索引
+        let list;
+        if (gKey === 'itemoptions') {
+          list = [{ key: 'class', label: '自定义类名(如 grid-span-2)' }, { key: 'style', label: '内联样式(JSON或CSS)' }];
+        } else if (gKey === 'labeloptions') {
+          list = LABELOPTIONS_STD
+            .concat(group[gKey] || [])
+            .filter(function (p, i, arr) { return arr.findIndex(function (q) { return q.key === p.key; }) === i; });
+        } else {
+          list = (group[gKey] || []);
+        }
+        list = list.filter(function (p) {
           return p.key.toLowerCase().indexOf(prefix.toLowerCase()) === 0;
         }).slice(0, 30);
         const items = list.map(function (p) {
@@ -583,7 +605,9 @@
         const gKey = mEnum[1];
         const propKey = mEnum[2];
         const prefix = mEnum[3] || '';
-        const prop = (group[gKey] || []).find(function (p) { return p.key === propKey; });
+        const prop = (gKey === 'labeloptions'
+          ? LABELOPTIONS_STD.concat(group[gKey] || []).find(function (p) { return p.key === propKey; })
+          : (group[gKey] || []).find(function (p) { return p.key === propKey; }));
         if (prop && Array.isArray(prop.enum) && prop.enum.length) {
           const items = prop.enum.filter(function (v) {
             return String(v).toLowerCase().indexOf(prefix.toLowerCase()) === 0;
