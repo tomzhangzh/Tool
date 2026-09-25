@@ -526,6 +526,7 @@ defineAction('open',async ctx=>{
         content:url,
         end:()=>{ onEnd().catch(e=>console.error('[open onEnd]',e)); }
       });
+      if(o.max){ try{ layer.full(idx); }catch(e){} } // 打开即最大化
       return { index:idx };
     }
 
@@ -557,10 +558,8 @@ defineAction('open',async ctx=>{
         onEnd().catch(e=>console.error('[open onEnd]',e)); 
       }
     });
+    if(o.max){ try{ layer.full(idx); }catch(e){} } // 打开即最大化
     return { index:idx, holder };
-  }
-  if (o.max){
-    layer.full(idx);
   }
   // layer 不可用降级
   global.open(url,'_blank');

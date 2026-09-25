@@ -435,7 +435,8 @@
       catch (e) { coords = { left: 0, bottom: 0 }; }
       const box = document.createElement('div');
       box.className = 'dyn-dsl-hint';
-      box.style.cssText = 'position:absolute;z-index:99999;top:' + (coords.bottom + 4) + 'px;left:' + (coords.left) + 'px;' +
+      // z-index 必须高于 layui layer 弹窗（默认19891014），否则提示框被弹窗盖住
+      box.style.cssText = 'position:absolute;z-index:2147483000;top:' + (coords.bottom + 4) + 'px;left:' + (coords.left) + 'px;' +
         'min-width:180px;max-width:340px;max-height:220px;overflow:auto;background:#fff;border:1px solid #dcdfe6;' +
         'border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.12);font-size:12px;line-height:1.6;';
       list.forEach(function (item, i) {
