@@ -114,6 +114,52 @@ public class ComponentMetaController : ControllerBase
         return ApiResult.Ok(true, "删除成功");
     }
 
+    /// <summary>取单个组件元配置（PropertyConfigJson / DefaultConfigJson 原始 JSON），供元配置编辑器加载</summary>
+    [HttpGet("getmeta")]
+    public ApiResult GetMeta(string id)
+    {
+        using var db = _dbs.PlatformDb();
+        var row = FirstByIdOrCode(db, id);
+        if (row == null) return ApiResult.Fail("未找到组件元数据");
+        return ApiResult.Ok(new
+        {
+            id = row.Id,
+            componentName = row.ComponentName,
+            propertyConfigJson = row.PropertyConfigJson,
+            defaultConfigJson = row.DefaultConfigJson
+        });
+    }
+
+    /// <summary>保存组件元配置（前端已把 DSL 解析为 JSON；后端再做 JSON 合法性校验，通过才更新数据库）</summary>
+    [HttpPost("savemeta")]
+    public ApiResult SaveMeta([FromBody] SaveMetaReq req)
+    {
+        if (req == null || req.ComponentId <= 0) return ApiResult.Fail("缺少 componentId");
+        // JSON 合法性校验：非法不写库
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(req.PropertyConfigJson))
+                JToken.Parse(req.PropertyConfigJson);
+            if (!string.IsNullOrWhiteSpace(req.DefaultConfigJson))
+                JToken.Parse(req.DefaultConfigJson);
+        }
+        catch (Exception ex)
+        {
+            return ApiResult.Fail("JSON 不合法，未保存：" + ex.Message);
+        }
+        using var db = _dbs.PlatformDb();
+        var affected = db.Updateable<ComponentMeta>()
+            .SetColumns(c => new ComponentMeta
+            {
+                PropertyConfigJson = string.IsNullOrWhiteSpace(req.PropertyConfigJson) ? null : req.PropertyConfigJson,
+                DefaultConfigJson = string.IsNullOrWhiteSpace(req.DefaultConfigJson) ? null : req.DefaultConfigJson
+            })
+            .Where(c => c.Id == req.ComponentId)
+            .ExecuteCommand();
+        if (affected <= 0) return ApiResult.Fail("未找到该组件元数据，未更新");
+        return ApiResult.Ok(new { id = req.ComponentId }, "保存成功");
+    }
+
     private ComponentMeta FirstByIdOrCode(SqlSugarClient db, string key)
     {
         if (string.IsNullOrWhiteSpace(key)) return null;
@@ -121,4 +167,12 @@ public class ComponentMetaController : ControllerBase
             return db.Queryable<ComponentMeta>().First(c => c.Id == id);
         return db.Queryable<ComponentMeta>().First(c => c.ComponentName == key);
     }
+}
+
+/// <summary>保存组件元配置请求体（前端 DSL → JSON 后提交）</summary>
+public class SaveMetaReq
+{
+    public int ComponentId { get; set; }
+    public string PropertyConfigJson { get; set; } = "";
+    public string DefaultConfigJson { get; set; } = "";
 }

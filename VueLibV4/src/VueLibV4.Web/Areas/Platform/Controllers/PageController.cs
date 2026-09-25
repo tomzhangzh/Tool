@@ -68,6 +68,16 @@ public class PageController : Controller
         return View(string.Format(Page, "Dsl"));
     }
 
+    /// <summary>组件元配置编辑器（设计器右侧「配置元」入口；fragment 弹窗按 componentId 指定组件）</summary>
+    [HttpGet("/Platform/Page/MetaDsl")]
+    public IActionResult MetaDsl(string componentId)
+    {
+        ViewData["Title"] = "组件元配置编辑器 - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        ViewBag.ComponentId = componentId;
+        return View(string.Format(Page, "MetaDsl"));
+    }
+
     [HttpGet("/Platform/Page/Demo/ActionHelper")]
     public IActionResult DemoActionHelper()
     {

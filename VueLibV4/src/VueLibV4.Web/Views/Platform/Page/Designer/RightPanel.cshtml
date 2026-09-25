@@ -10,6 +10,8 @@
   <template v-else>
     <div class="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between text-xs shrink-0">
       <span class="text-gray-600 font-medium">{{ model.current.component }}</span>
+      <button class="px-2 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600"
+              @@click="openMetaEditor">配置元</button>
     </div>
 
     <el-tabs v-model="propTab" class="flex-1 overflow-hidden flex flex-col" size="small" type="border-card">
@@ -293,6 +295,27 @@
           this.model.current.options.itemoptions.style = obj;
         } catch (e) {
           this.styleJsonError = 'JSON格式错误: ' + e.message;
+        }
+      },
+      // 打开组件元配置编辑器（新浏览器窗口，componentId 定位 ComponentMeta 行）
+      openMetaEditor: function () {
+        var cur = this.model && this.model.current;
+        if (!cur) return;
+        var list = (this.model && this.model.componentMetaList) || [];
+        var meta = null;
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].ComponentName === cur.component) { meta = list[i]; break; }
+        }
+        if (!meta || !meta.Id) {
+          dyn.showMessage('未找到该组件的元数据（ComponentMeta.Id）', 'warning');
+          return;
+        }
+        var url = '/Platform/Page/MetaDsl?componentId=' + meta.Id;
+        // 直接打开新的浏览器窗口（MetaDsl 为完整 MVC 页面，独立窗口加载最稳定）；
+        // 保存成功后通过 window.opener 刷新设计器并自动关闭本窗口
+        var win = window.open(url, '_blank');
+        if (!win) {
+          dyn.showMessage('浏览器拦截了新窗口，请允许弹窗后重试', 'warning');
         }
       }
     },

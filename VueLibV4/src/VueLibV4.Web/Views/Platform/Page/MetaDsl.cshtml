@@ -1,0 +1,368 @@
+@{
+    ViewData["Title"] = "组件元配置编辑器 - VueLibV4";
+}
+@* 组件元配置编辑器：用 DSL 编辑 PropertyConfigJson / DefaultConfigJson，实时 JSON 预览 + 组件渲染预览，保存到 ComponentMeta 表。
+   入口：设计器右侧「配置元」按钮 → 新浏览器窗口打开完整页面（URL 带 componentId）。
+   渲染模式（由 _ViewStart 按 X-Requested-With 自动选择）：
+     - 完整页面：_Layout（含 Head 样式 + dyn-lib.js）——独立窗口主用
+     - AJAX 局部：_AjaxLayout（只渲染 RenderBody，样式/脚本随 body 内容走）——保留兼容（fragment 弹窗）
+   因此：不显式指定 Layout；样式写在 root 之后（两种模式都生效）；依赖 CodeMirror/DynDsl 由宿主页面（设计器）提供。
+   注意：CodeMirror 5 不能在 display:none 容器内创建（会抛 Cannot read properties of undefined (reading 'map')），
+       因此第二个编辑器（DefaultConfigJson）改为首次切换到该 Tab 时才创建。 *@
+<div class="meta-dsl-root" data-dyn-init-createapp data-component-id="@ViewBag.ComponentId">
+
+  @* ===== 顶部操作栏 ===== *@
+  <div class="shrink-0" style="height:52px;background:#fff;border-bottom:1px solid #e4e7ed;display:flex;align-items:center;justify-content:space-between;padding:0 16px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-weight:600;color:#303133;font-size:15px;">组件元配置编辑器</span>
+      <span v-if="componentName" style="color:#909399;font-size:13px;">{{ componentName }}</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <el-button size="small" @@click="resetAll">重置</el-button>
+      <el-button size="small" type="primary" :loading="saving" @@click="saveMeta">保存到数据库</el-button>
+      <el-button size="small" @@click="closeWin">关闭</el-button>
+    </div>
+  </div>
+
+  @* ===== 自定义 Tab ===== *@
+  <div class="meta-tab">
+    <div class="meta-tab-btn" :class="{ active: activeTab === 'prop' }" @@click="switchTab('prop')">PropertyConfigJson（属性面板）</div>
+    <div class="meta-tab-btn" :class="{ active: activeTab === 'def' }" @@click="switchTab('def')">DefaultConfigJson（默认配置）</div>
+  </div>
+
+  @* ===== 内容区 ===== *@
+  <div class="flex-1 min-h-0" style="padding:12px;">
+
+    @* ---- Tab1：PropertyConfigJson ---- *@
+    <div v-show="activeTab === 'prop'" style="height:100%;display:flex;gap:12px;">
+      <div class="flex-1 flex flex-col min-h-0 meta-cell" v-once style="background:#fff;border:1px solid #e4e7ed;border-radius:6px;overflow:hidden;">
+        <div class="shrink-0" style="padding:8px 12px;background:#f5f7fa;border-bottom:1px solid #e4e7ed;font-size:12px;color:#606266;font-weight:600;">DSL 源码（自动提示：组件名 / comoptions. / labeloptions.）</div>
+        <div class="flex-1 min-h-0" style="overflow:auto;position:relative;">
+          <div ref="editorPropHost" style="width:100%;height:100%;"></div>
+        </div>
+      </div>
+      <div class="flex-1 flex flex-col min-h-0" style="background:#fff;border:1px solid #e4e7ed;border-radius:6px;overflow:hidden;">
+        <div class="shrink-0" style="padding:8px 12px;background:#f5f7fa;border-bottom:1px solid #e4e7ed;font-size:12px;color:#606266;font-weight:600;">JSON 预览</div>
+        <pre class="flex-1 min-h-0 overflow-auto m-0 meta-pre" :class="{ err: jsonPropError }" style="padding:10px;">{{ jsonPropText }}</pre>
+      </div>
+      <div class="flex flex-col min-h-0" style="flex:1.25 1 0%;background:#fff;border:1px solid #e4e7ed;border-radius:6px;overflow:hidden;">
+        <div class="shrink-0" style="padding:8px 12px;background:#f5f7fa;border-bottom:1px solid #e4e7ed;font-size:12px;color:#606266;font-weight:600;">渲染预览</div>
+        <div class="flex-1 min-h-0 meta-preview-box">
+          <div class="meta-preview-inner">
+            <dyn-dynamic-com v-if="previewCfg && previewCfg.component" :jsonconfig="previewCfg" :parentmodelinfo="model" :key="previewKey"></dyn-dynamic-com>
+            <div v-else style="text-align:center;color:#909399;font-size:13px;padding:60px 0;">等待 DSL 解析…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    @* ---- Tab2：DefaultConfigJson ---- *@
+    <div v-show="activeTab === 'def'" style="height:100%;display:flex;gap:12px;">
+      <div class="flex-1 flex flex-col min-h-0 meta-cell" v-once style="background:#fff;border:1px solid #e4e7ed;border-radius:6px;overflow:hidden;">
+        <div class="shrink-0" style="padding:8px 12px;background:#f5f7fa;border-bottom:1px solid #e4e7ed;font-size:12px;color:#606266;font-weight:600;">DSL 源码（自动提示：组件名 / comoptions. / labeloptions.）</div>
+        <div class="flex-1 min-h-0" style="overflow:auto;position:relative;">
+          <div ref="editorDefHost" style="width:100%;height:100%;"></div>
+        </div>
+      </div>
+      <div class="flex-1 flex flex-col min-h-0" style="background:#fff;border:1px solid #e4e7ed;border-radius:6px;overflow:hidden;">
+        <div class="shrink-0" style="padding:8px 12px;background:#f5f7fa;border-bottom:1px solid #e4e7ed;font-size:12px;color:#606266;font-weight:600;">JSON 预览</div>
+        <pre class="flex-1 min-h-0 overflow-auto m-0 meta-pre" :class="{ err: jsonDefError }" style="padding:10px;">{{ jsonDefText }}</pre>
+      </div>
+      <div class="flex flex-col min-h-0" style="flex:1.25 1 0%;background:#fff;border:1px solid #e4e7ed;border-radius:6px;overflow:hidden;">
+        <div class="shrink-0" style="padding:8px 12px;background:#f5f7fa;border-bottom:1px solid #e4e7ed;font-size:12px;color:#606266;font-weight:600;">渲染预览</div>
+        <div class="flex-1 min-h-0 meta-preview-box">
+          <div class="meta-preview-inner">
+            <dyn-dynamic-com v-if="previewCfg && previewCfg.component" :jsonconfig="previewCfg" :parentmodelinfo="model" :key="previewKey"></dyn-dynamic-com>
+            <div v-else style="text-align:center;color:#909399;font-size:13px;padding:60px 0;">等待 DSL 解析…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  @* ===== 底部说明 ===== *@
+  <div class="shrink-0" style="padding:8px 16px;background:#fff;border-top:1px solid #e4e7ed;font-size:12px;color:#909399;">
+    说明：左栏 DSL 实时解析，中间 JSON，右侧渲染预览；保存后设计器页面将自动刷新。PropertyConfigJson 控制右侧属性面板的条目；DefaultConfigJson 控制组件拖入画布时的初始配置。
+  </div>
+
+  <script tag="dynconfig">
+  var dynConfig = {
+    data: function () {
+      return {
+        componentId: '',
+        componentName: '',
+        activeTab: 'prop',
+        saving: false,
+        jsonPropText: '',
+        jsonPropError: false,
+        jsonDefText: '',
+        jsonDefError: false,
+        originPropDsl: '',
+        originDefDsl: '',
+        model: Vue.reactive({}),
+        previewCfg: null,
+        previewKey: 0,
+        _editorProp: null,
+        _editorDef: null,
+        _changeTimer: null,
+        _parsedProp: null,
+        _parsedDef: null
+      };
+    },
+    mounted: function () {
+      var self = this;
+      // componentId 从根节点 data-component-id 读取（fragment 弹窗与宿主同文档，window.location 不是本页 URL）
+      this.componentId = (this.element && this.element.getAttribute('data-component-id')) || '';
+      if (!this.componentId) { dyn.showMessage('缺少 componentId 参数', 'error'); return; }
+      if (!window.CodeMirror || !window.DynDsl) { dyn.showMessage('DSL 依赖未加载（CodeMirror / DynDsl）', 'error'); return; }
+      window.DynDsl.defineDslMode(window.CodeMirror);
+      window.DynDsl.loadMeta().then(function () {
+        self.initPropEditor();
+        self.loadMetaData();
+      });
+      // fragment 弹窗（layer type:1，同文档）内：扣除标题栏高度，避免 100vh 溢出
+      try {
+        var root = this.element;
+        if (root && root.closest && root.closest('.layui-layer')) {
+          root.style.height = 'calc(100vh - 48px)';
+        }
+      } catch (e) {}
+    },
+    methods: {
+      makeEditor: function (textarea, which) {
+        var self = this;
+        var cm = window.CodeMirror.fromTextArea(textarea, {
+          mode: 'dsl',
+          lineNumbers: true,
+          lineWrapping: true,
+          viewportMargin: Infinity,
+          placeholder: '>> DynElContainer ...'
+        });
+
+        // 【关键】change 事件在 CM 的 operation（如输入法 composition 提交、replaceRange）内部同步触发；
+        // 若在此时立即执行 renderJson → Vue 预览重渲染（dyn-dynamic-com 销毁/重建等 DOM 操作），
+        // 会破坏 CM 正在执行中的内部状态，导致 prepareSelection 崩溃
+        // （Cannot read properties of undefined (reading 'map')，中文输入法必现）。
+        // 因此延迟到宏任务执行，等 CM 的 operation 完全结束后再更新 JSON 预览/渲染预览。
+        cm.on('change', function () {
+          clearTimeout(self._changeTimer);
+          // 与 Dsl.cshtml 一致用 200ms 防抖：CM5 在输入法 composition 提交后仍有异步内部清理，
+          // setTimeout(0) 不足以避开（实测中文输入仍崩 prepareSelection），200ms 已由 Dsl.cshtml 验证无问题
+          self._changeTimer = setTimeout(function () { self.renderJson(which); }, 200);
+        });
+        return cm;
+      },
+      // 手动创建 textarea 并挂到 host（不进 Vue vnode 树）：
+      // Vue 用 el.innerHTML 作模板渲染，CodeMirror.fromTextArea 会把 template 里的 textarea 替换成 .CodeMirror；
+      // 之后 Vue 任何响应式重渲染（JSON 预览/渲染预览更新、切 Tab 等）patch 时会重建 textarea vnode，
+      // 在 DOM 里插入新的 textarea，导致 CodeMirror 的 DOM 关联被破坏、view 测量失效，
+      // 第二次光标操作（setCursor/focus/输入）即崩 prepareSelection（Cannot read properties of undefined (reading 'map')）。
+      createEditorTextarea: function (host) {
+        var ta = document.createElement('textarea');
+        ta.style.width = '100%';
+        ta.style.height = '100%';
+        ta.style.border = '0';
+        ta.style.resize = 'none';
+        ta.setAttribute('spellcheck', 'false');
+        host.appendChild(ta);
+        return ta;
+      },
+      // Prop 编辑器在挂载时创建（对应 Tab 默认可见，CodeMirror 不能在隐藏容器内创建）
+      initPropEditor: function () {
+        try {
+          this._editorProp = this.makeEditor(this.createEditorTextarea(this.$refs.editorPropHost), 'prop');
+        } catch (e) {
+          console.error('[MetaDsl] PropertyConfigJson 编辑器创建失败', e);
+          dyn.showMessage('PropertyConfigJson 编辑器创建失败：' + e.message, 'error');
+        }
+      },
+      // Def 编辑器懒创建：首次切到 DefaultConfigJson Tab（容器可见后）才创建，避免 CodeMirror 在 display:none 内崩溃
+      initDefEditor: function () {
+        if (this._editorDef) return;
+        try {
+          this._editorDef = this.makeEditor(this.createEditorTextarea(this.$refs.editorDefHost), 'def');
+          this._editorDef.setValue(this.originDefDsl);
+          try { window.DynDsl.attachDslHints(this._editorDef, window.DynDsl.getHintIndex()); } catch (e) { console.warn('[MetaDsl] 自动提示挂载失败', e); }
+          this.renderJson('def');
+        } catch (e) {
+          console.error('[MetaDsl] DefaultConfigJson 编辑器创建失败', e);
+          dyn.showMessage('DefaultConfigJson 编辑器创建失败：' + e.message, 'error');
+        }
+      },
+      loadMetaData: function () {
+        var self = this;
+        fetch('/api/platform/componentmeta/getmeta?id=' + encodeURIComponent(this.componentId), { cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            if (!res || res.code !== 0 || !res.data) {
+              dyn.showMessage((res && res.msg) || '加载元数据失败', 'error');
+              return;
+            }
+            var d = res.data;
+            self.componentName = d.componentName || '';
+            self.originPropDsl = d.propertyConfigJson ? self.jsonToDslText(d.propertyConfigJson) : '';
+            self.originDefDsl = d.defaultConfigJson ? self.jsonToDslText(d.defaultConfigJson) : '';
+            if (self._editorProp) {
+              self._editorProp.setValue(self.originPropDsl);
+              // 与 Dsl.cshtml 一致：setValue 之后再挂自动提示（输入法 composition 与 setValue 不叠加）
+              try { window.DynDsl.attachDslHints(self._editorProp, window.DynDsl.getHintIndex()); } catch (e) { console.warn('[MetaDsl] 自动提示挂载失败', e); }
+            }
+            self.renderJson('prop');
+            self.renderJson('def');
+            self.refreshPreview();
+          })
+          .catch(function (e) { dyn.showMessage('加载元数据异常：' + e.message, 'error'); });
+      },
+      jsonToDslText: function (jsonStr) {
+        try {
+          return window.DynDsl.toDsl(JSON.parse(jsonStr));
+        } catch (e) {
+          console.warn('[MetaDsl] JSON 转 DSL 失败', e);
+          return '';
+        }
+      },
+      parseText: function (text) {
+        var hintIndex = window.DynDsl.getHintIndex();
+        return window.DynDsl.parseDsl(text || '', hintIndex ? hintIndex.byName : null);
+      },
+      renderJson: function (which) {
+        var cm = which === 'prop' ? this._editorProp : this._editorDef;
+        var text = cm ? cm.getValue() : (which === 'prop' ? this.originPropDsl : this.originDefDsl);
+        if (!text || !text.trim()) {
+          this.applyJsonState(which, '（空）', false, null);
+          return;
+        }
+        try {
+          var res = this.parseText(text);
+          var err = (res.errors && res.errors.length) ? res.errors[0] : null;
+          var pretty = JSON.stringify(res.cfg, null, 2);
+          var disp = err ? ('⚠ 第 ' + err.line + ' 行：' + err.msg + '\n' + pretty) : pretty;
+          if (which === 'prop') { this._parsedProp = res.cfg; }
+          else { this._parsedDef = res.cfg; }
+          this.applyJsonState(which, disp, !!err, res.cfg);
+        } catch (e) {
+          console.error('[MetaDsl] parseDsl 异常', e);
+          this.applyJsonState(which, 'DSL 解析异常：' + (e && e.message), true, null);
+        }
+      },
+      applyJsonState: function (which, text, isErr, cfg) {
+        if (which === 'prop') { this.jsonPropText = text; this.jsonPropError = isErr; }
+        else { this.jsonDefText = text; this.jsonDefError = isErr; }
+        // 预览跟随当前 Tab：解析有错也渲染已解析出的部分（与 Dsl 页一致，错误行跳过）
+        if (this.activeTab === which && (cfg || !text || !text.trim())) {
+          this.previewCfg = cfg;
+          this.previewKey++;
+        }
+      },
+      refreshPreview: function () {
+        var cfg = this.activeTab === 'prop' ? this._parsedProp : this._parsedDef;
+        this.previewCfg = cfg;
+        this.previewKey++;
+      },
+      switchTab: function (k) {
+        this.activeTab = k;
+        var self = this;
+        this.$nextTick(function () {
+          if (k === 'def') self.initDefEditor(); // 容器可见后才创建 CodeMirror
+          // 只 refresh 当前可见的编辑器：对 display:none 的隐藏编辑器调 refresh()
+          // 会破坏 CM 内部布局状态（view 与 doc 行数失同步），是 prepareSelection 崩溃的隐患
+          var vis = (k === 'prop') ? self._editorProp : self._editorDef;
+          if (vis) vis.refresh();
+          self.refreshPreview();
+        });
+      },
+      resetAll: function () {
+        if (this._editorProp) this._editorProp.setValue(this.originPropDsl);
+        if (this._editorDef) this._editorDef.setValue(this.originDefDsl);
+        this.renderJson('prop');
+        this.renderJson('def');
+      },
+      saveMeta: function () {
+        var self = this;
+        if (!this.componentId) { dyn.showMessage('缺少 componentId', 'error'); return; }
+        var propText = this._editorProp ? this._editorProp.getValue() : this.originPropDsl;
+        var defText = this._editorDef ? this._editorDef.getValue() : this.originDefDsl;
+        var propRes, defRes;
+        try {
+          propRes = this.parseText(propText);
+          defRes = this.parseText(defText);
+        } catch (e) { dyn.showMessage('DSL 解析异常：' + e.message, 'error'); return; }
+        if (propRes.errors && propRes.errors.length) { dyn.showMessage('PropertyConfigJson 第 ' + propRes.errors[0].line + ' 行：' + propRes.errors[0].msg, 'error'); return; }
+        if (defRes.errors && defRes.errors.length) { dyn.showMessage('DefaultConfigJson 第 ' + defRes.errors[0].line + ' 行：' + defRes.errors[0].msg, 'error'); return; }
+        this.saving = true;
+        fetch('/api/platform/componentmeta/savemeta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ componentId: this.componentId, propertyConfigJson: JSON.stringify(propRes.cfg), defaultConfigJson: JSON.stringify(defRes.cfg) })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            if (res && res.code === 0) {
+              dyn.showMessage('保存成功，正在刷新设计器…');
+              self.originPropDsl = self._editorProp ? self._editorProp.getValue() : self.originPropDsl;
+              self.originDefDsl = self._editorDef ? self._editorDef.getValue() : self.originDefDsl;
+              setTimeout(function () {
+                // 独立新窗口：刷新 opener（设计器）并关闭本窗口；
+                // fragment/iframe：刷新父级；同文档：刷新自身
+                try {
+                  if (window.opener) {
+                    try { window.opener.location.reload(); } catch (e) {}
+                    try { window.close(); } catch (e) {}
+                  } else if (window.parent && window.parent !== window) {
+                    try { window.parent.location.reload(); } catch (e) {}
+                  } else {
+                    try { window.location.reload(); } catch (e) {}
+                  }
+                } catch (e) {}
+              }, 800);
+            } else {
+              dyn.showMessage((res && res.msg) || '保存失败', 'error');
+              self.saving = false;
+            }
+          })
+          .catch(function (e) {
+            dyn.showMessage('保存异常：' + e.message, 'error');
+            self.saving = false;
+          });
+      },
+      closeWin: function () {
+        // 独立新窗口模式：直接关闭窗口（window.open 打开的脚本窗口可被 close）
+        // fragment 弹窗模式：与宿主同文档，关闭所在 layui layer（按 times 定位）
+        try {
+          var start = this.element || document.querySelector('.meta-dsl-root');
+          var layero = start && start.closest ? start.closest('.layui-layer') : null;
+          if (layero) {
+            var layer = (window.layui && window.layui.layer) || null;
+            var times = layero.getAttribute('times');
+            if (layer && times != null && times !== '') { layer.close(times); return; }
+          }
+          try { window.close(); } catch (e) {}
+        } catch (e) { try { window.close(); } catch (e2) {} }
+      }
+    }
+  };
+  </script>
+</div>
+
+<style>
+body { margin: 0; }
+.meta-dsl-root { height: 100vh; background: #f0f2f5; display: flex; flex-direction: column; }
+.meta-tab { padding: 8px 16px 0; background: #fff; border-bottom: 1px solid #e4e7ed; display: flex; gap: 8px; flex-shrink: 0; }
+.meta-tab-btn { padding: 6px 14px; font-size: 13px; border-radius: 6px 6px 0 0; cursor: pointer; color: #606266; border: 1px solid transparent; border-bottom: none; }
+.meta-tab-btn:hover { color: #409eff; }
+.meta-tab-btn.active { background: #f0f2f5; color: #409eff; border-color: #e4e7ed; font-weight: 600; }
+/* CodeMirror 恢复标准布局（.CodeMirror 撑满容器、内部滚动）：
+   此前为了修自动提示偏移把 scroll 改 height:auto + overflow-y:hidden 交给外层容器滚动，
+   但 CM5 官方明确 "Things will break if this is overridden"——隐藏/输入时序下会触发
+   prepareSelection 崩溃（Cannot read properties of undefined (reading 'map')）。
+   提示偏移已由 dyn-dsl.js 的 rAF 多帧稳定化解决（连续两帧坐标一致才停），不再依赖此 CSS hack。 */
+.meta-cell .CodeMirror { height: auto; min-height: 100%; }
+.meta-cell .CodeMirror-scroll { height: auto; overflow-y: hidden !important; }
+.meta-pre { font-family: Consolas, Monaco, monospace; font-size: 12px; line-height: 1.5; background: #1e1e1e; color: #d4d4d4; }
+.meta-pre.err { color: #f56c6c; }
+.meta-preview-box { background: #fff; border: 1px solid #e4e7ed; border-radius: 0 0 6px 6px; overflow: auto; padding: 16px; }
+.meta-preview-inner { margin: 0 auto; max-width: 460px; }
+/* 自定义 DSL 提示框层级（高于 layui layer 默认19891014，同文档弹窗内不被遮挡） */
+.dyn-dsl-hint { z-index: 2147483000 !important; }
+</style>
