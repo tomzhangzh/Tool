@@ -23,7 +23,7 @@
           {{ c }}
         </div>
       </div>
-      <div id="component-lib-wrap" class="grid grid-cols-2 gap-2 overflow-y-auto pb-2">
+      <div id="component-lib-wrap" class="grid grid-cols-2 gap-2 overflow-y-auto pb-2 flex-1 min-h-0">
         <div v-for="c in filteredComponents" :key="c.ComponentName"
              class="border border-gray-200 rounded p-2 flex flex-col items-center cursor-grab hover:border-blue-400 hover:bg-blue-50 transition"
              :data-meta="c.ComponentName" draggable="false">

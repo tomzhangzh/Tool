@@ -18,7 +18,7 @@
     子页确定 → postMessage {type:'dyn-designer-result', configJson, defaultModel}
     子页取消 → postMessage {type:'dyn-designer-cancel'}
 *@
-<div class="flex flex-col h-screen m-0 bg-gray-100"
+<div class="dyn-designer-root flex flex-col h-screen m-0 bg-gray-100"
      data-dyn-shared-scope="designer"
      data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 }, "embed": @(isEmbed ? "true" : "false"), "pageId": 0, "pageCode": "", "defaultModel": {} }'>
 
@@ -33,5 +33,15 @@
 
   <style>
 .drag-target-active { outline: 2px dashed #409eff !important; outline-offset: 2px; }
+/* 修复左右面板滚动条：
+   el-tabs 生成的 .el-tabs__content 默认高度 auto，flex 纵向链在此断掉，
+   内部 overflow-y-auto 永远不会触发滚动条。
+   逐层补 min-height:0 + 高度约束：content 占满剩余高度，pane 收缩，滚动区生效 */
+.dyn-designer-root .el-tabs__content { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.dyn-designer-root .el-tabs__header { flex-shrink: 0; }
+.dyn-designer-root .el-tab-pane { flex: 1; min-height: 0; }
+.dyn-designer-root .el-tab-pane.overflow-y-auto,
+.dyn-designer-root .el-tab-pane.overflow-auto { overflow: auto; }
+.dyn-designer-root #component-lib-wrap { flex: 1; min-height: 0; }
 </style></div>
 
