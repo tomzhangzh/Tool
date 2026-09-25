@@ -1,11 +1,12 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "DSL 编辑器 - VueLibV4";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
 }
 @* DSL 编辑器：类 Markdown → 组件JSON → 页面预览（DynDynamicCom 渲染）
    三栏布局：左侧 DSL 编辑器（CodeMirror + 自动提示）｜右上 JSON ｜右下 实时预览
    依赖：dyn-lib.js（含 CodeMirror / ElementPlus / dyn-dsl.js）*@
-<div id="app">
+<div id="@extId">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <b class="title">DSL 编辑器（类 Markdown）</b>
@@ -74,6 +75,9 @@
     .preview-box { flex: 1; min-height: 0; overflow: auto; background: #fff; border: 1px solid #e4e7ed; border-radius: 0 0 6px 6px; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .empty-tip { text-align: center; color: #909399; font-size: 13px; padding: 60px 0; }
     @@media (max-width: 1100px) { .main { grid-template-columns: 1fr; height: auto; } }
+    .CodeMirror-hints {
+  z-index: 9999999 !important;
+}
 </style>
 
 @section Scripts {
@@ -198,7 +202,11 @@
                 }
             });
             DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function () { app.mount('#app'); });
+            DynCom.ensureRegistered(app).then(function () { 
+           const container = document.querySelector('#@extId');
+          
+            app.mount(container);
+             });
         });
     </script>
 }

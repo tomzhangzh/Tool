@@ -1,0 +1,89 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+@section setupScripts{
+    // 加载数据源（后续 optionValuesText 数据源扩展）
+    loadComOptions();
+
+    // ============ 列模板（方案A 修正版）：optionValuesText 自动生成 / columnTemplate 手写优先 ============
+    // optionValuesText 格式：prop,label,width,align（每行一列，后两列可选）
+    function autoBuildTableColumnTemplate(optText) {
+        if (!optText) return '';
+        var lines = String(optText).split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+        var html = '';
+        lines.forEach(function (line) {
+            var parts = line.split(',');
+            var prop = (parts[0] || '').trim();
+            var label = (parts[1] || '').trim();
+            var width = (parts[2] || '').trim();
+            var align = (parts[3] || '').trim();
+            if (!prop || !label) return;
+            var attrs = 'prop="' + prop + '" label="' + label + '"';
+            if (width) attrs += ' width="' + width + '"';
+            if (align) attrs += ' align="' + align + '"';
+            html += '<el-table-column ' + attrs + ' />\n';
+        });
+        return html;
+    }
+
+    // 最终列模板：手写 columnTemplate 优先，其次 optionValuesText 自动生成
+    const finalColumnTemplate = computed(() => {
+        const co = jc.options && jc.options.comoptions || {};
+        if (co.columnTemplate && String(co.columnTemplate).trim()) {
+            return String(co.columnTemplate).trim();
+        }
+        return autoBuildTableColumnTemplate(co.optionValuesText);
+    });
+
+    // 数据：绑定 model（数组）优先；设计/演示时可用 demoRows（支持 JSON 字符串或数组）
+    const rows = computed(() => {
+        if (Array.isArray(modelinfo)) return modelinfo;
+        const raw = (jc.options && jc.options.comoptions && jc.options.comoptions.demoRows);
+        let arr = [];
+        if (Array.isArray(raw)) arr = raw;
+        else if (typeof raw === 'string' && raw.trim()) { try { arr = JSON.parse(raw); } catch (e) { arr = []; } }
+        return arr;
+    });
+
+    // 绑定到 el-table 的属性：剔除私有配置键
+    const tableBind = computed(() => {
+        const co = jc.options && jc.options.comoptions || {};
+        const skip = { optionValuesText: 1, columnTemplate: 1, demoRows: 1 };
+        const out = {};
+        Object.keys(co).forEach(function (k) { if (!skip[k]) out[k] = co[k]; });
+        return out;
+    });
+
+    // ============ 整表动态组件：用 defineComponent({template}) 运行时编译 ============
+    // 关键：Vue.compile 在该运行时返回 {_rc} 不可用；defineComponent+template 需完整版编译器（已实测可用）；
+    //       el-table 无法收集 <component :is> 动态渲染的列，必须整表编译为根组件。
+    const tableComp = computed(() => {
+        const cols = finalColumnTemplate.value;
+        if (!cols) return null;
+        try {
+            const full = '<el-table :data="rows" v-bind="tableBind" v-on="getComlisteners()">\n' + cols + '\n</el-table>';
+            return Vue.defineComponent({
+                name: 'DynElTableCompiled',
+                template: full,
+                setup: function () {
+                    // 返回响应式引用：模板中 :data="rows" / v-bind="tableBind" 自动解包
+                    return { rows: rows, tableBind: tableBind, getComlisteners: getComlisteners };
+                }
+            });
+        } catch (e) {
+            console.error('[DynElTable] 表格模板编译失败:', e);
+            return {
+                name: 'DynElTableCompileError',
+                render: function () { return Vue.h('div', { style: { color: 'red', padding: '8px', fontSize: '12px' } }, '表格模板编译失败: ' + (e.message || e)); }
+            };
+        }
+    });
+
+    // 暴露给模板
+    Object.assign(comExtra, { finalColumnTemplate, tableComp, rows, tableBind });
+}
+
+<component v-if="tableComp" :is="tableComp" />
+<div v-else class="dyn-component-error" style="color:#909399;padding:8px;font-size:12px;">
+    未配置列：请在 comoptions.optionValuesText（简易列，prop,label,width,align 每行一列）或 comoptions.columnTemplate（手写 el-table-column Vue 模板）中配置
+</div>

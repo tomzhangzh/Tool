@@ -1,240 +1,585 @@
 @{
-    Layout = "_Layout";
     ViewData["Title"] = "VueLibV4 桌面工作台";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
 }
-<div id="app">
-<div class="desktop" @@contextmenu.prevent="showContextMenu($event)">
-    <!-- 桌面快捷方式 -->
-    <div class="desktop-icons">
-        <div v-for="sc in shortcuts" :key="sc.Id"
-             class="desktop-icon"
-             :class="{ selected: selectedId === sc.Id }"
-             @@click.stop="selectedId = sc.Id"
-             @@dblclick="openApp(sc)">
-            <div class="icon">{{ sc.Icon || '📄' }}</div>
-            <div class="label">{{ sc.Name }}</div>
-        </div>
-    </div>
-
-    <!-- 窗口 -->
-    <div v-for="win in windows" :key="win.id"
-         class="window"
-         :class="{ minimized: win.minimized, maximized: win.maximized }"
-         :style="{ left: win.x + 'px', top: win.y + 'px', width: win.width + 'px', height: win.height + 'px', zIndex: win.zIndex }"
-         @@mousedown="focusWindow(win.id)">
-        <div class="window-header" @@mousedown="startDrag($event, win)" @@dblclick="toggleMaximize(win)">
-            <span class="icon">{{ win.icon }}</span>
-            <span class="title">{{ win.title }}</span>
-            <div class="window-controls">
-                <button class="win-btn" @@click.stop="minimizeWindow(win)" title="最小化">─</button>
-                <button class="win-btn" @@click.stop="toggleMaximize(win)" title="最大化">{{ win.maximized ? '❐' : '☐' }}</button>
-                <button class="win-btn close" @@click.stop="closeWindow(win.id)" title="关闭">✕</button>
+<div id="@extId">
+    <div class="desktop" @@contextmenu.prevent="showContextMenu($event)">
+        <!-- 桌面快捷方式 -->
+        <div class="desktop-icons">
+            <div v-for="sc in shortcuts" :key="sc.Id" class="desktop-icon" :class="{ selected: selectedId === sc.Id }"
+                @@click.stop="selectedId = sc.Id" @@dblclick="openApp(sc)">
+                <div class="icon">{{ sc.Icon || '📄' }}</div>
+                <div class="label">{{ sc.Name }}</div>
             </div>
         </div>
-        <div class="window-body">
-            <iframe :src="win.url"></iframe>
-        </div>
-    </div>
 
-    <!-- 开始菜单 -->
-    <div v-if="showStartMenu" class="start-menu" @@click.stop>
-        <div class="start-menu-header">
-            <strong>VueLibV4</strong>
-            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;">所有应用</div>
+        <!-- 窗口 -->
+        <div v-for="win in windows" :key="win.id" class="window"
+            :class="{ minimized: win.minimized, maximized: win.maximized }"
+            :style="{ left: win.x + 'px', top: win.y + 'px', width: win.width + 'px', height: win.height + 'px', zIndex: win.zIndex }"
+            @@mousedown="focusWindow(win.id)">
+            <div class="window-header" @@mousedown="startDrag($event, win)" @@dblclick="toggleMaximize(win)">
+                <span class="icon">{{ win.icon }}</span>
+                <span class="title">{{ win.title }}</span>
+                <div class="window-controls">
+                    <button class="win-btn" @@click.stop="minimizeWindow(win)" title="最小化">─</button>
+                    <button class="win-btn" @@click.stop="toggleMaximize(win)" title="最大化">{{ win.maximized ? '❐' : '☐'
+                        }}</button>
+                    <button class="win-btn close" @@click.stop="closeWindow(win.id)" title="关闭">✕</button>
+                </div>
+            </div>
+            <div class="window-body">
+                <iframe :src="win.url"></iframe>
+            </div>
         </div>
-        <div class="start-menu-body">
-            <div v-for="sol in solutions" :key="sol.Id" class="solution-group">
-                <div class="solution-title">{{ sol.Icon || '📁' }} {{ sol.Name }}</div>
-                <div v-for="sc in shortcutsBySolution(sol.Code)" :key="sc.Id" class="menu-item" @@click="openApp(sc); showStartMenu = false;">
-                    <span class="icon">{{ sc.Icon || '📄' }}</span>
-                    <span class="name">{{ sc.Name }}</span>
+
+        <!-- 开始菜单 -->
+        <div v-if="showStartMenu" class="start-menu" @@click.stop>
+            <div class="start-menu-header">
+                <strong>VueLibV4</strong>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;">所有应用</div>
+            </div>
+            <div class="start-menu-body">
+                <div v-for="sol in solutions" :key="sol.Id" class="solution-group">
+                    <div class="solution-title">{{ sol.Icon || '📁' }} {{ sol.Name }}</div>
+                    <div v-for="sc in shortcutsBySolution(sol.Code)" :key="sc.Id" class="menu-item"
+                        @@click="openApp(sc); showStartMenu = false;">
+                        <span class="icon">{{ sc.Icon || '📄' }}</span>
+                        <span class="name">{{ sc.Name }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="start-menu-footer">
+                <button @@click="go('/Platform/Page/Designer')">🎨 页面设计器</button>
+                <button @@click="go('/Platform/Page/Demo/ActionHelper')">⚡ 动作助手</button>
+                <button @@click="go('/Platform/Page/WebPageRender?code=student-manage')">🎓 学生管理</button>
+            </div>
+        </div>
+
+        <!-- 右键菜单 -->
+        <div v-if="contextMenu.show" class="context-menu"
+            :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
+            <div class="context-menu-item" @@click="refreshDesktop">🔄 刷新</div>
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-item" @@click="go('/Platform/Page/Designer')">🎨 设计器</div>
+            <div class="context-menu-item" @@click="go('/Platform/Page/Demo/Crud')">📋 CRUD Demo</div>
+        </div>
+
+        <!-- 任务栏 -->
+        <div class="taskbar">
+            <div class="start-btn" @@click.stop="showStartMenu = !showStartMenu" title="开始">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z" />
+                </svg>
+            </div>
+            <div class="taskbar-windows">
+                <div v-for="win in windows" :key="win.id" class="win-task-item"
+                    :class="{ active: activeWinId === win.id && !win.minimized }" @@click="taskbarClick(win)">
+                    <span class="icon">{{ win.icon }}</span>
+                    <span class="title">{{ win.title }}</span>
+                </div>
+            </div>
+            <div class="system-tray">
+                <div class="clock">
+                    <div>{{ currentTime }}</div>
+                    <div style="font-size:11px;opacity:0.7;">{{ currentDate }}</div>
                 </div>
             </div>
         </div>
-        <div class="start-menu-footer">
-            <button @@click="go('/Platform/Page/Designer')">🎨 页面设计器</button>
-            <button @@click="go('/Platform/Page/Demo/ActionHelper')">⚡ 动作助手</button>
-            <button @@click="go('/Platform/Page/WebPageRender?code=student-manage')">🎓 学生管理</button>
-        </div>
     </div>
-
-    <!-- 右键菜单 -->
-    <div v-if="contextMenu.show" class="context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
-        <div class="context-menu-item" @@click="refreshDesktop">🔄 刷新</div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" @@click="go('/Platform/Page/Designer')">🎨 设计器</div>
-        <div class="context-menu-item" @@click="go('/Platform/Page/Demo/Crud')">📋 CRUD Demo</div>
-    </div>
-
-    <!-- 任务栏 -->
-    <div class="taskbar">
-        <div class="start-btn" @@click.stop="showStartMenu = !showStartMenu" title="开始">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
-        </div>
-        <div class="taskbar-windows">
-            <div v-for="win in windows" :key="win.id"
-                 class="win-task-item"
-                 :class="{ active: activeWinId === win.id && !win.minimized }"
-                 @@click="taskbarClick(win)">
-                <span class="icon">{{ win.icon }}</span>
-                <span class="title">{{ win.title }}</span>
-            </div>
-        </div>
-        <div class="system-tray">
-            <div class="clock">
-                <div>{{ currentTime }}</div>
-                <div style="font-size:11px;opacity:0.7;">{{ currentDate }}</div>
-            </div>
-        </div>
-    </div>
-</div>
 </div>
 
 <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; user-select: none; }
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        user-select: none;
+    }
+
     .desktop {
-        width: 100%; height: 100vh; position: relative;
+        width: 100%;
+        height: 100vh;
+        position: relative;
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #6a11cb 100%);
         background-size: 400% 400%;
         animation: gradientShift 15s ease infinite;
     }
-    @@keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-    .desktop-icons { position: absolute; top: 0; left: 0; right: 0; bottom: 48px; padding: 16px; display: flex; flex-direction: column; flex-wrap: wrap; align-content: flex-start; gap: 8px; }
-    .desktop-icon { width: 80px; height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 8px 4px; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
-    .desktop-icon:hover { background: rgba(255,255,255,0.15); }
-    .desktop-icon.selected { background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4); }
-    .desktop-icon .icon { font-size: 36px; line-height: 1; margin-bottom: 6px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
-    .desktop-icon .label { color: #fff; font-size: 12px; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,0.8); word-break: break-all; line-height: 1.3; max-height: 32px; overflow: hidden; }
-    .taskbar { position: absolute; bottom: 0; left: 0; right: 0; height: 48px; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); display: flex; align-items: center; padding: 0 8px; z-index: 1000; border-top: 1px solid rgba(255,255,255,0.1); }
-    .start-btn { width: 44px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; transition: background 0.15s; color: #fff; }
-    .start-btn:hover { background: rgba(255,255,255,0.15); }
-    .start-btn svg { width: 22px; height: 22px; }
-    .taskbar-windows { flex: 1; display: flex; gap: 4px; padding: 0 8px; overflow-x: auto; height: 100%; align-items: center; }
-    .taskbar-windows::-webkit-scrollbar { display: none; }
-    .win-task-item { height: 36px; min-width: 160px; max-width: 200px; padding: 0 10px; display: flex; align-items: center; gap: 8px; border-radius: 6px; cursor: pointer; transition: background 0.15s; color: #fff; font-size: 13px; background: rgba(255,255,255,0.08); }
-    .win-task-item:hover { background: rgba(255,255,255,0.18); }
-    .win-task-item.active { background: rgba(255,255,255,0.25); border-bottom: 2px solid #4fc3f7; }
-    .win-task-item .icon { font-size: 16px; }
-    .win-task-item .title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .system-tray { display: flex; align-items: center; gap: 12px; color: #fff; font-size: 12px; padding: 0 12px; }
-    .system-tray .clock { text-align: right; line-height: 1.3; }
-    .start-menu { position: absolute; bottom: 56px; left: 8px; width: 360px; max-height: 520px; background: rgba(40, 40, 40, 0.92); backdrop-filter: blur(30px); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; z-index: 999; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
-    .start-menu-header { padding: 16px; color: #fff; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-    .start-menu-body { flex: 1; overflow-y: auto; padding: 8px; }
-    .solution-group { margin-bottom: 12px; }
-    .solution-title { color: rgba(255,255,255,0.6); font-size: 11px; padding: 4px 8px; text-transform: uppercase; }
-    .menu-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: #fff; transition: background 0.15s; }
-    .menu-item:hover { background: rgba(255,255,255,0.12); }
-    .menu-item .icon { font-size: 20px; width: 28px; text-align: center; }
-    .menu-item .name { font-size: 13px; }
-    .start-menu-footer { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; gap: 8px; }
-    .start-menu-footer button { background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; font-size: 12px; padding: 6px 12px; border-radius: 4px; }
-    .start-menu-footer button:hover { background: rgba(255,255,255,0.1); color: #fff; }
-    .window { position: absolute; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.4); display: flex; flex-direction: column; min-width: 400px; min-height: 300px; }
-    .window.minimized { display: none; }
-    .window.maximized { top: 0 !important; left: 0 !important; width: 100% !important; height: calc(100% - 48px) !important; border-radius: 0; }
-    .window-header { height: 36px; background: linear-gradient(to bottom, #f5f5f5, #e8e8e8); display: flex; align-items: center; padding: 0 8px; cursor: move; border-bottom: 1px solid #ddd; flex-shrink: 0; }
-    .window-header .icon { font-size: 16px; margin-right: 8px; }
-    .window-header .title { flex: 1; font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .window-controls { display: flex; gap: 4px; }
-    .win-btn { width: 28px; height: 24px; border: none; background: none; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #666; transition: background 0.15s; }
-    .win-btn:hover { background: rgba(0,0,0,0.08); }
-    .win-btn.close:hover { background: #e81123; color: #fff; }
-    .window-body { flex: 1; overflow: hidden; position: relative; }
-    .window-body iframe { width: 100%; height: 100%; border: none; }
-    .context-menu { position: absolute; background: rgba(50,50,50,0.95); border-radius: 8px; padding: 6px; min-width: 160px; z-index: 2000; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); }
-    .context-menu-item { padding: 8px 14px; color: #fff; font-size: 13px; border-radius: 4px; cursor: pointer; transition: background 0.15s; }
-    .context-menu-item:hover { background: rgba(255,255,255,0.15); }
-    .context-menu-divider { height: 1px; background: rgba(255,255,255,0.1); margin: 4px 0; }
+
+    @@keyframes gradientShift {
+        0% {
+            background-position: 0% 50%;
+        }
+
+        50% {
+            background-position: 100% 50%;
+        }
+
+        100% {
+            background-position: 0% 50%;
+        }
+    }
+
+    .desktop-icons {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 48px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        gap: 8px;
+    }
+
+    .desktop-icon {
+        width: 80px;
+        height: 90px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 8px 4px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .desktop-icon:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .desktop-icon.selected {
+        background: rgba(255, 255, 255, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+
+    .desktop-icon .icon {
+        font-size: 36px;
+        line-height: 1;
+        margin-bottom: 6px;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    }
+
+    .desktop-icon .label {
+        color: #fff;
+        font-size: 12px;
+        text-align: center;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        word-break: break-all;
+        line-height: 1.3;
+        max-height: 32px;
+        overflow: hidden;
+    }
+
+    .taskbar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 48px;
+        background: rgba(30, 30, 30, 0.85);
+        backdrop-filter: blur(20px);
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        z-index: 1000;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .start-btn {
+        width: 44px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s;
+        color: #fff;
+    }
+
+    .start-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .start-btn svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .taskbar-windows {
+        flex: 1;
+        display: flex;
+        gap: 4px;
+        padding: 0 8px;
+        overflow-x: auto;
+        height: 100%;
+        align-items: center;
+    }
+
+    .taskbar-windows::-webkit-scrollbar {
+        display: none;
+    }
+
+    .win-task-item {
+        height: 36px;
+        min-width: 160px;
+        max-width: 200px;
+        padding: 0 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s;
+        color: #fff;
+        font-size: 13px;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .win-task-item:hover {
+        background: rgba(255, 255, 255, 0.18);
+    }
+
+    .win-task-item.active {
+        background: rgba(255, 255, 255, 0.25);
+        border-bottom: 2px solid #4fc3f7;
+    }
+
+    .win-task-item .icon {
+        font-size: 16px;
+    }
+
+    .win-task-item .title {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .system-tray {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #fff;
+        font-size: 12px;
+        padding: 0 12px;
+    }
+
+    .system-tray .clock {
+        text-align: right;
+        line-height: 1.3;
+    }
+
+    .start-menu {
+        position: absolute;
+        bottom: 56px;
+        left: 8px;
+        width: 360px;
+        max-height: 520px;
+        background: rgba(40, 40, 40, 0.92);
+        backdrop-filter: blur(30px);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        flex-direction: column;
+        z-index: 999;
+        overflow: hidden;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .start-menu-header {
+        padding: 16px;
+        color: #fff;
+        font-size: 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .start-menu-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+    }
+
+    .solution-group {
+        margin-bottom: 12px;
+    }
+
+    .solution-title {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 11px;
+        padding: 4px 8px;
+        text-transform: uppercase;
+    }
+
+    .menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #fff;
+        transition: background 0.15s;
+    }
+
+    .menu-item:hover {
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .menu-item .icon {
+        font-size: 20px;
+        width: 28px;
+        text-align: center;
+    }
+
+    .menu-item .name {
+        font-size: 13px;
+    }
+
+    .start-menu-footer {
+        padding: 12px 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .start-menu-footer button {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        cursor: pointer;
+        font-size: 12px;
+        padding: 6px 12px;
+        border-radius: 4px;
+    }
+
+    .start-menu-footer button:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .window {
+        position: absolute;
+        background: #fff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        display: flex;
+        flex-direction: column;
+        min-width: 400px;
+        min-height: 300px;
+    }
+
+    .window.minimized {
+        display: none;
+    }
+
+    .window.maximized {
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: calc(100% - 48px) !important;
+        border-radius: 0;
+    }
+
+    .window-header {
+        height: 36px;
+        background: linear-gradient(to bottom, #f5f5f5, #e8e8e8);
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        cursor: move;
+        border-bottom: 1px solid #ddd;
+        flex-shrink: 0;
+    }
+
+    .window-header .icon {
+        font-size: 16px;
+        margin-right: 8px;
+    }
+
+    .window-header .title {
+        flex: 1;
+        font-size: 13px;
+        color: #333;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .window-controls {
+        display: flex;
+        gap: 4px;
+    }
+
+    .win-btn {
+        width: 28px;
+        height: 24px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        color: #666;
+        transition: background 0.15s;
+    }
+
+    .win-btn:hover {
+        background: rgba(0, 0, 0, 0.08);
+    }
+
+    .win-btn.close:hover {
+        background: #e81123;
+        color: #fff;
+    }
+
+    .window-body {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .window-body iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+
+    .context-menu {
+        position: absolute;
+        background: rgba(50, 50, 50, 0.95);
+        border-radius: 8px;
+        padding: 6px;
+        min-width: 160px;
+        z-index: 2000;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .context-menu-item {
+        padding: 8px 14px;
+        color: #fff;
+        font-size: 13px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+
+    .context-menu-item:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .context-menu-divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 4px 0;
+    }
 </style>
 
 @section Scripts {
-<script>
-DynLib.ready(function () {
-    var app = Vue.createApp({
-        data: function () {
-            return {
-                shortcuts: [], solutions: [], windows: [],
-                showStartMenu: false, selectedId: null, activeWinId: null,
-                currentTime: '', currentDate: '',
-                contextMenu: { show: false, x: 0, y: 0 },
-                _winId: 0, _z: 100
-            };
-        },
-        methods: {
-            go: function (url) { window.location.href = url; },
-            load: function () {
-                var self = this;
-                Promise.all([
-                    fetch('/api/platform/desktopshortcut/all').then(function (r) { return r.json(); }),
-                    fetch('/api/platform/desktopsolution/all').then(function (r) { return r.json(); })
-                ]).then(function (rs) {
-                    if (rs[0].code === 0) self.shortcuts = (rs[0].data || []).filter(function (s) { return s.IsActive !== false; });
-                    if (rs[1].code === 0) self.solutions = rs[1].data || [];
-                }).catch(function (e) { console.error('加载桌面数据失败', e); });
-            },
-            shortcutsBySolution: function (code) {
-                return this.shortcuts.filter(function (s) { return (s.SolutionId || null) === code; });
-            },
-            openApp: function (sc) {
-                var self = this;
-                if (sc.TargetType === 'action' && sc.ActionHelperId) {
-                    DynActionHelper.run(sc.ActionHelperId, {}, {}); return;
+    <script>
+        DynLib.ready(function () {
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        shortcuts: [], solutions: [], windows: [],
+                        showStartMenu: false, selectedId: null, activeWinId: null,
+                        currentTime: '', currentDate: '',
+                        contextMenu: { show: false, x: 0, y: 0 },
+                        _winId: 0, _z: 100
+                    };
+                },
+                methods: {
+                    go: function (url) { window.location.href = url; },
+                    load: function () {
+                        var self = this;
+                        Promise.all([
+                            fetch('/api/platform/desktopshortcut/all').then(function (r) { return r.json(); }),
+                            fetch('/api/platform/desktopsolution/all').then(function (r) { return r.json(); })
+                        ]).then(function (rs) {
+                            if (rs[0].code === 0) self.shortcuts = (rs[0].data || []).filter(function (s) { return s.IsActive !== false; });
+                            if (rs[1].code === 0) self.solutions = rs[1].data || [];
+                        }).catch(function (e) { console.error('加载桌面数据失败', e); });
+                    },
+                    shortcutsBySolution: function (code) {
+                        return this.shortcuts.filter(function (s) { return (s.SolutionId || null) === code; });
+                    },
+                    openApp: function (sc) {
+                        var self = this;
+                        if (sc.TargetType === 'action' && sc.ActionHelperId) {
+                            DynActionHelper.run(sc.ActionHelperId, {}, {}); return;
+                        }
+                        if (sc.TargetType === 'url' && sc.Url) { window.open(sc.Url, '_blank'); return; }
+                        var url = sc.Url;
+                        if (!url) return;
+                        var existing = this.windows.find(function (w) { return w.url === url; });
+                        if (existing) { existing.minimized = false; this.focusWindow(existing.id); return; }
+                        var w = {
+                            id: ++this._winId, title: sc.Name, icon: sc.Icon || '📄', url: url,
+                            x: 80 + (this.windows.length * 30) % 200,
+                            y: 60 + (this.windows.length * 30) % 150,
+                            width: 960, height: 640, minimized: false, maximized: false, zIndex: ++this._z
+                        };
+                        this.windows.push(w); this.activeWinId = w.id;
+                    },
+                    focusWindow: function (id) {
+                        var w = this.windows.find(function (x) { return x.id === id; });
+                        if (w) { w.zIndex = ++this._z; this.activeWinId = id; }
+                    },
+                    minimizeWindow: function (w) { w.minimized = true; },
+                    toggleMaximize: function (w) { w.maximized = !w.maximized; },
+                    closeWindow: function (id) {
+                        var i = this.windows.findIndex(function (x) { return x.id === id; });
+                        if (i >= 0) this.windows.splice(i, 1);
+                    },
+                    taskbarClick: function (w) {
+                        if (w.minimized) { w.minimized = false; this.focusWindow(w.id); }
+                        else if (this.activeWinId === w.id) w.minimized = true;
+                        else this.focusWindow(w.id);
+                    },
+                    startDrag: function (e, w) {
+                        var self = this;
+                        if (w.maximized) return;
+                        this.focusWindow(w.id);
+                        var sx = e.clientX, sy = e.clientY, ox = w.x, oy = w.y;
+                        var move = function (ev) { w.x = ox + (ev.clientX - sx); w.y = Math.max(0, oy + (ev.clientY - sy)); };
+                        var up = function () { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+                        document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+                    },
+                    showContextMenu: function (e) { this.contextMenu.show = true; this.contextMenu.x = e.clientX; this.contextMenu.y = e.clientY; },
+                    refreshDesktop: function () { this.contextMenu.show = false; this.load(); },
+                    tick: function () {
+                        var n = new Date();
+                        this.currentTime = n.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                        this.currentDate = n.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+                    }
+                },
+                mounted: function () {
+                    this.load(); this.tick();
+                    setInterval(this.tick, 1000);
+                    var self = this;
+                    document.addEventListener('click', function () { self.showStartMenu = false; self.contextMenu.show = false; self.selectedId = null; });
                 }
-                if (sc.TargetType === 'url' && sc.Url) { window.open(sc.Url, '_blank'); return; }
-                var url = sc.Url;
-                if (!url) return;
-                var existing = this.windows.find(function (w) { return w.url === url; });
-                if (existing) { existing.minimized = false; this.focusWindow(existing.id); return; }
-                var w = {
-                    id: ++this._winId, title: sc.Name, icon: sc.Icon || '📄', url: url,
-                    x: 80 + (this.windows.length * 30) % 200,
-                    y: 60 + (this.windows.length * 30) % 150,
-                    width: 960, height: 640, minimized: false, maximized: false, zIndex: ++this._z
-                };
-                this.windows.push(w); this.activeWinId = w.id;
-            },
-            focusWindow: function (id) {
-                var w = this.windows.find(function (x) { return x.id === id; });
-                if (w) { w.zIndex = ++this._z; this.activeWinId = id; }
-            },
-            minimizeWindow: function (w) { w.minimized = true; },
-            toggleMaximize: function (w) { w.maximized = !w.maximized; },
-            closeWindow: function (id) {
-                var i = this.windows.findIndex(function (x) { return x.id === id; });
-                if (i >= 0) this.windows.splice(i, 1);
-            },
-            taskbarClick: function (w) {
-                if (w.minimized) { w.minimized = false; this.focusWindow(w.id); }
-                else if (this.activeWinId === w.id) w.minimized = true;
-                else this.focusWindow(w.id);
-            },
-            startDrag: function (e, w) {
-                var self = this;
-                if (w.maximized) return;
-                this.focusWindow(w.id);
-                var sx = e.clientX, sy = e.clientY, ox = w.x, oy = w.y;
-                var move = function (ev) { w.x = ox + (ev.clientX - sx); w.y = Math.max(0, oy + (ev.clientY - sy)); };
-                var up = function () { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
-                document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
-            },
-            showContextMenu: function (e) { this.contextMenu.show = true; this.contextMenu.x = e.clientX; this.contextMenu.y = e.clientY; },
-            refreshDesktop: function () { this.contextMenu.show = false; this.load(); },
-            tick: function () {
-                var n = new Date();
-                this.currentTime = n.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-                this.currentDate = n.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
-            }
-        },
-        mounted: function () {
-            this.load(); this.tick();
-            setInterval(this.tick, 1000);
-            var self = this;
-            document.addEventListener('click', function () { self.showStartMenu = false; self.contextMenu.show = false; self.selectedId = null; });
-        }
-    });
-    app.mount('#app');
-});
-</script>
+            });
+            const container = document.querySelector('#@extId');
+            app.mount(container);
+
+        });
+    </script>
 }

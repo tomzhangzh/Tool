@@ -3,8 +3,9 @@
     ViewData["Title"] = "动态页面 - VueLibV4";
     var pageCode = ViewData["PageCode"] as string;
     var pageId = ViewData["PageId"] as string;
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
 }
-<div id="app">
+<div id="@extId">
     <div class="webpage-bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
         <span class="title">{{ pageName || '动态页面' }}</span>
@@ -56,7 +57,10 @@
                 mounted: function () { this.load(); }
             });
             DynCom.setupApp(app);
-            app.mount('#app');
+            DynCom.ensureRegistered(app).then(function () { 
+                const container = document.querySelector('#@extId');            
+                app.mount(container);
+             });
         });
     </script>
 }

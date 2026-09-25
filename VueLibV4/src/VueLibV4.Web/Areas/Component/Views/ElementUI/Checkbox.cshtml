@@ -1,4 +1,4 @@
-﻿﻿﻿﻿@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+﻿﻿﻿@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
 <el-checkbox-group v-model="modelinfo" v-bind="jc.options.comoptions" v-on="getComlisteners()">
         <el-checkbox v-for="item in comInnerInfo.options" :key="item.value" :label="item.value">{{ item.label }}</el-checkbox>

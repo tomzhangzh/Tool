@@ -1,8 +1,9 @@
 @{
     Layout = "_Layout";
     ViewData["Title"] = "页面生成向导 - VueLibV4";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
 }
-<div id="app">
+<div id="@extId">   
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">页面生成向导（三屏：筛选区 + 列表区 + 详情区）</span>
@@ -217,7 +218,10 @@
             }
         });
         DynCom.setupApp(app);
-        DynCom.ensureRegistered(app).then(function () { app.mount('#app'); });
+        DynCom.ensureRegistered(app).then(function () { 
+            const container = document.querySelector('#@extId');            
+            app.mount(container);
+         });
     });
 </script>
 }

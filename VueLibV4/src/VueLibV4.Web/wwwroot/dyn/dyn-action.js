@@ -434,7 +434,7 @@ defineAction('load',async ctx=>{
   const url = o.url||ctx.url;
   if(!url){ dyn.showMessage("[load]缺少url",'error'); return; }
   const html = await dyn.fetchPartial(url,o.params||{},o.method||'POST');
-  await dyn.render(ctx.element,html);
+  await dyn.html(ctx.element,html);
 });
 
 /**
@@ -473,11 +473,11 @@ defineAction('updateel',async ctx=>{
       runJsonActions({actions:parsed[CONST.DATA_DYN_ACTIONS]},targetEl);
     }
     if(typeof parsed.data==='string'&&parsed.data.indexOf('<')>=0){
-      return await dyn.render(targetEl,parsed.data);
+      return await dyn.html(targetEl,parsed.data);
     }
     return parsed;
   }
-  return await dyn.render(targetEl,text);
+  return await dyn.html(targetEl,text);
 });
 // 语义别名：Submit=提交并刷新区块；ReloadTarget=刷新指定区块
 defineAction('submit',ctx=>_actions.updateel(ctx));
@@ -502,66 +502,71 @@ defineAction('open',async ctx=>{
       await dyn.reload(host);
     }
   };
+
   if(layer){
+    // 基础默认配置，外部o中的同名字段会覆盖这里
+    const baseOpt = {
+      title: '对话框',
+      shadeClose: false,
+      maxmin:true,
+    };
+    // 合并：用户options覆盖默认
+    const layerOpt = Object.assign({}, baseOpt, o);
+
+    // area 处理：优先使用o.area；没有则用 width/height 生成
+    if(!layerOpt.area){
+      layerOpt.area = [layerOpt.width || '60%', layerOpt.height || '80%'];
+    }
+
     if(o.mode==='iframe'||o.iframe===true){
+      // iframe 固定 type=2，强制覆盖，不可外部修改
       const idx = layer.open({
+        ...layerOpt,
         type:2,
-        title:o.title||'对话框',
-        area:[o.width||'60%',o.height||'80%'],
-        shadeClose:!!o.shadeClose,
         content:url,
         end:()=>{ onEnd().catch(e=>console.error('[open onEnd]',e)); }
       });
       return { index:idx };
     }
+
+    // fragment type:1
     const holder = document.createElement('div');
     holder.className='dyn-modal-host dyn-layer-fragment';
-    holder.style.padding='12px';
-    // layui layer type:1 的 DOM 内容必须【已存在于文档中】：内部对 content 执行
-    // wrap/show/移动定位，游离元素会导致弹层与内容都不进 DOM（且无任何报错）。
-    // 先挂到 body 并隐藏，layer.open 会把它移入内容区并 .show()。
+    holder.style.padding='0px';
     holder.style.display='none';
     document.body.appendChild(holder);
-    // layui layer 还会直接调用 content.parents()/data()，必须传其内置 jQuery 包装对象；
-    // 传原生元素会抛 "d.parents is not a function"
     const holderContent = (global.layui && global.layui.$) ? global.layui.$(holder) : holder;
+
     const idx = layer.open({
-      type:1,
-      title:o.title||'对话框',
-      area:[o.width||'60%',o.height||'80%'],
-      shadeClose:!!o.shadeClose,
+      ...layerOpt,
+      type:1, // fragment固定type=1，强制覆盖
       content:holderContent,
       success:async ()=>{
         try{
           holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
           const html = await dyn.fetchPartial(url,o.params||{},o.method||'GET');
-          holder.innerHTML = html;
-          // 片段约定：内部以 [data-dyn-init-createapp] 块作为 Vue 挂载根，配置数据块
-          // （#detailCfgData 等）是它的兄弟节点。必须挂在这个内部块上——配置数据留在
-          // 挂载根之外；若直接挂外层 holder，Vue 挂载清空容器内容时 data() 里
-          // document.getElementById('detailCfgData') 会读到 null。
-          const appRoot = holder.querySelector('[data-dyn-init-createapp]')
-                       || holder.querySelector('[data-dyn-mode="createApp"]');
-          if(appRoot){
-            appRoot.removeAttribute('data-dyn-init-createapp');
-            appRoot.setAttribute('data-dyn-mode','createApp');
-            await dyn.mount(appRoot);
-          }else{
-            await dyn.mount(holder);
-          }
+          global.dyn.html(holder,html);
           await _runEvents(normActionSteps(o.onopen),Object.assign({},ctx,{holder}));
         }catch(e){
           holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：'+(e.message||e)+'</div>';
         }
       },
-      end:()=>{ try{dyn.unmount(holder);}catch(e){} try{holder.remove();}catch(e){} onEnd().catch(e=>console.error('[open onEnd]',e)); }
+      end:()=>{ 
+        try{dyn.unmount(holder);}catch(e){} 
+        try{holder.remove();}catch(e){} 
+        onEnd().catch(e=>console.error('[open onEnd]',e)); 
+      }
     });
     return { index:idx, holder };
   }
-  // layer 不可用时降级为浏览器新窗口
+  if (o.max){
+    layer.full(idx);
+  }
+  // layer 不可用降级
   global.open(url,'_blank');
   return null;
 });
+
 
 /** openWindow：以 iframe 方式打开完整 MVC 页面（V1 同名动作） */
 defineAction('openwindow',ctx=>_actions.open(Object.assign({},ctx,{options:Object.assign({mode:'iframe'},ctx.options||{})})));
@@ -1196,7 +1201,7 @@ global.DynAction = {
   /** 动态注册单个动作助手（与 /script 生成的 DynActionHelper.register 等价） */
   register:registerDbAction,
   /** 已注册的 DB 动作原始定义（Code → 行记录） */
-  actions:_dbActions,
+  actions:_actions,
   bus:_bus
 };
 global.DynActionHelper = global.DynAction;

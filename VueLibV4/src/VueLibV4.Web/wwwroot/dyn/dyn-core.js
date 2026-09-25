@@ -155,7 +155,10 @@ async function fetchPartial(url,params,type,dataType){
     url,
     method:type,
     timeout:30000,
-    responseType: dataType==='json' ? 'json' : 'text'
+    responseType: dataType==='json' ? 'json' : 'text',
+    // 显式带 AJAX 标识头：使 _ViewStart/_Layout 的 X-Requested-With 判断走 _AjaxLayout，
+    // 返回局部片段而非完整页面（不依赖 axios.defaults 全局配置是否已生效）
+    headers:{ 'X-Requested-With':'XMLHttpRequest' }
   };
   if(type==='GET'){
     opt.params = params||{};
@@ -423,7 +426,57 @@ async function mountConfig(cfg,target,model){
   if(global.dyn&&typeof dyn.initActions==='function') dyn.initActions(target);
   return app;
 }
+/**
+ * 渲染html，执行所有层级内联script，
+ * 跳过带 tag="xxx" 属性的script节点，
+ * 脚本内可以直接访问变量 el（当前容器DOM）
+ * @param {HTMLElement} el 目标容器
+ * @param {string} htmlStr html字符串
+ */
+function html(el, htmlStr) {
+  el.innerHTML = "";
+  const temp = document.createElement('div');
+  temp.innerHTML = htmlStr;
 
+  // 【关键】在移动DOM之前，先把所有script节点抓取保存
+  const allScripts = Array.from(temp.querySelectorAll('script'));
+
+  // 全部节点移入真实容器el
+  while (temp.firstChild) {
+    el.appendChild(temp.firstChild);
+  }
+
+  const scriptsToRun = [];
+  allScripts.forEach(oldScript => {
+    // 此时oldScript的引用已经跟着DOM移动到el内
+    const realScript = oldScript;
+
+    // 只要存在 tag 属性，直接跳过不执行（comconfig配置节点）
+    if (realScript.hasAttribute('tag')) {
+      return;
+    }
+
+    // 外部src脚本不处理，只处理内联脚本
+    if (realScript.src) return;
+
+    const code = realScript.textContent.trim();
+    if (!code) return;
+
+    realScript.remove(); // 删除原script标签，避免浏览器原生执行
+    scriptsToRun.push(code);
+  });
+
+  // 执行脚本，注入局部变量 el
+  scriptsToRun.forEach(code => {
+    try {
+      const fn = new Function('parentElement', code);
+      fn(el);
+    } catch (err) {
+      console.error('脚本执行失败', err);
+    }
+  });
+  dyn.initActions(el);
+}
 /**
  * @description 挂载。两种签名：
  *   dyn.mount(el)                                  挂载 dyn-mode=createApp 容器（支持 data-dyn-url 远程片段）
@@ -453,7 +506,7 @@ function mount(elOrCfg,targetEl,model){
     if(needLoad){
       const m = parseModel(el)||{};
       fetchPartial(url,m,'POST').then(html=>{
-        el.innerHTML = html;
+        global.dyn.render(el,html);
         el.__dynMounting = false;
         try{
           const app = mountCore(el);
@@ -508,7 +561,7 @@ function render(el,html){
   el = resolve(el);
   if(!el) return Promise.resolve(null);
   unmount(el);
-  el.innerHTML = html||'';
+  global.dyn.html(el,html||'');
   return mount(el);
 }
 
@@ -611,7 +664,7 @@ async function reload(target,opts){
       return mount(targetEl);
     }else{
       unmount(targetEl);
-      targetEl.innerHTML = text;
+      global.dyn.html(targetEl,text);
       return mount(targetEl);
     }
   }).catch(err=>{ showMessage('刷新失败：'+((err&&err.message)||err),'error'); return null; });
@@ -669,7 +722,7 @@ const dyn = {
   getApp:getAppByEl,getClosestApp,getProxy,getModel,getScopeModel,
   fetchPartial,serializeForm,collectParams,
   reload,setDynCfg,getVueModel,
-  getByPath,setPathVal,deepClone
+  getByPath,setPathVal,deepClone,html
 };
 // ========= 新增下面这一行 =========
 dyn.installActionApi = function(obj){

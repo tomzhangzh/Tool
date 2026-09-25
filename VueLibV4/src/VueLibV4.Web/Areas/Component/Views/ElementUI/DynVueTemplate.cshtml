@@ -1,0 +1,66 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+@section setupScripts{
+    // 通用 Vue 模板片段组件：任意 template 片段，可访问 model（整个表单模型）/ modelinfo（绑定值）/ comBind / comInnerInfo / getComlisteners
+    loadComOptions();
+
+    // 模板源码：comoptions.template
+    const vueTemplateSrc = computed(() => {
+        const s = jc.options && jc.options.comoptions && jc.options.comoptions.template;
+        return (s && String(s).trim()) || '';
+    });
+
+    // 缓存编译结果：相同模板字符串不重复 defineComponent
+    let vtCacheSrc = null;
+    let vtCacheComp = null;
+    const vueTemplateComp = computed(() => {
+        const src = vueTemplateSrc.value;
+        if (!src) return null;
+        if (vtCacheSrc === src) return vtCacheComp;
+        vtCacheSrc = src;
+        try {
+            vtCacheComp = Vue.defineComponent({
+                name: 'DynVueTemplateInner',
+                template: src,
+                setup: function () {
+                    // 暴露 dyn 组件标准上下文给模板（响应式引用，模板自动解包）
+                    // model: 整个表单模型对象（推荐读写入口，如 {{ model.username }} / @@click="model.count++"）
+                    // modelinfo: 当前绑定字段值（modelname 为空时为 null）
+                    // comBind: comoptions 绑定对象；comInnerInfo: 内部信息；getComlisteners: 事件监听
+                    // 注意：comBind 定义在 comExtra 上，setupScripts 内需通过 comExtra.comBind 引用
+                    return {
+                        modelinfo: modelinfo,
+                        model: props.parentmodelinfo,
+                        comBind: comExtra.comBind,
+                        comInnerInfo: comInnerInfo,
+                        getComlisteners: getComlisteners
+                    };
+                }
+            });
+            return vtCacheComp;
+        } catch (e) {
+            console.error('[DynVueTemplate] 模板编译失败:', e);
+            vtCacheComp = {
+                name: 'DynVueTemplateError',
+                render: function () {
+                    return Vue.h('div', { style: 'color:#e53935;padding:8px;font-size:12px;border:1px dashed #ef9a9a;' }, 'Vue模板编译失败: ' + (e.message || e));
+                }
+            };
+            return vtCacheComp;
+        }
+    });
+
+    // 外层透明容器自定义 class
+    const wrapperClass = computed(() => (jc.options && jc.options.comoptions && jc.options.comoptions.wrapperClass) || '');
+
+    Object.assign(comExtra, { vueTemplateComp, wrapperClass });
+}
+
+@* 外层透明容器（默认无样式，不干扰布局；可配置 wrapperClass 自定义） *@
+<div :class="wrapperClass">
+    <component v-if="vueTemplateComp" :is="vueTemplateComp" />
+    <div v-else style="color:#909399;padding:8px;font-size:12px;border:1px dashed #dcdfe6;">
+        VueTemplate：请在 comoptions.template 中填写 Vue 模板片段（可访问 model / modelinfo / comBind / comInnerInfo / getComlisteners）
+    </div>
+</div>

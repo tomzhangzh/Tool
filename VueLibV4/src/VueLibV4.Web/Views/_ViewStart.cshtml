@@ -1,0 +1,5 @@
+﻿@{
+    bool isAjax = ViewContext.HttpContext.Request.Headers.TryGetValue("X-Requested-With", out var ajaxHeader)
+                  && ajaxHeader == "XMLHttpRequest";
+    Layout = isAjax ? "_AjaxLayout" : "_Layout";
+}

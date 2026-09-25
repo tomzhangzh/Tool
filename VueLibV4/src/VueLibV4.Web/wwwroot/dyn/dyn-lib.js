@@ -40,6 +40,7 @@ const BASE = getBase();
 
 const DEFAULT_LIBS = [];
 DEFAULT_LIBS.push({url:"../lib/vue.global.prod.js",name:"vue"});
+DEFAULT_LIBS.push({url:"../lib/jquery/dist/jquery.min.js",name:"jquery"});
 if(DYN_LIB_CONFIG.loadLodash) DEFAULT_LIBS.push({url:"../lib/lodash.min.js",name:"lodash"});
 if(DYN_LIB_CONFIG.loadElementPlus){
   DEFAULT_LIBS.push({url:"../lib/element-plus/index.css",name:"element-plus-css"});
@@ -75,7 +76,7 @@ const DYN_MODULES = [
 ];
 
 const DynLib = {
-  version:"4.1.9",
+  version:"4.2.1",
   base:BASE,
   _libs:{},
   _ready:false,
@@ -120,12 +121,13 @@ const DynLib = {
     this._queue.push(cb);
   },
   _fireReady(){
-    // 就绪后自动扫描并执行页面 data-dyn-init-* 初始化动作（含ajax载入片段由mountCore触发）
-    try{
-      if(global.dyn && typeof dyn.initActions === 'function'){
-        dyn.initActions(document.body);
-      }
-    }catch(e){ console.error("[DynLib]initActions执行异常",e); }
+    // // 就绪后自动扫描并执行页面 data-dyn-init-* 初始化动作（含ajax载入片段由mountCore触发）
+    // try{
+    //   if(global.dyn && typeof dyn.initActions === 'function'){
+    //     dyn.initActions(document.body);
+    //   }
+    // }catch(e){ console.error("[DynLib]initActions执行异常",e); }
+    axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
     this._ready = true;
     const q = [...this._queue];
     this._queue.length = 0;

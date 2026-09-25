@@ -12,7 +12,8 @@
     @RenderSection("Head", required: false)
 </head>
 <body>
-    @RenderBody()
+@RenderBody()
+
 
     @* 组件注册表（服务端 ViewComponent 输出 JSON，前端消费） *@
     @await Component.InvokeAsync("DynComRegistry")
@@ -24,5 +25,10 @@
 
     @* ExecJS 注册的服务端 dyn 动作（渲染为隐藏 div dyn-init-*，动作系统 init 扫描自动执行） *@
     @Html.RenderDynActions()
+    <script>
+            DynLib.ready(function () {
+               dyn.initActions("body");
+            });
+    </script>
 </body>
 </html>
