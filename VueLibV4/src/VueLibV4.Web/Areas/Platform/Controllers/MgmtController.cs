@@ -44,9 +44,9 @@ public class MgmtController : Controller
             ["SortNo"] = 0,
             ["IsActive"] = 1
         };
+        using var db = _dbs.PlatformDb();
         if (!string.IsNullOrWhiteSpace(id))
         {
-            using var db = _dbs.PlatformDb();
             var pks = _svc.PrimaryKeys(db, "DesktopShortcut");
             var found = pks.Count > 0
                 ? _svc.First(db, "DesktopShortcut", $"[{pks[0]}]=@v", new { v = id })
@@ -54,6 +54,9 @@ public class MgmtController : Controller
             if (found == null) return Content("记录不存在");
             row = found;
         }
+        // 解决方案下拉：服务端一次性渲染（IsActive=1），页面无需再走 ajax
+        var sol = _svc.Page(db, "DesktopSolution", 1, 100, new JObject { ["IsActive"] = 1 });
+        ViewBag.Solutions = sol?.Rows ?? new List<JObject>();
         ViewBag.RowJson = row.ToString(Newtonsoft.Json.Formatting.None);
         return PartialView(string.Format(Page, "DesktopShortcutForm"));
     }

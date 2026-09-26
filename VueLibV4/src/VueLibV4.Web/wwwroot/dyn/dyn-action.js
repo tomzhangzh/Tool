@@ -597,6 +597,71 @@ defineAction('close',async ctx=>{
 });
 defineAction('closewindow',ctx=>_actions.close(ctx));
 
+/** setwin：设置当前 layer 窗口的标题/尺寸/位置。
+ *  仅当触发元素位于窗口容器(.layui-layer)内才生效，不在窗口内则静默返回、不做任何事。
+ *  用法（点击管道）：dyn-click="ActionHelper.setwin|{\"title\":\"编辑桌面快捷方式\",\"width\":\"700px\",\"height\":\"520px\"}"
+ *  支持：title / width / height / top / left / right / bottom 直传；css 对象可再透传更多样式。
+ *  （区别于 setwindow：那是 iframe 间 postMessage 投递，用于父子窗口通信。） */
+defineAction('setwin',async ctx=>{
+  const o = ctx.options||{};
+  const start = ctx.element;
+  // 1) layui layer 窗口
+  const layero = start&&start.closest?start.closest('.layui-layer'):null;
+  if(layero){
+    const layer = await dyn.getLayer();
+    if(!layer) return { changed:false, reason:'no-layer' };
+    const times = layero.getAttribute('times');
+    if(times==null||times==='') return { changed:false, reason:'no-times' };
+    // 标题
+    if(o.title!==undefined&&o.title!==null&&o.title!==''){
+      try{ layer.title(String(o.title),times); }catch(e){ console.error('[setwin title]',e); }
+    }
+    // 尺寸/位置：width/height/top/left/right/bottom 直传，css 对象可再合并
+    const style = {};
+    ['width','height','top','left','right','bottom'].forEach(k=>{
+      if(o[k]!==undefined&&o[k]!==null&&o[k]!=='') style[k]=o[k];
+    });
+    if(o.css&&typeof o.css==='object') Object.assign(style,o.css);
+    if(Object.keys(style).length){
+      try{ layer.style(times,style); }catch(e){ console.error('[setwin style]',e); }
+    }
+    return { changed:true, kind:'layer', times:times };
+  }
+  // 2) Element Plus / Element UI el-dialog（append-to-body 后容器在 body 下）
+  const dlgHost = start&&start.closest?start.closest('.el-dialog, .el-dialog__wrapper'):null;
+  if(dlgHost){
+    const dialog = dlgHost.classList.contains('el-dialog')?dlgHost:dlgHost.querySelector('.el-dialog');
+    if(dialog){
+      // 标题
+      if(o.title!==undefined&&o.title!==null&&o.title!==''){
+        const t = dialog.querySelector('.el-dialog__title');
+        if(t) t.textContent = String(o.title);
+      }
+      if(o.width){
+        dialog.style.width = o.width;
+        // Element Plus 的 width 由 CSS 变量 --el-dialog-width 控制，须同步覆盖，否则 style.width 无效
+        dialog.style.setProperty('--el-dialog-width', o.width);
+      }
+      if(o.height){
+        // 固定高 + body 自适应滚动：纵向 flex 布局
+        dialog.style.height = o.height;
+        dialog.style.display = 'flex';
+        dialog.style.flexDirection = 'column';
+        const body = dialog.querySelector('.el-dialog__body');
+        if(body){ body.style.flex = '1 1 auto'; body.style.minHeight = '0'; body.style.overflow = 'auto'; }
+        const footer = dialog.querySelector('.el-dialog__footer');
+        if(footer){ footer.style.flex = '0 0 auto'; }
+      }
+      if(o.top!=null) dialog.style.marginTop = o.top;
+      if(o.left!=null) dialog.style.marginLeft = o.left;
+      if(o.css&&typeof o.css==='object') Object.assign(dialog.style,o.css);
+      return { changed:true, kind:'el-dialog' };
+    }
+  }
+  // 不在任何窗口容器内：静默返回
+  return { changed:false, reason:'not-in-window' };
+});
+
 defineAction('toast',ctx=>{
   const o = ctx.options||{};
   const msg = o.message||o.msg||(o.value!==undefined?String(o.value):'');

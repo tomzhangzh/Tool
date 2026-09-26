@@ -55,7 +55,7 @@
                 </template>
             </el-table-column>
         </el-table>
-        <el-pagination class="mt-3 justify-end" layout="total, sizes, prev, pager, next, jumper"
+        <el-pagination size="small"class="mt-3 justify-end" layout="total, sizes, prev, pager, next, jumper"
                        :total="pageInfo.TotalCount" :current-page="pageInfo.PageIndex" :page-size="pageInfo.PageSize"
                        :page-sizes="[10,20,50,100]"
                        @@current-change="onPage" @@size-change="onSize"></el-pagination>

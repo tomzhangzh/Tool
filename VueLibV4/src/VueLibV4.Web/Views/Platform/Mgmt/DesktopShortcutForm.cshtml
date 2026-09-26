@@ -12,7 +12,10 @@
             </el-form-item>
             <el-form-item label="解决方案">
                 <el-select v-model="model.SolutionId" clearable style="width:100%">
-                    <el-option v-for="s in solutions" :key="s.Id" :label="s.Name" :value="s.Id"></el-option>
+                    @foreach (var s in (ViewBag.Solutions as List<Newtonsoft.Json.Linq.JObject>) ?? new List<Newtonsoft.Json.Linq.JObject>())
+                    {
+                        <el-option :key="@s["Id"]" label="@s["Name"]" :value="@s["Id"]"></el-option>
+                    }
                 </el-select>
             </el-form-item>
             <el-form-item label="打开方式">
@@ -37,27 +40,12 @@
         </el-form>
         <div class="flex justify-end gap-2 mt-3">
             <el-button size="small" dyn-click="ActionHelper.close">取消</el-button>
-            <el-button type="primary" size="small" dyn-click="ActionHelper.submit"
-                       data-dyn-url="@ViewBag.FormUrl" data-dyn-target="#scFormFragment">保存</el-button>
+            <el-button type="primary" size="small"
+                       data-dyn-click-submit='{"url":"/api/platform/dyndata/save?table=DesktopShortcut&gridId=grid_shortcut","target":"#scFormFragment"}'>保存</el-button>
         </div>
 
-        <script tag="dynconfig">
-        var dynConfig = {
-            data: function () { return { solutions: [] }; },
-            methods: {
-                loadSolutions: function () {
-                    var self = this;
-                    fetch('/api/platform/dyndata/search', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ table: 'DesktopSolution', page: 1, size: 100, filter: { IsActive: { op: 'eq', value: 1 } } })
-                    }).then(function (r) { return r.json(); }).then(function (res) {
-                        if (res && res.code === 0 && res.data) self.solutions = res.data.rows || [];
-                    }).catch(function (e) { console.error('解决方案下拉加载失败', e); });
-                }
-            },
-            mounted: function () { this.loadSolutions(); }
-        };
-        </script>
+
         <script type="application/json" tag="dynmodel">@Html.Raw(ViewBag.RowJson)</script>
+        <div style="display:none" data-dyn-init-setwin='{"width":"700px","height":"520px"}'>调整窗口</div>
     </div>
 </div>
