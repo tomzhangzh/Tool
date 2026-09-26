@@ -4,12 +4,16 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>disable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-  <UseRazorSourceGenerator>false</UseRazorSourceGenerator>
-
+    <!-- 视图不编译进 dll：关闭 Razor 源生成器、生成期与发布期预编译，改由 RuntimeCompilation 包运行时编译 .cshtml -->
+    <UseRazorSourceGenerator>false</UseRazorSourceGenerator>
+    <RazorCompileOnBuild>false</RazorCompileOnBuild>
+    <RazorCompileOnPublish>false</RazorCompileOnPublish>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.11" />
+    <!-- Razor 运行时编译：开发期改 .cshtml 即时生效；配合 RazorCompileOnBuild=false，视图不打包进 dll -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="8.0.11" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="SqlSugarCore" Version="5.1.4.221" />

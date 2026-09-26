@@ -28,7 +28,7 @@
         <el-select v-model="filter.SolutionId.value" placeholder="所属解决方案" style="width:170px" size="small" clearable>
             @foreach (var item in _solutions.Query().Where(x => x.IsActive).ToList())
             {
-                <el-option label="@item.Name" :value="@item.Id"></el-option>
+                <el-option  label="@item.Name" value=@item.Id></el-option>
             }
         </el-select>
         <el-button type="primary" size="small" @@click="onQuery">查询</el-button>
@@ -71,6 +71,7 @@
             return {
                 loading: false,
                 rows: [],
+                solutions: [],
                 // filter 是 data 的一部分：每个字段固定 op + value，筛选区 v-model 直接写 value
                 filter: {
                     Code: { op: 'like', value: null },
@@ -87,6 +88,7 @@
                 var self = this;
                 this.loading = true;
                 fetch('/api/platform/dyndata/search', {
+                    
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         table: 'DesktopShortcut',
@@ -115,7 +117,7 @@
                 this.onQuery();
             },
             onPage: function (p) { this.pageInfo.PageIndex = p; this.onQuery(); },
-            onSize: function (s) { this.pageInfo.PageSize = s; this.pageInfo.PageSize = 1; this.onQuery(); }
+            onSize: function (s) { this.pageInfo.PageSize = s; this.pageInfo.PageIndex = 1; this.onQuery(); }
         },
         mounted: function () { this.onQuery(); }
     };

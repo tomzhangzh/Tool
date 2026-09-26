@@ -4,7 +4,9 @@ using VueLibV4.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // MVC + Areas + Newtonsoft JSON（支持 JObject 绑定与序列化）
+// AddRazorRuntimeCompilation：开发期改 .cshtml 即时生效，视图不编译进 dll（配合 csproj 中 RazorCompileOnBuild=false）
 builder.Services.AddControllersWithViews()
+    .AddRazorRuntimeCompilation()
     .AddNewtonsoftJson(options =>
     {
         options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver();
