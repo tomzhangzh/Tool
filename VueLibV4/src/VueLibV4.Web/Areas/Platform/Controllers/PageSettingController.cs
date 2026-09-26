@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using SqlSugar;
+using VueLibV4.Platform.Models;
+using VueLibV4.Platform.Services;
 using VueLibV4.Web.Core;
-using VueLibV4.Web.Models;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
@@ -15,54 +16,48 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 [ApiController]
 public class PageSettingController : ControllerBase
 {
-    private readonly DbFactory _dbs;
-    public PageSettingController(DbFactory dbs) { _dbs = dbs; }
+    private readonly IPageSettingService _svc;
+    public PageSettingController(IPageSettingService svc) { _svc = svc; }
 
     /// <summary>全部（可按 type=Filter/List/Detail、projectId 过滤）</summary>
     [HttpGet("all")]
     public ApiResult All(string type = null, string projectId = null)
     {
-        using var db = _dbs.PlatformDb();
-        var q = db.Queryable<PageSetting>()
-            .Where(p => p.IsActive)
+        int? pid = (!string.IsNullOrWhiteSpace(projectId) && int.TryParse(projectId, out var v)) ? v : null;
+        var q = _svc.Query(p => p.IsActive
+                && (string.IsNullOrWhiteSpace(type) || p.SettingType == type)
+                && (pid == null || p.ProjectId == pid))
             .OrderBy(p => p.SortNo)
             .OrderBy(p => p.Id, OrderByType.Asc);
-        if (!string.IsNullOrWhiteSpace(type))
-            q = q.Where(p => p.SettingType == type);
-        if (!string.IsNullOrWhiteSpace(projectId) && int.TryParse(projectId, out var pid))
-            q = q.Where(p => p.ProjectId == pid);
         return ApiResult.Ok(q.ToList());
     }
 
     [HttpGet("get")]
     public ApiResult Get(string id)
     {
-        using var db = _dbs.PlatformDb();
         if (int.TryParse(id, out var iid))
-            return ApiResult.Ok(db.Queryable<PageSetting>().First(p => p.Id == iid));
-        return ApiResult.Ok(db.Queryable<PageSetting>().First(p => p.Code == id));
+            return ApiResult.Ok(_svc.GetById(iid));
+        return ApiResult.Ok(_svc.Query(p => p.Code == id).First());
     }
 
     [HttpPost("save")]
     public ApiResult Save([FromBody] PageSetting data)
     {
-        using var db = _dbs.PlatformDb();
         if (data.Id <= 0)
         {
-            db.Insertable(data).ExecuteCommand();
+            _svc.Insert(data);
             return ApiResult.Ok(new { data.Id }, "新增成功");
         }
-        db.Updateable(data).ExecuteCommand();
+        _svc.Update(data);
         return ApiResult.Ok(new { data.Id }, "保存成功");
     }
 
     [HttpPost("delete")]
-    public ApiResult Delete([FromBody] Newtonsoft.Json.Linq.JObject keys)
+    public ApiResult Delete([FromBody] JObject keys)
     {
-        using var db = _dbs.PlatformDb();
         var id = keys["Id"]?.Value<int>() ?? 0;
         if (id <= 0) return ApiResult.Fail("缺少 Id");
-        db.Deleteable<PageSetting>(id).ExecuteCommand();
+        _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
     }
 }

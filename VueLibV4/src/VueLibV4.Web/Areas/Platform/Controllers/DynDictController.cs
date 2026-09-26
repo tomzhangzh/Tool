@@ -1,25 +1,24 @@
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
+using VueLibV4.Platform.Models;
+using VueLibV4.Platform.Services;
 using VueLibV4.Web.Core;
-using VueLibV4.Web.Models;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
-/// <summary>平台数据字典（业务字典放各业务库的 BusinessDict 中）（强类型 Model）</summary>
+/// <summary>平台数据字典（业务字典放各业务库的 BusinessDict 中）（强类型 Model + 强类型服务）</summary>
 [Area("Platform")]
 [Route("api/platform/dyndict")]
 [ApiController]
 public class DynDictController : ControllerBase
 {
-    private readonly DbFactory _dbs;
-    public DynDictController(DbFactory dbs) { _dbs = dbs; }
+    private readonly IDynDictService _svc;
+    public DynDictController(IDynDictService svc) { _svc = svc; }
 
     [HttpGet("all")]
     public ApiResult All(string dictType = null)
     {
-        using var db = _dbs.PlatformDb();
-        var q = db.Queryable<DynDict>()
-            .Where(d => d.IsActive)
+        var q = _svc.Query(d => d.IsActive)
             .OrderBy(d => d.DictType)
             .OrderBy(d => d.SortNo);
         if (!string.IsNullOrEmpty(dictType))
@@ -30,8 +29,7 @@ public class DynDictController : ControllerBase
     [HttpGet("types")]
     public ApiResult Types()
     {
-        using var db = _dbs.PlatformDb();
-        var rows = db.Queryable<DynDict>().Where(d => d.IsActive).ToList();
+        var rows = _svc.List(d => d.IsActive);
         return ApiResult.Ok(rows.GroupBy(r => r.DictType)
             .Select(g => new { type = g.Key, items = g.ToList() }));
     }
@@ -39,23 +37,21 @@ public class DynDictController : ControllerBase
     [HttpPost("save")]
     public ApiResult Save([FromBody] DynDict data)
     {
-        using var db = _dbs.PlatformDb();
         if (data.Id <= 0)
         {
-            db.Insertable(data).ExecuteCommand();
+            _svc.Insert(data);
             return ApiResult.Ok(new { data.Id }, "新增成功");
         }
-        db.Updateable(data).ExecuteCommand();
+        _svc.Update(data);
         return ApiResult.Ok(new { data.Id }, "保存成功");
     }
 
     [HttpPost("delete")]
     public ApiResult Delete([FromBody] JObject keys)
     {
-        using var db = _dbs.PlatformDb();
         var id = keys["Id"]?.Value<int>() ?? 0;
         if (id <= 0) return ApiResult.Fail("缺少 Id");
-        db.Deleteable<DynDict>(id).ExecuteCommand();
+        _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
     }
 }

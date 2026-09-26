@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
-using SqlSugar;
 using VueLibV4.Web.Core;
-using VueLibV4.Web.Models;
+using VueLibV4.Services.Data;
+using VueLibV4.Platform.Services;
 
 namespace VueLibV4.Web.Controllers;
 
@@ -18,17 +18,17 @@ namespace VueLibV4.Web.Controllers;
 [ApiController]
 public class DynCommonController : ControllerBase
 {
-    private readonly DbFactory _dbs;
     private readonly DynamicCrudService _svc;
     private readonly ProjectDbResolver _projects;
+    private readonly IDynDictService _dicts;
     private readonly IWebHostEnvironment _env;
 
-    public DynCommonController(DbFactory dbs, DynamicCrudService svc,
-        ProjectDbResolver projects, IWebHostEnvironment env)
+    public DynCommonController(DynamicCrudService svc,
+        ProjectDbResolver projects, IDynDictService dicts, IWebHostEnvironment env)
     {
-        _dbs = dbs;
         _svc = svc;
         _projects = projects;
+        _dicts = dicts;
         _env = env;
     }
 
@@ -72,11 +72,7 @@ public class DynCommonController : ControllerBase
     public ApiResult Dicts(string type)
     {
         if (string.IsNullOrWhiteSpace(type)) return ApiResult.Fail("缺少 type 参数");
-        using var db = _dbs.PlatformDb();
-        var rows = db.Queryable<DynDict>()
-            .Where(d => d.IsActive && d.DictType == type)
-            .OrderBy(d => d.SortNo)
-            .ToList();
+        var rows = _dicts.ListByType(type);
         return ApiResult.Ok(rows.Select(d => new { value = d.DictCode, label = d.DictName }).ToList());
     }
 

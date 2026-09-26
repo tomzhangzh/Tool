@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
-using SqlSugar;
 using Newtonsoft.Json.Linq;
+using VueLibV4.Platform.Models;
+using VueLibV4.Platform.Services;
 using VueLibV4.Web.Core;
-using VueLibV4.Web.Models;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
-/// 动态组件（DynCom）库（强类型 Model）：
+/// 动态组件（DynCom）库（强类型 Model + 强类型服务）：
 /// 设计时与运行时共用一套代码；组件定义存库（ConfigJson），
 /// 若代码（dyn-com.js）中已定义同名组件，则优先使用代码中的实现。
 /// </summary>
@@ -16,15 +16,13 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 [ApiController]
 public class DynComController : ControllerBase
 {
-    private readonly DbFactory _dbs;
-    public DynComController(DbFactory dbs) { _dbs = dbs; }
+    private readonly IDynComService _svc;
+    public DynComController(IDynComService svc) { _svc = svc; }
 
     [HttpGet("all")]
     public ApiResult All(string category = null)
     {
-        using var db = _dbs.PlatformDb();
-        var q = db.Queryable<DynCom>()
-            .Where(c => c.IsActive)
+        var q = _svc.Query(c => c.IsActive)
             .OrderBy(c => c.Category)
             .OrderBy(c => c.SortNo);
         if (!string.IsNullOrEmpty(category))
@@ -35,38 +33,34 @@ public class DynComController : ControllerBase
     [HttpGet("get")]
     public ApiResult Get(string id)
     {
-        using var db = _dbs.PlatformDb();
-        return ApiResult.Ok(FirstByIdOrCode(db, id));
+        return ApiResult.Ok(FirstByIdOrCode(id));
     }
 
     [HttpPost("save")]
     public ApiResult Save([FromBody] DynCom data)
     {
-        using var db = _dbs.PlatformDb();
         if (data.Id <= 0)
         {
-            db.Insertable(data).ExecuteCommand();
+            _svc.Insert(data);
             return ApiResult.Ok(new { data.Id }, "新增成功");
         }
-        db.Updateable(data).ExecuteCommand();
+        _svc.Update(data);
         return ApiResult.Ok(new { data.Id }, "保存成功");
     }
 
     [HttpPost("delete")]
     public ApiResult Delete([FromBody] JObject keys)
     {
-        using var db = _dbs.PlatformDb();
         var id = keys["Id"]?.Value<int>() ?? 0;
         if (id <= 0) return ApiResult.Fail("缺少 Id");
-        db.Deleteable<DynCom>(id).ExecuteCommand();
+        _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
     }
 
-    private DynCom FirstByIdOrCode(SqlSugarClient db, string key)
+    private DynCom FirstByIdOrCode(string key)
     {
         if (string.IsNullOrWhiteSpace(key)) return null;
-        if (int.TryParse(key, out var id))
-            return db.Queryable<DynCom>().First(c => c.Id == id);
-        return db.Queryable<DynCom>().First(c => c.Code == key);
+        if (int.TryParse(key, out var id)) return _svc.GetById(id);
+        return _svc.Query(c => c.Code == key).First();
     }
 }

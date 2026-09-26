@@ -1,7 +1,7 @@
 #nullable enable
 using SqlSugar;
 
-namespace VueLibV4.Web.Models;
+namespace VueLibV4.Platform.Models;
 
 /// <summary>
 /// 动态项目：属于某个 DesktopSolution。一个解决方案可有多个项目，项目本质是"不同的数据库"。

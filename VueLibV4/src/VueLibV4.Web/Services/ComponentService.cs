@@ -1,7 +1,8 @@
 #nullable enable
 using VueLibV4.Web.Core;
+using VueLibV4.Platform.Services;
 using VueLibV4.Web.Dtos;
-using VueLibV4.Web.Models;
+using VueLibV4.Platform.Models;
 
 namespace VueLibV4.Web.Services;
 
@@ -10,19 +11,20 @@ namespace VueLibV4.Web.Services;
 ///   ① 组件清单直接读 ComponentMeta（含 UiPlatform / LoadUrl / ViewPath）
 ///   ② 组件定义按 ComponentMeta.ViewPath 渲染对应 Razor View；ViewPath 为空则回退 DB 内 Template/Script/Style
 /// 前端通过 LoadUrl 异步加载组件定义；LoadUrl 为空表示全局组件（如 ElFormItem）无需动态加载。
+/// 数据访问统一走强类型 IComponentMetaService；Razor 视图渲染为 Web 层职责，保留在本服务。
 /// </summary>
 public class ComponentService
 {
-    private readonly DbFactory _dbFactory;
+    private readonly IComponentMetaService _components;
     private readonly RazorComponentRenderer _razorRenderer;
     private readonly ILogger<ComponentService> _logger;
 
     public ComponentService(
-        DbFactory dbFactory,
+        IComponentMetaService components,
         RazorComponentRenderer razorRenderer,
         ILogger<ComponentService> logger)
     {
-        _dbFactory = dbFactory;
+        _components = components;
         _razorRenderer = razorRenderer;
         _logger = logger;
     }
@@ -33,9 +35,7 @@ public class ComponentService
         var list = new List<ComponentListItemDto>();
         try
         {
-            using var db = _dbFactory.PlatformDb();
-            var rows = db.Queryable<ComponentMeta>()
-                .Where(c => c.IsActive)
+            var rows = _components.Query(c => c.IsActive)
                 .OrderBy(c => c.Category)
                 .OrderBy(c => c.Id)
                 .ToList();
@@ -68,9 +68,7 @@ public class ComponentService
     {
         if (string.IsNullOrWhiteSpace(componentName)) return null;
 
-        using var db = _dbFactory.PlatformDb();
-        var row = db.Queryable<ComponentMeta>()
-            .First(c => c.ComponentName == componentName && c.IsActive);
+        var row = _components.Query(c => c.ComponentName == componentName && c.IsActive).First();
 
         // 1. ViewPath 指定的 Razor View 优先
         if (row != null && !string.IsNullOrWhiteSpace(row.ViewPath))

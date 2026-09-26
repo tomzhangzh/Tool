@@ -15,6 +15,10 @@
     <PackageReference Include="SqlSugarCore" Version="5.1.4.221" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\VueLibV4.Platform\VueLibV4.Platform.csproj" />
+  </ItemGroup>
+
   <!-- 平台 SQLite 初始化脚本随输出复制 -->
   <ItemGroup>
     <Content Include="Data\**\*.sql">

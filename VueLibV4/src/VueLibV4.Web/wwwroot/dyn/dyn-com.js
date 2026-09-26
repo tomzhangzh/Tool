@@ -114,7 +114,10 @@ async function registerComponents(app,metas){
 function setupApp(app){
   if(global.ElementPlus){
     const locale = (global.ElementPlus.locale&&global.ElementPlus.locale.zhCn)||undefined;
-    app.use(global.ElementPlus, locale?{locale}:undefined);
+    // zIndex 基准必须高于 layui layer（基准 19891014，每开一窗 +2）：
+    // 否则 layer 内表单的 el-select/el-date-picker 等 teleport 到 body 的 popper（EP 默认基准 2000）会被弹窗盖住
+    const epOptions = Object.assign({ zIndex: 20000000 }, locale ? { locale } : {});
+    app.use(global.ElementPlus, epOptions);
   }
   if(global.ElementPlusIconsVue){
     Object.keys(global.ElementPlusIconsVue).forEach(k=>app.component(k,global.ElementPlusIconsVue[k]));

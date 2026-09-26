@@ -1,6 +1,7 @@
+using Microsoft.Extensions.Configuration;
 using SqlSugar;
 
-namespace VueLibV4.Web.Core;
+namespace VueLibV4.Services.Data;
 
 /// <summary>
 /// 数据库工厂：平台库 PlatformDb + 业务库 BusinessDb。

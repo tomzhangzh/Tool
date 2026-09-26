@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
-using SqlSugar;
 using VueLibV4.Web.Core;
-using VueLibV4.Web.Models;
+using VueLibV4.Platform.Models;
+using VueLibV4.Platform.Services;
 
 namespace VueLibV4.Web.Areas.Business.Controllers;
 
@@ -10,14 +10,29 @@ namespace VueLibV4.Web.Areas.Business.Controllers;
 /// 页面生成器（M4）：选项目/选表/勾选字段 → 生成筛选/列表/详情三份组件配置树，
 /// 落库 3 条 PageSetting + 1 条 DynWebPage（绑定三屏与 filter-list-detail 模板），返回运行 URL。
 /// 路由：api/business/pagegen
+/// 元数据全部经平台强类型服务写入；配置树（UI DSL）构建为纯函数留在控制器。
 /// </summary>
 [Area("Business")]
 [Route("api/business/pagegen")]
 [ApiController]
 public class PageGenController : ControllerBase
 {
-    private readonly DbFactory _dbs;
-    public PageGenController(DbFactory dbs) { _dbs = dbs; }
+    private readonly IDynProjectService _projects;
+    private readonly IDynTemplateService _templates;
+    private readonly IDynWebPageService _pages;
+    private readonly IPageSettingService _settings;
+
+    public PageGenController(
+        IDynProjectService projects,
+        IDynTemplateService templates,
+        IDynWebPageService pages,
+        IPageSettingService settings)
+    {
+        _projects = projects;
+        _templates = templates;
+        _pages = pages;
+        _settings = settings;
+    }
 
     public class GenField
     {
@@ -51,15 +66,13 @@ public class PageGenController : ControllerBase
         var fields = req["fields"]?.ToObject<List<GenField>>() ?? new List<GenField>();
         if (fields.Count == 0) return ApiResult.Fail("请至少选择一个字段");
 
-        using var db = _dbs.PlatformDb();
-
-        // 项目 Code → Id
+        // 项目 Code / Id → Id
         int? projectId = null;
         if (!string.IsNullOrWhiteSpace(project))
         {
             var proj = int.TryParse(project, out var pid)
-                ? db.Queryable<DynProject>().First(x => x.Id == pid)
-                : db.Queryable<DynProject>().First(x => x.Code == project);
+                ? _projects.GetById(pid)
+                : _projects.Query(x => x.Code == project).First();
             projectId = proj?.Id;
         }
 
@@ -68,12 +81,12 @@ public class PageGenController : ControllerBase
         var detailCfg = BuildDetailCfg(code, pk, fields);
 
         // 幂等：同 code 重新生成时更新既有 PageSetting
-        var filterId = UpsertSetting(db, code + "_filter", name + " - 筛选区", "Filter", projectId, table, filterCfg);
-        var listId = UpsertSetting(db, code + "_list", name + " - 列表区", "List", projectId, table, listCfg);
-        var detailId = UpsertSetting(db, code + "_detail", name + " - 详情区", "Detail", projectId, table, detailCfg);
+        var filterId = UpsertSetting(code + "_filter", name + " - 筛选区", "Filter", projectId, table, filterCfg);
+        var listId = UpsertSetting(code + "_list", name + " - 列表区", "List", projectId, table, listCfg);
+        var detailId = UpsertSetting(code + "_detail", name + " - 详情区", "Detail", projectId, table, detailCfg);
 
-        var tpl = db.Queryable<DynTemplate>().First(t => t.Code == "filter-list-detail");
-        var existPage = db.Queryable<DynWebPage>().First(p => p.Code == code);
+        var tpl = _templates.Query(t => t.Code == "filter-list-detail").First();
+        var existPage = _pages.Query(p => p.Code == code).First();
         var page = new DynWebPage
         {
             Code = code,
@@ -92,11 +105,11 @@ public class PageGenController : ControllerBase
         {
             page.Id = existPage.Id;
             page.CreateTime = existPage.CreateTime;
-            db.Updateable(page).ExecuteCommand();
+            _pages.Update(page);
         }
         else
         {
-            page.Id = db.Insertable(page).ExecuteReturnIdentity();
+            _pages.Insert(page); // 自增 Id 回填（基类已处理 SQLite 回填）
         }
 
         return ApiResult.Ok(new
@@ -262,11 +275,11 @@ public class PageGenController : ControllerBase
 
     // ---------------- 落库 ----------------
 
-    private static int UpsertSetting(SqlSugarClient db, string settingCode, string settingName,
+    private int UpsertSetting(string settingCode, string settingName,
         string type, int? projectId, string table, JObject cfg)
     {
         var json = cfg.ToString(Newtonsoft.Json.Formatting.None);
-        var exist = db.Queryable<PageSetting>().First(x => x.Code == settingCode);
+        var exist = _settings.Query(x => x.Code == settingCode).First();
         if (exist != null)
         {
             exist.Name = settingName;
@@ -274,7 +287,7 @@ public class PageGenController : ControllerBase
             exist.ProjectId = projectId;
             exist.TableName = table;
             exist.ConfigJson = json;
-            db.Updateable(exist).ExecuteCommand();
+            _settings.Update(exist);
             return exist.Id;
         }
         var row = new PageSetting
@@ -287,7 +300,7 @@ public class PageGenController : ControllerBase
             ConfigJson = json,
             IsActive = true
         };
-        // 显式取回自增 Id（SQLite 下 ExecuteCommand 不保证回填实体）
-        return db.Insertable(row).ExecuteReturnIdentity();
+        _settings.Insert(row); // 自增 Id 回填（基类已处理 SQLite 回填）
+        return row.Id;
     }
 }

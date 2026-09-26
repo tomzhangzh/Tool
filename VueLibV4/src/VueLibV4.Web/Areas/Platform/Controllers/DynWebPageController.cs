@@ -1,13 +1,14 @@
-using Microsoft.AspNetCore.Mvc;
-using SqlSugar;
+﻿using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
+using SqlSugar;
+using VueLibV4.Platform.Models;
+using VueLibV4.Platform.Services;
 using VueLibV4.Web.Core;
-using VueLibV4.Web.Models;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
-/// 动态网页：真正的动态页面（强类型 Model，外键 int Id）。
+/// 动态网页：真正的动态页面（强类型 Model + 强类型服务，外键 int Id）。
 /// 选择一个 DynTemplate，结合用户配置参数（ConfigJson）实例化 PageJson，即可运行。
 /// </summary>
 [Area("Platform")]
@@ -15,35 +16,45 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 [ApiController]
 public class DynWebPageController : ControllerBase
 {
-    private readonly DbFactory _dbs;
-    public DynWebPageController(DbFactory dbs) { _dbs = dbs; }
+    private readonly IDynWebPageService _svc;
+    private readonly IDynProjectService _projects;
+    private readonly IDynTemplateService _templates;
+    private readonly IPageSettingService _settings;
+
+    public DynWebPageController(
+        IDynWebPageService svc,
+        IDynProjectService projects,
+        IDynTemplateService templates,
+        IPageSettingService settings)
+    {
+        _svc = svc;
+        _projects = projects;
+        _templates = templates;
+        _settings = settings;
+    }
 
     [HttpGet("all")]
     public ApiResult All(string projectId = null)
     {
-        using var db = _dbs.PlatformDb();
-        var q = db.Queryable<DynWebPage>()
-            .Where(p => p.IsActive)
-            .OrderBy(p => p.CreateTime, SqlSugar.OrderByType.Desc);
-        if (!string.IsNullOrEmpty(projectId))
+        // 兼容：projectId 可为数字 Id 或项目 Code
+        if (!string.IsNullOrEmpty(projectId) && !int.TryParse(projectId, out _))
         {
-            if (int.TryParse(projectId, out var pid))
-                q = q.Where(p => p.ProjectId == pid);
-            else
-            {
-                var proj = db.Queryable<DynProject>().First(x => x.Code == projectId);
-                if (proj != null) q = q.Where(p => p.ProjectId == proj.Id);
-                else return ApiResult.Ok(new List<DynWebPage>());
-            }
+            var proj = _projects.List(x => x.Code == projectId).FirstOrDefault();
+            if (proj == null) return ApiResult.Ok(new List<DynWebPage>());
+            projectId = proj.Id.ToString();
         }
-        return ApiResult.Ok(q.ToList());
+        int? pid = int.TryParse(projectId, out var v) ? v : null;
+
+        var rows = _svc.Query(p => p.IsActive && (pid == null || p.ProjectId == pid))
+            .OrderBy(p => p.CreateTime, OrderByType.Desc)
+            .ToList();
+        return ApiResult.Ok(rows);
     }
 
     [HttpGet("get")]
     public ApiResult Get(string id)
     {
-        using var db = _dbs.PlatformDb();
-        return ApiResult.Ok(FirstByIdOrCode(db, id));
+        return ApiResult.Ok(FirstByIdOrCode(id));
     }
 
     /// <summary>
@@ -53,10 +64,9 @@ public class DynWebPageController : ControllerBase
     [HttpGet("render")]
     public ApiResult Render(string id, string code = null)
     {
-        using var db = _dbs.PlatformDb();
         var row = string.IsNullOrEmpty(id)
-            ? db.Queryable<DynWebPage>().First(p => p.Code == code)
-            : FirstByIdOrCode(db, id);
+            ? _svc.Query(p => p.Code == code).First()
+            : FirstByIdOrCode(id);
         if (row == null) return ApiResult.Fail("页面不存在");
         var result = new JObject { ["id"] = row.Id, ["name"] = row.Name, ["code"] = row.Code };
 
@@ -67,7 +77,7 @@ public class DynWebPageController : ControllerBase
         }
         if (config == null && row.TemplateId > 0)
         {
-            var tpl = db.Queryable<DynTemplate>().First(t => t.Id == row.TemplateId);
+            var tpl = _templates.GetById(row.TemplateId.Value);
             if (tpl != null)
             {
                 try { config = JObject.Parse(tpl.TemplateJson ?? "{}"); } catch { config = null; }
@@ -82,21 +92,21 @@ public class DynWebPageController : ControllerBase
         string templateCode = null;
         if (row.TemplateId != null)
         {
-            var tpl2 = db.Queryable<DynTemplate>().First(t => t.Id == row.TemplateId);
+            var tpl2 = _templates.GetById(row.TemplateId.Value);
             templateCode = tpl2?.Code;
         }
         result["templateCode"] = templateCode;
         result["url"] = row.Url;
-        result["filterConfig"] = LoadSettingConfig(db, row.FilterPageSettingId);
-        result["listConfig"] = LoadSettingConfig(db, row.ListPageSettingId);
-        result["detailConfig"] = LoadSettingConfig(db, row.DetailPageSettingId);
+        result["filterConfig"] = LoadSettingConfig(row.FilterPageSettingId);
+        result["listConfig"] = LoadSettingConfig(row.ListPageSettingId);
+        result["detailConfig"] = LoadSettingConfig(row.DetailPageSettingId);
         return ApiResult.Ok(result);
     }
 
-    private static JObject LoadSettingConfig(SqlSugarClient db, int? settingId)
+    private JObject LoadSettingConfig(int? settingId)
     {
         if (settingId == null) return null;
-        var s = db.Queryable<PageSetting>().First(x => x.Id == settingId);
+        var s = _settings.GetById(settingId.Value);
         if (s == null || string.IsNullOrWhiteSpace(s.ConfigJson)) return null;
         try { return JObject.Parse(s.ConfigJson); } catch { return null; }
     }
@@ -104,31 +114,28 @@ public class DynWebPageController : ControllerBase
     [HttpPost("save")]
     public ApiResult Save([FromBody] DynWebPage data)
     {
-        using var db = _dbs.PlatformDb();
         if (data.Id <= 0)
         {
-            db.Insertable(data).ExecuteCommand();
+            _svc.Insert(data);
             return ApiResult.Ok(new { data.Id }, "新增成功");
         }
-        db.Updateable(data).ExecuteCommand();
+        _svc.Update(data);
         return ApiResult.Ok(new { data.Id }, "保存成功");
     }
 
     [HttpPost("delete")]
     public ApiResult Delete([FromBody] JObject keys)
     {
-        using var db = _dbs.PlatformDb();
         var id = keys["Id"]?.Value<int>() ?? 0;
         if (id <= 0) return ApiResult.Fail("缺少 Id");
-        db.Deleteable<DynWebPage>(id).ExecuteCommand();
+        _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
     }
 
-    private DynWebPage FirstByIdOrCode(SqlSugarClient db, string key)
+    private DynWebPage FirstByIdOrCode(string key)
     {
         if (string.IsNullOrWhiteSpace(key)) return null;
-        if (int.TryParse(key, out var id))
-            return db.Queryable<DynWebPage>().First(p => p.Id == id);
-        return db.Queryable<DynWebPage>().First(p => p.Code == key);
+        if (int.TryParse(key, out var id)) return _svc.GetById(id);
+        return _svc.Query(p => p.Code == key).First();
     }
 }

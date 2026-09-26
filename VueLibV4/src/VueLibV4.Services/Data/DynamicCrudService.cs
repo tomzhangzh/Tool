@@ -3,7 +3,7 @@ using SqlSugar;
 using System.Data;
 using System.Text;
 
-namespace VueLibV4.Web.Core;
+namespace VueLibV4.Services.Data;
 
 /// <summary>列元信息</summary>
 public class ColumnInfo

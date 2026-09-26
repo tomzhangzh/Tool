@@ -10,6 +10,7 @@
       新增/编辑 = data-dyn-click-open（fragment 弹窗；行 id 经 :data-Id 属性 + {{Id}} 插值传入；onclose 动作数组刷新列表）
       删除     = data-dyn-click-postback（confirm 声明式确认 + $onSuccess 动作刷新列表）
 *@
+@inject IDesktopSolutionService _solutions;
 <div data-dyn-init-createapp class="p-4 space-y-3" style="height:100vh;display:flex;flex-direction:column;box-sizing:border-box;">
     <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-gray-700">桌面快捷方式管理</h3>
@@ -25,7 +26,10 @@
             <el-option label="停用" :value="false"></el-option>
         </el-select>
         <el-select v-model="filter.SolutionId.value" placeholder="所属解决方案" style="width:170px" size="small" clearable>
-            <el-option v-for="s in solutions" :key="s.Id" :label="s.Name" :value="s.Id"></el-option>
+            @foreach (var item in _solutions.Query().Where(x => x.IsActive).ToList())
+            {
+                <el-option  label="@item.Name" value=@item.Id></el-option>
+            }
         </el-select>
         <el-button type="primary" size="small" @@click="onQuery">查询</el-button>
         <el-button size="small" @@click="onReset">重置</el-button>
@@ -67,7 +71,6 @@
             return {
                 loading: false,
                 rows: [],
-                solutions: [],
                 // filter 是 data 的一部分：每个字段固定 op + value，筛选区 v-model 直接写 value
                 filter: {
                     Code: { op: 'like', value: null },
@@ -112,19 +115,9 @@
                 this.onQuery();
             },
             onPage: function (p) { this.pageInfo.PageIndex = p; this.onQuery(); },
-            onSize: function (s) { this.pageInfo.PageSize = s; this.pageInfo.PageIndex = 1; this.onQuery(); },
-            // 解决方案下拉：同样走 dyndata filter 还原
-            loadSolutions: function () {
-                var self = this;
-                fetch('/api/platform/dyndata/search', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ table: 'DesktopSolution', page: 1, size: 100, filter: { IsActive: { op: 'eq', value: true } } })
-                }).then(function (r) { return r.json(); }).then(function (res) {
-                    if (res && res.code === 0 && res.data) self.solutions = res.data.rows || [];
-                }).catch(function (e) { console.error('解决方案下拉加载失败', e); });
-            }
+            onSize: function (s) { this.pageInfo.PageSize = s; this.pageInfo.PageSize = 1; this.onQuery(); }
         },
-        mounted: function () { this.loadSolutions(); this.onQuery(); }
+        mounted: function () { this.onQuery(); }
     };
     </script>
 </div>

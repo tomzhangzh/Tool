@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using VueLibV4.Web.Core;
+using VueLibV4.Services.Data;
 using VueLibV4.Web.Infrastructure;
-using VueLibV4.Web.Models;
+using VueLibV4.Platform.Models;
+using VueLibV4.Platform.Services;
 
 namespace VueLibV4.Web.Areas.Business.Controllers;
 
@@ -10,32 +12,35 @@ namespace VueLibV4.Web.Areas.Business.Controllers;
 /// 三屏固定模板（筛选区 / 列表区 / 详情区）运行控制器（M4）。
 /// 走 MVC 约定路由：/Business/Templates/Run?code=xxx、/Business/Templates/Detail?code=xxx&id=1。
 /// 页面与片段均为服务端 Razor View；保存返回 ApiResult + dyn-actions（刷新表格/关弹窗/提示），页面零业务 JS。
+/// 平台库元数据（DynWebPage/PageSetting）走强类型服务；业务表数据走免模型（表名为运行时字符串）。
 /// </summary>
 [Area("Business")]
 public class TemplatesController : Controller
 {
-    private readonly DbFactory _dbs;
     private readonly ProjectDbResolver _projects;
     private readonly DynamicCrudService _svc;
+    private readonly IDynWebPageService _pages;
+    private readonly IPageSettingService _settings;
 
-    public TemplatesController(DbFactory dbs, ProjectDbResolver projects, DynamicCrudService svc)
+    public TemplatesController(ProjectDbResolver projects, DynamicCrudService svc,
+        IDynWebPageService pages, IPageSettingService settings)
     {
-        _dbs = dbs;
         _projects = projects;
         _svc = svc;
+        _pages = pages;
+        _settings = settings;
     }
 
     /// <summary>三屏整页：筛选区 + 列表区（详情区以 layer 片段方式打开）</summary>
     [HttpGet("/Business/Templates/Run")]
     public IActionResult Run(string code)
     {
-        using var db = _dbs.PlatformDb();
-        var page = db.Queryable<DynWebPage>().First(p => p.Code == code);
+        var page = _pages.Query(p => p.Code == code).First();
         if (page == null) return Content("页面不存在：" + code);
 
-        var filter = page.FilterPageSettingId != null ? db.Queryable<PageSetting>().First(x => x.Id == page.FilterPageSettingId) : null;
-        var list = page.ListPageSettingId != null ? db.Queryable<PageSetting>().First(x => x.Id == page.ListPageSettingId) : null;
-        var detail = page.DetailPageSettingId != null ? db.Queryable<PageSetting>().First(x => x.Id == page.DetailPageSettingId) : null;
+        var filter = page.FilterPageSettingId != null ? _settings.GetById(page.FilterPageSettingId.Value) : null;
+        var list = page.ListPageSettingId != null ? _settings.GetById(page.ListPageSettingId.Value) : null;
+        var detail = page.DetailPageSettingId != null ? _settings.GetById(page.DetailPageSettingId.Value) : null;
 
         ViewBag.PageName = page.Name;
         ViewBag.PageCode = page.Code;
@@ -50,12 +55,11 @@ public class TemplatesController : Controller
     [HttpGet("/Business/Templates/Detail")]
     public IActionResult Detail(string code, string id = null)
     {
-        using var db = _dbs.PlatformDb();
-        var page = db.Queryable<DynWebPage>().First(p => p.Code == code);
+        var page = _pages.Query(p => p.Code == code).First();
         if (page == null || page.DetailPageSettingId == null) return Content("详情配置不存在");
-        var detailSetting = db.Queryable<PageSetting>().First(x => x.Id == page.DetailPageSettingId);
+        var detailSetting = _settings.GetById(page.DetailPageSettingId.Value);
         if (detailSetting == null) return Content("详情配置不存在");
-        var listSetting = page.ListPageSettingId != null ? db.Queryable<PageSetting>().First(x => x.Id == page.ListPageSettingId) : null;
+        var listSetting = page.ListPageSettingId != null ? _settings.GetById(page.ListPageSettingId.Value) : null;
 
         var (table, project) = ResolveTableProject(detailSetting, listSetting, page);
         ViewBag.DetailCfgJson = detailSetting.ConfigJson ?? "{}";
@@ -84,11 +88,10 @@ public class TemplatesController : Controller
     [HttpPost("/Business/Templates/Save")]
     public ApiResult Save(string code, [FromBody] JObject data)
     {
-        using var db = _dbs.PlatformDb();
-        var page = db.Queryable<DynWebPage>().First(p => p.Code == code);
+        var page = _pages.Query(p => p.Code == code).First();
         if (page == null || page.DetailPageSettingId == null) return ApiResult.Fail("页面配置不存在");
-        var detailSetting = db.Queryable<PageSetting>().First(x => x.Id == page.DetailPageSettingId);
-        var listSetting = page.ListPageSettingId != null ? db.Queryable<PageSetting>().First(x => x.Id == page.ListPageSettingId) : null;
+        var detailSetting = _settings.GetById(page.DetailPageSettingId.Value);
+        var listSetting = page.ListPageSettingId != null ? _settings.GetById(page.ListPageSettingId.Value) : null;
         var (table, project) = ResolveTableProject(detailSetting, listSetting, page);
 
         object result;

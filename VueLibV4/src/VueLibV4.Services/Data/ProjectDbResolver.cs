@@ -1,11 +1,12 @@
 using Newtonsoft.Json.Linq;
 using SqlSugar;
 
-namespace VueLibV4.Web.Core;
+namespace VueLibV4.Services.Data;
 
 /// <summary>
 /// DynProject.Code / Id → 业务库连接解析（DynDataController 与 DynCommonController 共用）。
 /// project 为空、项目不存在或项目未配连接串时，统一回退默认 BusinessDb。
+/// 说明：本类以字符串表名免模型读取 DynProject，因此不依赖 VueLibV4.Platform 强类型实体。
 /// </summary>
 public class ProjectDbResolver
 {

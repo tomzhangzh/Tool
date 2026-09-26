@@ -1,6 +1,7 @@
 @* 快捷方式表单片段（layer fragment；id 为空=新增，服务端注入默认值 dynmodel）。
    保存走 ActionHelper.submit（updateel）：body=表单 model，服务端返回 ApiResult + dyn-actions（提示/刷新表格/关弹窗），
    成功与失败的闭环全部由服务端动作驱动，片段零业务 JS。 *@
+@inject IDesktopSolutionService _solutions
 <div id="scFormFragment" class="p-4">
     <div data-dyn-init-createapp>
         <el-form label-width="92px" size="small">
@@ -12,10 +13,10 @@
             </el-form-item>
             <el-form-item label="解决方案">
                 <el-select v-model="model.SolutionId" clearable style="width:100%">
-                    @foreach (var s in (ViewBag.Solutions as List<Newtonsoft.Json.Linq.JObject>) ?? new List<Newtonsoft.Json.Linq.JObject>())
-                    {
-                        <el-option :key="@s["Id"]" label="@s["Name"]" :value="@s["Id"]"></el-option>
-                    }
+                    @foreach (var item in _solutions.Query().Where(x => x.IsActive).ToList())
+            {
+                <el-option  label="@item.Name" value="@item.Id"></el-option>
+            }
                 </el-select>
             </el-form-item>
             <el-form-item label="打开方式">

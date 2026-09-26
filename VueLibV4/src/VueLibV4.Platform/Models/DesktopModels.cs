@@ -1,7 +1,7 @@
 #nullable enable
 using SqlSugar;
 
-namespace VueLibV4.Web.Models;
+namespace VueLibV4.Platform.Models;
 
 /// <summary>
 /// 桌面解决方案：一个解决方案可包含多个 DynProject（不同数据库）与多个快捷方式。

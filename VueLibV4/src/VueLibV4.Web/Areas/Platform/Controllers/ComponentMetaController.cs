@@ -1,13 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
-using SqlSugar;
+using VueLibV4.Platform.Models;
+using VueLibV4.Platform.Services;
 using VueLibV4.Web.Core;
-using VueLibV4.Web.Models;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
-/// 组件元数据：设计器组件库的数据来源（强类型 Model）。
+/// 组件元数据：设计器组件库的数据来源（强类型 Model + 强类型服务）。
 /// 驱动：组件面板分组、拖拽准入规则（allowDrop/acceptAll）、属性面板自动渲染（PropsMeta）。
 /// </summary>
 [Area("Platform")]
@@ -15,15 +15,13 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 [ApiController]
 public class ComponentMetaController : ControllerBase
 {
-    private readonly DbFactory _dbs;
-    public ComponentMetaController(DbFactory dbs) { _dbs = dbs; }
+    private readonly IComponentMetaService _svc;
+    public ComponentMetaController(IComponentMetaService svc) { _svc = svc; }
 
     [HttpGet("all")]
     public ApiResult All(string category = null)
     {
-        using var db = _dbs.PlatformDb();
-        var q = db.Queryable<ComponentMeta>()
-            .Where(c => c.IsActive)
+        var q = _svc.Query(c => c.IsActive)
             .OrderBy(c => c.Category)
             .OrderBy(c => c.Id);
         if (!string.IsNullOrEmpty(category))
@@ -35,9 +33,7 @@ public class ComponentMetaController : ControllerBase
     [HttpGet("grouped")]
     public ApiResult Grouped()
     {
-        using var db = _dbs.PlatformDb();
-        var rows = db.Queryable<ComponentMeta>()
-            .Where(c => c.IsActive)
+        var rows = _svc.Query(c => c.IsActive)
             .OrderBy(c => c.Category)
             .OrderBy(c => c.Id)
             .ToList();
@@ -78,39 +74,34 @@ public class ComponentMetaController : ControllerBase
     [HttpGet("get")]
     public ApiResult Get(string id)
     {
-        using var db = _dbs.PlatformDb();
-        var row = FirstByIdOrCode(db, id);
-        return ApiResult.Ok(row);
+        return ApiResult.Ok(FirstByIdOrCode(id));
     }
 
     /// <summary>按组件名取元数据（运行时/校验用）</summary>
     [HttpGet("byName")]
     public ApiResult ByName(string name)
     {
-        using var db = _dbs.PlatformDb();
-        return ApiResult.Ok(db.Queryable<ComponentMeta>().First(c => c.ComponentName == name));
+        return ApiResult.Ok(_svc.Query(c => c.ComponentName == name).First());
     }
 
     [HttpPost("save")]
     public ApiResult Save([FromBody] ComponentMeta data)
     {
-        using var db = _dbs.PlatformDb();
         if (data.Id <= 0)
         {
-            db.Insertable(data).ExecuteCommand();
+            _svc.Insert(data);
             return ApiResult.Ok(new { data.Id }, "新增成功");
         }
-        db.Updateable(data).ExecuteCommand();
+        _svc.Update(data);
         return ApiResult.Ok(new { data.Id }, "保存成功");
     }
 
     [HttpPost("delete")]
     public ApiResult Delete([FromBody] JObject keys)
     {
-        using var db = _dbs.PlatformDb();
         var id = keys["Id"]?.Value<int>() ?? 0;
         if (id <= 0) return ApiResult.Fail("缺少 Id");
-        db.Deleteable<ComponentMeta>(id).ExecuteCommand();
+        _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
     }
 
@@ -118,8 +109,7 @@ public class ComponentMetaController : ControllerBase
     [HttpGet("getmeta")]
     public ApiResult GetMeta(string id)
     {
-        using var db = _dbs.PlatformDb();
-        var row = FirstByIdOrCode(db, id);
+        var row = FirstByIdOrCode(id);
         if (row == null) return ApiResult.Fail("未找到组件元数据");
         return ApiResult.Ok(new
         {
@@ -147,8 +137,8 @@ public class ComponentMetaController : ControllerBase
         {
             return ApiResult.Fail("JSON 不合法，未保存：" + ex.Message);
         }
-        using var db = _dbs.PlatformDb();
-        var affected = db.Updateable<ComponentMeta>()
+        // 仅更新两列：经服务暴露的 ISqlSugarClient 抽象执行，避免整实体更新覆盖其它字段
+        var affected = _svc.Db.Updateable<ComponentMeta>()
             .SetColumns(c => new ComponentMeta
             {
                 PropertyConfigJson = string.IsNullOrWhiteSpace(req.PropertyConfigJson) ? null : req.PropertyConfigJson,
@@ -160,12 +150,11 @@ public class ComponentMetaController : ControllerBase
         return ApiResult.Ok(new { id = req.ComponentId }, "保存成功");
     }
 
-    private ComponentMeta FirstByIdOrCode(SqlSugarClient db, string key)
+    private ComponentMeta FirstByIdOrCode(string key)
     {
         if (string.IsNullOrWhiteSpace(key)) return null;
-        if (int.TryParse(key, out var id))
-            return db.Queryable<ComponentMeta>().First(c => c.Id == id);
-        return db.Queryable<ComponentMeta>().First(c => c.ComponentName == key);
+        if (int.TryParse(key, out var id)) return _svc.GetById(id);
+        return _svc.Query(c => c.ComponentName == key).First();
     }
 }
 

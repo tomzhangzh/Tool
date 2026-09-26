@@ -13,10 +13,9 @@ builder.Services.AddControllersWithViews()
         options.SerializerSettings.DateFormatString = "yyyy-MM-dd HH:mm:ss";
     });
 
-// 基础设施：数据库工厂 + 免模型动态 CRUD + 项目库解析
-builder.Services.AddSingleton<DbFactory>();
-builder.Services.AddScoped<DynamicCrudService>();
-builder.Services.AddScoped<ProjectDbResolver>();
+// 平台层一站式装配：DbFactory/免模型CRUD/项目库解析 + 平台库 ISqlSugarClient
+// + 扫描 VueLibV4.* 程序集自动注册 IDependency（IScopeDependency/ISingletonDependency/ITransientDependency）
+builder.Services.AddVueLibPlatform();
 
 // 组件双定义源：Razor View 渲染器 + 组件服务（View 代码优先，DB 回退）
 builder.Services.AddScoped<RazorComponentRenderer>();

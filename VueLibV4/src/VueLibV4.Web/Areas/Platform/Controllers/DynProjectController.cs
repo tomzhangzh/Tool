@@ -1,49 +1,55 @@
 using Microsoft.AspNetCore.Mvc;
-using SqlSugar;
 using Newtonsoft.Json.Linq;
+using VueLibV4.Platform.Models;
+using VueLibV4.Platform.Services;
+using VueLibV4.Services.Data;
 using VueLibV4.Web.Core;
-using VueLibV4.Web.Models;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
 /// 动态项目：属于某个 DesktopSolution（强类型 Model，外键 int Id）。
 /// 一个解决方案可有多个项目，项目本质是"不同的数据库"（各自持有连接串）。
+/// 平台库 CRUD 走 IDynProjectService；test 端点需按用户提交的连接串临时连库，保留 DbFactory 基础设施。
 /// </summary>
 [Area("Platform")]
 [Route("api/platform/dynproject")]
 [ApiController]
 public class DynProjectController : ControllerBase
 {
+    private readonly IDynProjectService _svc;
+    private readonly IDesktopSolutionService _solutions;
     private readonly DbFactory _dbs;
-    public DynProjectController(DbFactory dbs) { _dbs = dbs; }
+
+    public DynProjectController(IDynProjectService svc, IDesktopSolutionService solutions, DbFactory dbs)
+    {
+        _svc = svc;
+        _solutions = solutions;
+        _dbs = dbs;
+    }
 
     [HttpGet("all")]
     public ApiResult All(string solutionId = null)
     {
-        using var db = _dbs.PlatformDb();
-        var q = db.Queryable<DynProject>()
-            .Where(p => p.IsActive)
-            .OrderBy(p => p.SortNo);
-        if (!string.IsNullOrEmpty(solutionId))
+        // 兼容：solutionId 可为数字 Id 或解决方案 Code
+        if (!string.IsNullOrEmpty(solutionId) && !int.TryParse(solutionId, out _))
         {
-            if (int.TryParse(solutionId, out var sid))
-                q = q.Where(p => p.SolutionId == sid);
-            else
-            {
-                var sol = db.Queryable<DesktopSolution>().First(s => s.Code == solutionId);
-                if (sol != null) q = q.Where(p => p.SolutionId == sol.Id);
-                else return ApiResult.Ok(new List<DynProject>());
-            }
+            var sol = _solutions.List(s => s.Code == solutionId).FirstOrDefault();
+            if (sol == null) return ApiResult.Ok(new List<DynProject>());
+            solutionId = sol.Id.ToString();
         }
-        return ApiResult.Ok(q.ToList());
+        int? sid = int.TryParse(solutionId, out var v) ? v : null;
+
+        var rows = _svc.Query(p => p.IsActive && (sid == null || p.SolutionId == sid))
+            .OrderBy(p => p.SortNo)
+            .ToList();
+        return ApiResult.Ok(rows);
     }
 
     [HttpGet("get")]
     public ApiResult Get(string id)
     {
-        using var db = _dbs.PlatformDb();
-        return ApiResult.Ok(FirstByIdOrCode(db, id));
+        return ApiResult.Ok(FirstByIdOrCode(id));
     }
 
     /// <summary>测试项目连接串是否可用</summary>
@@ -65,31 +71,28 @@ public class DynProjectController : ControllerBase
     [HttpPost("save")]
     public ApiResult Save([FromBody] DynProject data)
     {
-        using var db = _dbs.PlatformDb();
         if (data.Id <= 0)
         {
-            db.Insertable(data).ExecuteCommand();
+            _svc.Insert(data);
             return ApiResult.Ok(new { data.Id }, "新增成功");
         }
-        db.Updateable(data).ExecuteCommand();
+        _svc.Update(data);
         return ApiResult.Ok(new { data.Id }, "保存成功");
     }
 
     [HttpPost("delete")]
     public ApiResult Delete([FromBody] JObject keys)
     {
-        using var db = _dbs.PlatformDb();
         var id = keys["Id"]?.Value<int>() ?? 0;
         if (id <= 0) return ApiResult.Fail("缺少 Id");
-        db.Deleteable<DynProject>(id).ExecuteCommand();
+        _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
     }
 
-    private DynProject FirstByIdOrCode(SqlSugarClient db, string key)
+    private DynProject FirstByIdOrCode(string key)
     {
         if (string.IsNullOrWhiteSpace(key)) return null;
-        if (int.TryParse(key, out var id))
-            return db.Queryable<DynProject>().First(p => p.Id == id);
-        return db.Queryable<DynProject>().First(p => p.Code == key);
+        if (int.TryParse(key, out var id)) return _svc.GetById(id);
+        return _svc.Query(p => p.Code == key).First();
     }
 }
