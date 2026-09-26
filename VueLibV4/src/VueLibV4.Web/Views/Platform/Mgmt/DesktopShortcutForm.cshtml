@@ -30,7 +30,23 @@
                 <el-input v-model="model.Url" placeholder="页面 URL / 动作编码 / 外部链接"></el-input>
             </el-form-item>
             <el-form-item label="图标">
-                <el-input v-model="model.Icon" maxlength="200" placeholder="emoji 或图标样式"></el-input>
+                @* 虚拟化下拉（约 1900 个 Emoji）：中/英文/emoji 搜索，按分类分组；allow-create 兼容历史 CSS 图标样式手填 *@
+                <el-select-v2 v-model="model.Icon"
+                              :options="emojiOptions"
+                              :filter-method="filterEmojis"
+                              :loading="emojiLoading"
+                              filterable clearable allow-create default-first-option
+                              placeholder="搜索 Emoji（中/英文），也可手填图标样式"
+                              style="width:100%">
+                    <template #group="{ item }">
+                        <span class="font-semibold text-gray-500">{{ item.label }}</span>
+                    </template>
+                    <template #default="{ item }">
+                        <span style="font-size:17px;margin-right:8px">{{ item.value }}</span>
+                        <span>{{ item.zh || item.en }}</span>
+                        <span v-if="item.zh" class="text-gray-400" style="margin-left:8px;font-size:12px">{{ item.en }}</span>
+                    </template>
+                </el-select-v2>
             </el-form-item>
             <el-form-item label="排序">
                 <el-input-number v-model="model.SortNo" :min="0"></el-input-number>
@@ -47,6 +63,57 @@
 
 
         <script type="application/json" tag="dynmodel">@Html.Raw(ViewBag.RowJson)</script>
+        <script tag="dynconfig">
+        var dynConfig = {
+            data: function () {
+                return { emojiLoading: false, emojiRaw: [], emojiQuery: '' };
+            },
+            computed: {
+                // el-select-v2 是受控组件：options 必须由数据替换驱动；
+                // 按 emojiQuery 实时过滤（中/英文/emoji），再分组输出 [{label, options:[{value,label,zh,en}]}]
+                emojiOptions: function () {
+                    var q = (this.emojiQuery || '').trim().toLowerCase();
+                    var hit = this.emojiRaw;
+                    if (q) {
+                        hit = this.emojiRaw.filter(function (x) {
+                            return (x.nameZh && x.nameZh.toLowerCase().indexOf(q) >= 0)
+                                || (x.nameEn && x.nameEn.toLowerCase().indexOf(q) >= 0)
+                                || (x.emoji && x.emoji.indexOf(q) >= 0);
+                        });
+                    }
+                    return this.groupEmojis(hit);
+                }
+            },
+            methods: {
+                groupEmojis: function (list) {
+                    var groups = [], index = {};
+                    list.forEach(function (x) {
+                        var g = x.groupZh || '其他';
+                        if (!index[g]) { index[g] = { label: g, options: [] }; groups.push(index[g]); }
+                        index[g].options.push({
+                            value: x.emoji,
+                            label: x.emoji + (x.nameZh ? ' ' + x.nameZh : ''),
+                            zh: x.nameZh || '',
+                            en: x.nameEn || ''
+                        });
+                    });
+                    return groups;
+                },
+                // filter-method 只更新查询词，展示列表由 emojiOptions computed 替换（返回值无效）
+                filterEmojis: function (q) { this.emojiQuery = q || ''; },
+                loadEmojis: function () {
+                    var self = this;
+                    this.emojiLoading = true;
+                    fetch('/api/dyncommon/emojis').then(function (r) { return r.json(); }).then(function (res) {
+                        if (res && res.code === 0 && res.data) self.emojiRaw = res.data;
+                        else dyn.showMessage((res && res.msg) || 'Emoji 加载失败', 'error');
+                    }).catch(function (e) { dyn.showMessage('Emoji 加载失败：' + e.message, 'error'); })
+                      .finally(function () { self.emojiLoading = false; });
+                }
+            },
+            mounted: function () { this.loadEmojis(); }
+        };
+        </script>
         <div style="display:none" data-dyn-init-setwin='{"width":"700px","height":"520px"}'>调整窗口</div>
     </div>
 </div>

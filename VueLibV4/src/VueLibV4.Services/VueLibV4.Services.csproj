@@ -15,4 +15,9 @@
     <PackageReference Include="SqlSugarCore" Version="5.1.4.221" />
   </ItemGroup>
 
+  <!-- Emoji 静态元数据（英文名/中文名/分类，合并自 unicode-emoji-json + Unicode CLDR zh），随程序集分发 -->
+  <ItemGroup>
+    <EmbeddedResource Include="Emoji\emoji-data.json" />
+  </ItemGroup>
+
 </Project>

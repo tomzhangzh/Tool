@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using VueLibV4.Web.Core;
 using VueLibV4.Services.Data;
+using VueLibV4.Services.Emoji;
 using VueLibV4.Platform.Services;
 
 namespace VueLibV4.Web.Controllers;
@@ -12,6 +13,7 @@ namespace VueLibV4.Web.Controllers;
 ///   GET  /api/dyncommon/options    工程表下拉选项（valueField/textField，支持 parentField/parentValue 联动）
 ///   GET  /api/dyncommon/dicts      平台字典下拉（DynDict by DictType）
 ///   GET  /api/dyncommon/tablelist  工程表分页记录（ComLookup 查找带回）
+///   GET  /api/dyncommon/emojis     可用 Emoji 列表（emoji 字符/中文名/英文名/分类；?q= 关键字）
 ///   POST /api/dyncommon/upload     文件/图片上传，返回可访问 url
 /// </summary>
 [Route("api/dyncommon")]
@@ -21,16 +23,27 @@ public class DynCommonController : ControllerBase
     private readonly DynamicCrudService _svc;
     private readonly ProjectDbResolver _projects;
     private readonly IDynDictService _dicts;
+    private readonly IEmojiService _emojis;
     private readonly IWebHostEnvironment _env;
 
     public DynCommonController(DynamicCrudService svc,
-        ProjectDbResolver projects, IDynDictService dicts, IWebHostEnvironment env)
+        ProjectDbResolver projects, IDynDictService dicts, IEmojiService emojis, IWebHostEnvironment env)
     {
         _svc = svc;
         _projects = projects;
         _dicts = dicts;
+        _emojis = emojis;
         _env = env;
     }
+
+    // ---------------- Emoji 列表（图标选择器数据源，离线元数据） ----------------
+
+    /// <summary>
+    /// 全量/关键字检索 Emoji，返回 [{emoji,nameEn,nameZh,group,groupZh}]，按分类顺序。
+    /// </summary>
+    [HttpGet("emojis")]
+    public ApiResult Emojis(string q = null)
+        => ApiResult.Ok(_emojis.Search(q));
 
     // ---------------- 工程表下拉选项 ----------------
 
