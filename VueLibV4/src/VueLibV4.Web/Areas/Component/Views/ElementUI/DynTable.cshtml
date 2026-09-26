@@ -53,7 +53,8 @@
     const table = co.table || '';
     const project = co.project || null;
     const gridId = co.gridId || '';
-    const apiBase = '/api/business/dyndata';
+    // 查询端点可按 comoptions.apiBase 覆盖（M5 平台管理页指向 /api/platform/dyndata），默认业务库端点向后兼容
+    const apiBase = co.apiBase || '/api/business/dyndata';
     const rows = ref([]);
     const total = ref(0);
     const page = ref(1);
@@ -75,7 +76,7 @@
     // 绑定到 el-table 的属性：剔除业务自定义键，避免污染 DOM
     const tableBind = computed(() => {
         const skip = { table:1, project:1, columns:1, filter:1, filterFields:1, filterFromScope:1,
-            pager:1, size:1, actions:1, actionsWidth:1, gridId:1, rowClickAction:1 };
+            pager:1, size:1, actions:1, actionsWidth:1, gridId:1, rowClickAction:1, apiBase:1 };
         const out = {};
         Object.keys(co).forEach(k => { if (!skip[k]) out[k] = co[k]; });
         return out;
@@ -140,7 +141,8 @@
 
     // 行操作：act.action 走动作系统（open/grid/postback/数据库助手等），params 自动带整行数据与 id
     function fillUrl(url, row) {
-        return String(url || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, function (_, k) {
+        // 注意：replace 回调首参是整段匹配串，切勿命名为 _，否则遮蔽外层 lodash（const _ = window._）导致 _.get 不是函数
+        return String(url || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, function (match, k) {
             var v = _.get(row, k);
             return v === undefined || v === null ? '' : encodeURIComponent(v);
         });

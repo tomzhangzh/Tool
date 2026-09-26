@@ -130,8 +130,12 @@ public class DynamicCrudService
                 var val = prop.Value;
                 if (val.Type == JTokenType.Object)
                 {
+                    // filter 还原语义：{field:{op,value}} 中 value 为空(null/Undefined) 表示"该字段不参与筛选"，
+                    // 直接跳过，避免生成 [col] = NULL / LIKE '%%' 这类误筛条件（前端完整结构原样提交时字段恒为 null 属常态）
+                    var fv = val["value"];
+                    if (fv == null || fv.Type == JTokenType.Null || fv.Type == JTokenType.Undefined) continue;
                     var op = val["op"]?.ToString() ?? "eq";
-                    AppendOp(sb, pars, prop.Name, dt, op, val["value"]);
+                    AppendOp(sb, pars, prop.Name, dt, op, fv);
                 }
                 else if (val.Type == JTokenType.Null || val.Type == JTokenType.Undefined)
                 {

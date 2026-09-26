@@ -345,7 +345,11 @@ function buildCtx(el,eventName,$event,options,actionName){
   const sharedModel = dyn.getScopeModel(el);
   const localModel = dyn.getModel(dyn.closestDynInit(el));
   const finalModel = sharedModel ?? localModel;
-  const app = dyn.getApp(el);
+  // vm 必须指向触发元素所在 createapp 容器（el 自身无 __dynApp），否则 ctx.vm 恒为 null，
+  // 弹窗 onclose / postback $onSuccess 里的 evaljs（ctx.vm.onQuery()）会抛 "Cannot read properties of null"
+  const app = (typeof dyn.getClosestApp === 'function' && dyn.getClosestApp(el)) || dyn.getApp(el);
+  // 该 Vue 版本 app._instance 为 null，但 dyn-core 挂载后已把 proxy 写入 app.__dynProxy / el.__dynProxy
+  const appVm = app && (app.__dynProxy || (app._instance && app._instance.proxy)) || null;
   return {
     element:el,el:el,
     event:eventName,$event:$event,targetInfo:$event,
@@ -353,7 +357,7 @@ function buildCtx(el,eventName,$event,options,actionName){
     options: optCopy,
     params: optCopy.params,
     model:finalModel,
-    vm:app&&app._instance?app._instance.proxy:null,
+    vm:appVm,
     url:optCopy.url||(el?el.getAttribute('data-dyn-url'):'')||'',
     $step:0,$result:null,$chain:[],$chainAction:'',
     $callStack:[],
