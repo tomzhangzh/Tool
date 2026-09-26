@@ -1,0 +1,63 @@
+@* 快捷方式表单片段（layer fragment；id 为空=新增，服务端注入默认值 dynmodel）。
+   保存走 ActionHelper.submit（updateel）：body=表单 model，服务端返回 ApiResult + dyn-actions（提示/刷新表格/关弹窗），
+   成功与失败的闭环全部由服务端动作驱动，片段零业务 JS。 *@
+<div id="scFormFragment" class="p-4">
+    <div data-dyn-init-createapp>
+        <el-form label-width="92px" size="small">
+            <el-form-item label="编码" required>
+                <el-input v-model="model.Code" maxlength="64" placeholder="唯一编码，如 student-manage"></el-input>
+            </el-form-item>
+            <el-form-item label="名称" required>
+                <el-input v-model="model.Name" maxlength="100"></el-input>
+            </el-form-item>
+            <el-form-item label="解决方案">
+                <el-select v-model="model.SolutionId" clearable style="width:100%">
+                    <el-option v-for="s in solutions" :key="s.Id" :label="s.Name" :value="s.Id"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="打开方式">
+                <el-select v-model="model.TargetType" style="width:100%">
+                    <el-option label="页面" value="page"></el-option>
+                    <el-option label="动作" value="action"></el-option>
+                    <el-option label="外部链接" value="url"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="地址">
+                <el-input v-model="model.Url" placeholder="页面 URL / 动作编码 / 外部链接"></el-input>
+            </el-form-item>
+            <el-form-item label="图标">
+                <el-input v-model="model.Icon" maxlength="200" placeholder="emoji 或图标样式"></el-input>
+            </el-form-item>
+            <el-form-item label="排序">
+                <el-input-number v-model="model.SortNo" :min="0"></el-input-number>
+            </el-form-item>
+            <el-form-item label="启用">
+                <el-switch v-model="model.IsActive" :active-value="1" :inactive-value="0"></el-switch>
+            </el-form-item>
+        </el-form>
+        <div class="flex justify-end gap-2 mt-3">
+            <el-button size="small" dyn-click="ActionHelper.close">取消</el-button>
+            <el-button type="primary" size="small" dyn-click="ActionHelper.submit"
+                       data-dyn-url="@ViewBag.FormUrl" data-dyn-target="#scFormFragment">保存</el-button>
+        </div>
+
+        <script tag="dynconfig">
+        var dynConfig = {
+            data: function () { return { solutions: [] }; },
+            methods: {
+                loadSolutions: function () {
+                    var self = this;
+                    fetch('/api/platform/dyndata/search', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ table: 'DesktopSolution', page: 1, size: 100, filter: { IsActive: { op: 'eq', value: 1 } } })
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (res && res.code === 0 && res.data) self.solutions = res.data.rows || [];
+                    }).catch(function (e) { console.error('解决方案下拉加载失败', e); });
+                }
+            },
+            mounted: function () { this.loadSolutions(); }
+        };
+        </script>
+        <script type="application/json" tag="dynmodel">@Html.Raw(ViewBag.RowJson)</script>
+    </div>
+</div>

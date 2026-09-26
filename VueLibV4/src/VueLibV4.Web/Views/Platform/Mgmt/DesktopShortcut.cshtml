@@ -1,0 +1,130 @@
+@{
+    ViewData["Title"] = "桌面快捷方式管理 - VueLibV4";
+}
+@*
+  M5 管理页范式（桌面快捷方式）：
+  · data-dyn-init-createapp 自举根应用；script[tag=dynconfig] 声明页面数据/方法（零独立 JS 文件）
+  · filter（含 op/value）+ pageInfo 都是 data 的一部分；筛选区 v-model 直接写 filter.xxx.value
+  · 列表：原生 el-table，请求 /api/platform/dyndata/search（body={table,page,size,filter}，后端 DynamicCrudService.Page 原样还原 filter）
+  · 交互全走动作系统（零业务 JS）：
+      新增/编辑 = data-dyn-click-open（fragment 弹窗；行 id 经 :data-Id 属性 + {{Id}} 插值传入；onclose 动作数组刷新列表）
+      删除     = data-dyn-click-postback（confirm 声明式确认 + $onSuccess 动作刷新列表）
+*@
+<div data-dyn-init-createapp class="p-4 space-y-3" style="height:100vh;display:flex;flex-direction:column;box-sizing:border-box;">
+    <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold text-gray-700">桌面快捷方式管理</h3>
+        <el-button type="success" size="small"
+                   data-dyn-click-open='{"url":"/Platform/Mgmt/DesktopShortcutForm","title":"新增快捷方式","width":"700px","height":"85vh","mode":"fragment","onclose":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]}'>+ 新增</el-button>
+    </div>
+
+    @* 筛选区：直接绑定 filter.xxx.value（filter 为 data 的一部分，不再二次组装） *@
+    <div class="bg-white rounded border border-gray-200 p-3 flex items-center gap-2 flex-wrap">
+        <el-input v-model="filter.Code.value" placeholder="编码（模糊）" style="width:160px" size="small" clearable></el-input>
+        <el-select v-model="filter.IsActive.value" placeholder="状态" style="width:110px" size="small" clearable>
+            <el-option label="启用" :value="true"></el-option>
+            <el-option label="停用" :value="false"></el-option>
+        </el-select>
+        <el-select v-model="filter.SolutionId.value" placeholder="所属解决方案" style="width:170px" size="small" clearable>
+            <el-option v-for="s in solutions" :key="s.Id" :label="s.Name" :value="s.Id"></el-option>
+        </el-select>
+        <el-button type="primary" size="small" @@click="onQuery">查询</el-button>
+        <el-button size="small" @@click="onReset">重置</el-button>
+    </div>
+
+    @* 列表区：原生 Element Plus el-table（非 DynTable 配置树） *@
+    <div class="bg-white rounded border border-gray-200 p-3 flex-1 min-h-0 flex flex-col">
+        <el-table :data="rows" border size="small" v-loading="loading" style="width:100%;flex:1">
+            <el-table-column prop="SortNo" label="排序" width="70" sortable></el-table-column>
+            <el-table-column prop="Name" label="名称"></el-table-column>
+            <el-table-column prop="Code" label="编码" width="160"></el-table-column>
+            <el-table-column prop="TargetType" label="打开方式" width="90"></el-table-column>
+            <el-table-column prop="Url" label="地址" show-overflow-tooltip></el-table-column>
+            <el-table-column prop="IsActive" label="状态" width="80">
+                <template #default="{row}">
+                    <el-tag :type="row.IsActive ? 'success' : 'info'" size="small">{{ row.IsActive ? '启用' : '停用' }}</el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150">
+                <template #default="{row}">
+                    <el-button link type="primary" size="small"
+                               :data-id="row.Id"
+                               data-dyn-click-open='{"url":"/Platform/Mgmt/DesktopShortcutForm","title":"编辑快捷方式","width":"700px","height":"85vh","mode":"fragment","params":{"id":"{{id}}"},"onclose":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]}'>编辑</el-button>
+                    <el-button link type="danger" size="small"
+                               :data-id="row.Id"
+                               data-dyn-click-postback='{"url":"/api/platform/dyndata/delete","params":{"table":"DesktopShortcut","id":"{{id}}"},"confirm":"确定删除该快捷方式吗？","message":"删除成功","$onSuccess":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]}'>删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+        <el-pagination class="mt-3 justify-end" layout="total, sizes, prev, pager, next, jumper"
+                       :total="pageInfo.TotalCount" :current-page="pageInfo.PageIndex" :page-size="pageInfo.PageSize"
+                       :page-sizes="[10,20,50,100]"
+                       @@current-change="onPage" @@size-change="onSize"></el-pagination>
+    </div>
+
+    <script tag="dynconfig">
+    var dynConfig = {
+        data: function () {
+            return {
+                loading: false,
+                rows: [],
+                solutions: [],
+                // filter 是 data 的一部分：每个字段固定 op + value，筛选区 v-model 直接写 value
+                filter: {
+                    Code: { op: 'like', value: null },
+                    IsActive: { op: 'eq', value: null },
+                    SolutionId: { op: 'eq', value: null }
+                },
+                // pageInfo 也是 data 的一部分
+                pageInfo: { PageIndex: 1, PageSize: 20, TotalCount: 0 }
+            };
+        },
+        methods: {
+            // rest 原样还原 filter：body = {table, page, size, filter}，后端直接解析 filter 的 op/value
+            onQuery: function () {
+                var self = this;
+                this.loading = true;
+                fetch('/api/platform/dyndata/search', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        table: 'DesktopShortcut',
+                        page: this.pageInfo.PageIndex,
+                        size: this.pageInfo.PageSize,
+                        filter: this.filter
+                    })
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.code === 0 && res.data) {
+                        self.rows = res.data.rows || [];
+                        self.pageInfo.TotalCount = res.data.total || 0;
+                    } else {
+                        dyn.showMessage((res && res.msg) || '查询失败', 'error');
+                    }
+                }).catch(function (e) { dyn.showMessage('查询失败：' + e.message, 'error'); })
+                  .finally(function () { self.loading = false; });
+            },
+            onReset: function () {
+                // 重置：filter 还原为初始完整结构（保留 op，value 清空）
+                this.filter = {
+                    Code: { op: 'like', value: null },
+                    IsActive: { op: 'eq', value: null },
+                    SolutionId: { op: 'eq', value: null }
+                };
+                this.pageInfo.PageIndex = 1;
+                this.onQuery();
+            },
+            onPage: function (p) { this.pageInfo.PageIndex = p; this.onQuery(); },
+            onSize: function (s) { this.pageInfo.PageSize = s; this.pageInfo.PageIndex = 1; this.onQuery(); },
+            // 解决方案下拉：同样走 dyndata filter 还原
+            loadSolutions: function () {
+                var self = this;
+                fetch('/api/platform/dyndata/search', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ table: 'DesktopSolution', page: 1, size: 100, filter: { IsActive: { op: 'eq', value: true } } })
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.code === 0 && res.data) self.solutions = res.data.rows || [];
+                }).catch(function (e) { console.error('解决方案下拉加载失败', e); });
+            }
+        },
+        mounted: function () { this.loadSolutions(); this.onQuery(); }
+    };
+    </script>
+</div>
