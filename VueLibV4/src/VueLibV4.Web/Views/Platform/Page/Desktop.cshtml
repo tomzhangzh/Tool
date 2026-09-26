@@ -4,12 +4,25 @@
 }
 <div id="@extId">
     <div class="desktop" @@contextmenu.prevent="showContextMenu($event)">
-        <!-- 桌面快捷方式 -->
+        <!-- 桌面快捷方式（数据源：SysMenu，IsAddToDesktop=true；父菜单=文件夹，单击 float 子菜单） -->
         <div class="desktop-icons">
-            <div v-for="sc in shortcuts" :key="sc.Id" class="desktop-icon" :class="{ selected: selectedId === sc.Id }"
-                @@click.stop="selectedId = sc.Id" @@dblclick="openApp(sc)">
-                <div class="icon">{{ sc.Icon || '📄' }}</div>
-                <div class="label">{{ sc.Name }}</div>
+            <div v-for="m in roots" :key="m.Id" class="desktop-icon"
+                 :class="{ selected: selectedId === m.Id, folder: isFolder(m) }"
+                 @@click.stop="onIconClick(m, $event)" @@dblclick="openApp(m)"
+                 :title="isFolder(m) ? '文件夹：点击展开子菜单' : (m.TargetType === 'NewWindow' ? '新窗口打开' : '双击打开')">
+                <div class="icon">{{ m.Icon || (isFolder(m) ? '📁' : '📄') }}</div>
+                <div class="label">{{ m.Name }}</div>
+            </div>
+        </div>
+
+        <!-- 文件夹 float 子菜单（多级级联：子菜单仍有子菜单时右侧再浮一层） -->
+        <div v-for="(layer, i) in floatStack" :key="i" class="float-menu"
+             :style="{ left: layer.x + 'px', top: layer.y + 'px' }" @@click.stop>
+            <div class="float-menu-title">{{ layer.menu.Name }}</div>
+            <div v-for="c in layer.menu.children" :key="c.Id" class="float-menu-item" @@click="onFloatItemClick(c, $event)">
+                <span class="icon">{{ c.Icon || (isFolder(c) ? '📁' : '📄') }}</span>
+                <span class="name">{{ c.Name }}</span>
+                <span v-if="isFolder(c)" class="float-arrow">›</span>
             </div>
         </div>
 
@@ -40,13 +53,21 @@
                 <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;">所有应用</div>
             </div>
             <div class="start-menu-body">
-                <div v-for="sol in solutions" :key="sol.Id" class="solution-group">
-                    <div class="solution-title">{{ sol.Icon || '📁' }} {{ sol.Name }}</div>
-                    <div v-for="sc in shortcutsBySolution(sol.Code)" :key="sc.Id" class="menu-item"
-                        @@click="openApp(sc); showStartMenu = false;">
-                        <span class="icon">{{ sc.Icon || '📄' }}</span>
-                        <span class="name">{{ sc.Name }}</span>
-                    </div>
+                <div v-for="g in startGroups" :key="g.Id" class="solution-group">
+                    <div class="solution-title">{{ g.Icon || '📁' }} {{ g.Name }}</div>
+                    <template v-if="g.children && g.children.length">
+                        <div v-for="c in startChildren(g)" :key="c.Id" class="menu-item"
+                            @@click="openApp(c); showStartMenu = false;">
+                            <span class="icon">{{ c.Icon || '📄' }}</span>
+                            <span class="name">{{ c.Name }}</span>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <div class="menu-item" @@click="openApp(g); showStartMenu = false;">
+                            <span class="icon">{{ g.Icon || '📄' }}</span>
+                            <span class="name">{{ g.Name }}</span>
+                        </div>
+                    </template>
                 </div>
             </div>
             <div class="start-menu-footer">
@@ -490,6 +511,63 @@
         background: rgba(255, 255, 255, 0.1);
         margin: 4px 0;
     }
+
+    /* 文件夹 float 子菜单（父菜单点击后浮动在图标旁） */
+    .float-menu {
+        position: absolute;
+        background: rgba(45, 45, 55, 0.95);
+        backdrop-filter: blur(24px);
+        border-radius: 10px;
+        min-width: 180px;
+        max-width: 240px;
+        max-height: calc(100vh - 60px);
+        overflow-y: auto;
+        padding: 6px;
+        z-index: 2100;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .float-menu-title {
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 11px;
+        padding: 4px 10px 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 4px;
+    }
+
+    .float-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #fff;
+        font-size: 13px;
+        transition: background 0.15s;
+    }
+
+    .float-menu-item:hover {
+        background: rgba(255, 255, 255, 0.14);
+    }
+
+    .float-menu-item .icon {
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+    }
+
+    .float-menu-item .float-arrow {
+        margin-left: auto;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 14px;
+    }
+
+    .desktop-icon.folder {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px dashed rgba(255, 255, 255, 0.25);
+    }
 </style>
 
 @section Scripts {
@@ -498,10 +576,12 @@
             var app = Vue.createApp({
                 data: function () {
                     return {
-                        shortcuts: [], solutions: [], windows: [],
+                        roots: [], windows: [],
                         showStartMenu: false, selectedId: null, activeWinId: null,
                         currentTime: '', currentDate: '',
                         contextMenu: { show: false, x: 0, y: 0 },
+                        treeData: [],
+                        floatStack: [],
                         _winId: 0, _z: 100
                     };
                 },
@@ -509,34 +589,110 @@
                     go: function (url) { window.location.href = url; },
                     load: function () {
                         var self = this;
-                        Promise.all([
-                            fetch('/api/platform/desktopshortcut/all').then(function (r) { return r.json(); }),
-                            fetch('/api/platform/desktopsolution/all').then(function (r) { return r.json(); })
-                        ]).then(function (rs) {
-                            if (rs[0].code === 0) self.shortcuts = (rs[0].data || []).filter(function (s) { return s.IsActive !== false; });
-                            if (rs[1].code === 0) self.solutions = rs[1].data || [];
-                        }).catch(function (e) { console.error('加载桌面数据失败', e); });
+                        fetch('/api/platform/sysmenu/desktoplist').then(function (r) { return r.json(); })
+                            .then(function (res) {
+                                if (res.code === 0) {
+                                    var tree = res.data || [];
+                                    self.treeData = tree; // 开始菜单分组用（保留树形）
+                                    self.roots = self.collectDesktopRoots(tree); // 桌面根区：IsAddToDesktopRoot=true 的节点（平铺）
+                                } else {
+                                    console.error('加载桌面菜单失败', res.msg);
+                                }
+                            }).catch(function (e) { console.error('加载桌面菜单失败', e); });
                     },
-                    shortcutsBySolution: function (code) {
-                        return this.shortcuts.filter(function (s) { return (s.SolutionId || null) === code; });
+                    // 递归收集显示在桌面根区的节点（IsAddToDesktopRoot !== false；带子级仍是文件夹）
+                    collectDesktopRoots: function (nodes) {
+                        var out = [];
+                        var walk = function (list) {
+                            list.forEach(function (n) {
+                                if (n.IsAddToDesktopRoot !== false) out.push(n);
+                                if (n.children && n.children.length) walk(n.children);
+                            });
+                        };
+                        walk(nodes);
+                        return out;
                     },
-                    openApp: function (sc) {
-                        var self = this;
-                        if (sc.TargetType === 'action' && sc.ActionHelperId) {
-                            DynActionHelper.run(sc.ActionHelperId, {}, {}); return;
+                    isFolder: function (m) {
+                        return !!(m.children && m.children.length);
+                    },
+                    onIconClick: function (m, e) {
+                        this.selectedId = m.Id;
+                        this.closeFloatMenu();
+                        if (this.isFolder(m)) this.openFloat(m, e);
+                    },
+                    // 打开一层 float 面板（顶层定位在图标旁；放不下时向上展开）
+                    openFloat: function (m, e) {
+                        var rect = e && e.currentTarget ? e.currentTarget.getBoundingClientRect() : null;
+                        var x = rect ? rect.right + 8 : (e ? e.clientX : 200);
+                        var y = rect ? rect.top : (e ? e.clientY : 100);
+                        if (x + 180 > window.innerWidth && rect) x = rect.left - 188;
+                        this.floatStack.push(this.fitFloat(m, x, y));
+                    },
+                    // 面板位置校正：预估高度放不下屏幕底部时向上移（保留 8px 边距）
+                    fitFloat: function (m, x, y) {
+                        var estH = 42 + (m.children ? m.children.length : 0) * 40;
+                        var bottom = window.innerHeight - 52; // 任务栏以上
+                        if (y + estH > bottom) y = Math.max(8, bottom - estH);
+                        return { menu: m, x: x, y: y };
+                    },
+                    // float 面板项点击：有子级 → 右侧再浮一层（级联）；无子级 → 打开
+                    onFloatItemClick: function (c, e) {
+                        if (this.isFolder(c)) {
+                            var rect = e.currentTarget.getBoundingClientRect();
+                            var x = rect.right + 4;
+                            if (x + 180 > window.innerWidth) x = rect.left - 184;
+                            this.floatStack.push(this.fitFloat(c, x, rect.top));
+                        } else {
+                            this.openApp(c);
                         }
-                        if (sc.TargetType === 'url' && sc.Url) { window.open(sc.Url, '_blank'); return; }
-                        var url = sc.Url;
-                        if (!url) return;
+                    },
+                    closeFloatMenu: function () { this.floatStack = []; },
+                    // 窗口尺寸解析：支持像素 "800" 或百分比 "50%"；无值返回 null
+                    parseSize: function (v, max) {
+                        if (!v) return null;
+                        v = String(v).trim();
+                        if (/%$/.test(v)) {
+                            var p = parseFloat(v);
+                            if (!(p > 0)) return null;
+                            return Math.round(max * p / 100);
+                        }
+                        var n = parseInt(v, 10);
+                        return n > 0 ? n : null;
+                    },
+                    // 开始菜单分组：根菜单中 IsAddToStartMenu=true
+                    startGroups: function () {
+                        return this.treeData.filter(function (n) { return n.IsAddToStartMenu !== false; });
+                    },
+                    // 分组内子项按 IsAddToStartMenu 过滤
+                    startChildren: function (g) {
+                        return (g.children || []).filter(function (c) { return c.IsAddToStartMenu !== false; });
+                    },
+                    openApp: function (m) {
+                        var self = this;
+                        if (this.isFolder(m)) { this.openFloat(m, {}); return; }
+                        var url = m.Url;
+                        if (!url) { dyn.showMessage('该菜单未配置访问地址', 'warning'); return; }
+                        // TargetType：NewWindow=新窗口；FullScreen=全屏窗口；Windows=桌面窗口(用配置宽高)；Iframe=桌面窗口(默认尺寸)
+                        if (m.TargetType === 'NewWindow') { window.open(url, '_blank'); return; }
                         var existing = this.windows.find(function (w) { return w.url === url; });
                         if (existing) { existing.minimized = false; this.focusWindow(existing.id); return; }
+                        var isWin = m.TargetType === 'Windows';
+                        var availW = Math.max(400, window.innerWidth - 40);
+                        var availH = Math.max(300, window.innerHeight - 88);
+                        var winW = this.parseSize(m.Width, availW);
+                        var winH = this.parseSize(m.Height, availH);
                         var w = {
-                            id: ++this._winId, title: sc.Name, icon: sc.Icon || '📄', url: url,
+                            id: ++this._winId, title: m.Name, icon: m.Icon || '📄', url: url,
                             x: 80 + (this.windows.length * 30) % 200,
                             y: 60 + (this.windows.length * 30) % 150,
-                            width: 960, height: 640, minimized: false, maximized: false, zIndex: ++this._z
+                            width: (isWin && winW) ? Math.min(winW, availW) : 960,
+                            height: (isWin && winH) ? Math.min(winH, availH) : 640,
+                            minimized: false,
+                            maximized: m.TargetType === 'FullScreen',
+                            zIndex: ++this._z
                         };
                         this.windows.push(w); this.activeWinId = w.id;
+                        this.closeFloatMenu();
                     },
                     focusWindow: function (id) {
                         var w = this.windows.find(function (x) { return x.id === id; });
@@ -574,7 +730,7 @@
                     this.load(); this.tick();
                     setInterval(this.tick, 1000);
                     var self = this;
-                    document.addEventListener('click', function () { self.showStartMenu = false; self.contextMenu.show = false; self.selectedId = null; });
+                    document.addEventListener('click', function () { self.showStartMenu = false; self.contextMenu.show = false; self.selectedId = null; self.floatStack = []; });
                 }
             });
             const container = document.querySelector('#@extId');

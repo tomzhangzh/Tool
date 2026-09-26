@@ -1,0 +1,352 @@
+@{
+    ViewData["Title"] = "系统菜单管理 - VueLibV4";
+}
+@*
+  系统菜单管理（M5 范式）：
+  · data-dyn-init-createapp 自举根应用；script[tag=dynconfig] 声明页面数据/方法
+  · 左侧 el-tree 菜单树（父菜单=文件夹图标；桌面/停用 tag）；右侧表单编辑区（同页编辑，不弹窗）
+  · 数据走专用 API /api/platform/sysmenu/*（tree/get/save/delete）
+  · TargetType：FullScreen=全屏 / Iframe=内嵌 iframe / NewWindow=新窗口
+  · IsAddToDesktop=true 的节点 → 桌面快捷方式（桌面页直接读 desktoplist）
+  · PermissionCode 预留权限编码（后续对接权限模块）
+*@
+<div data-dyn-init-createapp class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
+
+    <el-card shadow="never" style="flex:1;display:flex;min-height:0;padding:0;">
+        <div style="display:flex;gap:0;height:100%;">
+            @* ---------- 左侧：菜单树 ---------- *@
+            <div style="width:320px;flex-shrink:0;border-right:1px solid var(--el-border-color);padding:12px;display:flex;flex-direction:column;min-height:0;">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-semibold text-gray-700">菜单树</span>
+                    <el-button type="success" size="small" @@click="onAddRoot">+ 根菜单</el-button>
+                </div>
+                <div class="flex-1 min-h-0 overflow-auto">
+                    <el-tree :data="treeData"
+                             :props="{ children: 'children', label: 'Name' }"
+                             node-key="Id"
+                             default-expand-all
+                             highlight-current
+                             :expand-on-click-node="false"
+                             v-loading="treeLoading"
+                             @@node-click="onNodeClick">
+                        <template #default="{ data }">
+                            <span class="flex items-center gap-1 text-sm">
+                                <span>{{ (data.children && data.children.length) ? (data.Icon || '📁') : (data.Icon || '📄') }}</span>
+                                <span>{{ data.Name }}</span>
+                                <el-tag v-if="data.IsAddToDesktop" size="small" type="warning" style="margin-left:4px">桌面</el-tag>
+                                <el-tag v-if="!data.IsActive" size="small" type="info" style="margin-left:4px">停用</el-tag>
+                            </span>
+                        </template>
+                    </el-tree>
+                </div>
+            </div>
+
+            @* ---------- 右侧：编辑表单 ---------- *@
+            <div style="flex:1;min-width:0;padding:12px 16px;overflow:auto;">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-semibold text-gray-700">{{ form.Id > 0 ? '编辑菜单：' + form.Name : '新增菜单' }}</span>
+                    <el-button size="small" @@click="onAddChild" :disabled="form.Id <= 0">+ 子菜单</el-button>
+                </div>
+
+                <el-form label-width="96px" size="small" v-loading="formLoading">
+                    <el-form-item label="父菜单">
+                        <el-select v-model="form.ParentId" clearable placeholder="根菜单（不选）" style="width:100%">
+                            <el-option v-for="opt in parentOptions" :key="opt.Id" :label="opt.Label" :value="opt.Id"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="菜单名称" required>
+                        <el-input v-model="form.Name" placeholder="如：系统管理" maxlength="100"></el-input>
+                    </el-form-item>
+                    <el-form-item label="编码">
+                        <el-input v-model="form.Code" placeholder="可选业务编码，如 system.menu" maxlength="64"></el-input>
+                    </el-form-item>
+                    <el-form-item label="图标">
+                        <el-select-v2 v-model="form.Icon"
+                                      :options="emojiOptions"
+                                      :filter-method="filterEmojis"
+                                      :loading="emojiLoading"
+                                      filterable clearable allow-create default-first-option
+                                      placeholder="搜索 Emoji（中/英文），也可手填"
+                                      style="width:100%">
+                            <template #group="{ item }">
+                                <span class="font-semibold text-gray-500">{{ item.label }}</span>
+                            </template>
+                            <template #default="{ item }">
+                                <span style="font-size:17px;margin-right:8px">{{ item.value }}</span>
+                                <span>{{ item.zh || item.en }}</span>
+                                <span v-if="item.zh" class="text-gray-400" style="margin-left:8px;font-size:12px">{{ item.en }}</span>
+                            </template>
+                        </el-select-v2>
+                    </el-form-item>
+                    <el-form-item label="访问地址">
+                        <el-input v-model="form.Url" placeholder="页面 URL，如 /Platform/Page/Designer"></el-input>
+                    </el-form-item>
+                    <el-form-item label="打开方式">
+                        <el-radio-group v-model="form.TargetType">
+                            <el-radio-button value="FullScreen">全屏</el-radio-button>
+                            <el-radio-button value="Windows">桌面窗口</el-radio-button>
+                            <el-radio-button value="Iframe">内嵌 Iframe</el-radio-button>
+                            <el-radio-button value="NewWindow">新窗口</el-radio-button>
+                        </el-radio-group>
+                    </el-form-item>
+                    <el-form-item label="窗口宽度" v-if="form.TargetType === 'Windows'">
+                        <el-input v-model="form.Width" placeholder="如 800 或 50%（默认 960）" maxlength="20"></el-input>
+                    </el-form-item>
+                    <el-form-item label="窗口高度" v-if="form.TargetType === 'Windows'">
+                        <el-input v-model="form.Height" placeholder="如 640 或 60%（默认 640）" maxlength="20"></el-input>
+                    </el-form-item>
+                    <el-form-item label="添加到桌面">
+                        <el-switch v-model="form.IsAddToDesktop" active-text="是" inactive-text="否"></el-switch>
+                        <span class="text-xs text-gray-400 ml-2">开启后该菜单会作为桌面快捷方式生成</span>
+                    </el-form-item>
+                    <el-form-item label="桌面根图标">
+                        <el-switch v-model="form.IsAddToDesktopRoot" active-text="是" inactive-text="否"></el-switch>
+                        <span class="text-xs text-gray-400 ml-2">是否直接显示在桌面根区（子菜单在父文件夹内不受影响）</span>
+                    </el-form-item>
+                    <el-form-item label="开始菜单">
+                        <el-switch v-model="form.IsAddToStartMenu" active-text="是" inactive-text="否"></el-switch>
+                        <span class="text-xs text-gray-400 ml-2">是否添加到开始菜单</span>
+                    </el-form-item>
+                    <el-form-item label="启用">
+                        <el-switch v-model="form.IsActive"></el-switch>
+                    </el-form-item>
+                    <el-form-item label="排序">
+                        <el-input-number v-model="form.SortNo" :min="0"></el-input-number>
+                    </el-form-item>
+                    <el-form-item label="权限编码">
+                        <el-input v-model="form.PermissionCode" placeholder="预留，权限模块对接使用" maxlength="100"></el-input>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @@click="onSave" :loading="saving">保存</el-button>
+                        <el-button type="danger" @@click="onDelete" :loading="deleting" :disabled="form.Id <= 0">删除</el-button>
+                        <el-button @@click="onReset">清空</el-button>
+                    </el-form-item>
+                </el-form>
+            </div>
+        </div>
+    </el-card>
+
+    <script tag="dynconfig">
+    var dynConfig = {
+        data: function () {
+            return {
+                treeLoading: false,
+                formLoading: false,
+                saving: false,
+                deleting: false,
+                emojiLoading: false, emojiRaw: [], emojiQuery: '',
+                treeData: [],
+                // 平铺父级选项（含层级缩进 label）
+                flatMenus: [],
+                form: {
+                    Id: 0, ParentId: null, Code: '', Name: '', Icon: '',
+                    Url: '', TargetType: 'Iframe',
+                    Width: null, Height: null,
+                    IsAddToDesktop: true, IsAddToDesktopRoot: true, IsAddToStartMenu: true,
+                    SortNo: 0, IsActive: true, PermissionCode: ''
+                }
+            };
+        },
+        computed: {
+            // emoji 下拉选项（虚拟化分组；按查询词实时过滤）
+            emojiOptions: function () {
+                var q = (this.emojiQuery || '').trim().toLowerCase();
+                var hit = this.emojiRaw;
+                if (q) {
+                    hit = this.emojiRaw.filter(function (x) {
+                        return (x.nameZh && x.nameZh.toLowerCase().indexOf(q) >= 0)
+                            || (x.nameEn && x.nameEn.toLowerCase().indexOf(q) >= 0)
+                            || (x.emoji && x.emoji.indexOf(q) >= 0);
+                    });
+                }
+                return this.groupEmojis(hit);
+            },
+            // 父级下拉：平铺选项，排除当前编辑节点及其子树
+            parentOptions: function () {
+                var self = this;
+                if (!this.flatMenus.length) return [];
+                var excluded = this.collectSubtreeIds(this.treeData, this.form.Id);
+                return this.flatMenus.filter(function (f) { return excluded.indexOf(f.Id) < 0; });
+            }
+        },
+        methods: {
+            collectSubtreeIds: function (nodes, id) {
+                var out = [];
+                if (id <= 0) return out;
+                var find = function (list) {
+                    for (var i = 0; i < list.length; i++) {
+                        var n = list[i];
+                        if (n.Id === id) {
+                            var walk = function (node) {
+                                out.push(node.Id);
+                                (node.children || []).forEach(walk);
+                            };
+                            walk(n);
+                            return true;
+                        }
+                        if (n.children && n.children.length && find(n.children)) return true;
+                    }
+                    return false;
+                };
+                find(nodes);
+                return out;
+            },
+            groupEmojis: function (list) {
+                var groups = [], index = {};
+                list.forEach(function (x) {
+                    var g = x.groupZh || '其他';
+                    if (!index[g]) { index[g] = { label: g, options: [] }; groups.push(index[g]); }
+                    index[g].options.push({
+                        value: x.emoji,
+                        label: x.emoji + (x.nameZh ? ' ' + x.nameZh : ''),
+                        zh: x.nameZh || '',
+                        en: x.nameEn || ''
+                    });
+                });
+                return groups;
+            },
+            filterEmojis: function (q) { this.emojiQuery = q || ''; },
+            loadEmojis: function () {
+                var self = this;
+                this.emojiLoading = true;
+                fetch('/api/dyncommon/emojis').then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.code === 0 && res.data) self.emojiRaw = res.data;
+                    else dyn.showMessage((res && res.msg) || 'Emoji 加载失败', 'error');
+                }).catch(function (e) { dyn.showMessage('Emoji 加载失败：' + e.message, 'error'); })
+                  .finally(function () { self.emojiLoading = false; });
+            },
+            buildFlat: function (nodes, depth) {
+                var out = [];
+                var self = this;
+                nodes.forEach(function (n) {
+                    out.push({ Id: n.Id, Label: (n.Name || '') && new Array(depth + 1).join('　') + n.Name });
+                    out = out.concat(self.buildFlat(n.children || [], depth + 1));
+                });
+                return out;
+            },
+            loadTree: function () {
+                var self = this;
+                this.treeLoading = true;
+                fetch('/api/platform/sysmenu/tree')
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (res && res.code === 0 && res.data) {
+                            self.treeData = res.data.tree || [];
+                            self.flatMenus = self.buildFlat(self.treeData, 0);
+                        } else {
+                            dyn.showMessage((res && res.msg) || '加载菜单树失败', 'error');
+                        }
+                    })
+                    .catch(function (e) { dyn.showMessage('加载菜单树失败：' + e.message, 'error'); })
+                    .finally(function () { self.treeLoading = false; });
+            },
+            onNodeClick: function (data) {
+                this.loadForm(data.Id);
+            },
+            loadForm: function (id) {
+                var self = this;
+                this.formLoading = true;
+                fetch('/api/platform/sysmenu/get?id=' + id)
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (res && res.code === 0 && res.data) {
+                            var d = res.data;
+                            self.form = {
+                                Id: d.Id || 0,
+                                ParentId: d.ParentId || null,
+                                Code: d.Code || '',
+                                Name: d.Name || '',
+                                Icon: d.Icon || '',
+                                Url: d.Url || '',
+                                TargetType: d.TargetType || 'Iframe',
+                                Width: d.Width || null,
+                                Height: d.Height || null,
+                                IsAddToDesktop: !!d.IsAddToDesktop,
+                                IsAddToDesktopRoot: d.IsAddToDesktopRoot === undefined ? true : !!d.IsAddToDesktopRoot,
+                                IsAddToStartMenu: d.IsAddToStartMenu === undefined ? true : !!d.IsAddToStartMenu,
+                                SortNo: d.SortNo || 0,
+                                IsActive: !!d.IsActive,
+                                PermissionCode: d.PermissionCode || ''
+                            };
+                        } else {
+                            dyn.showMessage((res && res.msg) || '读取菜单失败', 'error');
+                        }
+                    })
+                    .catch(function (e) { dyn.showMessage('读取菜单失败：' + e.message, 'error'); })
+                    .finally(function () { self.formLoading = false; });
+            },
+            onAddRoot: function () {
+                this.form = {
+                    Id: 0, ParentId: null, Code: '', Name: '', Icon: '',
+                    Url: '', TargetType: 'Iframe',
+                    Width: null, Height: null,
+                    IsAddToDesktop: true, IsAddToDesktopRoot: true, IsAddToStartMenu: true,
+                    SortNo: 0, IsActive: true, PermissionCode: ''
+                };
+            },
+            onAddChild: function () {
+                if (this.form.Id <= 0) return;
+                this.form = {
+                    Id: 0, ParentId: this.form.Id, Code: '', Name: '', Icon: '',
+                    Url: '', TargetType: 'Iframe',
+                    Width: null, Height: null,
+                    IsAddToDesktop: true, IsAddToDesktopRoot: true, IsAddToStartMenu: true,
+                    SortNo: 0, IsActive: true, PermissionCode: ''
+                };
+            },
+            onReset: function () {
+                this.form = {
+                    Id: 0, ParentId: null, Code: '', Name: '', Icon: '',
+                    Url: '', TargetType: 'Iframe',
+                    Width: null, Height: null,
+                    IsAddToDesktop: true, IsAddToDesktopRoot: true, IsAddToStartMenu: true,
+                    SortNo: 0, IsActive: true, PermissionCode: ''
+                };
+            },
+            onSave: function () {
+                var self = this;
+                if (!this.form.Name || !this.form.Name.trim()) {
+                    dyn.showMessage('菜单名称不能为空', 'warning'); return;
+                }
+                this.saving = true;
+                fetch('/api/platform/sysmenu/save', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.form)
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.code === 0) {
+                        dyn.showMessage(res.msg || '保存成功', 'success');
+                        self.loadTree();
+                        self.onReset();
+                    } else {
+                        dyn.showMessage((res && res.msg) || '保存失败', 'error');
+                    }
+                }).catch(function (e) { dyn.showMessage('保存失败：' + e.message, 'error'); })
+                  .finally(function () { self.saving = false; });
+            },
+            onDelete: function () {
+                var self = this;
+                if (this.form.Id <= 0) return;
+                dyn.confirmAsync('确定删除菜单「' + this.form.Name + '」吗？')
+                    .then(function (ok) {
+                        if (!ok) return;
+                        self.deleting = true;
+                        return fetch('/api/platform/sysmenu/delete', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ Id: self.form.Id })
+                        }).then(function (r) { return r.json(); }).then(function (res) {
+                            if (res && res.code === 0) {
+                                dyn.showMessage(res.msg || '删除成功', 'success');
+                                self.loadTree();
+                                self.onReset();
+                            } else {
+                                dyn.showMessage((res && res.msg) || '删除失败', 'error');
+                            }
+                        }).catch(function (e) { dyn.showMessage('删除失败：' + e.message, 'error'); })
+                          .finally(function () { self.deleting = false; });
+                    });
+            }
+        },
+        mounted: function () { this.loadTree(); this.loadEmojis(); }
+    };
+    </script>
+</div>

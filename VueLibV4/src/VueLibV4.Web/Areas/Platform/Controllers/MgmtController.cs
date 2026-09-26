@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using VueLibV4.Web.Core;
 using VueLibV4.Services.Data;
@@ -18,6 +18,15 @@ public class MgmtController : Controller
     private readonly DbFactory _dbs;
     private readonly DynamicCrudService _svc;
     public MgmtController(DbFactory dbs, DynamicCrudService svc) { _dbs = dbs; _svc = svc; }
+
+    /// <summary>系统菜单管理（左侧树 + 右侧编辑表单）</summary>
+    [HttpGet("/Platform/Mgmt/SysMenuMgmt")]
+    public IActionResult SysMenuMgmt()
+    {
+        ViewData["Title"] = "系统菜单管理 - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View(string.Format(Page, "SysMenuMgmt"));
+    }
 
     /// <summary>桌面快捷方式管理（列表）</summary>
     [HttpGet("/Platform/Mgmt/DesktopShortcut")]

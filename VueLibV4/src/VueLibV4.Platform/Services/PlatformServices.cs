@@ -49,6 +49,14 @@ public class DynProjectService : SugarService<DynProject>, IDynProjectService
     public DynProjectService(ISqlSugarClient db) : base(db) { }
 }
 
+// ============ 系统菜单（树形，桌面快捷数据源） ============
+
+public interface ISysMenuService : ISugarService<SysMenu>, IScopeDependency { }
+public class SysMenuService : SugarService<SysMenu>, ISysMenuService
+{
+    public SysMenuService(ISqlSugarClient db) : base(db) { }
+}
+
 public interface IDynDictService : ISugarService<DynDict>, IScopeDependency
 {
     /// <summary>按字典类型取启用项（排序）</summary>

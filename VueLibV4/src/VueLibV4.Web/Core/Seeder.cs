@@ -112,6 +112,52 @@ CREATE TABLE PageSetting (
         EnsureColumn(conn, "DynWebPage", "FilterPageSettingId", "INTEGER NULL");
         EnsureColumn(conn, "DynWebPage", "ListPageSettingId", "INTEGER NULL");
         EnsureColumn(conn, "DynWebPage", "DetailPageSettingId", "INTEGER NULL");
+        // 系统菜单 SysMenu（桌面快捷方式数据源，树形）；旧库幂等建表 + 初始种子
+        if (!TableExists(conn, "SysMenu"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE SysMenu (
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ParentId       INTEGER NULL,
+    Code           TEXT NULL,
+    Name           TEXT NOT NULL,
+    Icon           TEXT NULL,
+    Url            TEXT NULL,
+    TargetType     TEXT NOT NULL DEFAULT 'Iframe',
+    IsAddToDesktop INTEGER NOT NULL DEFAULT 1,
+    SortNo         INTEGER NOT NULL DEFAULT 0,
+    IsActive       INTEGER NOT NULL DEFAULT 1,
+    PermissionCode TEXT NULL,
+    CreateTime     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);";
+            create.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 SysMenu");
+        }
+        EnsureColumn(conn, "SysMenu", "Width", "INTEGER NULL");
+        EnsureColumn(conn, "SysMenu", "Height", "INTEGER NULL");
+        EnsureColumn(conn, "SysMenu", "IsAddToDesktopRoot", "INTEGER NOT NULL DEFAULT 1");
+        EnsureColumn(conn, "SysMenu", "IsAddToStartMenu", "INTEGER NOT NULL DEFAULT 1");
+        SeedSysMenu(conn);
+    }
+
+    /// <summary>SysMenu 初始种子（幂等：仅当表为空时插入根菜单与示例子菜单）</summary>
+    private void SeedSysMenu(SqliteConnection conn)
+    {
+        using var cnt = conn.CreateCommand();
+        cnt.CommandText = "SELECT COUNT(*) FROM SysMenu;";
+        if (Convert.ToInt32(cnt.ExecuteScalar()) > 0) return;
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) VALUES
+(NULL, 'system', '系统管理', '📁', NULL, 'Iframe', 1, 1, 1, 'system'),
+(NULL, 'apps',   '应用中心', '🗂️', NULL, 'Iframe', 1, 2, 1, 'apps'),
+(1,   'menu-mgmt',   '菜单管理', '🧭', '/Platform/Mgmt/SysMenuMgmt', 'FullScreen', 1, 1, 1, 'system.menu'),
+(1,   'shortcut-mgmt','桌面快捷管理', '🖥️', '/Platform/Mgmt/DesktopShortcut', 'Iframe', 1, 2, 1, 'system.shortcut'),
+(2,   'designer', '页面设计器', '🎨', '/Platform/Page/Designer', 'FullScreen', 1, 1, 1, 'apps.designer'),
+(2,   'student',  '学生管理', '🎓', '/Platform/Page/WebPageRender?code=student-manage', 'Iframe', 1, 2, 1, 'apps.student');";
+        cmd.ExecuteNonQuery();
+        _logger.LogInformation("[Init] SysMenu 初始种子插入完成");
     }
 
     private void EnsureColumn(SqliteConnection conn, string table, string column, string definition)
