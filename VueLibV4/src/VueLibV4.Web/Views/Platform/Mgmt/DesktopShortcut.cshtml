@@ -28,7 +28,7 @@
         <el-select v-model="filter.SolutionId.value" placeholder="所属解决方案" style="width:170px" size="small" clearable>
             @foreach (var item in _solutions.Query().Where(x => x.IsActive).ToList())
             {
-                <el-option  label="@item.Name" value=@item.Id></el-option>
+                <el-option label="@item.Name" :value="@item.Id"></el-option>
             }
         </el-select>
         <el-button type="primary" size="small" @@click="onQuery">查询</el-button>

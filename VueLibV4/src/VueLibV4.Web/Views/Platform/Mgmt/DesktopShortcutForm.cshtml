@@ -15,7 +15,7 @@
                 <el-select v-model="model.SolutionId" clearable style="width:100%">
                     @foreach (var item in _solutions.Query().Where(x => x.IsActive).ToList())
             {
-                <el-option  label="@item.Name" value="@item.Id"></el-option>
+                <el-option  label="@item.Name" :value="@item.Id"></el-option>
             }
                 </el-select>
             </el-form-item>

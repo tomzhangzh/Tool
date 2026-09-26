@@ -342,6 +342,16 @@ public class DynamicCrudService
         if (token == null || token.Type == JTokenType.Null || token.Type == JTokenType.Undefined)
             return null;
         var t = (dataType ?? "").ToLower();
+        // 布尔值：bit 列原生存布尔；SQLite 等无原生布尔类型的库以 INTEGER 0/1 存储（t="integer"），
+        // 不能落到下面 int 分支做 int.TryParse("True")——会恒转成 0，导致 true/false 筛选都查不到
+        if (token.Type == JTokenType.Boolean)
+        {
+            var b = token.Value<bool>();
+            if (t.Contains("bit")) return b;
+            if (t.Contains("int") || t.Contains("bigint") || t.Contains("decimal") || t.Contains("numeric"))
+                return b ? 1 : 0;
+            return b;
+        }
         if (t.Contains("bigint"))
             return long.TryParse(token.ToString(), out var l) ? l : 0L;
         if (t.Contains("int"))

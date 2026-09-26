@@ -76,7 +76,7 @@ const DYN_MODULES = [
 ];
 
 const DynLib = {
-  version:"4.2.13",
+  version:"4.2.14",
   base:BASE,
   _libs:{},
   _ready:false,
