@@ -395,9 +395,13 @@ var comConfig = {
                 if (comInnerInfo.validation.touched) validate();
             }
         });
-        function validate() {
+	    let _rootEl = null; // 校验结果写回根元素，供父级（DetailTemplate validateForm）聚合具体错误消息
+	    function validate() {
             const rules = jc.validators || [];
-            const val = modelinfo.value;
+            // 实时读取当前值（不依赖 modelinfo computed 缓存），确保 form 已更新后校验拿到最新值
+            const val = (props.parentmodelinfo && fullModelName.value)
+                ? getByPath(props.parentmodelinfo, fullModelName.value)
+                : modelinfo.value;
             const errors = [];
             for (const rule of rules) {
                 if (rule.enableWhen !== undefined) {
@@ -432,7 +436,8 @@ var comConfig = {
             comInnerInfo.validation.valid = errors.length === 0;
             comInnerInfo.validation.errors = errors;
             comInnerInfo.validation.touched = true;
-            return comInnerInfo.validation.valid;
+	    if (_rootEl) _rootEl.__dynErrors = errors.slice();
+	    return comInnerInfo.validation.valid;
         }
         function resetValidation() {
             comInnerInfo.validation.valid = true;
@@ -483,13 +488,19 @@ var comConfig = {
         var _instance = getCurrentInstance();
         onMounted(() => {
             const rootEl = (_instance && _instance.proxy && _instance.proxy.$el) || context.root?.el;
-            if (rootEl) {
+            _rootEl = rootEl;
+            // 透明渲染包装（DynDynamicCom）不覆盖真实组件的 meta/校验：两者挂在同一根元素，
+            // 若覆盖会抹掉真实组件的 fullModelName 与 __dynValidate，导致 model 丢失、校验失效
+            if (rootEl && !comExtra.transparentMode) {
                 rootEl.__dynUiMeta = {
                     parentModelPrefix: fullModelName.value,
+                    fullModelName: fullModelName.value,
                     defaultLabelOptions: finalLabelOptions.value,
                     uiGlobalProps: originUiGlobalMerged.value
                 };
-            }
+                            // 暴露组件校验方法到根元素，供父级（DetailTemplate 等）保存前聚合校验调用
+                rootEl.__dynValidate = validate;
+}
   			// 设计模式下，容器组件初始化 Sortable
             nextTick(() => {
             if (designMode && window.DesignerSortable && rootEl) {

@@ -52,10 +52,12 @@ public class DynCommonController : ControllerBase
     /// 所有字段名必须真实存在于表结构（白名单），杜绝 SQL 拼接注入；联动条件参数化。
     /// </summary>
     [HttpGet("options")]
-    public ApiResult Options(string project, string table, string valueField = "Id", string textField = "Name",
+    public ApiResult Options(string project, string projectId = null, string table = null, string valueField = "Id", string textField = "Name",
         string parentField = null, string parentValue = null)
     {
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table 参数");
+        // 兼容：前端 loadComOptions 用 projectId 参数；这里若 project 为空则回退到 projectId
+        if (string.IsNullOrWhiteSpace(project)) project = projectId;
         using var db = _projects.Resolve(project);
         var colMap = _svc.Columns(db, table)
             .ToDictionary(c => c.Name, c => c, StringComparer.OrdinalIgnoreCase);

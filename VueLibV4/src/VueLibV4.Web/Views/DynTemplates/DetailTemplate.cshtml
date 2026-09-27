@@ -1,21 +1,19 @@
 @model VueLibV4.Web.Core.DetailTemplateModel
+@using VueLibV4.Services.Extensions
 @{
     // 详情/表单独立页面模板：不套整页 Layout，输出可被 open(fragment) 拉入弹窗、也可独立访问的表单片段。
     // Detail 屏 PageSetting（ConfigJson=表单UI / DefaultJson=表单model骨架）由本页按 SettingId 单独加载。
     Layout = null;
-    var sharedJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model, new Newtonsoft.Json.JsonSerializerSettings
-    {
-        NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
-        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
-    });
+    var sharedJson = Model.ToJsonSafe();
     var extId = "Dtl" + Guid.NewGuid().ToString("N");
     var detailBack = Model.RenderMode == "Back" && !string.IsNullOrWhiteSpace(Model.PartialPath);
 }
 <div id="@extId" class="dtpl-root">
-    <div class="dtpl-head">
+    @* <div class="dtpl-head">
         <span class="dtpl-title">{{ winTitle || pageTitle }}</span>
-    </div>
+    </div> *@
     <div class="dtpl-body">
+        <div class="dtpl-errbar" v-if="formError">{{ formError }}</div>
         @if (detailBack)
         {
             @await Html.PartialAsync(Model.PartialPath!, Model)
@@ -23,7 +21,7 @@
         else
         {
             <div class="dtpl-front" v-if="detailCfg">
-                <dyn-dynamic-com :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+                <dyn-dynamic-com ref="formRef" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
             </div>
         }
     </div>
@@ -38,6 +36,10 @@
     .dtpl-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e4e7ed; }
     .dtpl-title { font-size: 15px; font-weight: 600; color: #303133; }
     .dtpl-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 4px 8px; }
+    .dtpl-errbar { position: sticky; top: 0; z-index: 30; margin-bottom: 10px; padding: 9px 12px;
+        background: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2; border-radius: 4px;
+        font-size: 13px; line-height: 1.5; font-weight: 500; box-shadow: 0 2px 8px rgba(245,108,108,.15); }
+    .dtpl-errbar::before { content: "⚠ "; }
     .dtpl-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid #e4e7ed; }
 </style>
 
@@ -59,6 +61,7 @@
                     bizId: shared.BizId || 0,
                     detailCfg: shared.DetailConfig || null,
                     form: JSON.parse(JSON.stringify(initForm)),
+                    formError: '',
                     loading: false,
                     saveUrl: '/api/platform/dyndata/save?table=' + encodeURIComponent(shared.Table || '')
                 };
@@ -79,11 +82,19 @@
                 },
                 onSave: function () {
                     var self = this;
+                    var errs = this.validateForm();
+                    if (errs.length) {
+                        this.formError = errs.join('；');
+                        try { var eb = rootEl.querySelector('.dtpl-body'); if (eb) eb.scrollTop = 0; } catch (e) { }
+                        dyn.showMessage(errs.join('；'), 'warning');
+                        return;
+                    }
                     this.loading = true;
                     fetch(this.saveUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.form) })
                         .then(function (r) { return r.json(); }).then(function (res) {
                             self.loading = false;
                             if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
+                            self.formError = '';
                             dyn.showMessage('保存成功', 'success');
                             // 显式触发父列表刷新（弹窗/嵌入场景均适用；onclose 亦会触发，幂等）
                             try { Object.keys(window).filter(function (k) { return k.indexOf('__crud_refresh_') === 0; }).forEach(function (k) { try { window[k](); } catch (e) { } }); } catch (e) { }
@@ -91,7 +102,39 @@
                             DynAction.run('close', {}, { element: rootEl }).catch(function (e) { console.warn('[detail close]', e); });
                         }).catch(function (e) { self.loading = false; dyn.showMessage('保存失败：' + (e && e.message || e), 'error'); });
                 },
+                validateForm: function () {
+                    var errs = [];
+                    var nodes = rootEl.querySelectorAll('*');
+                    for (var i = 0; i < nodes.length; i++) {
+                        var n = nodes[i];
+                        if (typeof n.__dynValidate === 'function') {
+                            try {
+                                var ok = n.__dynValidate();
+                                if (ok !== true) {
+                                    // 优先读取组件写入根元素的校验错误（__dynErrors，prod 版可读）；读不到再尝试组件实例，最后占位
+                                    var msg = null;
+                                    if (n.__dynErrors && n.__dynErrors.length) {
+                                        msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
+                                    }
+                                    if (!msg) {
+                                        try {
+                                            var inst = n.__vueParentComponent;
+                                            var comp = inst && inst.proxy;
+                                            if (comp && comp.comInnerInfo && comp.comInnerInfo.validation && comp.comInnerInfo.validation.errors) {
+                                                comp.comInnerInfo.validation.errors.forEach(function (e) { if (e && e.message) msg = e.message; });
+                                            }
+                                        } catch (e) { }
+                                    }
+                                    if (!msg) msg = '存在未通过校验的字段';
+                                    if (errs.indexOf(msg) < 0) errs.push(msg);
+                                }
+                            } catch (e) { console.warn('[detail validate]', e); }
+                        }
+                    }
+                    return errs;
+                },
                 onCancel: function () {
+                    this.formError = '';
                     DynAction.run('close', {}, { element: rootEl }).catch(function (e) { console.warn('[detail close]', e); });
                 }
             },

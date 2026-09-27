@@ -31,12 +31,14 @@
     }));
 
     const formItemRootStyle = computed(() => {
-        if (labelPos.value === 'left' || labelPos.value === 'right') {
-            // 标签始终在左：label + 内容（right 仅表示标签文字右对齐）
-            return { display: 'flex', alignItems: 'flex-start' };
-        }
-        // top 垂直布局
-        return { display: 'block' };
+        const base = (labelPos.value === 'left' || labelPos.value === 'right')
+            ? { display: 'flex', alignItems: 'flex-start' }
+            : { display: 'block' };
+        // 尊重配置中显式声明的 display（如主键隐藏域 itemoptions.style.display='none'），
+        // 否则下方的 formItemRootStyle 会覆盖它导致隐藏域显示出来
+        const optStyle = (jc.options && jc.options.itemoptions && jc.options.itemoptions.style) || {};
+        if (optStyle.display) base.display = optStyle.display;
+        return base;
     });
 
     // comoptions.size 穿透后同步影响 label 字号与行高（与 el-input 高度匹配）

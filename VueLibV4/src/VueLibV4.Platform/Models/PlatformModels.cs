@@ -219,6 +219,13 @@ public class DynTemplate
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Description { get; set; }
 
+    /// <summary>
+    /// 外壳 Razor 视图路径（例：~/Views/DynTemplates/CrudBasic.cshtml）。
+    /// DynWebPage 运行时根据实例 → 模板 → 组装 DynSharedModel → 渲染此外壳视图。
+    /// </summary>
+    [SugarColumn(Length = 200, IsNullable = true)]
+    public string? ViewPath { get; set; }
+
     public int SortNo { get; set; } = 0;
     public bool IsActive { get; set; } = true;
 
@@ -303,9 +310,14 @@ public class PageSetting
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ConfigJson { get; set; }
 
-    /// <summary>列定义（字段中文名/宽度/控件等元信息，向导生成时落库）</summary>
+    /// <summary>渲染方式：Front=前端DynCom动态控件 / Back=后端Razor局部视图</summary>
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
-    public string? ColumnDefsJson { get; set; }
+    public string RenderMode { get; set; } = "Front";
+
+    [SugarColumn(Length = 200, IsNullable = true)]
+    public string? PartialPath { get; set; }
+
+    public string? DefaultJson { get; set; }
 
     public int SortNo { get; set; } = 0;
     public bool IsActive { get; set; } = true;

@@ -1,0 +1,56 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+@section setupScripts{
+    // Emoji 图标选择器：固定读取平台 Emoji 元数据（/api/dyncommon/emojis），支持中/英文搜索与手填
+    const emojiState = reactive({ raw: [], query: '', loading: false });
+    const emojiOptions = computed(() => {
+        const q = (emojiState.query || '').trim().toLowerCase();
+        let hit = emojiState.raw;
+        if (q) hit = emojiState.raw.filter(function (x) {
+            return (x.nameZh && x.nameZh.toLowerCase().indexOf(q) >= 0)
+                || (x.nameEn && x.nameEn.toLowerCase().indexOf(q) >= 0)
+                || (x.emoji && x.emoji.indexOf(q) >= 0);
+        });
+        const groups = [], index = {};
+        hit.forEach(function (x) {
+            const g = x.groupZh || '其他';
+            if (!index[g]) { index[g] = { label: g, options: [] }; groups.push(index[g]); }
+            index[g].options.push({
+                value: x.emoji,
+                label: x.emoji + (x.nameZh ? ' ' + x.nameZh : ''),
+                zh: x.nameZh || '',
+                en: x.nameEn || ''
+            });
+        });
+        return groups;
+    });
+    function filterEmojis(q) { emojiState.query = q || ''; }
+    function loadEmojis() {
+        if (emojiState.raw.length) return;
+        emojiState.loading = true;
+        fetch('/api/dyncommon/emojis').then(function (r) { return r.json(); }).then(function (res) {
+            if (res && res.code === 0) emojiState.raw = res.data || [];
+        }).catch(function (e) { console.warn('[emoji picker]', e); })
+          .finally(function () { emojiState.loading = false; });
+    }
+    onMounted(loadEmojis);
+    // 挂到 comExtra：模板经 setup return 的 ...comExtra 访问 emojiState/emojiOptions/filterEmojis
+    comExtra.emojiState = emojiState;
+    comExtra.emojiOptions = emojiOptions;
+    comExtra.filterEmojis = filterEmojis;
+}
+<el-select-v2 v-model="modelinfo" :options="emojiOptions" :filter-method="filterEmojis" :loading="emojiState.loading"
+    v-bind="comBind" v-on="getComlisteners()"
+    filterable clearable allow-create default-first-option
+    :placeholder="(jc.options && jc.options.comoptions && jc.options.comoptions.placeholder) || '搜索 Emoji（中/英文），也可手填'"
+    style="width:100%">
+    <template #group="{ item }">
+        <span class="emoji-group-label">{{ item.label }}</span>
+    </template>
+    <template #default="{ item }">
+        <span style="font-size:17px;margin-right:8px">{{ item.value }}</span>
+        <span>{{ item.zh || item.en }}</span>
+        <span v-if="item.zh" style="margin-left:8px;font-size:12px;color:#909399">{{ item.en }}</span>
+    </template>
+</el-select-v2>
