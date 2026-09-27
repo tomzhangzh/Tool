@@ -1,0 +1,44 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+<div class="dyn-json-designer">
+    <div class="dyn-json-designer__bar">
+        <el-button size="small" type="primary" plain v-on:click="openDesigner">🎨 打开设计器</el-button>
+        <span class="dyn-json-designer__tip">用可视化设计器编辑此 JSON 配置，也可直接修改下方文本</span>
+    </div>
+    <el-input type="textarea"
+              v-model="modelinfo"
+              :rows="jc.options.comoptions.rows || 8"
+              :placeholder="jc.options.comoptions.placeholder || '{}'"
+              :disabled="!!jc.options.comoptions.disabled"
+              spellcheck="false"
+              class="dyn-json-designer__area"></el-input>
+</div>
+
+@section setupScripts{
+    // JSON 设计器组件：text 区显示 JSON；点「打开设计器」弹出平台可视化设计器（DynDesignerDialog），
+    // 保存后把清理后的配置树序列化回写 model。
+    function openDesigner() {
+        let cfg = null;
+        const raw = modelinfo.value;
+        if (raw && String(raw).trim()) {
+            try { cfg = JSON.parse(raw); }
+            catch (e) { dyn.showMessage('当前 JSON 无法解析，设计器将使用空白配置', 'warning'); cfg = null; }
+        }
+        const dlg = (typeof window !== 'undefined') && window.DynDesignerDialog;
+        if (!dlg) { dyn.showMessage('设计器弹窗不可用（缺少 DynDesignerDialog）', 'error'); return; }
+        dlg.open({
+            configJson: cfg,
+            defaultModel: {},
+            title: (jc.options.comoptions.title) || '组件配置设计器',
+            width: '95%', height: '95%'
+        }).then(function (res) {
+            if (!res) return;
+            modelinfo.value = JSON.stringify(res.configJson || {}, null, 2);
+            dyn.showMessage('设计器配置已回写', 'success');
+        }).catch(function (e) {
+            dyn.showMessage('设计器打开失败：' + ((e && e.message) || e), 'error');
+        });
+    }
+    comExtra.openDesigner = openDesigner;
+}

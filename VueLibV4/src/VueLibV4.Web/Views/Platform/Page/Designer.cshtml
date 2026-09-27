@@ -45,3 +45,43 @@
 .dyn-designer-root #component-lib-wrap { flex: 1; min-height: 0; }
 </style></div>
 
+@if (isEmbed)
+{
+    <script src="~/dyn/dyn-lib.js"></script>
+    <script>
+        DynLib.ready(function () {
+            dyn.initActions("body");
+            // ===== embed 协议（子页）：就绪通知 + 接收父页 init 设置画布配置 =====
+            // 协议：子→父 {type:'dyn-designer-ready'}；父→子 {type:'dyn-designer-init',configJson,defaultModel,title}；
+            //       子→父 {type:'dyn-designer-result'|'dyn-designer-cancel'}（TopBar 按钮已实现）
+            if (window.self !== window.top) {
+                var rootEl = document.querySelector('[data-dyn-shared-scope="designer"]');
+                var model = (rootEl && window.dyn) ? window.dyn.getScopeModel(rootEl) : null;
+                var inited = false;
+                function applyInit(d) {
+                    if (!model || inited) return;
+                    inited = true;
+                    if (d.title) model.pageName = d.title;
+                    if (d.configJson) model.pageJson = JSON.parse(JSON.stringify(d.configJson));
+                    if (d.defaultModel) model.defaultModel = JSON.parse(JSON.stringify(d.defaultModel));
+                    if (d.pageId) model.pageId = d.pageId;
+                    if (d.pageCode) model.pageCode = d.pageCode;
+                }
+                window.addEventListener('message', function (e) {
+                    var d = e.data || {};
+                    if (d.type === 'dyn-designer-init') applyInit(d);
+                });
+                // 就绪通知：轮询直到共享 model 可用（分区挂载时创建）
+                (function pollReady() {
+                    if (model) { window.parent.postMessage({ type: 'dyn-designer-ready' }, '*'); return; }
+                    setTimeout(function () {
+                        var r2 = document.querySelector('[data-dyn-shared-scope="designer"]');
+                        model = (r2 && window.dyn) ? window.dyn.getScopeModel(r2) : null;
+                        pollReady();
+                    }, 200);
+                })();
+            }
+        });
+    </script>
+}
+
