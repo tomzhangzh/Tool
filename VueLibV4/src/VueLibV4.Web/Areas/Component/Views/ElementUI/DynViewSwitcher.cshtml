@@ -1,0 +1,85 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+@*
+    DynViewSwitcher —— 视图切换容器（表格 Grid / 卡片 ListView 互切）
+    · childrenctrls[0] = 表格视图（通常 DynElTable，绑定数据数组）
+    · childrenctrls[1] = 卡片视图（通常 DynListView，绑定同一数据数组）
+    · 共用同一份数据 + 同一份分页：两视图切换不重复请求，分页状态共享
+    · 分页：comoptions.pageInfoPath 指向 model 里的分页对象（默认 'pageInfo'，即 model.pageInfo = {pageIndex,pageSize,total}）
+      —— 容器 modelname 必须留空，避免污染子组件 model 路径；
+      翻页直接写回 pageInfo，父级页面可 $watch model.pageInfo 刷新数据（或经 comlisteners page-change 回调）
+    · 配置：comoptions.defaultMode(grid|list) / pager(false 关闭共享分页) / pageSizes / pageInfoPath
+*@
+<template>
+<div class="dyn-view-switcher" :class="getClass(jc.options.itemoptions)" :style="[getStyle(jc.options.itemoptions)]">
+    <div class="dyn-view-toolbar">
+        <el-radio-group :model-value="viewMode" size="small" v-on:update:model-value="setMode">
+            <el-radio-button value="grid">表格</el-radio-button>
+            <el-radio-button value="list">卡片</el-radio-button>
+        </el-radio-group>
+    </div>
+    <div class="dyn-view-pane" v-show="viewMode === 'grid'">
+        <n-dynamic-com v-if="paneGrid" :jsonconfig="paneGrid" :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[0]'"></n-dynamic-com>
+    </div>
+    <div class="dyn-view-pane" v-show="viewMode === 'list'">
+        <n-dynamic-com v-if="paneList" :jsonconfig="paneList" :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[1]'"></n-dynamic-com>
+    </div>
+    <div class="dyn-view-pager" v-if="pagerVisible">
+        <el-pagination background size="small" layout="total, sizes, prev, pager, next, jumper"
+                       :current-page="pageIndex" :page-size="pageSize" :total="total" :page-sizes="pageSizes"
+                       v-on:current-change="onPage" v-on:size-change="onSize"></el-pagination>
+    </div>
+</div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    const comoptions = jc.options.comoptions || {};
+    if (!jc.options.comoptions) jc.options.comoptions = comoptions;
+
+    // 视图面板：childrenctrls[0]=表格，childrenctrls[1]=卡片
+    const paneGrid = computed(() => { const l = (jc.childrenctrls || []).filter(c => c && typeof c === 'object'); return l[0] || null; });
+    const paneList = computed(() => { const l = (jc.childrenctrls || []).filter(c => c && typeof c === 'object'); return l[1] || null; });
+
+    // 当前视图模式
+    const viewMode = Vue.ref(comoptions.defaultMode || 'grid');
+    function setMode(v) { viewMode.value = v; }
+
+    // 共享分页：comoptions.pageInfoPath 指向 model 里的分页对象（默认 'pageInfo'）
+    const pagerVisible = Vue.ref(comoptions.pager !== false);
+    const pageSizes = computed(() => comoptions.pageSizes || [10, 20, 50, 100]);
+    const pageInfoPath = computed(() => comoptions.pageInfoPath || 'pageInfo');
+    function _pi() {
+        if (!props.parentmodelinfo) return null;
+        const path = pageInfoPath.value || 'pageInfo';
+        if (path.indexOf('.') >= 0) {
+            return (dyn && dyn.getByPath ? dyn.getByPath(props.parentmodelinfo, path) : null);
+        }
+        const o = props.parentmodelinfo[path];
+        return (o && typeof o === 'object') ? o : null;
+    }
+    const pageIndex = computed({
+        get() { const o = _pi(); return (o && o.pageIndex) || 1; },
+        set(v) { const o = _pi(); if (o) o.pageIndex = v; }
+    });
+    const pageSize = computed({
+        get() { const o = _pi(); return (o && o.pageSize) || 20; },
+        set(v) { const o = _pi(); if (o) o.pageSize = v; }
+    });
+    const total = computed(() => { const o = _pi(); return (o && o.total) || 0; });
+
+    function notifyPage() {
+        const fns = getComlisteners();
+        const payload = { pageIndex: pageIndex.value, pageSize: pageSize.value };
+        if (typeof fns['page-change'] === 'function') { try { fns['page-change'](payload); } catch (e) { } }
+        if (typeof fns['pagechange'] === 'function') { try { fns['pagechange'](payload); } catch (e) { } }
+    }
+    function onPage(p) { pageIndex.value = p; notifyPage(); }
+    function onSize(s) { pageSize.value = s; pageIndex.value = 1; notifyPage(); }
+
+    Object.assign(comExtra, { paneGrid, paneList, viewMode, setMode, pagerVisible, pageSizes, pageIndex, pageSize, total, onPage, onSize });
+}

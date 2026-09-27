@@ -1,0 +1,229 @@
+@{
+    Layout = null;
+}
+@*
+  车机大屏暗黑布局（独立 Layout，不改动现有 _Layout/_AjaxLayout）
+  结构：顶部状态栏(时间/状态) + 左侧侧边栏(头像+导航) + 中间主内容(@RenderBody) + 底部快捷栏
+  · body class="dark" → 开启 Element Plus 暗黑主题（index.css 自带 .dark 变量）
+  · 侧边栏/底部按钮点击 → window 广播 'car-nav' 自定义事件，页面 Vue 监听切换中间区域
+  · 复用全部 DynCom 组件（DynEChart / DynViewSwitcher / DynListView / DynElTable 等），无需改动
+*@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] ?? "车机大屏 - VueLibV4")</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="~/dyn/dyn.css" />
+    <style>
+        /* ===== 车机暗黑配色 ===== */
+        :root {
+            --car-bg: #0b101c;        /* 全局背景（深蓝黑） */
+            --car-panel: #141b2d;     /* 面板 */
+            --car-panel2: #1c2742;    /* 面板浅 */
+            --car-border: #2b3754;
+            --car-text: #e9edf7;
+            --car-text2: #8892a8;
+            --car-accent: #409eff;
+            --car-radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            background: var(--car-bg);
+            color: var(--car-text);
+            font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ===== 顶部状态栏 ===== */
+        .car-topbar {
+            height: 58px;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 22px;
+            background: linear-gradient(180deg, #16203a, #141b2d);
+            border-bottom: 1px solid var(--car-border);
+        }
+        .car-topbar-left { display: flex; align-items: center; gap: 12px; }
+        .car-logo { font-size: 20px; color: var(--car-accent); }
+        .car-title { font-size: 16px; font-weight: 600; letter-spacing: .5px; }
+        .car-topbar-right { display: flex; align-items: center; gap: 18px; font-size: 13px; color: var(--car-text2); }
+        .car-clock { font-size: 18px; font-weight: 500; color: var(--car-text); font-variant-numeric: tabular-nums; }
+        .car-net { display: inline-flex; align-items: center; gap: 5px; }
+        .car-net::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #34d399; }
+
+        /* ===== 主体：侧边栏 + 内容 ===== */
+        .car-body { flex: 1; display: flex; min-height: 0; }
+
+        .car-sidebar {
+            width: 76px;
+            flex-shrink: 0;
+            background: var(--car-panel);
+            border-right: 1px solid var(--car-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 0;
+        }
+        .car-avatar {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; margin-bottom: 22px;
+        }
+        .car-nav-group { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .car-nav-item {
+            width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 12px; cursor: pointer;
+            font-size: 22px; color: var(--car-text2);
+            transition: background .15s, color .15s;
+            text-decoration: none;
+        }
+        .car-nav-item:hover { background: var(--car-panel2); color: var(--car-text); }
+        .car-nav-item.active { background: var(--car-accent); color: #fff; box-shadow: 0 4px 12px rgba(64,158,255,.35); }
+
+        /* ===== 中间主内容 ===== */
+        .car-content {
+            flex: 1; min-width: 0;
+            padding: 18px; overflow: auto;
+            background: var(--car-bg);
+        }
+        .car-panel {
+            background: var(--car-panel);
+            border: 1px solid var(--car-border);
+            border-radius: var(--car-radius);
+            padding: 16px;
+            min-height: 100%;
+        }
+        .car-panel-title {
+            font-size: 15px; font-weight: 600; margin-bottom: 14px;
+            display: flex; align-items: center; gap: 8px;
+            color: var(--car-text);
+        }
+        .car-panel-title::before { content: ''; width: 4px; height: 16px; border-radius: 2px; background: var(--car-accent); }
+
+        /* KPI 卡片 */
+        .car-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .car-kpi {
+            background: var(--car-panel2);
+            border-radius: var(--car-radius);
+            padding: 16px;
+            display: flex; flex-direction: column; gap: 6px;
+            border: 1px solid var(--car-border);
+        }
+        .car-kpi-label { font-size: 12px; color: var(--car-text2); }
+        .car-kpi-value { font-size: 24px; font-weight: 600; color: var(--car-accent); }
+        .car-kpi-sub { font-size: 12px; color: var(--car-text2); }
+
+        /* 欢迎块 */
+        .car-welcome { text-align: center; padding: 40px 20px; color: var(--car-text2); }
+        .car-welcome h2 { font-size: 20px; color: var(--car-text); margin-bottom: 10px; }
+
+        /* ===== 底部快捷栏 ===== */
+        .car-bottombar {
+            height: 72px;
+            flex-shrink: 0;
+            background: var(--car-panel);
+            border-top: 1px solid var(--car-border);
+            display: flex; align-items: center;
+            padding: 0 18px; gap: 12px;
+        }
+        .car-bt {
+            display: flex; align-items: center; gap: 6px;
+            height: 44px; padding: 0 16px;
+            background: var(--car-panel2);
+            border: 1px solid var(--car-border);
+            border-radius: 10px;
+            color: var(--car-text2);
+            font-size: 13px; cursor: pointer;
+            transition: background .15s, color .15s;
+        }
+        .car-bt:hover { background: var(--car-accent); color: #fff; border-color: var(--car-accent); }
+        .car-bottombar-spacer { flex: 1; }
+        .car-bt.danger:hover { background: #ef4444; border-color: #ef4444; }
+
+        /* Element Plus 在暗黑容器内的微调 */
+        .car-panel .el-table { background: transparent; }
+    </style>
+    @RenderSection("Head", required: false)
+</head>
+<body class="dark">
+    <!-- 顶部状态栏 -->
+    <header class="car-topbar">
+        <div class="car-topbar-left">
+            <span class="car-logo">◈</span>
+            <span class="car-title">@(ViewData["Title"] ?? "VueLibV4 车机大屏")</span>
+        </div>
+        <div class="car-topbar-right">
+            <span class="car-net">在线</span>
+            <span class="car-clock" id="carClock">00:00</span>
+        </div>
+    </header>
+
+    <div class="car-body">
+        <!-- 左侧侧边栏 -->
+        <nav class="car-sidebar">
+            <div class="car-avatar">👤</div>
+            <div class="car-nav-group">
+                <a class="car-nav-item" data-car-nav="dashboard" title="数据看板">📊</a>
+                <a class="car-nav-item" data-car-nav="gridList" title="表格 / 卡片切换">🗂️</a>
+                <a class="car-nav-item" data-car-nav="echart" title="图表">📈</a>
+                <a class="car-nav-item" data-car-nav="components" title="组件演示">🧩</a>
+            </div>
+            <div class="car-nav-bottom">
+                <a class="car-nav-item" data-car-nav="settings" title="设置">⚙️</a>
+            </div>
+        </nav>
+
+        <!-- 中间主内容（页面主体渲染于此） -->
+        <main class="car-content" id="carContent">
+            @RenderBody()
+        </main>
+    </div>
+
+    <!-- 底部快捷栏 -->
+    <footer class="car-bottombar">
+        <button class="car-bt" data-car-nav="dashboard">🏠 看板</button>
+        <button class="car-bt" data-car-nav="gridList">🗂️ 表格/卡片</button>
+        <button class="car-bt" data-car-nav="echart">📈 图表</button>
+        <button class="car-bt" data-car-nav="components">🧩 组件</button>
+        <span class="car-bottombar-spacer"></span>
+        <button class="car-bt danger" onclick="window.location.href='/Platform/Page/Desktop'">↩ 返回桌面</button>
+    </footer>
+
+    @await Component.InvokeAsync("DynComRegistry")
+    <script src="~/lib/echarts.min.js"></script>
+    <script src="~/dyn/dyn-lib.js" asp-append-version="true"></script>
+    @RenderSection("Scripts", required: false)
+    @Html.RenderDynActions()
+    <script>
+        DynLib.ready(function () {
+            dyn.initActions("body");
+            // 侧边栏 / 底部快捷按钮 → 广播 car-nav 事件，页面 Vue 监听切换中间区域
+            var navItems = document.querySelectorAll('[data-car-nav]');
+            navItems.forEach(function (el) {
+                el.addEventListener('click', function () {
+                    var nav = el.getAttribute('data-car-nav');
+                    document.querySelectorAll('.car-nav-item[data-car-nav]').forEach(function (n) {
+                        n.classList.toggle('active', n.getAttribute('data-car-nav') === nav);
+                    });
+                    window.dispatchEvent(new CustomEvent('car-nav', { detail: nav }));
+                });
+            });
+            // 顶部时钟
+            function tick() {
+                var d = new Date(), p = function (x) { return String(x).padStart(2, '0'); };
+                document.getElementById('carClock').textContent = p(d.getHours()) + ':' + p(d.getMinutes());
+            }
+            tick(); setInterval(tick, 1000);
+        });
+    </script>
+</body>
+</html>

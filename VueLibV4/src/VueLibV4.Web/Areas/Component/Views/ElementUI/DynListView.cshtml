@@ -1,0 +1,46 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
+}
+
+@*
+    DynListView —— 卡片列表组件（流式卡片视图，与 DynElTable 共用同一数据数组）
+    · 数据：modelinfo（v-model 绑定数组，同 DynElTable 的 rows）
+    · 展示字段：comoptions.titleField(标题) / descField(描述) / tagField(标签) / imageField(图片URL)
+    · 布局：comoptions.columns(CSS grid-template-columns，默认 auto-fill) / gap(间距)
+    · 使用场景：可与 DynViewSwitcher 容器组合实现"表格/卡片"视图切换，也可单独使用
+*@
+<template>
+<div class="dyn-listview" :class="getClass(jc.options.itemoptions)" :style="[rootStyle, getStyle(jc.options.itemoptions)]">
+    <div class="dyn-listview-grid" :style="{ gridTemplateColumns: cols, gap: gap }">
+        <div v-for="(item, idx) in rows" :key="idx" class="dyn-list-card">
+            <el-image v-if="imageField && item[imageField]" :src="item[imageField]"
+                      class="dyn-list-card-img" fit="cover"></el-image>
+            <div v-if="titleField && item[titleField] !== null && item[titleField] !== undefined"
+                 class="dyn-list-card-title">{{ item[titleField] }}</div>
+            <div v-if="descField && item[descField] !== null && item[descField] !== undefined"
+                 class="dyn-list-card-desc">{{ item[descField] }}</div>
+            <div v-if="tagField && item[tagField] !== null && item[tagField] !== undefined" class="dyn-list-card-tag">
+                <el-tag size="small" effect="plain">{{ item[tagField] }}</el-tag>
+            </div>
+        </div>
+        <div v-if="!rows.length" class="dyn-list-empty">暂无数据</div>
+    </div>
+</div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    // 数据：绑定数组（同 DynElTable 的 modelinfo）；注意 modelinfo 是 computed ref，须 .value
+    const rows = computed(() => (Array.isArray(modelinfo.value) ? modelinfo.value : []));
+    const co = () => (jc.options && jc.options.comoptions) || {};
+    const titleField = computed(() => co().titleField || 'Name');
+    const descField = computed(() => co().descField || 'Remark');
+    const tagField = computed(() => co().tagField || '');
+    const imageField = computed(() => co().imageField || '');
+    const cols = computed(() => co().columns || 'repeat(auto-fill, minmax(220px, 1fr))');
+    const gap = computed(() => co().gap || '16px');
+    const rootStyle = computed(() => ({ width: '100%' }));
+
+    // 暴露到模板（DynCom 组件私有成员必须挂 comExtra）
+    Object.assign(comExtra, { rows, titleField, descField, tagField, imageField, cols, gap, rootStyle });
+}

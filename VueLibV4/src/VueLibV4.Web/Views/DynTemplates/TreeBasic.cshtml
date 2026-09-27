@@ -1,0 +1,319 @@
+@model VueLibV4.Web.Core.DynSharedModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = Model.PageTitle + " - VueLibV4";
+    var sharedJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model, new Newtonsoft.Json.JsonSerializerSettings
+    {
+        NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
+        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
+    });
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+@*
+  通用树形管理模板（tree-basic）：
+  · 布局 = 左侧树 + 可拖拽分隔条 + 右侧详情表单（DynSplitter 同款交互，模板内聚实现）
+  · 参数（DynWebPage.ConfigJson，模板 ConfigJson 定义）：
+      TableName 数据表名（必填）｜ KeyField 主键(默认 Id)｜ ParentField 父级字段(默认 ParentId)
+      TitleField 节点显示字段(默认 Name)｜ IconField 图标字段(默认 Icon, Emoji)｜ SortField 排序字段(默认 SortNo)
+      DetailPageSettingId 右侧表单配置（PageSetting，必填）
+  · 数据：树 = dyndata/search 全表 → 前端组树；表单 = dyndata/get 加载、dyndata/save 保存、dyndata/delete 删除
+  · 表单 UI = DetailPageSettingId 的 ConfigJson（DynCom 动态控件），model = DefaultJson 骨架
+*@
+<div id="@extId" class="tb-root">
+    @* ===== 头部 ===== *@
+    <div class="tb-head">
+        <div class="tb-title">
+            <span class="tb-name">{{ title }}</span>
+            <el-tag size="small" type="info" effect="plain">{{ templateCode }}</el-tag>
+            <el-tag size="small" type="warning" effect="plain">{{ tableName }}</el-tag>
+        </div>
+        <div class="tb-actions">
+            <el-button type="success" size="small" @@click="onAddRoot">+ 新增根节点</el-button>
+            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+        </div>
+    </div>
+
+    @* ===== 主体：左树 | 分隔条 | 右表单 ===== *@
+    <div class="tb-split" v-on:mousemove="onDragMove" v-on:mouseup="onDragEnd">
+        <div class="tb-pane tb-pane-left" :style="{ width: split + '%' }">
+            <div class="tb-pane-head">
+                <span class="text-sm font-semibold text-gray-700">树</span>
+                <el-button type="primary" size="small" text @@click="loadTree" :loading="treeLoading">刷新</el-button>
+            </div>
+            <el-input v-model="filterText" placeholder="搜索节点" clearable size="small" style="margin-bottom:8px;width:100%;"></el-input>
+            <div class="tb-tree-wrap">
+                <el-tree :data="treeData"
+                         :props="{ children: 'children', label: titleField }"
+                         :filter-node-method="filterNode"
+                         node-key="__key"
+                         default-expand-all
+                         highlight-current
+                         :expand-on-click-node="false"
+                         v-loading="treeLoading"
+                         @@node-click="onNodeClick">
+                    <template #default="{ data }">
+                        <span class="flex items-center gap-1 text-sm">
+                            <span>{{ (data.children && data.children.length) ? (data[iconField] || '📁') : (data[iconField] || '📄') }}</span>
+                            <span>{{ data[titleField] }}</span>
+                            <el-tag v-if="!data.IsActive" size="small" type="info" style="margin-left:4px">停用</el-tag>
+                        </span>
+                    </template>
+                </el-tree>
+            </div>
+        </div>
+
+        <div class="tb-gutter" v-on:mousedown="onDragStart" title="拖拽调整，双击复位">
+            <span class="tb-gutter-bar"></span>
+        </div>
+
+        <div class="tb-pane tb-pane-right">
+            <div class="tb-pane-head">
+                <span class="text-sm font-semibold text-gray-700">{{ formTitle }}</span>
+                <div>
+                    <el-button type="primary" size="small" @@click="onAddChild" :disabled="!form[keyField]">+ 子节点</el-button>
+                </div>
+            </div>
+            <div class="tb-form" v-loading="formLoading">
+                <template v-if="detailCfg">
+                    <dyn-dynamic-com :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+                </template>
+                <div v-else class="text-gray-400 text-sm py-4">未配置表单（DetailPageSettingId 为空或无效）</div>
+                <div class="tb-form-actions">
+                    <el-button type="primary" size="small" @@click="onSave" :loading="saving">保存</el-button>
+                    <el-button type="danger" size="small" @@click="onDelete" :loading="deleting" :disabled="!form[keyField]">删除</el-button>
+                    <el-button size="small" @@click="resetForm">清空</el-button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .tb-root { display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+    .tb-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e4e7ed; flex-shrink: 0; }
+    .tb-head .tb-title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: #303133; margin-right: auto; }
+    .tb-split { flex: 1; min-height: 0; display: flex; margin: 14px; box-sizing: border-box; background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; overflow: hidden; }
+    .tb-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+    .tb-pane-left { flex-shrink: 0; padding: 12px; box-sizing: border-box; }
+    .tb-pane-right { flex: 1; padding: 12px 16px; box-sizing: border-box; overflow: auto; }
+    .tb-pane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .tb-tree-wrap { flex: 1; min-height: 0; overflow: auto; }
+    .tb-gutter { flex-shrink: 0; width: 8px; cursor: col-resize; background: #f2f4f7; position: relative; display: flex; align-items: center; justify-content: center; }
+    .tb-gutter:hover { background: #e4e7ed; }
+    .tb-gutter-bar { width: 2px; height: 36px; border-radius: 2px; background: #c0c4cc; }
+    .tb-form { display: flex; flex-direction: column; }
+    .tb-form-actions { margin-top: 16px; padding-top: 12px; border-top: 1px dashed #e4e7ed; display: flex; gap: 10px; }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var shared = @Html.Raw(sharedJson);
+            var ep = shared.EffectiveParams || {};
+
+            function parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
+
+            var detailCfg = shared.DetailConfig || null;
+            var detailDefault = parseJson(shared.DetailDefaultJson, {});
+            var treeParams = {
+                table: ep.TableName || '',
+                keyField: ep.KeyField || 'Id',
+                parentField: ep.ParentField || 'ParentId',
+                titleField: ep.TitleField || 'Name',
+                iconField: ep.IconField || 'Icon',
+                sortField: ep.SortField || 'SortNo',
+                listUrl: ep.ListUrl || '',
+                saveUrl: ep.AddUrl || '',
+                deleteUrl: ep.DeleteUrl || ''
+            };
+
+            // 组树：父级字段匹配 + 同级排序
+            function buildTree(rows, p) {
+                var map = {}, roots = [];
+                rows.forEach(function (r) { map[r[p.keyField]] = Object.assign({}, r, { children: [], __key: String(r[p.keyField]) }); });
+                rows.forEach(function (r) {
+                    var node = map[r[p.keyField]];
+                    var pid = r[p.parentField];
+                    var parent = (pid !== null && pid !== undefined && pid !== '') ? map[pid] : null;
+                    if (parent) parent.children.push(node); else roots.push(node);
+                });
+                (function sort(list) {
+                    list.sort(function (a, b) { return ((a[p.sortField] != null ? a[p.sortField] : 0) - (b[p.sortField] != null ? b[p.sortField] : 0)); });
+                    list.forEach(function (n) { if (n.children && n.children.length) sort(n.children); });
+                })(roots);
+                return roots;
+            }
+
+            // 从 detailCfg 提取必填字段校验规则
+            function requiredFields(cfg) {
+                var out = [];
+                if (!cfg || !cfg.childrenctrls) return out;
+                cfg.childrenctrls.forEach(function (c) {
+                    var vs = c.validators || [];
+                    var req = vs.filter(function (v) { return v && v.type === 'required'; })[0];
+                    if (req && c.modelname) out.push(c.modelname);
+                });
+                return out;
+            }
+
+            var rootEl = document.querySelector('#@extId');
+            var refreshKey = '__tree_refresh_' + '@extId';
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        title: shared.PageTitle || '树形管理',
+                        templateCode: shared.TemplateCode || '',
+                        tableName: treeParams.table,
+                        keyField: treeParams.keyField,
+                        parentField: treeParams.parentField,
+                        titleField: treeParams.titleField,
+                        iconField: treeParams.iconField,
+                        sortField: treeParams.sortField,
+                        detailCfg: detailCfg,
+                        form: JSON.parse(JSON.stringify(detailDefault)),
+                        formTitle: '',
+                        treeData: [], treeLoading: false, formLoading: false, saving: false, deleting: false,
+                        filterText: '',
+                        split: 30,
+                        _required: requiredFields(detailCfg)
+                    };
+                },
+                computed: {
+                    formTitle: function () {
+                        var k = this.form[this.keyField];
+                        return (k !== null && k !== undefined && k !== '' && k !== 0)
+                            ? '编辑：' + (this.form[this.titleField] || '(未命名)')
+                            : '新增节点';
+                    }
+                },
+                methods: {
+                    go: function (u) { window.location.href = u; },
+                    filterNode: function (value, data) {
+                        if (!value) return true;
+                        return (data[this.titleField] || '').indexOf(value) !== -1;
+                    },
+                    loadTree: function () {
+                        var self = this;
+                        this.treeLoading = true;
+                        fetch(this.tableName ? '/api/platform/dyndata/search' : '/api/platform/dyndata/search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                table: this.tableName,
+                                page: 1,
+                                size: 100000,
+                                sort: { field: this.sortField, order: 'asc' }
+                            })
+                        }).then(function (r) { return r.json(); }).then(function (res) {
+                            if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '加载树失败', 'error'); return; }
+                            self.treeData = buildTree(res.data.rows || [], self.$data);
+                        }).catch(function (e) { dyn.showMessage('加载树失败：' + e.message, 'error'); })
+                          .finally(function () { self.treeLoading = false; });
+                    },
+                    onNodeClick: function (data) { this.loadForm(data[this.keyField]); },
+                    loadForm: function (id) {
+                        var self = this;
+                        if (id === null || id === undefined || id === '' || id === 0) { this.resetForm(); return; }
+                        this.formLoading = true;
+                        fetch('/api/platform/dyndata/get?table=' + encodeURIComponent(this.tableName) + '&id=' + encodeURIComponent(id))
+                            .then(function (r) { return r.json(); }).then(function (res) {
+                                if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '读取数据失败', 'error'); return; }
+                                var d = res.data;
+                                var base = JSON.parse(JSON.stringify(detailDefault));
+                                Object.keys(base).forEach(function (k) { if (d[k] !== undefined) base[k] = d[k]; });
+                                Object.keys(d).forEach(function (k) { if (!(k in base)) base[k] = d[k]; });
+                                self.form = base;
+                            }).catch(function (e) { dyn.showMessage('读取数据失败：' + e.message, 'error'); })
+                              .finally(function () { self.formLoading = false; });
+                    },
+                    onAddRoot: function () { this.resetForm(); },
+                    onAddChild: function () {
+                        var k = this.form[this.keyField];
+                        if (k === null || k === undefined || k === '' || k === 0) { dyn.showMessage('请先选择一个父节点', 'warning'); return; }
+                        var base = JSON.parse(JSON.stringify(detailDefault));
+                        base[this.parentField] = k;
+                        this.form = base;
+                    },
+                    resetForm: function () {
+                        this.form = JSON.parse(JSON.stringify(detailDefault));
+                    },
+                    validate: function () {
+                        var self = this;
+                        var missing = this._required.filter(function (f) {
+                            var v = self.form[f];
+                            return v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length);
+                        });
+                        if (missing.length) {
+                            dyn.showMessage('必填项不能为空：' + missing.join('、'), 'warning');
+                            return false;
+                        }
+                        return true;
+                    },
+                    onSave: function () {
+                        var self = this;
+                        if (!this.validate()) return;
+                        this.saving = true;
+                        fetch(this.tableName ? '/api/platform/dyndata/save?table=' + encodeURIComponent(this.tableName) : '', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.form)
+                        }).then(function (r) { return r.json(); }).then(function (res) {
+                            if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
+                            dyn.showMessage(res.msg || '保存成功', 'success');
+                            var savedId = (res.data && res.data.id) || self.form[self.keyField];
+                            self.loadTree();
+                            if (savedId) self.loadForm(savedId); else self.resetForm();
+                        }).catch(function (e) { dyn.showMessage('保存失败：' + e.message, 'error'); })
+                          .finally(function () { self.saving = false; });
+                    },
+                    onDelete: function () {
+                        var self = this;
+                        var k = this.form[this.keyField];
+                        if (k === null || k === undefined || k === '' || k === 0) return;
+                        dyn.confirmAsync('确定删除「' + (this.form[this.titleField] || k) + '」吗？子节点会一并处理。').then(function (ok) {
+                            if (!ok) return;
+                            self.deleting = true;
+                            fetch('/api/platform/dyndata/delete?table=' + encodeURIComponent(self.tableName) + '&id=' + encodeURIComponent(k), { method: 'POST' })
+                                .then(function (r) { return r.json(); }).then(function (res) {
+                                    if (res.code !== 0) { dyn.showMessage(res.msg || '删除失败', 'error'); return; }
+                                    dyn.showMessage(res.msg || '删除成功', 'success');
+                                    self.loadTree();
+                                    self.resetForm();
+                                }).catch(function (e) { dyn.showMessage('删除失败：' + e.message, 'error'); })
+                                .finally(function () { self.deleting = false; });
+                        });
+                    },
+                    // 分隔条拖拽
+                    _dragStart: null,
+                    onDragStart: function (e) {
+                        e.preventDefault();
+                        var wrap = e.currentTarget.parentElement;
+                        this._dragStart = { x: e.clientX, width: wrap.getBoundingClientRect().width };
+                        this._dragWrap = wrap;
+                        document.body.style.userSelect = 'none';
+                    },
+                    onDragMove: function (e) {
+                        if (!this._dragStart) return;
+                        var dx = e.clientX - this._dragStart.x;
+                        var pct = (this._dragStart.width > 0) ? (this._dragStart.width * this.split / 100 + dx) / this._dragStart.width * 100 : this.split;
+                        this.split = Math.min(60, Math.max(18, pct));
+                    },
+                    onDragEnd: function () {
+                        if (!this._dragStart) return;
+                        this._dragStart = null;
+                        this._dragWrap = null;
+                        document.body.style.userSelect = '';
+                    }
+                },
+                mounted: function () {
+                    var self = this;
+                    this.loadTree();
+                    window[refreshKey] = function () { self.loadTree(); };
+                }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function () { app.mount(rootEl); });
+        });
+    </script>
+}

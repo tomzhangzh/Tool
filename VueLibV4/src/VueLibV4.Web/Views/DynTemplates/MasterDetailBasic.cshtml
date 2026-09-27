@@ -1,0 +1,347 @@
+@model VueLibV4.Web.Core.DynSharedModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = Model.PageTitle + " - VueLibV4";
+    var sharedJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model, new Newtonsoft.Json.JsonSerializerSettings
+    {
+        NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
+        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
+    });
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+@*
+  通用主从明细模板（master-detail-basic）：
+  · 布局 = 上屏主表（Filter + 列表 + 分页）｜ 下屏子表（联动列表，无 Filter）—— 直属关系：点主表行，下屏显示其子记录
+  · 两屏各自 [+ 新增] / [编辑] / [删除]，弹窗表单（/Platform/Page/DynDetail，支持业务库 + 新增预填外键）
+  · 参数（DynWebPage.ConfigJson，模板 ConfigJson 定义）：
+      MasterTableName 主表名（必填）｜ MasterKeyField 主表主键(默认 Id)
+      DetailTableName 子表名（必填）｜ DetailForeignKey 子表外键(默认 MasterId)
+      Db 数据访问库(business/platform，默认 business)
+      主表三屏：Filter/List/Detail 配置填在 DynWebPage 的 FilterPageSettingId/ListPageSettingId/DetailPageSettingId
+      子表两屏：DetailListPageSettingId 子表列表配置 ｜ DetailDetailPageSettingId 子表表单配置（模板参数）
+  · 数据：/api/business/dyndata（insert/update/delete 分开）或 /api/platform/dyndata（save）
+*@
+<div id="@extId" class="md-root">
+    @* ===== 头部 ===== *@
+    <div class="md-head">
+        <div class="md-title">
+            <span class="md-name">{{ title }}</span>
+            <el-tag size="small" type="info" effect="plain">{{ templateCode }}</el-tag>
+            <el-tag size="small" type="warning" effect="plain">{{ masterTable }}</el-tag>
+            <el-tag size="small" type="success" effect="plain">→ {{ detailTable }}</el-tag>
+        </div>
+        <div class="md-actions">
+            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+        </div>
+    </div>
+
+    @* ===== 上屏：主表 ===== *@
+    <div class="md-pane md-pane-master">
+        <div class="md-pane-head">
+            <span class="md-pane-title">主表：{{ masterTable }}</span>
+            <div class="md-pane-actions">
+                <el-button type="success" size="small" @@click="onAddMaster">+ 新增</el-button>
+            </div>
+        </div>
+        <div class="md-filter" v-if="filterCfg">
+            <dyn-dynamic-com :jsonconfig="filterCfg" :parentmodelinfo="filter"></dyn-dynamic-com>
+            <div class="md-filter-btns">
+                <el-button type="primary" size="small" @@click="onQuery">查询</el-button>
+                <el-button size="small" @@click="onReset">重置</el-button>
+            </div>
+        </div>
+        <div class="md-table">
+            <el-table :data="masterRows" size="small" border stripe v-loading="masterLoading"
+                      highlight-current-row @@row-click="onMasterClick">
+                <el-table-column v-for="col in masterColumns" :key="col.field" :prop="col.field" :label="col.label"
+                                 :width="col.width" :min-width="col.minWidth || 90">
+                    <template #default="scope">
+                        <span v-if="col.cellType==='tag'">
+                            <el-tag :type="scope.row[col.field] ? 'success' : 'info'">{{ scope.row[col.field] ? '启用' : '停用' }}</el-tag>
+                        </span>
+                        <span v-else>{{ scope.row[col.field] }}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="150" fixed="right">
+                    <template #default="scope">
+                        <el-button size="small" type="primary" link @@click.stop="onEditMaster(scope.row)">编辑</el-button>
+                        <el-button size="small" type="danger" link @@click.stop="onDeleteMaster(scope.row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <div class="md-pager">
+                <el-pagination background size="small" layout="total, prev, pager, next, sizes"
+                               :total="masterTotal" :page-size="masterPageInfo.PageSize" :current-page="masterPageInfo.PageIndex"
+                               :page-sizes="[10,20,50,100]"
+                               @@current-change="onMasterPage" @@size-change="onMasterSize"></el-pagination>
+            </div>
+        </div>
+    </div>
+
+    @* ===== 下屏：子表（联动） ===== *@
+    <div class="md-pane md-pane-detail">
+        <div class="md-pane-head">
+            <span class="md-pane-title">明细：{{ detailTable }}
+                <el-tag v-if="currentMaster" size="small" type="info" effect="plain">当前：{{ currentMasterLabel }}</el-tag>
+                <el-tag v-else size="small" type="warning" effect="plain">请先选择主表记录</el-tag>
+            </span>
+            <div class="md-pane-actions">
+                <el-button type="success" size="small" @@click="onAddDetail" :disabled="!currentMaster">+ 新增</el-button>
+            </div>
+        </div>
+        <div class="md-table">
+            <el-table :data="detailRows" size="small" border stripe v-loading="detailLoading">
+                <el-table-column v-for="col in detailColumns" :key="col.field" :prop="col.field" :label="col.label"
+                                 :width="col.width" :min-width="col.minWidth || 90">
+                    <template #default="scope">
+                        <span v-if="col.cellType==='tag'">
+                            <el-tag :type="scope.row[col.field] ? 'success' : 'info'">{{ scope.row[col.field] ? '启用' : '停用' }}</el-tag>
+                        </span>
+                        <span v-else>{{ scope.row[col.field] }}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="150" fixed="right">
+                    <template #default="scope">
+                        <el-button size="small" type="primary" link @@click="onEditDetail(scope.row)">编辑</el-button>
+                        <el-button size="small" type="danger" link @@click="onDeleteDetail(scope.row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </div>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .md-root { display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; padding: 12px 16px 16px; gap: 12px; }
+    .md-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; flex-shrink: 0; }
+    .md-head .md-title { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: #303133; margin-right: auto; }
+    .md-pane { background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; }
+    .md-pane-master { flex: 1.1; }
+    .md-pane-detail { flex: 1; }
+    .md-pane-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #e4e7ed; flex-shrink: 0; }
+    .md-pane-title { font-size: 14px; font-weight: 600; color: #303133; display: flex; align-items: center; gap: 8px; }
+    .md-filter { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+    .md-filter-btns { display: flex; gap: 8px; }
+    .md-table { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px; }
+    .md-pager { display: flex; justify-content: flex-end; padding: 6px 4px; }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var shared = @Html.Raw(sharedJson);
+            var ep = shared.EffectiveParams || {};
+
+            function parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
+            function parseColumns(cfg, def) {
+                return (Array.isArray(cfg) ? cfg : (cfg && cfg.columns) || []) || def;
+            }
+
+            // ===== 模板参数 =====
+            var masterTable = ep.MasterTableName || '';
+            var masterKeyField = ep.MasterKeyField || 'Id';
+            var masterTitleField = ep.MasterTitleField || 'Name';
+            var detailTable = ep.DetailTableName || '';
+            var detailForeignKey = ep.DetailForeignKey || 'MasterId';
+            var db = ep.Db || 'business';
+            var apiBase = db === 'business' ? '/api/business/dyndata' : '/api/platform/dyndata';
+            var detailListSettingId = ep.DetailListPageSettingId || '';
+            var detailDetailSettingId = ep.DetailDetailPageSettingId || '';
+
+            // ===== 主表三屏（PageController 已预载）=====
+            var initFilter = parseJson(shared.FilterDefaultJson, {});
+            var masterColumns = parseColumns(shared.ListConfig, [
+                { field: 'Id', label: 'Id', width: 90 },
+                { field: 'OrderNo', label: '单号', width: 160 },
+                { field: 'Customer', label: '客户', width: 140 },
+                { field: 'Amount', label: '金额', width: 110 },
+                { field: 'Status', label: '状态', width: 110 },
+                { field: 'CreateTime', label: '创建时间', width: 170 }
+            ]);
+
+            // ===== 子表配置（前端按 Id 加载 PageSetting）=====
+            var detailColumns = [];
+            var detailDetailDefault = {};
+            var detailDetailCfg = null;
+
+            var rootEl = document.querySelector('#@extId');
+            var refreshKey = '__md_refresh_' + '@extId';
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        title: shared.PageTitle || '主从明细',
+                        templateCode: shared.TemplateCode || '',
+                        masterTable: masterTable, detailTable: detailTable,
+                        filterCfg: shared.FilterConfig || null,
+                        filter: initFilter,
+                        masterColumns: masterColumns,
+                        masterRows: [], masterTotal: 0, masterLoading: false,
+                        masterPageInfo: { PageIndex: 1, PageSize: 20, TotalCount: 0 },
+                        detailColumns: detailColumns,
+                        detailRows: [], detailLoading: false,
+                        currentMaster: null,
+                        detailCfg: detailDetailCfg,
+                        detailForm: JSON.parse(JSON.stringify(detailDetailDefault)),
+                        detailFormLoading: false
+                    };
+                },
+                computed: {
+                    currentMasterLabel: function () {
+                        var m = this.currentMaster;
+                        if (!m) return '';
+                        return (m[masterTitleField] || m.Id);
+                    }
+                },
+                methods: {
+                    go: function (u) { window.location.href = u; },
+                    // ---------- 主表 ----------
+                    buildSubmitFilter: function () {
+                        var f = {};
+                        var src = this.filter || {};
+                        Object.keys(src).forEach(function (k) {
+                            var item = src[k];
+                            if (item && typeof item === 'object' && item.value !== null && item.value !== undefined && item.value !== '') {
+                                f[k] = { op: item.op || 'eq', value: item.value };
+                            }
+                        });
+                        return f;
+                    },
+                    loadMaster: function () {
+                        var self = this;
+                        this.masterLoading = true;
+                        fetch(apiBase + '/search', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ table: masterTable, page: this.masterPageInfo.PageIndex, size: this.masterPageInfo.PageSize, filter: this.buildSubmitFilter() })
+                        }).then(function (r) { return r.json(); }).then(function (res) {
+                            if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '加载主表失败', 'error'); return; }
+                            self.masterRows = res.data.rows || [];
+                            self.masterTotal = res.data.total || 0;
+                            // 若当前选中行仍在结果中则保留，否则清除
+                            if (self.currentMaster && !self.masterRows.some(function (r) { return r[masterKeyField] === self.currentMaster[masterKeyField]; })) {
+                                self.currentMaster = null;
+                            }
+                        }).catch(function (e) { dyn.showMessage('加载主表失败：' + e.message, 'error'); })
+                          .finally(function () { self.masterLoading = false; });
+                    },
+                    onQuery: function () { this.masterPageInfo.PageIndex = 1; this.loadMaster(); },
+                    onReset: function () {
+                        var blank = JSON.parse(JSON.stringify(initFilter));
+                        Object.keys(blank).forEach(function (k) { if (blank[k] && typeof blank[k] === 'object') blank[k].value = null; });
+                        this.filter = blank;
+                        this.masterPageInfo.PageIndex = 1;
+                        this.loadMaster();
+                    },
+                    onMasterPage: function (p) { this.masterPageInfo.PageIndex = p; this.loadMaster(); },
+                    onMasterSize: function (s) { this.masterPageInfo.PageSize = s; this.masterPageInfo.PageIndex = 1; this.loadMaster(); },
+                    // 点主表行 → 子表联动
+                    onMasterClick: function (row) { this.currentMaster = row; this.loadDetail(); },
+                    onAddMaster: function () { this.openDetail(masterTable, ep.DetailPageSettingId || '', null, null); },
+                    onEditMaster: function (row) { this.openDetail(masterTable, ep.DetailPageSettingId || '', row, null); },
+                    onDeleteMaster: function (row) { this.doDelete(masterTable, row, '主表'); },
+                    // ---------- 子表 ----------
+                    loadDetail: function () {
+                        var self = this;
+                        if (!this.currentMaster) { this.detailRows = []; return; }
+                        this.detailLoading = true;
+                        var f = {};
+                        f[detailForeignKey] = { op: 'eq', value: this.currentMaster[masterKeyField] };
+                        fetch(apiBase + '/search', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ table: detailTable, page: 1, size: 500, filter: f })
+                        }).then(function (r) { return r.json(); }).then(function (res) {
+                            if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '加载明细失败', 'error'); return; }
+                            self.detailRows = res.data.rows || [];
+                        }).catch(function (e) { dyn.showMessage('加载明细失败：' + e.message, 'error'); })
+                          .finally(function () { self.detailLoading = false; });
+                    },
+                    onAddDetail: function () {
+                        if (!this.currentMaster) { dyn.showMessage('请先选择主表记录', 'warning'); return; }
+                        var prefill = {};
+                        prefill[detailForeignKey] = this.currentMaster[masterKeyField];
+                        this.openDetail(detailTable, detailDetailSettingId, null, prefill);
+                    },
+                    onEditDetail: function (row) { this.openDetail(detailTable, detailDetailSettingId, row, null); },
+                    onDeleteDetail: function (row) { this.doDelete(detailTable, row, '明细'); },
+                    // ---------- 通用：弹窗 增/改 ----------
+                    openDetail: function (table, settingId, row, prefill) {
+                        var self = this;
+                        var isEdit = !!(row && row.Id != null && row.Id !== '');
+                        var win = { title: (isEdit ? '编辑' : '新增') + ' ' + table, width: '780px', height: '580px', maxmin: true };
+                        DynAction.run('open', {
+                            url: '/Platform/Page/DynDetail',
+                            mode: 'fragment',
+                            params: {
+                                settingId: settingId || '',
+                                table: table,
+                                bizId: isEdit ? row.Id : '',
+                                db: db,
+                                prefill: prefill ? JSON.stringify(prefill) : '',
+                                winTitle: win.title,
+                                winWidth: win.width,
+                                winHeight: win.height
+                            },
+                            options: Object.assign({}, win, {
+                                onclose: [{ action: 'evaljs', options: { code: 'window["' + refreshKey + '"] && window["' + refreshKey + '"]()' } }]
+                            })
+                        }, { element: rootEl, vm: this });
+                    },
+                    // ---------- 通用：删除 ----------
+                    doDelete: function (table, row, label) {
+                        var self = this;
+                        var id = row.Id;
+                        var name = row.Name || row.OrderNo || row.ProductName || id;
+                        dyn.confirmAsync('确定删除' + label + '「' + name + '」吗？').then(function (ok) {
+                            if (!ok) return;
+                            var req;
+                            if (db === 'business') {
+                                req = fetch(apiBase + '/delete', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ table: table, keys: { Id: id } })
+                                }).then(function (r) { return r.json(); });
+                            } else {
+                                req = fetch(apiBase + '/delete?table=' + encodeURIComponent(table) + '&id=' + encodeURIComponent(id), { method: 'POST' })
+                                    .then(function (r) { return r.json(); });
+                            }
+                            req.then(function (res) {
+                                if (res.code !== 0) { dyn.showMessage(res.msg || '删除失败', 'error'); return; }
+                                dyn.showMessage('删除成功', 'success');
+                                if (table === masterTable) { self.loadMaster(); self.currentMaster = null; self.detailRows = []; }
+                                else { self.loadDetail(); }
+                            }).catch(function (e) { dyn.showMessage('删除失败：' + e.message, 'error'); });
+                        });
+                    }
+                },
+                mounted: function () {
+                    var self = this;
+                    // 加载子表配置（列表列 + 弹窗表单）
+                    var jobs = [];
+                    if (detailListSettingId) jobs.push(fetch('/api/platform/pagesetting/get?id=' + detailListSettingId).then(function (r) { return r.json(); }).then(function (res) { return res.data || null; }));
+                    if (detailDetailSettingId) jobs.push(fetch('/api/platform/pagesetting/get?id=' + detailDetailSettingId).then(function (r) { return r.json(); }).then(function (res) { return res.data || null; }));
+                    Promise.all(jobs).then(function (arr) {
+                        var list = arr[0], det = arr[1];
+                        if (list) {
+                            self.detailColumns = parseColumns(parseJson(list.ConfigJson, null), [
+                                { field: 'ProductName', label: '商品', width: 180 },
+                                { field: 'Qty', label: '数量', width: 100 },
+                                { field: 'Price', label: '单价', width: 110 },
+                                { field: 'Remark', label: '备注', minWidth: 120 }
+                            ]);
+                        }
+                        if (det) {
+                            self.detailCfg = parseJson(det.ConfigJson, null);
+                            self.detailForm = JSON.parse(JSON.stringify(parseJson(det.DefaultJson, {})));
+                        }
+                        self.loadMaster();
+                    }).catch(function (e) {
+                        dyn.showMessage('加载子表配置失败：' + e.message, 'error');
+                        self.loadMaster();
+                    });
+                    window[refreshKey] = function () { self.loadMaster(); self.loadDetail(); };
+                }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function () { app.mount(rootEl); });
+        });
+    </script>
+}

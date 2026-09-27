@@ -1,0 +1,121 @@
+@model VueLibV4.Web.Core.DynSharedModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "表格/卡片视图切换 Demo - VueLibV4";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+@*
+  表格/卡片视图切换 Demo（模板 view-switcher-demo）：
+  · 演示 DynViewSwitcher 容器：DynElTable(表格) + DynListView(卡片) 视图互切，共用同一数据与分页
+  · model 结构：{ rows:[](数据数组), pageInfo:{pageIndex,pageSize,total} } —— 两视图绑定同一 rows，容器绑定 pageInfo
+  · 分页：容器内共享 el-pagination，改 pageInfo 后页面 $watch 自动刷新（模拟分页切片）
+*@
+<div id="@extId" class="vs-demo">
+    <div class="vs-head">
+        <div class="vs-title">
+            <span class="vs-name">{{ title }}</span>
+            <el-tag size="small" type="info" effect="plain">view-switcher-demo</el-tag>
+            <el-tag size="small" type="warning" effect="plain">DynViewSwitcher + DynListView</el-tag>
+        </div>
+        <div class="vs-actions">
+            <el-button size="small" @@click="onReload">重新加载数据</el-button>
+            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+        </div>
+    </div>
+
+    <div class="vs-card">
+        <div class="vs-tip">
+            <el-icon size="14"><info-filled /></el-icon>
+            <span>表格与卡片共用同一份数据与分页，切换视图不重复请求；分页翻页后两视图同步更新。</span>
+        </div>
+        <dyn-dynamic-com :jsonconfig="switcherCfg" :parentmodelinfo="model"></dyn-dynamic-com>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .vs-demo { display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; padding: 12px 16px 16px; gap: 12px; }
+    .vs-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; flex-shrink: 0; }
+    .vs-head .vs-title { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: #303133; margin-right: auto; }
+    .vs-card { background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px 16px; }
+    .vs-tip { display: flex; align-items: center; gap: 6px; color: #909399; font-size: 12px; margin-bottom: 10px; padding: 6px 10px; background: #f7f9fc; border: 1px dashed #d3dce6; border-radius: 6px; }
+    .dyn-view-switcher .dyn-view-toolbar { margin-bottom: 12px; }
+    .dyn-view-switcher .dyn-view-pane { min-height: 200px; }
+    .dyn-view-switcher .dyn-view-pager { margin-top: 14px; display: flex; justify-content: flex-end; }
+    /* 卡片列表样式 */
+    .dyn-listview-grid { display: grid; }
+    .dyn-list-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; background: #fff; transition: box-shadow .2s; }
+    .dyn-list-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+    .dyn-list-card-img { width: 100%; height: 140px; border-radius: 6px; margin-bottom: 10px; }
+    .dyn-list-card-title { font-size: 15px; font-weight: 600; color: #303133; margin-bottom: 6px; }
+    .dyn-list-card-desc { font-size: 13px; color: #909399; margin-bottom: 8px; }
+    .dyn-list-card-tag { margin-top: 4px; }
+    .dyn-list-empty { grid-column: 1 / -1; text-align: center; color: #c0c4cc; padding: 40px 0; font-size: 13px; }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var extId = '@extId';
+            var rootEl = document.querySelector('#' + extId);
+            // 模拟数据源（48 条，演示分页切片）
+            var allData = [];
+            for (var i = 0; i < 48; i++) {
+                allData.push({
+                    Name: '商品' + String(i + 1).padStart(2, '0'),
+                    Remark: '第 ' + (i + 1) + ' 条示例数据，用于演示表格 / 卡片视图切换',
+                    Amount: 1000 + (i % 9) * 100 + 50,
+                    Status: i % 3 === 0 ? '启用' : '停用'
+                });
+            }
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        title: '表格 / 卡片视图切换 Demo',
+                        model: {
+                            rows: [],
+                            pageInfo: { pageIndex: 1, pageSize: 10, total: allData.length }
+                        },
+                        switcherCfg: {
+                            component: 'DynViewSwitcher',
+                            modelname: '',
+                            options: {
+                                comoptions: { defaultMode: 'grid', pager: true, pageSizes: [5, 10, 20], pageInfoPath: 'pageInfo' },
+                                comlisteners: {},
+                                labeloptions: { label: '视图切换', required: false, show: false },
+                                itemoptions: { style: {}, class: '' }
+                            },
+                            childrenctrls: [
+                                {
+                                    component: 'DynElTable', modelname: 'rows',
+                                    options: { comoptions: { optionValuesText: 'Name,名称,200\nRemark,备注\nAmount,金额,110\nStatus,状态,90' } }
+                                },
+                                {
+                                    component: 'DynListView', modelname: 'rows',
+                                    options: { comoptions: { titleField: 'Name', descField: 'Remark', tagField: 'Status' } }
+                                }
+                            ]
+                        }
+                    };
+                },
+                methods: {
+                    go: function (u) { window.location.href = u; },
+                    onReload: function () { this.query(); dyn.showMessage('数据已刷新', 'success'); },
+                    query: function () {
+                        var pi = this.model.pageInfo;
+                        var start = (pi.pageIndex - 1) * pi.pageSize;
+                        this.model.rows = allData.slice(start, start + pi.pageSize);
+                    }
+                },
+                mounted: function () { }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function () {
+                var vm = app.mount(rootEl);
+                // 分页变化（翻页/改每页条数）自动刷新数据
+                vm.$watch('model.pageInfo', function () { vm.query(); }, { deep: true });
+                vm.query();
+            });
+        });
+    </script>
+}

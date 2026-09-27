@@ -1,0 +1,95 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+<template>
+    <div class="dyn-splitter"
+         :class="['dyn-splitter-' + splitter.direction, ...getClass(jc.options.itemoptions), designRootClass, { 'dyn-splitter-dragging': splitter.dragging }]"
+         :style="splitterStyle">
+        @* 面板 A（左 / 上） *@
+        <div class="dyn-splitter-pane" :style="paneAStyle">
+            <n-dynamic-com v-if="paneA" :jsonconfig="paneA" :parentmodelinfo="props.parentmodelinfo" :node-path="props.nodePath + '.childrenctrls[0]'"></n-dynamic-com>
+        </div>
+        @* 分隔条：拖拽调整 / 双击复位 50% *@
+        <div class="dyn-splitter-gutter" :style="gutterStyle"
+             v-on:mousedown="startDrag" v-on:dblclick="resetSplit"
+             :title="'拖拽调整面板大小，双击复位 50%'">
+            <span class="dyn-splitter-handle"></span>
+        </div>
+        @* 面板 B（右 / 下） *@
+        <div class="dyn-splitter-pane" :style="paneBStyle">
+            <n-dynamic-com v-if="paneB" :jsonconfig="paneB" :parentmodelinfo="props.parentmodelinfo" :node-path="props.nodePath + '.childrenctrls[1]'"></n-dynamic-com>
+        </div>
+    </div>
+</template>
+
+@section setupScripts{
+DVALUE = null;
+const comoptions = jc.options.comoptions || {};
+if (!jc.options.comoptions) jc.options.comoptions = comoptions;
+
+// 可拖拽分隔布局状态：direction=horizontal(左右)/vertical(上下)，split=首面板百分比
+const splitter = Vue.reactive({
+    split: Math.min(95, Math.max(5, Number(comoptions.split || 50))),
+    direction: comoptions.direction || 'horizontal',
+    dragging: false
+});
+
+// childrenctrls[0]=面板A，childrenctrls[1]=面板B（其余忽略）
+const paneA = computed(() => {
+    const list = (jc.childrenctrls || []).filter(c => c && typeof c === 'object');
+    return list[0] || null;
+});
+const paneB = computed(() => {
+    const list = (jc.childrenctrls || []).filter(c => c && typeof c === 'object');
+    return list[1] || null;
+});
+
+let rectCache = null;
+function startDrag(e) {
+    e.preventDefault();
+    const wrap = e.currentTarget.parentElement;
+    if (!wrap) return;
+    rectCache = wrap.getBoundingClientRect();
+    splitter.dragging = true;
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+}
+function onDrag(e) {
+    if (!rectCache) return;
+    let pct;
+    if (splitter.direction === 'horizontal') {
+        pct = (e.clientX - rectCache.left) / rectCache.width * 100;
+    } else {
+        pct = (e.clientY - rectCache.top) / rectCache.height * 100;
+    }
+    const minSize = Number(comoptions.minSize || 120);
+    const axis = splitter.direction === 'horizontal' ? rectCache.width : rectCache.height;
+    const minPct = Math.min(40, Math.max(5, axis > 0 ? minSize / axis * 100 : 10));
+    splitter.split = Math.min(95, Math.max(minPct, pct));
+}
+function stopDrag() {
+    splitter.dragging = false;
+    rectCache = null;
+    document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+}
+function resetSplit() { splitter.split = 50; }
+
+comExtra.splitter = splitter;
+comExtra.paneA = paneA;
+comExtra.paneB = paneB;
+comExtra.startDrag = startDrag;
+comExtra.resetSplit = resetSplit;
+
+comExtra.splitterStyle = computed(() => Object.assign({ display: 'flex' }, (jc.options.itemoptions && jc.options.itemoptions.style) || {}));
+comExtra.paneAStyle = computed(() => splitter.direction === 'horizontal'
+    ? { width: splitter.split + '%', minWidth: (comoptions.minSize || 120) + 'px' }
+    : { height: splitter.split + '%', minHeight: (comoptions.minSize || 120) + 'px' });
+comExtra.paneBStyle = computed(() => ({ flex: 1, minWidth: 0, minHeight: 0 }));
+comExtra.gutterStyle = computed(() => splitter.direction === 'horizontal'
+    ? { width: (comoptions.gutterSize || 6) + 'px' }
+    : { height: (comoptions.gutterSize || 6) + 'px' });
+}

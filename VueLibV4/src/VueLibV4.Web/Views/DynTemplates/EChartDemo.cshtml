@@ -1,0 +1,173 @@
+@model VueLibV4.Web.Core.DynSharedModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "ECharts 图表 Demo - VueLibV4";
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+}
+@*
+  ECharts 图表 Demo（模板 echart-demo）：
+  · 演示 DynEChart 组件：可切换 柱状图/折线图/面积图/饼图/雷达图，可传数据（内置数据集 / 清空 / 后端接口加载）
+  · DynEChart 经 <dyn-dynamic-com> 渲染，modelname 绑定 model.chartData；
+    切换类型时更新 chartCfg.options.comoptions.chartType（组件 watch 到配置变化自动重绘）。
+*@
+<div id="@extId" class="ech-demo">
+    <div class="ech-head">
+        <div class="ech-title">
+            <span class="ech-name">{{ title }}</span>
+            <el-tag size="small" type="info" effect="plain">echart-demo</el-tag>
+            <el-tag size="small" type="warning" effect="plain">DynEChart 组件</el-tag>
+        </div>
+        <div class="ech-actions">
+            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+        </div>
+    </div>
+
+    <div class="ech-card">
+        <div class="ech-toolbar">
+            <span class="ech-tool-label">图表类型</span>
+            <el-select v-model="curType" size="small" style="width:130px" placeholder="选择类型">
+                <el-option v-for="t in types" :key="t.value" :label="t.label" :value="t.value"></el-option>
+            </el-select>
+            <el-button type="primary" size="small" @@click="onTypeChange">切换图表</el-button>
+            <el-divider direction="vertical"></el-divider>
+            <span class="ech-tool-label">数据</span>
+            <el-button size="small" @@click="loadDemoData('bar')">柱状数据</el-button>
+            <el-button size="small" @@click="loadDemoData('line')">折线数据</el-button>
+            <el-button size="small" @@click="loadDemoData('pie')">饼图数据</el-button>
+            <el-button size="small" type="success" @@click="onLoadRemote">加载接口数据</el-button>
+            <el-button size="small" type="danger" plain @@click="onClear">清空</el-button>
+        </div>
+        <div class="ech-body">
+            <dyn-dynamic-com :jsonconfig="chartCfg" :parentmodelinfo="model"></dyn-dynamic-com>
+        </div>
+        <div class="ech-foot" v-if="model.chartData && model.chartData.seriesData && model.chartData.seriesData.length">
+            <span>当前类型：{{ curType }} ｜ 系列数：{{ seriesCount }} ｜ 数据点数：{{ pointCount }}</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .ech-demo { display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; padding: 12px 16px 16px; gap: 12px; }
+    .ech-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; flex-shrink: 0; }
+    .ech-head .ech-title { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: #303133; margin-right: auto; }
+    .ech-card { background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .ech-toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #e4e7ed; flex-wrap: wrap; }
+    .ech-tool-label { font-size: 13px; color: #606266; font-weight: 500; }
+    .ech-body { flex: 1; min-height: 0; padding: 12px 16px; }
+    .ech-foot { padding: 6px 16px 10px; border-top: 1px solid #f0f0f0; font-size: 12px; color: #909399; }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var extId = '@extId';
+            var rootEl = document.querySelector('#' + extId);
+            // 各类型示例数据集（用于演示"传数据"）
+            var datasets = {
+                bar: {
+                    xData: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+                    seriesData: [120, 200, 150, 80, 70, 110, 130]
+                },
+                line: {
+                    xData: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                    seriesData: [
+                        { name: '销售额', data: [320, 455, 310, 820, 540, 620] },
+                        { name: '成本', data: [200, 300, 220, 500, 380, 410] }
+                    ]
+                },
+                area: {
+                    xData: ['Q1', 'Q2', 'Q3', 'Q4'],
+                    seriesData: [320, 480, 550, 690]
+                },
+                pie: {
+                    seriesData: [
+                        { name: '直接访问', value: 335 },
+                        { name: '邮件营销', value: 310 },
+                        { name: '联盟广告', value: 234 },
+                        { name: '视频广告', value: 135 },
+                        { name: '搜索引擎', value: 400 }
+                    ]
+                },
+                radar: {
+                    xData: ['销售', '市场', '研发', '客服', '财务'],
+                    seriesData: [110, 140, 120, 90, 100]
+                }
+            };
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        title: 'ECharts 图表 Demo',
+                        curType: 'bar',
+                        model: { chartData: JSON.parse(JSON.stringify(datasets.bar)) },
+                        chartCfg: {
+                            component: 'DynEChart',
+                            modelname: 'chartData',
+                            options: {
+                                comoptions: { chartType: 'bar', title: '销售统计' },
+                                comlisteners: {},
+                                labeloptions: { label: '图表', required: false, show: false },
+                                itemoptions: { style: {}, class: '' }
+                            }
+                        },
+                        types: [
+                            { label: '柱状图', value: 'bar' },
+                            { label: '折线图', value: 'line' },
+                            { label: '面积图', value: 'area' },
+                            { label: '饼图', value: 'pie' },
+                            { label: '雷达图', value: 'radar' }
+                        ]
+                    };
+                },
+                computed: {
+                    seriesCount: function () {
+                        var s = this.model.chartData && this.model.chartData.seriesData || [];
+                        if (!s.length) return 0;
+                        return (typeof s[0] === 'object' && 'data' in s[0]) ? s.length : 1;
+                    },
+                    pointCount: function () {
+                        var s = this.model.chartData && this.model.chartData.seriesData || [];
+                        if (!s.length) return 0;
+                        return typeof s[0] === 'object' && 'data' in s[0] ? (s[0].data || []).length : s.length;
+                    }
+                },
+                methods: {
+                    go: function (u) { window.location.href = u; },
+                    onTypeChange: function () {
+                        this.chartCfg.options.comoptions.chartType = this.curType;
+                        var d = datasets[this.curType];
+                        if (d) this.model.chartData = JSON.parse(JSON.stringify(d));
+                    },
+                    loadDemoData: function (t) {
+                        this.curType = t;
+                        this.chartCfg.options.comoptions.chartType = t;
+                        var d = datasets[t];
+                        if (d) this.model.chartData = JSON.parse(JSON.stringify(d));
+                    },
+                    onClear: function () {
+                        this.model.chartData = { xData: [], seriesData: [] };
+                    },
+                    onLoadRemote: function () {
+                        var self = this;
+                        fetch('/Platform/Page/EChartData')
+                            .then(function (r) { return r.json(); })
+                            .then(function (res) {
+                                if (res && res.code === 0) {
+                                    self.curType = 'bar';
+                                    self.chartCfg.options.comoptions.chartType = 'bar';
+                                    self.model.chartData = res.data;
+                                    dyn.showMessage('接口数据加载成功', 'success');
+                                } else {
+                                    dyn.showMessage((res && res.msg) || '加载失败', 'error');
+                                }
+                            })
+                            .catch(function (e) { dyn.showMessage('加载失败：' + (e && e.message || e), 'error'); });
+                    }
+                },
+                mounted: function () { }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function () { app.mount(rootEl); });
+        });
+    </script>
+}

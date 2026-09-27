@@ -1,0 +1,177 @@
+@{
+    Layout = "_LayoutCarDark";
+    ViewData["Title"] = "车机大屏演示";
+}
+@*
+  车机大屏 Demo（模板 car-dashboard）：
+  · 使用独立暗黑布局 _LayoutCarDark（顶部状态栏 + 左侧侧边栏 + 底部快捷栏 + 中间主内容）
+  · 中间主内容区域按 current 切换：数据看板(KPI) / 表格卡片切换(DynViewSwitcher) / 图表(DynEChart) / 组件演示
+  · 侧边栏/底部按钮点击 → window 广播 'car-nav' 事件，本页监听切换 current
+  · 复用全部已有 DynCom 组件，不改动任何现有页面/组件
+*@
+<div data-dyn-mode="createApp" class="car-stage">
+    <!-- 数据看板 -->
+    <div v-if="current === 'dashboard'" class="car-panel">
+        <div class="car-panel-title">数据看板</div>
+        <div class="car-kpi-row">
+            <div class="car-kpi">
+                <span class="car-kpi-label">本月订单</span>
+                <span class="car-kpi-value">1,284</span>
+                <span class="car-kpi-sub">↑ 12.6% 环比</span>
+            </div>
+            <div class="car-kpi">
+                <span class="car-kpi-label">在售商品</span>
+                <span class="car-kpi-value">48</span>
+                <span class="car-kpi-sub">今日新增 3</span>
+            </div>
+            <div class="car-kpi">
+                <span class="car-kpi-label">活跃快捷方式</span>
+                <span class="car-kpi-value">26</span>
+                <span class="car-kpi-sub">桌面 & 菜单</span>
+            </div>
+            <div class="car-kpi">
+                <span class="car-kpi-label">今日图表数据</span>
+                <span class="car-kpi-value">920</span>
+                <span class="car-kpi-sub">7 个数据点</span>
+            </div>
+        </div>
+        <div class="car-welcome">
+            <h2>欢迎使用 VueLibV4 车机大屏</h2>
+            <p>点击左侧导航图标，或底部快捷按钮，中间区域将动态切换内容（复用已有组件，无需刷新整页）。</p>
+        </div>
+    </div>
+
+    <!-- 表格 / 卡片切换 -->
+    <div v-if="current === 'gridList'" class="car-panel">
+        <div class="car-panel-title">表格 / 卡片视图切换（DynViewSwitcher + DynListView）</div>
+        <dyn-dynamic-com :jsonconfig="gridListCfg" :parentmodelinfo="model"></dyn-dynamic-com>
+    </div>
+
+    <!-- 图表 -->
+    <div v-if="current === 'echart'" class="car-panel">
+        <div class="car-panel-title">销售趋势（DynEChart）</div>
+        <dyn-dynamic-com :jsonconfig="echartCfg" :parentmodelinfo="model"></dyn-dynamic-com>
+    </div>
+
+    <!-- 组件演示 -->
+    <div v-if="current === 'components'" class="car-panel">
+        <div class="car-panel-title">组件演示（Element Plus 暗黑）</div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                <el-input placeholder="请输入关键字" clearable size="default"></el-input>
+                <el-select placeholder="请选择状态" size="default" style="width:100%">
+                    <el-option label="启用" value="1"></el-option>
+                    <el-option label="停用" value="0"></el-option>
+                </el-select>
+                <el-switch active-text="启用" inactive-text="停用"></el-switch>
+                <el-button type="primary">主按钮</el-button>
+                <el-button type="success">成功按钮</el-button>
+                <el-button type="warning">警告按钮</el-button>
+                <el-button type="danger">危险按钮</el-button>
+            </div>
+            <div>
+                <el-alert type="success" title="暗黑模式演示" description="Element Plus 已通过 body.dark 启用暗黑主题，以上控件均为暗黑配色。" show-icon></el-alert>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置占位 -->
+    <div v-if="current === 'settings'" class="car-panel">
+        <div class="car-panel-title">设置</div>
+        <div class="car-welcome">
+            <h2>设置中心（占位）</h2>
+            <p>这里可以接入项目实际的系统设置、菜单管理、桌面快捷管理等管理功能。</p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var rootEl = document.querySelector('.car-stage');
+            if (!rootEl) return;
+
+            // 模拟数据（48 条，演示表格/卡片切换 + 分页）
+            var allData = [];
+            for (var i = 0; i < 48; i++) {
+                allData.push({
+                    Name: '商品' + String(i + 1).padStart(2, '0'),
+                    Remark: '第 ' + (i + 1) + ' 条示例数据（车机大屏表格/卡片切换）',
+                    Amount: 1000 + (i % 9) * 100 + 50,
+                    Status: i % 3 === 0 ? '启用' : '停用'
+                });
+            }
+
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        current: 'dashboard',
+                        model: {
+                            rows: [],
+                            pageInfo: { pageIndex: 1, pageSize: 8, total: allData.length },
+                            // DynEChart 数据从 modelinfo 读取（xData / seriesData）
+                            echartData: {
+                                xData: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+                                seriesData: [120, 200, 150, 80, 70, 110, 130]
+                            }
+                        },
+                        gridListCfg: {
+                            component: 'DynViewSwitcher',
+                            modelname: '',
+                            options: {
+                                comoptions: { defaultMode: 'grid', pager: true, pageSizes: [5, 8, 16], pageInfoPath: 'pageInfo' },
+                                comlisteners: {},
+                                labeloptions: { label: '视图切换', required: false, show: false },
+                                itemoptions: { style: {}, class: '' }
+                            },
+                            childrenctrls: [
+                                {
+                                    component: 'DynElTable', modelname: 'rows',
+                                    options: { comoptions: { optionValuesText: 'Name,名称,180\nRemark,备注\nAmount,金额,110\nStatus,状态,90' } }
+                                },
+                                {
+                                    component: 'DynListView', modelname: 'rows',
+                                    options: { comoptions: { titleField: 'Name', descField: 'Remark', tagField: 'Status' } }
+                                }
+                            ]
+                        },
+                        echartCfg: {
+                            component: 'DynEChart',
+                            modelname: 'echartData',
+                            options: {
+                                comoptions: {
+                                    chartType: 'bar',
+                                    title: '周销售趋势',
+                                    height: 320
+                                },
+                                labeloptions: { label: '', required: false, show: false },
+                                itemoptions: { style: {}, class: '' }
+                            }
+                        }
+                    };
+                },
+                methods: {
+                    query: function () {
+                        var pi = this.model.pageInfo;
+                        var start = (pi.pageIndex - 1) * pi.pageSize;
+                        this.model.rows = allData.slice(start, start + pi.pageSize);
+                    }
+                },
+                mounted: function () {
+                    var self = this;
+                    // 监听侧边栏 / 底部按钮广播的 car-nav 事件，切换中间区域
+                    window.addEventListener('car-nav', function (e) { self.current = e.detail || 'dashboard'; });
+                    this.query();
+                }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function () {
+                var vm = app.mount(rootEl);
+                window.__car_vm = vm;
+                // 分页变化自动刷新
+                vm.$watch('model.pageInfo', function () { vm.query(); }, { deep: true });
+                vm.query();
+            });
+        });
+    </script>
+}
