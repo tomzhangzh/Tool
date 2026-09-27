@@ -1,5 +1,9 @@
 using System.IO;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using VueLibV4.Platform.Services;
+using VueLibV4.Web.Core;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
@@ -10,6 +14,7 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 ///   /Platform/Page/Desktop                    工作台桌面
 ///   /Platform/Page/Designer                   页面设计器
 ///   /Platform/Page/WebPageRender?code=student-manage   动态页面
+///   /Platform/Page/DynWebPage?id=1            模板引擎运行时（外壳视图）
 ///   /Platform/Page/Demo/ActionHelper          动作助手 Demo
 /// </summary>
 [Area("Platform")]
@@ -17,6 +22,20 @@ public class PageController : Controller
 {
     private const string Page = "~/Views/Platform/Page/{0}.cshtml";
     private const string Demo = "~/Views/Platform/Demo/{0}.cshtml";
+
+    private readonly IDynWebPageService _webPages;
+    private readonly IDynTemplateService _templates;
+    private readonly IPageSettingService _settings;
+
+    public PageController(
+        IDynWebPageService webPages,
+        IDynTemplateService templates,
+        IPageSettingService settings)
+    {
+        _webPages = webPages;
+        _templates = templates;
+        _settings = settings;
+    }
 
     /// <summary>工作台桌面（DesktopSolution + DesktopShortcut）</summary>
     [HttpGet("/Platform/Page/Desktop")]
@@ -144,5 +163,155 @@ public class PageController : Controller
         ViewBag.MdContent = System.IO.File.ReadAllText(safe, System.Text.Encoding.UTF8);
         ViewBag.MdName = Path.GetFileNameWithoutExtension(safe);
         return View(string.Format(Page, "MdViewer"));
+    }
+
+    /// <summary>
+    /// 模板引擎运行时入口：/Platform/Page/DynWebPage?id={DynWebPageId}
+    /// 流程：读实例 → 读模板 → 解析实例参数(ConfigJson) → TableName 自动补齐 dyndata Url →
+    /// 组装 DynSharedModel（RawParams / EffectiveParams / PassThrough / TemplateConfig / 三屏 PageSetting）→ 渲染模板外壳视图。
+    /// </summary>
+    [HttpGet("/Platform/Page/DynWebPage")]
+    public IActionResult DynWebPage(long id)
+    {
+        var page = _webPages.GetById((int)id);
+        if (page == null) return Content("页面实例不存在：" + id);
+        var template = page.TemplateId != null ? _templates.GetById(page.TemplateId.Value) : null;
+        if (template == null) return Content("页面实例未绑定模板（TemplateId 为空）");
+
+        // 1) 原始参数：用户在 DynCom 参数面板填写的结果（存于实例 ConfigJson）
+        var rawParams = TryParseDict(page.ConfigJson);
+
+        // 2) 自动推导：TableName 有值且 Url 为空 → 补 dyndata 免 model 接口；手动填写优先
+        var effective = BuildEffectiveParams(rawParams);
+
+        // 3) 模板 ConfigJson 顶层 mPassThrough（透传属性，向下传给外壳 / createapp）
+        var passThrough = new JObject();
+        try
+        {
+            var cfg = JObject.Parse(template.ConfigJson ?? "{}");
+            if (cfg["mPassThrough"] is JObject pt) passThrough = pt;
+        }
+        catch { }
+
+        // 4) 模板页面配置树（外壳可选用）
+        var templateConfig = new JObject();
+        try { templateConfig = JObject.Parse(template.TemplateJson ?? "{}"); } catch { }
+
+        // 5) 引用 PageSetting 配置：列表页只加载 Filter / List 两屏。
+        //    Detail 屏不再随列表页预加载——新增/编辑通过 open 动作打开独立 Detail 页面（DynDetail），
+        //    由 Detail 页面按 detailSettingId 单独加载。detailSettingId 经 EffectiveParams 传前端供弹窗 url 使用。
+        var f = LoadSetting(page.FilterPageSettingId);
+        var l = LoadSetting(page.ListPageSettingId);
+        var model = new DynSharedModel
+        {
+            DynWebPageId = page.Id,
+            DynTemplateId = template.Id,
+            PageTitle = page.Name,
+            TemplateCode = template.Code,
+            RawParams = rawParams,
+            EffectiveParams = effective,
+            PassThrough = passThrough,
+            TemplateConfig = templateConfig,
+            FilterConfig = f?.Config,
+            FilterDefaultJson = f?.DefaultJson,
+            FilterRenderMode = f?.RenderMode,
+            FilterPartialPath = f?.PartialPath,
+            ListConfig = l?.Config,
+            ListDefaultJson = l?.DefaultJson,
+            ListRenderMode = l?.RenderMode,
+            ListPartialPath = l?.PartialPath
+        };
+
+        ViewData["Title"] = page.Name + " - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View(string.IsNullOrWhiteSpace(template.ViewPath) ? "~/Views/DynTemplates/CrudBasic.cshtml" : template.ViewPath, model);
+    }
+
+    /// <summary>TableName 自动补齐 dyndata 免 model 接口 Url（手动填写优先）</summary>
+    private static Dictionary<string, object> BuildEffectiveParams(Dictionary<string, object> raw)
+    {
+        var result = new Dictionary<string, object>(raw);
+        if (raw.TryGetValue("TableName", out var t) && t != null && !string.IsNullOrWhiteSpace(t.ToString()))
+        {
+            var table = t.ToString();
+            if (!HasValue(result, "ListUrl")) result["ListUrl"] = "/api/platform/dyndata/search";
+            if (!HasValue(result, "AddUrl")) result["AddUrl"] = "/api/platform/dyndata/save?table=" + table;
+            if (!HasValue(result, "EditUrl")) result["EditUrl"] = "/api/platform/dyndata/save?table=" + table;
+            if (!HasValue(result, "DeleteUrl")) result["DeleteUrl"] = "/api/platform/dyndata/delete?table=" + table;
+        }
+        return result;
+    }
+
+    private static bool HasValue(Dictionary<string, object> d, string key)
+    {
+        return d.TryGetValue(key, out var v) && v != null && !string.IsNullOrWhiteSpace(v.ToString());
+    }
+
+    private static Dictionary<string, object> TryParseDict(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, object>();
+        try { return JsonConvert.DeserializeObject<Dictionary<string, object>>(json) ?? new Dictionary<string, object>(); }
+        catch { return new Dictionary<string, object>(); }
+    }
+
+    /// <summary>
+    /// 详情/表单独立页面：被列表页 open 动作以 fragment 弹窗拉取，也可独立访问。
+    /// 只加载 Detail 屏的 PageSetting（ConfigJson=表单UI / DefaultJson=表单model骨架），
+    /// 实现 Filter/List/Detail 三屏各自独立、按需取用，列表页不再预加载 Detail。
+    /// </summary>
+    [HttpGet("/Platform/Page/DynDetail")]
+    public IActionResult DynDetail(long settingId, long? bizId, string table)
+    {
+        var s = settingId > 0 ? _settings.GetById((int)settingId) : null;
+        if (s == null) return Content("Detail 页面配置不存在：" + settingId);
+        var m = new DetailTemplateModel
+        {
+            SettingId = (int)settingId,
+            Table = table ?? s.TableName ?? string.Empty,
+            BizId = bizId ?? 0,
+            PageTitle = s.Name,
+            DetailDefaultJson = s.DefaultJson,
+            RenderMode = s.RenderMode,
+            PartialPath = s.PartialPath,
+            // 弹窗窗口参数（open 动作经 query 传入，setwin 应用）
+            WinTitle = Request.Query["winTitle"].FirstOrDefault(),
+            WinWidth = Request.Query["winWidth"].FirstOrDefault(),
+            WinHeight = Request.Query["winHeight"].FirstOrDefault(),
+            WinMax = string.Equals(Request.Query["winMax"].FirstOrDefault(), "true", StringComparison.OrdinalIgnoreCase)
+        };
+        if (!string.IsNullOrWhiteSpace(s.ConfigJson))
+        {
+            try { m.DetailConfig = JObject.Parse(s.ConfigJson); } catch { }
+        }
+        ViewData["Title"] = s.Name + " - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View("~/Views/DynTemplates/DetailTemplate.cshtml", m);
+    }
+
+    /// <summary>读取 PageSetting 引用包：Config(UI渲染树) + DefaultJson(model骨架) + RenderMode + PartialPath</summary>
+    private SettingBundle? LoadSetting(int? settingId)
+    {
+        if (settingId == null || settingId <= 0) return null;
+        var s = _settings.GetById(settingId.Value);
+        if (s == null) return null;
+        var b = new SettingBundle
+        {
+            DefaultJson = s.DefaultJson,
+            RenderMode = s.RenderMode,
+            PartialPath = s.PartialPath
+        };
+        if (!string.IsNullOrWhiteSpace(s.ConfigJson))
+        {
+            try { b.Config = JObject.Parse(s.ConfigJson); } catch { }
+        }
+        return b;
+    }
+
+    private class SettingBundle
+    {
+        public JObject? Config { get; set; }
+        public string? DefaultJson { get; set; }
+        public string? RenderMode { get; set; }
+        public string? PartialPath { get; set; }
     }
 }

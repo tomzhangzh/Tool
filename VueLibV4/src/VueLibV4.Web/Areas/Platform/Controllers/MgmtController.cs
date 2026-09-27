@@ -70,4 +70,22 @@ public class MgmtController : Controller
         ViewBag.RowJson = row.ToString(Newtonsoft.Json.Formatting.None);
         return PartialView(string.Format(Page, "DesktopShortcutForm"));
     }
+
+    /// <summary>页面模板管理（DynTemplate：外壳 ViewPath + ConfigJson 参数面板 + TemplateJson 页面树）</summary>
+    [HttpGet("/Platform/Mgmt/DynTemplateMgmt")]
+    public IActionResult DynTemplateMgmt()
+    {
+        ViewData["Title"] = "页面模板管理 - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View(string.Format(Page, "DynTemplateMgmt"));
+    }
+
+    /// <summary>页面实例管理（DynWebPage：选模板 → DynCom 参数面板 → 生成可挂菜单的页面）</summary>
+    [HttpGet("/Platform/Mgmt/DynWebPageMgmt")]
+    public IActionResult DynWebPageMgmt()
+    {
+        ViewData["Title"] = "页面实例管理 - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View(string.Format(Page, "DynWebPageMgmt"));
+    }
 }

@@ -1,0 +1,225 @@
+@model VueLibV4.Web.Core.DynSharedModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = Model.PageTitle + " - VueLibV4";
+    var sharedJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model, new Newtonsoft.Json.JsonSerializerSettings
+    {
+        NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
+        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
+    });
+    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    // 三屏渲染方式：Back=后端Razor局部视图 / Front=前端DynCom动态控件（默认）
+    var filterBack = Model.FilterRenderMode == "Back" && !string.IsNullOrWhiteSpace(Model.FilterPartialPath);
+    var listBack = Model.ListRenderMode == "Back" && !string.IsNullOrWhiteSpace(Model.ListPartialPath);
+}
+<div id="@extId">
+    <div class="crud-head">
+        <div class="title">
+            <span class="name">{{ title }}</span>
+            <el-tag size="small" type="info" effect="plain">{{ templateCode }}</el-tag>
+            <el-tag size="small" type="warning" effect="plain">{{ tableName }}</el-tag>
+        </div>
+        <div class="actions">
+            <el-button type="primary" @@click="onAdd">+ 新增</el-button>
+            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+        </div>
+    </div>
+
+    @* ===== 筛选区：Back=局部视图 / Front=DynCom动态控件渲染 FilterConfig，绑定 filter(model 骨架来自 FilterDefaultJson) ===== *@
+    <div class="crud-filter">
+        @if (filterBack)
+        {
+            @await Html.PartialAsync(Model.FilterPartialPath, Model)
+        }
+        else
+        {
+            <div class="filter-front" v-if="filterCfg">
+                <dyn-dynamic-com :jsonconfig="filterCfg" :parentmodelinfo="filter"></dyn-dynamic-com>
+            </div>
+        }
+        <div class="filter-buttons">
+            <el-button type="primary" size="small" @@click="onQuery">查询</el-button>
+            <el-button size="small" @@click="onReset">重置</el-button>
+        </div>
+    </div>
+
+    @* ===== 列表区：Back=局部视图 / Front=ListConfig(列定义数组) v-for 渲染 el-table-column ===== *@
+    <div class="crud-body">
+        @if (listBack)
+        {
+            @await Html.PartialAsync(Model.ListPartialPath, Model)
+        }
+        else
+        {
+            <el-table :data="rows" size="small" v-loading="loading" border stripe>
+                <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label" :width="col.width" :min-width="col.minWidth || 90">
+                    <template #default="scope">
+                        <span v-if="col.cellType==='tag'">
+                            <el-tag :type="scope.row[col.field] ? 'success' : 'info'">{{ scope.row[col.field] ? '启用' : '停用' }}</el-tag>
+                        </span>
+                        <span v-else-if="col.cellType==='bool'">{{ scope.row[col.field] ? '是' : '否' }}</span>
+                        <span v-else>{{ scope.row[col.field] }}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="160" fixed="right">
+                    <template #default="scope">
+                        <el-button size="small" type="primary" link @@click="onEdit(scope.row)">编辑</el-button>
+                        <el-button size="small" type="danger" link @@click="onDelete(scope.row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <div class="pager">
+                <el-pagination background size="small" layout="total, prev, pager, next, sizes" :total="total" :page-size="pageInfo.PageSize"
+                    :current-page="pageInfo.PageIndex" :page-sizes="[10,20,50,100]"
+                    @@current-change="onPageChange" @@size-change="onSizeChange"></el-pagination>
+            </div>
+        }
+    </div>
+
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .crud-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .crud-head .title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: #303133; margin-right: auto; }
+    .crud-filter { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
+    .filter-front { display: inline-block; vertical-align: middle; }
+    .filter-buttons { display: inline-block; margin-left: 12px; vertical-align: middle; }
+    .crud-body { background: #fff; margin: 14px 20px 20px; padding: 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
+    .pager { display: flex; justify-content: flex-end; margin-top: 14px; }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var shared = @Html.Raw(sharedJson);
+            var ep = shared.EffectiveParams || {};
+            // 解析三屏 model 骨架（DefaultJson）：空则给默认
+            function parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
+            var initFilter = parseJson(shared.FilterDefaultJson, {});
+            var listState = parseJson(shared.ListDefaultJson, { pageInfo: { PageIndex: 1, PageSize: 20, TotalCount: 0 }, sort: { field: 'CreateTime', order: 'desc' } });
+            var defaultColumns = [
+                { field: 'Id', label: 'Id', width: 90 },
+                { field: 'Code', label: '编码', width: 180 },
+                { field: 'Name', label: '名称', width: 220 },
+                { field: 'IsActive', label: '启用', width: 100, cellType: 'tag' },
+                { field: 'CreateTime', label: '创建时间', width: 190 }
+            ];
+            var rootEl = document.querySelector('#@extId');
+            var refreshKey = '__crud_refresh_' + '@extId';
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        title: shared.PageTitle || '动态页面',
+                        refreshKey: '__crud_refresh_' + '@extId',
+                        templateCode: shared.TemplateCode || '',
+                        tableName: ep.TableName || '',
+                        listUrl: ep.ListUrl || '',
+                        addUrl: ep.AddUrl || '',
+                        editUrl: ep.EditUrl || '',
+                        deleteUrl: ep.DeleteUrl || '',
+                        // UI 渲染配置（来自 PageSetting.ConfigJson）
+                        filterCfg: shared.FilterConfig || null,
+                        // 详情屏配置不在列表页预加载；DetailPageSettingId 经 EffectiveParams 供弹窗 url 使用
+                        detailSettingId: ep.DetailPageSettingId || null,
+                        // Vue model 骨架（来自 PageSetting.DefaultJson）
+                        filter: initFilter,
+                        columns: (Array.isArray(shared.ListConfig) ? shared.ListConfig : (shared.ListConfig && shared.ListConfig.columns) || []) || defaultColumns,
+                        pageInfo: listState.pageInfo || { PageIndex: 1, PageSize: 20, TotalCount: 0 },
+                        sort: listState.sort || { field: 'CreateTime', order: 'desc' },
+                        rows: [], total: 0, loading: false
+                    };
+                },
+                methods: {
+                    go: function (u) { window.location.href = u; },
+                    // filter 保持 {字段:{op,value}} 结构提交；剔除 value 为空的字段，避免无意义过滤
+                    buildSubmitFilter: function () {
+                        var f = {};
+                        var src = this.filter || {};
+                        Object.keys(src).forEach(function (k) {
+                            var item = src[k];
+                            if (item && typeof item === 'object' && item.value !== null && item.value !== undefined && item.value !== '') {
+                                f[k] = { op: item.op || 'eq', value: item.value };
+                            }
+                        });
+                        return f;
+                    },
+                    load: function () {
+                        var self = this; this.loading = true;
+                        fetch(this.listUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                table: this.tableName,
+                                page: this.pageInfo.PageIndex,
+                                size: this.pageInfo.PageSize,
+                                sort: this.sort,
+                                filter: this.buildSubmitFilter()
+                            })
+                        }).then(function (r) { return r.json(); }).then(function (res) {
+                            self.loading = false;
+                            if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '查询失败', 'error'); return; }
+                            self.rows = res.data.rows || [];
+                            self.total = res.data.total || 0;
+                        }).catch(function () { self.loading = false; dyn.showMessage('查询失败', 'error'); });
+                    },
+                    onPageChange: function (p) { this.pageInfo.PageIndex = p; this.load(); },
+                    onSizeChange: function (s) { this.pageInfo.PageSize = s; this.pageInfo.PageIndex = 1; this.load(); },
+                    onQuery: function () { this.pageInfo.PageIndex = 1; this.load(); },
+                    // 重置：克隆 FilterDefaultJson 骨架，全部 value 置空（op 保留不变）
+                    onReset: function () {
+                        var self = this;
+                        var blank = JSON.parse(JSON.stringify(initFilter));
+                        Object.keys(blank).forEach(function (k) { if (blank[k] && typeof blank[k] === 'object') blank[k].value = null; });
+                        this.filter = blank;
+                        this.pageInfo.PageIndex = 1;
+                        this.load();
+                    },
+                    // 打开独立 Detail 页面（/Platform/Page/DynDetail）为弹窗：
+                    // 新增=空 bizId；编辑=携带 row.Id。窗口参数经 open 动作（layer）应用，Detail 模板内 setwin 可再精调。
+                    openDetail: function (row) {
+                        var self = this;
+                        var isEdit = !!(row && row.Id != null && row.Id !== '');
+                        var wOpts = {
+                            title: (isEdit ? '编辑' : '新增') + ' ' + this.tableName,
+                            width: '1080px', height: '660px', maxmin: true
+                        };
+                        DynAction.run('open', {
+                            url: '/Platform/Page/DynDetail',
+                            mode: 'fragment',
+                            params: {
+                                settingId: this.detailSettingId || '',
+                                table: this.tableName,
+                                bizId: isEdit ? row.Id : '',
+                                winTitle: wOpts.title,
+                                winWidth: wOpts.width,
+                                winHeight: wOpts.height
+                            },
+                            options: Object.assign({}, wOpts, {
+                                onclose: [{ action: 'evaljs', options: { code: 'window["'+this.refreshKey+'"] && window["'+this.refreshKey+'"]()' } }]
+                            })
+                        }, { element: rootEl, vm: this });
+                    },
+                    onAdd: function () { this.openDetail(null); },
+                    onEdit: function (row) { this.openDetail(row); },
+                    onDelete: function (row) {
+                        var self = this;
+                        dyn.confirmAsync('确定删除这条记录吗？').then(function (ok) {
+                            if (!ok) return;
+                            fetch(self.deleteUrl + '&id=' + row.Id, { method: 'POST' }).then(function (r) { return r.json(); }).then(function (res) {
+                                if (res.code !== 0) { dyn.showMessage(res.msg || '删除失败', 'error'); return; }
+                                dyn.showMessage('删除成功', 'success');
+                                self.load();
+                            });
+                        });
+                    },
+                },
+                mounted: function () { var self = this; this.load(); window[refreshKey] = function () { self.load(); }; }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function () {
+                app.mount(rootEl);
+            });
+        });
+    </script>
+}

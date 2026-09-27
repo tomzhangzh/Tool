@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS DynTemplate (
     TemplateJson TEXT NULL,
     ConfigJson   TEXT NULL,
     Description  TEXT NULL,
+    ViewPath     TEXT NULL,
     SortNo       INTEGER NOT NULL DEFAULT 0,
     IsActive     INTEGER NOT NULL DEFAULT 1,
     CreateTime   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
@@ -148,7 +149,9 @@ CREATE TABLE IF NOT EXISTS PageSetting (
     ProjectId       INTEGER NULL,
     TableName       TEXT NULL,
     ConfigJson      TEXT NULL,
-    ColumnDefsJson  TEXT NULL,
+    RenderMode      TEXT NOT NULL DEFAULT 'Front',
+    PartialPath     TEXT NULL,
+    DefaultJson     TEXT NULL,
     SortNo          INTEGER NOT NULL DEFAULT 0,
     IsActive        INTEGER NOT NULL DEFAULT 1,
     CreateTime      TEXT NOT NULL DEFAULT (datetime('now','localtime'))

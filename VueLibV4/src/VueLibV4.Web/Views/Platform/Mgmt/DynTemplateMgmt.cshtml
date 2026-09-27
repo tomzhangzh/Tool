@@ -1,0 +1,174 @@
+@{
+    ViewData["Title"] = "页面模板管理 - VueLibV4";
+}
+@*
+  页面模板管理（DynTemplate）：
+  · 模板 = 外壳 ViewPath + ConfigJson（DynCom 参数面板，DynWebPage 新建时渲染）+ TemplateJson（页面配置树）
+  · 列表 el-table + 编辑弹窗（ConfigJson / TemplateJson 文本编辑）
+  · 数据走 /api/platform/dyntemplate/*（all / get / save / delete）
+*@
+<div data-dyn-init-createapp class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
+
+    <el-card shadow="never" style="flex:1;display:flex;flex-direction:column;min-height:0;padding:0;">
+        <template #header>
+            <div class="flex items-center justify-between">
+                <span class="text-sm font-semibold">页面模板库（{{ rows.length }}）</span>
+                <div>
+                    <el-button type="primary" size="small" @@click="onAdd">+ 新增模板</el-button>
+                </div>
+            </div>
+        </template>
+        <div class="flex-1 min-h-0 overflow-auto" style="padding: 0 16px 16px;">
+            <el-table :data="rows" border stripe v-loading="loading" size="small">
+                <el-table-column prop="Id" label="Id" width="70"></el-table-column>
+                <el-table-column prop="Code" label="Code" width="130"></el-table-column>
+                <el-table-column prop="Name" label="名称" width="160"></el-table-column>
+                <el-table-column prop="Category" label="分类" width="90"></el-table-column>
+                <el-table-column prop="ViewPath" label="外壳视图" min-width="220" show-overflow-tooltip></el-table-column>
+                <el-table-column label="启用" width="80">
+                    <template #default="scope">
+                        <el-tag :type="scope.row.IsActive ? 'success' : 'info'" size="small">{{ scope.row.IsActive ? '启用' : '停用' }}</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="220" fixed="right">
+                    <template #default="scope">
+                        <el-button size="small" @@click="onEdit(scope.row)">编辑</el-button>
+                        <el-button size="small" type="danger" @@click="onDelete(scope.row)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </div>
+    </el-card>
+
+    <el-dialog v-model="dialog.visible" :title="dialog.title" width="820px" top="4vh" :close-on-click-modal="false">
+        <el-form :model="form" label-width="110px" size="small" v-loading="saving">
+            <el-row :gutter="12">
+                <el-col :span="12">
+                    <el-form-item label="模板Code" required>
+                        <el-input v-model="form.Code" :disabled="form.Id > 0" placeholder="唯一标识，如 crud-basic" />
+                    </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                    <el-form-item label="模板名称" required>
+                        <el-input v-model="form.Name" placeholder="如 基础CRUD页面"></el-input>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                    <el-form-item label="分类">
+                        <el-input v-model="form.Category" placeholder="平台"></el-input>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="4">
+                    <el-form-item label="图标">
+                        <el-input v-model="form.Icon" placeholder="📋" style="width:100%"></el-input>
+                    </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                    <el-form-item label="排序">
+                        <el-input-number v-model="form.SortNo" :min="0" style="width:100%"></el-input-number>
+                    </el-form-item>
+                </el-col>
+            </el-row>
+            <el-form-item label="外壳视图" required>
+                <el-input v-model="form.ViewPath" placeholder="~/Views/DynTemplates/CrudBasic.cshtml"></el-input>
+                <div class="el-form-item__content" style="line-height:1.4;color:#909399;font-size:12px;">DynWebPage 运行时按此路径渲染外壳（模型为 DynSharedModel）</div>
+            </el-form-item>
+            <el-form-item label="说明">
+                <el-input v-model="form.Description" type="textarea" :rows="2"></el-input>
+            </el-form-item>
+            <el-form-item label="启用">
+                <el-switch v-model="form.IsActive"></el-switch>
+            </el-form-item>
+
+            <el-divider content-position="left">ConfigJson · DynCom 参数面板（DynWebPage 新建时按此渲染参数表单）</el-divider>
+            <el-input v-model="form.ConfigJson" type="textarea" :rows="12" spellcheck="false" style="font-family:Consolas,Menlo,monospace;font-size:12px;"></el-input>
+            <div style="line-height:1.4;color:#909399;font-size:12px;margin-top:4px;">
+                完整 DynCom 组件树：{ "type":"form", "mPassThrough":{...}, "childrenctrls":[ { "field":"TableName", "type":"input", "labeloptions":{...}, "comoptions":{...} } ] }
+            </div>
+
+            <el-divider content-position="left">TemplateJson · 页面配置树（外壳可选使用：columns / formFields / filterFields）</el-divider>
+            <el-input v-model="form.TemplateJson" type="textarea" :rows="10" spellcheck="false" style="font-family:Consolas,Menlo,monospace;font-size:12px;"></el-input>
+        </el-form>
+        <template #footer>
+            <el-button size="small" @@click="dialog.visible=false">取消</el-button>
+            <el-button type="primary" size="small" :loading="saving" @@click="onSave">保存</el-button>
+        </template>
+    </el-dialog>
+
+    <script tag="dynconfig">
+    var dynConfig = {
+        data: function () {
+            return {
+                loading: false, saving: false,
+                rows: [],
+                dialog: { visible: false, title: '新增模板' },
+                form: {
+                    Id: 0, Code: '', Name: '', Category: '', Icon: '',
+                    ViewPath: '~/Views/DynTemplates/CrudBasic.cshtml',
+                    Description: '', SortNo: 0, IsActive: true,
+                    ConfigJson: '', TemplateJson: ''
+                }
+            };
+        },
+        methods: {
+            load: function () {
+                var self = this; this.loading = true;
+                fetch('/api/platform/dyntemplate/all').then(function (r) { return r.json(); }).then(function (res) {
+                    self.loading = false;
+                    if (res.code !== 0) { dyn.showMessage(res.msg || '加载失败', 'error'); return; }
+                    self.rows = res.data || [];
+                }).catch(function () { self.loading = false; dyn.showMessage('加载失败', 'error'); });
+            },
+            resetForm: function () {
+                this.form = {
+                    Id: 0, Code: '', Name: '', Category: '', Icon: '',
+                    ViewPath: '~/Views/DynTemplates/CrudBasic.cshtml',
+                    Description: '', SortNo: 0, IsActive: true,
+                    ConfigJson: '', TemplateJson: ''
+                };
+            },
+            onAdd: function () {
+                this.resetForm();
+                this.dialog = { visible: true, title: '新增模板' };
+            },
+            onEdit: function (row) {
+                var self = this;
+                this.form = Object.assign({}, row);
+                this.dialog = { visible: true, title: '编辑模板：' + row.Name };
+            },
+            onSave: function () {
+                var self = this;
+                if (!this.form.Code || !this.form.Name) { dyn.showMessage('Code 和名称必填', 'warning'); return; }
+                this.saving = true;
+                fetch('/api/platform/dyntemplate/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.form)
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    self.saving = false;
+                    if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
+                    dyn.showMessage('保存成功', 'success');
+                    self.dialog.visible = false;
+                    self.load();
+                }).catch(function () { self.saving = false; dyn.showMessage('保存失败', 'error'); });
+            },
+            onDelete: function (row) {
+                var self = this;
+                dyn.confirmAsync('确定删除模板「' + row.Name + '」吗？').then(function (ok) {
+                    if (!ok) return;
+                    fetch('/api/platform/dyntemplate/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ Id: row.Id })
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (res.code !== 0) { dyn.showMessage(res.msg || '删除失败', 'error'); return; }
+                        dyn.showMessage('删除成功', 'success');
+                        self.load();
+                    });
+                });
+            }
+        },
+        mounted: function () { this.load(); }
+    };
+    </script>
+</div>

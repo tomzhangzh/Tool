@@ -1,0 +1,116 @@
+@model VueLibV4.Web.Core.DetailTemplateModel
+@{
+    // 详情/表单独立页面模板：不套整页 Layout，输出可被 open(fragment) 拉入弹窗、也可独立访问的表单片段。
+    // Detail 屏 PageSetting（ConfigJson=表单UI / DefaultJson=表单model骨架）由本页按 SettingId 单独加载。
+    Layout = null;
+    var sharedJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model, new Newtonsoft.Json.JsonSerializerSettings
+    {
+        NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
+        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
+    });
+    var extId = "Dtl" + Guid.NewGuid().ToString("N");
+    var detailBack = Model.RenderMode == "Back" && !string.IsNullOrWhiteSpace(Model.PartialPath);
+}
+<div id="@extId" class="dtpl-root">
+    <div class="dtpl-head">
+        <span class="dtpl-title">{{ winTitle || pageTitle }}</span>
+    </div>
+    <div class="dtpl-body">
+        @if (detailBack)
+        {
+            @await Html.PartialAsync(Model.PartialPath!, Model)
+        }
+        else
+        {
+            <div class="dtpl-front" v-if="detailCfg">
+                <dyn-dynamic-com :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+            </div>
+        }
+    </div>
+    <div class="dtpl-footer">
+        <el-button size="small" @@click="onCancel">取消</el-button>
+        <el-button type="primary" size="small" :loading="loading" @@click="onSave">保存</el-button>
+    </div>
+</div>
+
+<style>
+    .dtpl-root { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; background: #fff; padding: 16px 18px; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .dtpl-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e4e7ed; }
+    .dtpl-title { font-size: 15px; font-weight: 600; color: #303133; }
+    .dtpl-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 4px 8px; }
+    .dtpl-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid #e4e7ed; }
+</style>
+
+<script>
+    DynLib.ready(function () {
+        var shared = @Html.Raw(sharedJson);
+        var rootEl = document.querySelector('#@extId');
+        if (!rootEl) return;
+
+        function parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
+
+        var initForm = parseJson(shared.DetailDefaultJson, {});
+        var app = Vue.createApp({
+            data: function () {
+                return {
+                    pageTitle: shared.PageTitle || '详情',
+                    winTitle: shared.WinTitle || shared.PageTitle || '详情',
+                    table: shared.Table || '',
+                    bizId: shared.BizId || 0,
+                    detailCfg: shared.DetailConfig || null,
+                    form: JSON.parse(JSON.stringify(initForm)),
+                    loading: false,
+                    saveUrl: '/api/platform/dyndata/save?table=' + encodeURIComponent(shared.Table || '')
+                };
+            },
+            methods: {
+                load: function () {
+                    var self = this;
+                    if (!this.bizId) return;
+                    fetch('/api/platform/dyndata/search', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ table: this.table, page: 1, size: 1, filter: { Id: { op: 'eq', value: this.bizId } } })
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (res.code !== 0 || !res.data || !res.data.rows || !res.data.rows.length) return;
+                        var row = res.data.rows[0];
+                        // 深合并：以服务端行为准覆盖骨架
+                        self.form = Object.assign({}, initForm, row);
+                    }).catch(function (e) { dyn.showMessage('加载失败：' + (e && e.message || e), 'error'); });
+                },
+                onSave: function () {
+                    var self = this;
+                    this.loading = true;
+                    fetch(this.saveUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.form) })
+                        .then(function (r) { return r.json(); }).then(function (res) {
+                            self.loading = false;
+                            if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
+                            dyn.showMessage('保存成功', 'success');
+                            // 显式触发父列表刷新（弹窗/嵌入场景均适用；onclose 亦会触发，幂等）
+                            try { Object.keys(window).filter(function (k) { return k.indexOf('__crud_refresh_') === 0; }).forEach(function (k) { try { window[k](); } catch (e) { } }); } catch (e) { }
+                            // 关闭弹窗：触发 open 动作 onclose
+                            DynAction.run('close', {}, { element: rootEl }).catch(function (e) { console.warn('[detail close]', e); });
+                        }).catch(function (e) { self.loading = false; dyn.showMessage('保存失败：' + (e && e.message || e), 'error'); });
+                },
+                onCancel: function () {
+                    DynAction.run('close', {}, { element: rootEl }).catch(function (e) { console.warn('[detail close]', e); });
+                }
+            },
+            mounted: function () {
+                this.load();
+                // setwin：应用 open 动作传入的窗口参数（标题/宽/高/全屏）
+                if (shared.WinTitle || shared.WinWidth || shared.WinHeight || shared.WinMax) {
+                    var w = {};
+                    if (shared.WinTitle) w.title = shared.WinTitle;
+                    if (shared.WinWidth) w.width = shared.WinWidth;
+                    if (shared.WinHeight) w.height = shared.WinHeight;
+                    DynAction.run('setwin', w, { element: rootEl }).catch(function (e) { console.warn('[detail setwin]', e); });
+                    if (shared.WinMax) {
+                        DynAction.run('open', {}, { element: rootEl }).catch(function(){});
+                    }
+                }
+            }
+        });
+        DynCom.setupApp(app);
+        DynCom.ensureRegistered(app).then(function () { app.mount(rootEl); });
+    });
+</script>

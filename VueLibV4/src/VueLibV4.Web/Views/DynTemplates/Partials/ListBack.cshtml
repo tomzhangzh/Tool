@@ -1,0 +1,27 @@
+@model VueLibV4.Web.Core.DynSharedModel
+@* 后端模式（Back）：用 Razor 硬编码列定义渲染列表，不依赖 ListConfig（Configuration 交给后端 partial）。
+    列表数据仍由外壳前端 fetch dyndata 填充 rows，与 Front 模式共用。 *@
+<div class="back-list">
+    <el-table :data="rows" v-loading="loading" border stripe>
+        <el-table-column prop="Id" label="Id" width="90"></el-table-column>
+        <el-table-column prop="Code" label="编码" width="180"></el-table-column>
+        <el-table-column prop="Name" label="名称" width="220"></el-table-column>
+        <el-table-column prop="IsActive" label="启用" width="100">
+            <template #default="scope">
+                <el-tag :type="scope.row.IsActive ? 'success' : 'info'">{{ scope.row.IsActive ? '启用' : '停用' }}</el-tag>
+            </template>
+        </el-table-column>
+        <el-table-column prop="CreateTime" label="创建时间" width="190"></el-table-column>
+        <el-table-column label="操作" width="160" fixed="right">
+            <template #default="scope">
+                <el-button size="small" @@click="onEdit(scope.row)">编辑</el-button>
+                <el-button size="small" type="danger" @@click="onDelete(scope.row)">删除</el-button>
+            </template>
+        </el-table-column>
+    </el-table>
+    <div class="pager">
+        <el-pagination background layout="total, prev, pager, next, sizes" :total="total" :page-size="pageInfo.PageSize"
+            :current-page="pageInfo.PageIndex" :page-sizes="[10,20,50,100]"
+            @@current-change="onPageChange" @@size-change="onSizeChange"></el-pagination>
+    </div>
+</div>
