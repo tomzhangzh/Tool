@@ -4,9 +4,11 @@
 
 <template>
     <!-- 不包 wrapper：data-dyn-uid 和 click 通过 Vue fallthrough 自动传到组件根元素 -->
-    <component v-if="jc?.component"
-              :is="jc.component"
-              :jsonconfig="jc"
+    <!-- 注意：必须读 props.jsonconfig（响应式 props 属性）而非 setup 快照 jc，
+         否则父容器 childrenctrls 顶层引用变化时子组件收不到新配置（复用实例显示旧值） -->
+    <component v-if="props.jsonconfig?.component"
+              :is="props.jsonconfig.component"
+              :jsonconfig="props.jsonconfig"
               :parentmodelinfo="props.parentmodelinfo"
               :node-path="props.nodePath"
               :data-dyn-uid="designMode ? designUid : null"
@@ -14,7 +16,7 @@
     </component>
 
     <div v-else class="dyn-component-error" style="color:red;padding:4px;">
-        组件未配置或不存在: {{ jc?.component ?? "empty" }}
+        组件未配置或不存在: {{ props.jsonconfig?.component ?? "empty" }}
     </div>
 </template>
 

@@ -37,6 +37,20 @@
          :style="{ top: model.overlay.top + 'px', left: model.overlay.left + 'px', width: model.overlay.width + 'px', height: model.overlay.height + 'px' }">
       <div class="absolute -top-7 left-0 bg-blue-500 text-white text-xs px-2 py-0.5 flex items-center gap-1 pointer-events-auto rounded" @@click.stop>
         <span class="mr-1">{{ model.overlay.label }}</span>
+        @* ===== 组件专属操作（ComponentMeta.DesignerOperates，command/view）===== *@
+        <button v-for="op in customOperates" :key="op.operateKey"
+                class="hover:bg-blue-600 px-1" :title="op.label"
+                @@click.stop="ops.execOperate(model, op)">{{ op.icon || op.label }}</button>
+        @* ===== 通用子项管理（ComponentMeta.DesignerMeta.childrenSchemaPath，Tab页/列等）===== *@
+        <template v-if="childManager.available">
+          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.addChildItem(model)" title="新增子项（Tab页/列）">＋</button>
+          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.removeActiveChild(model)" title="删除当前子项">−</button>
+          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.stepActive(model,-1)" title="上一项（仅预览切换，不改元数据）">◀</button>
+          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.stepActive(model,1)" title="下一项（仅预览切换，不改元数据）">▶</button>
+          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveActiveChild(model,-1)" title="子项上移（调整顺序）">⇧</button>
+          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveActiveChild(model,1)" title="子项下移（调整顺序）">⇩</button>
+        </template>
+        @* ===== 基础操作 ===== *@
         <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveSelected(model,-1)" title="上移">↑</button>
         <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveSelected(model,1)" title="下移">↓</button>
         <button class="hover:bg-blue-600 px-1" @@click.stop="ops.duplicateSelected(model)" title="复制">⧉</button>
@@ -58,6 +72,98 @@
     <span v-else class="text-gray-300">未选中</span>
   </div>
 
+  @* ===== 设计器自定义视图（view 类型，designerOperates）===== *@
+  <el-dialog v-model="model.viewState.open" :title="viewTitle" width="840px" top="6vh" append-to-body>
+    @* —— TableColumnConfigView：DynTable 批量列配置（编辑副本，确认才写回节点）—— *@
+    <template v-if="model.viewState.name === 'TableColumnConfigView'">
+      <el-table :data="model.viewState.columns" border stripe size="small" max-height="420">
+        <el-table-column label="字段 prop" width="170">
+          <template #default="s"><el-input v-model="s.row.prop" size="small" placeholder="字段标识"></el-input></template>
+        </el-table-column>
+        <el-table-column label="标题 label" width="170">
+          <template #default="s"><el-input v-model="s.row.label" size="small" placeholder="列标题"></el-input></template>
+        </el-table-column>
+        <el-table-column label="宽度" width="110">
+          <template #default="s"><el-input v-model="s.row.width" size="small" placeholder="120"></el-input></template>
+        </el-table-column>
+        <el-table-column label="对齐" width="110">
+          <template #default="s">
+            <el-select v-model="s.row.align" size="small">
+              <el-option label="左" value="left"></el-option>
+              <el-option label="中" value="center"></el-option>
+              <el-option label="右" value="right"></el-option>
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="显示" width="80">
+          <template #default="s"><el-switch v-model="s.row.show"></el-switch></template>
+        </el-table-column>
+        <el-table-column label="排序/操作" width="130">
+          <template #default="s">
+            <el-button link type="primary" size="small" @@click="colMove(s.$index, -1)">⇧</el-button>
+            <el-button link type="primary" size="small" @@click="colMove(s.$index, 1)">⇩</el-button>
+            <el-button link type="danger" size="small" @@click="colRemove(s.$index)">删</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="mt-2 flex items-center justify-between">
+        <el-button type="primary" size="small" @@click="colAdd">＋ 新增列</el-button>
+        <span class="text-xs text-gray-400">共 {{ model.viewState.columns.length }} 列 · 修改不自动保存，点「确定」写回组件</span>
+      </div>
+    </template>
+    @* —— TabConfigView：DynElTabs 标签页配置（编辑副本，确认才写回节点）—— *@
+    <template v-else-if="model.viewState.name === 'TabConfigView'">
+      <el-table :data="model.viewState.items" border stripe size="small" max-height="420">
+        <el-table-column label="标签页名称" width="240">
+          <template #default="s"><el-input v-model="s.row.options.labeloptions.label" size="small" placeholder="标签页名称"></el-input></template>
+        </el-table-column>
+        <el-table-column label="图标 icon" width="180">
+          <template #default="s"><el-input v-model="s.row.options.labeloptions.icon" size="small" placeholder="如 🚀 或留空"></el-input></template>
+        </el-table-column>
+        <el-table-column label="内部组件" width="140">
+          <template #default="s">{{ s.row.component }}</template>
+        </el-table-column>
+        <el-table-column label="排序/操作" width="130">
+          <template #default="s">
+            <el-button link type="primary" size="small" @@click="tabMove(s.$index, -1)">⇧</el-button>
+            <el-button link type="primary" size="small" @@click="tabMove(s.$index, 1)">⇩</el-button>
+            <el-button link type="danger" size="small" @@click="tabRemove(s.$index)">删</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="mt-2 flex items-center justify-between">
+        <el-button type="primary" size="small" @@click="tabAdd">＋ 新增标签页</el-button>
+        <span class="text-xs text-gray-400">共 {{ model.viewState.items.length }} 页 · 修改不自动保存，点「确定」写回组件</span>
+      </div>
+    </template>
+    @* —— CollapseConfigView：DynElCollapse 折叠项配置（编辑副本，确认才写回节点）—— *@
+    <template v-else-if="model.viewState.name === 'CollapseConfigView'">
+      <el-table :data="model.viewState.items" border stripe size="small" max-height="420">
+        <el-table-column label="折叠项标题" width="280">
+          <template #default="s"><el-input v-model="s.row.options.comoptions.label" size="small" placeholder="折叠项标题"></el-input></template>
+        </el-table-column>
+        <el-table-column label="内部组件" width="180">
+          <template #default="s">{{ s.row.component || '（空项）' }}</template>
+        </el-table-column>
+        <el-table-column label="排序/操作" width="130">
+          <template #default="s">
+            <el-button link type="primary" size="small" @@click="collapseMove(s.$index, -1)">⇧</el-button>
+            <el-button link type="primary" size="small" @@click="collapseMove(s.$index, 1)">⇩</el-button>
+            <el-button link type="danger" size="small" @@click="collapseRemove(s.$index)">删</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="mt-2 flex items-center justify-between">
+        <el-button type="primary" size="small" @@click="collapseAdd">＋ 新增折叠项</el-button>
+        <span class="text-xs text-gray-400">共 {{ model.viewState.items.length }} 项 · 修改不自动保存，点「确定」写回组件</span>
+      </div>
+    </template>
+    <template #footer>
+      <el-button @@click="viewCancel">取消</el-button>
+      <el-button type="primary" @@click="viewConfirm">确定</el-button>
+    </template>
+  </el-dialog>
+
   <script tag="dynconfig">
   var dynConfig = {
     data: function () {
@@ -66,6 +172,25 @@
     computed: {
       rulerTicks: function () {
         return Math.ceil((this.model.pageWidth || 1200) / 25) + 1;
+      },
+      // 选中组件的设计器扩展操作（designerOperates）
+      customOperates: function () {
+        var sel = this.model.selected;
+        return window.DynDesignerOps.designerOperatesOf(sel && sel.component) || [];
+      },
+      // 选中组件是否有通用子项管理（designerMeta.childrenSchemaPath）
+      childManager: function () {
+        var sel = this.model.selected;
+        var dm = sel ? window.DynDesignerOps.designerMetaOf(sel.component) : null;
+        return { available: !!(dm && dm.childrenSchemaPath) };
+      },
+      // 自定义视图标题
+      viewTitle: function () {
+        var vs = this.model.viewState || {};
+        if (vs.name === 'TableColumnConfigView') return '表格批量列配置';
+        if (vs.name === 'TabConfigView') return '标签页配置';
+        if (vs.name === 'CollapseConfigView') return '折叠项配置';
+        return '自定义视图';
       }
     },
     provide: function () {
@@ -105,6 +230,102 @@
       },
       onCanvasClick: function () {
         window.DynDesignerOps.select(this.model, null);
+      },
+      // ===== 表格批量列配置视图（TableColumnConfigView）=====
+      colAdd: function () {
+        var vs = this.model.viewState;
+        vs.columns.push({ prop: 'field' + (vs.columns.length + 1), label: '新列', width: 120, align: 'left', show: true, slotName: '' });
+      },
+      colRemove: function (idx) {
+        var vs = this.model.viewState;
+        if (vs.columns.length <= 1) { this.$message.warning('至少保留一列'); return; }
+        vs.columns.splice(idx, 1);
+      },
+      colMove: function (idx, dir) {
+        var cols = this.model.viewState.columns;
+        var t = idx + dir;
+        if (t < 0 || t >= cols.length) return;
+        var tmp = cols[idx]; cols[idx] = cols[t]; cols[t] = tmp;
+      },
+      viewCancel: function () {
+        this.model.viewState.open = false;   // 丢弃副本，不写回节点
+      },
+      // ===== 标签页配置视图（TabConfigView）=====
+      tabAdd: function () {
+        var vs = this.model.viewState;
+        vs.items.push({ component: 'DynElContainer', modelname: '', options: { comoptions: {}, labeloptions: { label: '新标签页', show: true }, itemoptions: { style: {}, class: '' } }, childrenctrls: [] });
+      },
+      tabRemove: function (idx) {
+        var vs = this.model.viewState;
+        if (vs.items.length <= 1) { this.$message.warning('至少保留一个标签页'); return; }
+        vs.items.splice(idx, 1);
+      },
+      tabMove: function (idx, dir) {
+        var items = this.model.viewState.items;
+        var t = idx + dir;
+        if (t < 0 || t >= items.length) return;
+        var tmp = items[idx]; items[idx] = items[t]; items[t] = tmp;
+      },
+      // ===== 折叠项配置视图（CollapseConfigView）=====
+      collapseAdd: function () {
+        var vs = this.model.viewState;
+        vs.items.push({ component: 'DynElCollapseItem', options: { comoptions: { label: '折叠项' }, labeloptions: { show: false } }, childrenctrls: [] });
+      },
+      collapseRemove: function (idx) {
+        var vs = this.model.viewState;
+        if (vs.items.length <= 1) { this.$message.warning('至少保留一个折叠项'); return; }
+        vs.items.splice(idx, 1);
+      },
+      collapseMove: function (idx, dir) {
+        var items = this.model.viewState.items;
+        var t = idx + dir;
+        if (t < 0 || t >= items.length) return;
+        var tmp = items[idx]; items[idx] = items[t]; items[t] = tmp;
+      },
+      viewConfirm: function () {
+        var vs = this.model.viewState;
+        var node = vs.node;
+        if (!node) { vs.open = false; return; }
+        if (vs.name === 'TabConfigView') {
+          // 校验标签页名称非空
+          var labels = vs.items.map(function (it) { return String(((it.options || {}).labeloptions || {}).label || '').trim(); });
+          if (labels.some(function (x) { return !x; })) { this.$message.warning('存在空的标签页名称'); return; }
+          node.childrenctrls = JSON.parse(JSON.stringify(vs.items));
+          vs.open = false;
+          this.$message.success('标签页配置已更新');
+          var m = this.model;
+          setTimeout(function () { window.DynDesignerOps.select(m, node); }, 30);
+          setTimeout(function () { window.DynDesignerOps.updateOverlay(m); }, 60);
+          return;
+        }
+        if (vs.name === 'CollapseConfigView') {
+          var titles = vs.items.map(function (it) { return String(((it.options || {}).comoptions || {}).label || '').trim(); });
+          if (titles.some(function (x) { return !x; })) { this.$message.warning('存在空的折叠项标题'); return; }
+          node.childrenctrls = JSON.parse(JSON.stringify(vs.items));
+          // CollapseItem 对深层 props 变化不重渲染（复用实例显示旧标题），重建 Collapse 子树强制全新渲染
+          var pj = this.model.pageJson;
+          var pidx = pj.childrenctrls.indexOf(node);
+          if (pidx >= 0) {
+            pj.childrenctrls[pidx] = JSON.parse(JSON.stringify(pj.childrenctrls[pidx]));
+          }
+          vs.open = false;
+          this.$message.success('折叠项配置已更新');
+          var m2 = this.model;
+          setTimeout(function () { window.DynDesignerOps.select(m2, m2.pageJson.childrenctrls[pidx >= 0 ? pidx : 0]); }, 30);
+          setTimeout(function () { window.DynDesignerOps.updateOverlay(m2); }, 60);
+          return;
+        }
+        // TableColumnConfigView：校验 prop 非空、不重复
+        var props = vs.columns.map(function (c) { return String(c.prop || '').trim(); });
+        if (props.some(function (x) { return !x; })) { this.$message.warning('存在空的字段标识 prop'); return; }
+        if (new Set(props).size !== props.length) { this.$message.warning('字段标识 prop 不能重复'); return; }
+        // 写回组件节点（options.comoptions.columns）
+        var co = window.DynDesignerOps.getPath(node, 'options.comoptions') || {};
+        co.columns = JSON.parse(JSON.stringify(vs.columns));
+        vs.open = false;
+        this.$message.success('列配置已更新');
+        var thisModel = this.model;
+        setTimeout(function () { window.DynDesignerOps.updateOverlay(thisModel); }, 50);
       }
     }
   };

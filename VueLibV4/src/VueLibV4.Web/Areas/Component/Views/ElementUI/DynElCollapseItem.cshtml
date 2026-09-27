@@ -1,7 +1,7 @@
 ﻿@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
 
 <template>
-<el-collapse-item :title="jc.label || jc.options?.comoptions?.label"
+<el-collapse-item :title="props.jsonconfig?.options?.comoptions?.label || props.jsonconfig?.label || ''"
                       v-bind="comBind"
                       v-on="getComlisteners()">
         <n-dynamic-com v-for="(child, idx) in safeChildren"

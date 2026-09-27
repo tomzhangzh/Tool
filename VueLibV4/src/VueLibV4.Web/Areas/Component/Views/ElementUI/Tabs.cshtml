@@ -3,7 +3,7 @@
 }
 
 <template>
-<el-tabs v-model="comInnerInfo.activeTab" v-bind="comBind" v-on="getComlisteners()">
+<el-tabs v-model="activeTab" v-bind="comBind" v-on="getComlisteners()">
         <el-tab-pane v-for="(child, idx) in safeChildren" :key="child.component + '_' + idx" :label="child.options?.labeloptions?.label || ('Tab ' + (idx + 1))" :name="String(idx)">
             <n-dynamic-com :jsonconfig="child" :parentmodelinfo="props.parentmodelinfo" :node-path="props.nodePath + '.childrenctrls[' + idx + ']'"></n-dynamic-com>
         </el-tab-pane>
@@ -13,4 +13,24 @@
 @section setupScripts{
     DVALUE = '0';
     comInnerInfo.activeTab = '0';
+    // 设计态预览切换：designMode + 设计器 scope.previewActive（{uid,index}）命中本组件时，
+    // 用预览索引驱动 el-tabs（仅预览，不写 jc/PageSetting 原始 JSON → 不落库）。
+    // 运行态：designMode=false → 回退组件内部 comInnerInfo.activeTab，与设计器状态完全隔离。
+    const designerScope = injectDesignerScope;
+    const activeTab = computed({
+        get() {
+            if (designMode && designerScope && designerScope.previewActive
+                && designerScope.previewActive.uid === designUid) {
+                return String(designerScope.previewActive.index);
+            }
+            return comInnerInfo.activeTab;
+        },
+        set(v) {
+            if (!(designMode && designerScope && designerScope.previewActive
+                  && designerScope.previewActive.uid === designUid)) {
+                comInnerInfo.activeTab = v;
+            }
+        }
+    });
+    Object.assign(comExtra, { activeTab });
 }

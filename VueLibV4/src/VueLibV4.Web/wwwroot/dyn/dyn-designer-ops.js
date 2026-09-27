@@ -367,11 +367,174 @@
     return cleanJson(scope.pageJson);
   }
 
+  /* ============ 设计器扩展：子项管理（designerMeta）+ 组件专属操作（designerOperates） ============
+   * 仅设计器使用，运行态 dyn-core 不下发这两个字段。
+   * designerMeta.childrenSchemaPath：子项数组在组件 JSON 里的路径（如 childrenctrls / comoptions.columns）
+   * previewActive：画布级预览状态（{uid,index}），只存共享 scope，不写 pageJson → 不落库，
+   *                满足「设计态切换 Tab 只预览、不改动 PageSetting 原始 JSON」。
+   */
+  function parseJsonStr(s) {
+    if (!s) return null;
+    if (typeof s === 'object') return s;
+    try { return JSON.parse(s); } catch (e) { return null; }
+  }
+  function designerMetaOf(name) {
+    const m = metaOf(name);
+    return m ? parseJsonStr(m.DesignerMeta || m.designerMeta) : null;
+  }
+  function designerOperatesOf(name) {
+    const m = metaOf(name);
+    return m ? parseJsonStr(m.DesignerOperates || m.designerOperates) : null;
+  }
+  function getPath(obj, path) {
+    if (!obj || !path) return undefined;
+    if (global._ && global._.get) return global._.get(obj, path);
+    return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  }
+  function childListOf(scope) {
+    const cfg = scope.selected;
+    const dm = cfg ? designerMetaOf(cfg.component) : null;
+    if (!dm || !dm.childrenSchemaPath) return null;
+    const arr = getPath(cfg, dm.childrenSchemaPath);
+    return Array.isArray(arr) ? arr : null;
+  }
+  function activeIndex(scope) {
+    const pa = scope.previewActive;
+    const arr = childListOf(scope);
+    if (!arr || !arr.length) return 0;
+    if (pa && pa.uid === scope.selectedUid && pa.index >= 0 && pa.index < arr.length) return pa.index;
+    return 0;
+  }
+  function defaultChildFor(cfg) {
+    if (cfg.component === 'DynElTabs') {
+      const child = defaultCfg('DynElContainer');
+      if (!child.options) child.options = {};
+      if (!child.options.labeloptions) child.options.labeloptions = {};
+      child.options.labeloptions.label = '新标签页';
+      child.options.labeloptions.show = true;
+      child.options.itemoptions = { style: { padding: '12px' }, class: '' };
+      return child;
+    }
+    if (cfg.component === 'DynTable') {
+      const cols = getPath(cfg, 'options.comoptions.columns') || [];
+      return { prop: 'field' + (cols.length + 1), label: '新列', width: 120, sortable: false };
+    }
+    if (cfg.component === 'DynElCollapse') {
+      return { component: 'DynElCollapseItem', options: { comoptions: { label: '折叠项' }, labeloptions: { show: false } }, childrenctrls: [] };
+    }
+    return { label: '新子项' };
+  }
+  function addChildItem(scope) {
+    const cfg = scope.selected;
+    const arr = childListOf(scope);
+    if (!cfg || !arr) return;
+    arr.push(defaultChildFor(cfg));
+    scope.previewActive = { uid: scope.selectedUid, index: arr.length - 1 };
+    select(scope, cfg);
+  }
+  function removeActiveChild(scope) {
+    const cfg = scope.selected;
+    const arr = childListOf(scope);
+    if (!cfg || !arr || !arr.length) return;
+    const idx = activeIndex(scope);
+    arr.splice(idx, 1);
+    scope.previewActive = { uid: scope.selectedUid, index: Math.max(0, Math.min(idx, arr.length - 1)) };
+    setTimeout(() => updateOverlay(scope), 50);
+  }
+  function stepActive(scope, dir) {
+    const arr = childListOf(scope);
+    if (!arr || !arr.length) return;
+    const n = (activeIndex(scope) + dir + arr.length) % arr.length;
+    scope.previewActive = { uid: scope.selectedUid, index: n };
+  }
+  function moveActiveChild(scope, dir) {
+    const cfg = scope.selected;
+    const arr = childListOf(scope);
+    if (!cfg || !arr || !arr.length) return;
+    const cur = activeIndex(scope);
+    const j = cur + dir;
+    if (j < 0 || j >= arr.length) return;
+    const item = arr.splice(cur, 1)[0];
+    arr.splice(j, 0, item);
+    scope.previewActive = { uid: scope.selectedUid, index: j };
+    select(scope, cfg);
+  }
+
+  // 内置命令注册表：designerOperates 里 command 类型 handlerKey 在此查找
+  const commandRegistry = {
+    'tab.switchPreview': (scope) => stepActive(scope, 1),
+    'tab.prevPreview': (scope) => stepActive(scope, -1),
+    'tab.addTab': (scope) => addChildItem(scope),
+    'tab.removeActiveTab': (scope) => removeActiveChild(scope),
+    'tab.moveTab': (scope, dir) => moveActiveChild(scope, dir),
+    'table.addColumn': (scope) => addChildItem(scope),
+    'table.removeColumn': (scope) => removeActiveChild(scope),
+    'table.moveColumn': (scope, dir) => moveActiveChild(scope, dir)
+  };
+  function execOperate(scope, op) {
+    if (!op) return;
+    if (op.type === 'command') {
+      const h = commandRegistry[op.handlerKey];
+      if (h) { h(scope, op.arg); return; }
+      if (global.ElementPlus && global.ElementPlus.ElMessage) global.ElementPlus.ElMessage.warning('未注册命令：' + op.handlerKey);
+      return;
+    }
+    if (op.type === 'view') {
+      // 自定义视图：把组件节点 + 编辑副本写入 scope.viewState，Canvas 内嵌视图组件渲染
+      if (op.viewName === 'TableColumnConfigView') {
+        const cols = getPath(scope.selected, 'options.comoptions.columns') || [];
+        scope.viewState = {
+          open: true,
+          name: op.viewName,
+          node: scope.selected,
+          columns: JSON.parse(JSON.stringify(cols))
+        };
+        return;
+      }
+      if (op.viewName === 'TabConfigView') {
+        const kids = getPath(scope.selected, 'childrenctrls') || [];
+        scope.viewState = {
+          open: true,
+          name: op.viewName,
+          node: scope.selected,
+          items: JSON.parse(JSON.stringify(kids)).map(function (it, i) {
+            if (!it.options) it.options = {};
+            if (!it.options.labeloptions) it.options.labeloptions = { label: 'Tab ' + (i + 1), show: true };
+            return it;
+          })
+        };
+        return;
+      }
+      if (op.viewName === 'CollapseConfigView') {
+        const kids = getPath(scope.selected, 'childrenctrls') || [];
+        scope.viewState = {
+          open: true,
+          name: op.viewName,
+          node: scope.selected,
+          items: JSON.parse(JSON.stringify(kids)).map(function (it, i) {
+            if (!it.options) it.options = {};
+            if (!it.options.comoptions) it.options.comoptions = {};
+            // 标题统一收敛到 options.comoptions.label（CollapseItem 渲染 jc.label || comoptions.label）
+            if (!it.options.comoptions.label) it.options.comoptions.label = it.label || ('折叠项 ' + (i + 1));
+            if (it.label) delete it.label;
+            return it;
+          })
+        };
+        return;
+      }
+      if (global.ElementPlus && global.ElementPlus.ElMessage) global.ElementPlus.ElMessage.info('自定义视图「' + (op.label || op.viewName) + '」开发中');
+      return;
+    }
+  }
+
   global.DynDesignerOps = {
     uidOf, metaOf, isContainer, checkCanDrop, findNode, findParent, getPathList,
     defaultCfg, select, updateOverlay,
     onDragStartMeta, onDragStartCfg, onDragOver, onDragLeave, onDrop, dropToRoot, clearDrag,
     moveSelected, duplicateSelected, removeSelected, buildTreeData,
-    cleanJson, getCleanJson
+    cleanJson, getCleanJson,
+    parseJsonStr, designerMetaOf, designerOperatesOf, getPath, childListOf, activeIndex,
+    addChildItem, removeActiveChild, stepActive, moveActiveChild,
+    commandRegistry, execOperate
   };
 })(window);

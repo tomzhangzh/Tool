@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 using SqlSugar;
 
 namespace VueLibV4.Platform.Models;
@@ -148,6 +148,14 @@ public class ComponentMeta
 
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }
+
+    /// <summary>设计器通用元信息（JSON）：childrenSchemaPath 子项数组路径 / childKey / childTitleField / supportDragSort，框架自动生成子项新增/删除/排序</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? DesignerMeta { get; set; }
+
+    /// <summary>设计器扩展操作按钮定义（JSON 数组）：command=内置命令 / view=自定义视图；仅设计器读取，运行态不下发</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? DesignerOperates { get; set; }
 }
 
 /// <summary>
