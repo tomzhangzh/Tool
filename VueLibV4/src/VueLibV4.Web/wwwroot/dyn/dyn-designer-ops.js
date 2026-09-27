@@ -226,6 +226,7 @@
       if (global.ElementPlus && ElementPlus.ElMessage) ElementPlus.ElMessage.warning('不能将容器移动到自身或其内部');
       scope.dragging = ''; scope.draggingCfg = null; return;
     }
+    saveSnapshot(scope);
     let movingNode = null;
     if (scope.draggingCfg) {
       const hit = findParent(scope.pageJson, scope.draggingCfg);
@@ -269,6 +270,7 @@
     clearDrag(scope);
     if (scope.draggingCfg) {
       if (scope.draggingCfg === scope.pageJson) { scope.dragging = ''; scope.draggingCfg = null; return; }
+      saveSnapshot(scope);
       const hit = findParent(scope.pageJson, scope.draggingCfg);
       if (hit) {
         const oldArr = hit.parent.childrenctrls;
@@ -296,6 +298,7 @@
     const i = arr.indexOf(cfg);
     const j = i + dir;
     if (j < 0 || j >= arr.length) return;
+    saveSnapshot(scope);
     arr.splice(i, 1);
     arr.splice(j, 0, cfg);
   }
@@ -305,6 +308,7 @@
     if (!cfg) return;
     const hit = findParent(scope.pageJson, cfg);
     if (!hit) return;
+    saveSnapshot(scope);
     const copy = JSON.parse(JSON.stringify(cfg));
     delete copy.__uid;
     uidOf(copy);
@@ -318,6 +322,7 @@
     if (!cfg) return;
     const hit = findParent(scope.pageJson, cfg);
     if (!hit) return;
+    saveSnapshot(scope);
     const arr = hit.parent.childrenctrls;
     const i = arr.indexOf(cfg);
     if (i >= 0) arr.splice(i, 1);
@@ -365,6 +370,44 @@
 
   function getCleanJson(scope) {
     return cleanJson(scope.pageJson);
+  }
+
+  /* ============ 撤销 / 重做（快照栈方案） ============
+   * 只在「真正修改页面数据」的操作前调用 saveSnapshot(scope)。
+   * previewActive（Tab 预览切换等设计态临时状态）绝不入栈，与「不落库」约束一致。
+   */
+  const MAX_HISTORY = 20;
+  function saveSnapshot(scope) {
+    if (!scope) return;
+    try {
+      const snap = JSON.parse(JSON.stringify(scope.pageJson));
+      if (JSON.stringify(snap) === JSON.stringify(scope.undoStack[scope.undoStack.length - 1])) return;
+      scope.undoStack.push(snap);
+      if (scope.undoStack.length > MAX_HISTORY) scope.undoStack.shift();
+      scope.redoStack = [];
+    } catch (e) {}
+  }
+  function applySnapshot(scope, snap) {
+    scope.pageJson = snap;             // 纯对象赋给 reactive model 属性 → Vue 自动代理
+    scope.selected = null; scope.current = null;
+    scope.selectedUid = ''; scope.overlay.uid = '';
+    scope.previewActive = { uid: '', index: 0 };
+    scope.pathList = [];
+    // 顶层引用已替换，但容器模板 setup 快照 jc 不响应 → 自增版本号强制整树重建
+    scope.canvasVersion = (scope.canvasVersion || 0) + 1;
+    setTimeout(function () { updateOverlay(scope); }, 60);
+  }
+  function undoAction(scope) {
+    if (!scope || !scope.undoStack || !scope.undoStack.length) return false;
+    scope.redoStack.push(JSON.parse(JSON.stringify(scope.pageJson)));
+    applySnapshot(scope, scope.undoStack.pop());
+    return true;
+  }
+  function redoAction(scope) {
+    if (!scope || !scope.redoStack || !scope.redoStack.length) return false;
+    scope.undoStack.push(JSON.parse(JSON.stringify(scope.pageJson)));
+    applySnapshot(scope, scope.redoStack.pop());
+    return true;
   }
 
   /* ============ 设计器扩展：子项管理（designerMeta）+ 组件专属操作（designerOperates） ============
@@ -422,12 +465,16 @@
     if (cfg.component === 'DynElCollapse') {
       return { component: 'DynElCollapseItem', options: { comoptions: { label: '折叠项' }, labeloptions: { show: false } }, childrenctrls: [] };
     }
+    if (cfg.component === 'DynElSteps') {
+      return { component: 'DynElStep', options: { comoptions: { title: '新步骤', description: '', status: '', icon: '' } }, childrenctrls: [] };
+    }
     return { label: '新子项' };
   }
   function addChildItem(scope) {
     const cfg = scope.selected;
     const arr = childListOf(scope);
     if (!cfg || !arr) return;
+    saveSnapshot(scope);
     arr.push(defaultChildFor(cfg));
     scope.previewActive = { uid: scope.selectedUid, index: arr.length - 1 };
     select(scope, cfg);
@@ -436,6 +483,7 @@
     const cfg = scope.selected;
     const arr = childListOf(scope);
     if (!cfg || !arr || !arr.length) return;
+    saveSnapshot(scope);
     const idx = activeIndex(scope);
     arr.splice(idx, 1);
     scope.previewActive = { uid: scope.selectedUid, index: Math.max(0, Math.min(idx, arr.length - 1)) };
@@ -451,6 +499,7 @@
     const cfg = scope.selected;
     const arr = childListOf(scope);
     if (!cfg || !arr || !arr.length) return;
+    saveSnapshot(scope);
     const cur = activeIndex(scope);
     const j = cur + dir;
     if (j < 0 || j >= arr.length) return;
@@ -522,6 +571,24 @@
         };
         return;
       }
+      if (op.viewName === 'StepsConfigView') {
+        const kids = getPath(scope.selected, 'childrenctrls') || [];
+        scope.viewState = {
+          open: true,
+          name: op.viewName,
+          node: scope.selected,
+          items: JSON.parse(JSON.stringify(kids)).map(function (it, i) {
+            if (!it.options) it.options = {};
+            if (!it.options.comoptions) it.options.comoptions = {};
+            if (!it.options.comoptions.title) it.options.comoptions.title = '步骤' + (i + 1);
+            if (!('description' in it.options.comoptions)) it.options.comoptions.description = '';
+            if (!('status' in it.options.comoptions)) it.options.comoptions.status = '';
+            if (!('icon' in it.options.comoptions)) it.options.comoptions.icon = '';
+            return it;
+          })
+        };
+        return;
+      }
       if (global.ElementPlus && global.ElementPlus.ElMessage) global.ElementPlus.ElMessage.info('自定义视图「' + (op.label || op.viewName) + '」开发中');
       return;
     }
@@ -535,6 +602,7 @@
     cleanJson, getCleanJson,
     parseJsonStr, designerMetaOf, designerOperatesOf, getPath, childListOf, activeIndex,
     addChildItem, removeActiveChild, stepActive, moveActiveChild,
-    commandRegistry, execOperate
+    commandRegistry, execOperate,
+    saveSnapshot, undoAction, redoAction
   };
 })(window);

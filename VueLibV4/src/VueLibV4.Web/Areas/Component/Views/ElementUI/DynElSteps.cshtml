@@ -1,0 +1,19 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+<template>
+<el-steps v-bind="comBind" v-on="getComlisteners()"
+          :style="getStyle(jc.options.itemoptions)"
+          :class="getClass(jc.options.itemoptions)">
+  <el-step v-for="(child, idx) in safeChildren"
+           :key="'step_' + idx"
+           :title="child.options?.comoptions?.title || ('步骤' + (idx + 1))"
+           :description="child.options?.comoptions?.description || ''"
+           :icon="child.options?.comoptions?.icon || ''"
+           :status="child.options?.comoptions?.status || ''">
+  </el-step>
+</el-steps>
+</template>
+
+@section setupScripts{ DVALUE = null; }

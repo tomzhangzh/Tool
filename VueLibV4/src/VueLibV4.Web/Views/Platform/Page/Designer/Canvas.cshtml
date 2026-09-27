@@ -18,9 +18,10 @@
   <!-- 页面纸张（design mode：所有 n-dynamic-com 节点自带 data-dyn-uid + 可拖拽） -->
   <div class="bg-white shadow-lg m-4 relative design-mode"
        data-designer-canvas
-       :style="{ width: (model.pageWidth || 1200) + 'px', minHeight: (model.pageHeight || 800) + 'px' }"
+       :style="{ width: (model.pageWidth || 1200) + 'px', minHeight: (model.pageHeight || 800) + 'px', transform: 'scale(' + (model.zoom / 100) + ')', '--dyn-zoom': (model.zoom / 100), transformOrigin: '0 0' }"
        @@click.self="onCanvasClick">
-    <dyn-dynamic-com :jsonconfig="model.pageJson"></dyn-dynamic-com>
+    <!-- key 绑定 canvasVersion：撤销/重做替换 pageJson 后强制整树重建（容器模板 setup 快照 jc 不响应顶层引用替换） -->
+    <dyn-dynamic-com :key="'root_' + (model.canvasVersion || 0)" :jsonconfig="model.pageJson"></dyn-dynamic-com>
 
     <!-- drop 指示线/高亮 -->
     <div v-if="model.dropIndicator.show && model.dropIndicator.insertInto"
@@ -32,7 +33,7 @@
          :style="{ top: model.dropIndicator.top + 'px', left: model.dropIndicator.left + 'px', width: model.dropIndicator.width + 'px' }"></div>
 
     <!-- overlay：不干扰容器自身 style/class，纯绝对定位覆盖层 -->
-    <div v-if="model.overlay.uid"
+    <div v-if="model.overlay.uid && designMode"
          class="absolute border-2 border-blue-400 pointer-events-none z-30"
          :style="{ top: model.overlay.top + 'px', left: model.overlay.left + 'px', width: model.overlay.width + 'px', height: model.overlay.height + 'px' }">
       <div class="absolute -top-7 left-0 bg-blue-500 text-white text-xs px-2 py-0.5 flex items-center gap-1 pointer-events-auto rounded" @@click.stop>
@@ -158,6 +159,42 @@
         <span class="text-xs text-gray-400">共 {{ model.viewState.items.length }} 项 · 修改不自动保存，点「确定」写回组件</span>
       </div>
     </template>
+    @* —— StepsConfigView：DynElSteps 步骤项配置（编辑副本，确认才写回节点）—— *@
+    <template v-else-if="model.viewState.name === 'StepsConfigView'">
+      <el-table :data="model.viewState.items" border stripe size="small" max-height="420">
+        <el-table-column label="步骤标题" width="200">
+          <template #default="s"><el-input v-model="s.row.options.comoptions.title" size="small" placeholder="步骤标题"></el-input></template>
+        </el-table-column>
+        <el-table-column label="描述 description" width="230">
+          <template #default="s"><el-input v-model="s.row.options.comoptions.description" size="small" placeholder="步骤描述（可空）"></el-input></template>
+        </el-table-column>
+        <el-table-column label="图标 icon" width="120">
+          <template #default="s"><el-input v-model="s.row.options.comoptions.icon" size="small" placeholder="如 🚀"></el-input></template>
+        </el-table-column>
+        <el-table-column label="状态 status" width="150">
+          <template #default="s">
+            <el-select v-model="s.row.options.comoptions.status" size="small" clearable placeholder="默认">
+              <el-option label="等待 wait" value="wait"></el-option>
+              <el-option label="进行中 process" value="process"></el-option>
+              <el-option label="完成 finish" value="finish"></el-option>
+              <el-option label="错误 error" value="error"></el-option>
+              <el-option label="成功 success" value="success"></el-option>
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="排序/操作" width="130">
+          <template #default="s">
+            <el-button link type="primary" size="small" @@click="stepsMove(s.$index, -1)">⇧</el-button>
+            <el-button link type="primary" size="small" @@click="stepsMove(s.$index, 1)">⇩</el-button>
+            <el-button link type="danger" size="small" @@click="stepsRemove(s.$index)">删</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="mt-2 flex items-center justify-between">
+        <el-button type="primary" size="small" @@click="stepsAdd">＋ 新增步骤</el-button>
+        <span class="text-xs text-gray-400">共 {{ model.viewState.items.length }} 步 · 修改不自动保存，点「确定」写回组件</span>
+      </div>
+    </template>
     <template #footer>
       <el-button @@click="viewCancel">取消</el-button>
       <el-button type="primary" @@click="viewConfirm">确定</el-button>
@@ -190,7 +227,12 @@
         if (vs.name === 'TableColumnConfigView') return '表格批量列配置';
         if (vs.name === 'TabConfigView') return '标签页配置';
         if (vs.name === 'CollapseConfigView') return '折叠项配置';
+        if (vs.name === 'StepsConfigView') return '步骤项配置';
         return '自定义视图';
+      },
+      designMode: function () { return this.model.mode !== 'preview'; },
+      rulerTicksV: function () {
+        return Math.ceil((this.model.pageHeight || 800) / 25) + 1;
       }
     },
     provide: function () {
@@ -198,7 +240,7 @@
       return {
         designer: self.model,
         pageCtx: {
-          designMode: true,
+          designMode: this.designMode,
           uidOf: function (cfg) { return window.DynDesignerOps.uidOf(cfg); },
           onDragStartCfg: function (cfg, e) { window.DynDesignerOps.onDragStartCfg(self.model, cfg, e); },
           onSelect: function (cfg, e) { if (e) e.stopPropagation(); window.DynDesignerOps.select(self.model, cfg); },
@@ -217,8 +259,21 @@
         setTimeout(function () { window.DynDesignerOps.updateOverlay(self.model); }, 50);
       });
       window.addEventListener('resize', function () { window.DynDesignerOps.updateOverlay(self.model); });
+      var mainEl = this.$el;
+      if (mainEl) {
+        this._wheelH = function (e) {
+          if (!e.ctrlKey) return;
+          e.preventDefault();
+          var z = Math.round((self.model.zoom || 100) + (e.deltaY < 0 ? 5 : -5));
+          self.model.zoom = Math.max(50, Math.min(150, z));
+        };
+        mainEl.addEventListener('wheel', this._wheelH, { passive: false });
+      }
     },
-    beforeUnmount: function () { if (this._stopWatch) this._stopWatch(); },
+    beforeUnmount: function () {
+      if (this._stopWatch) this._stopWatch();
+      if (this.$el && this._wheelH) this.$el.removeEventListener('wheel', this._wheelH);
+    },
     methods: {
       onDragOverRoot: function (e) {
         if (!this.model.dragging) return;
@@ -282,10 +337,27 @@
         if (t < 0 || t >= items.length) return;
         var tmp = items[idx]; items[idx] = items[t]; items[t] = tmp;
       },
+      // ===== 步骤条配置视图（StepsConfigView）=====
+      stepsAdd: function () {
+        var vs = this.model.viewState;
+        vs.items.push({ component: 'DynElStep', options: { comoptions: { title: '新步骤', description: '', status: '', icon: '' } }, childrenctrls: [] });
+      },
+      stepsRemove: function (idx) {
+        var vs = this.model.viewState;
+        if (vs.items.length <= 1) { this.$message.warning('至少保留一个步骤'); return; }
+        vs.items.splice(idx, 1);
+      },
+      stepsMove: function (idx, dir) {
+        var items = this.model.viewState.items;
+        var t = idx + dir;
+        if (t < 0 || t >= items.length) return;
+        var tmp = items[idx]; items[idx] = items[t]; items[t] = tmp;
+      },
       viewConfirm: function () {
         var vs = this.model.viewState;
         var node = vs.node;
         if (!node) { vs.open = false; return; }
+        window.DynDesignerOps.saveSnapshot(this.model);
         if (vs.name === 'TabConfigView') {
           // 校验标签页名称非空
           var labels = vs.items.map(function (it) { return String(((it.options || {}).labeloptions || {}).label || '').trim(); });
@@ -313,6 +385,17 @@
           var m2 = this.model;
           setTimeout(function () { window.DynDesignerOps.select(m2, m2.pageJson.childrenctrls[pidx >= 0 ? pidx : 0]); }, 30);
           setTimeout(function () { window.DynDesignerOps.updateOverlay(m2); }, 60);
+          return;
+        }
+        if (vs.name === 'StepsConfigView') {
+          var stitles = vs.items.map(function (it) { return String(((it.options || {}).comoptions || {}).title || '').trim(); });
+          if (stitles.some(function (x) { return !x; })) { this.$message.warning('存在空的步骤标题'); return; }
+          node.childrenctrls = JSON.parse(JSON.stringify(vs.items));
+          vs.open = false;
+          this.$message.success('步骤配置已更新');
+          var mS = this.model;
+          setTimeout(function () { window.DynDesignerOps.select(mS, node); }, 30);
+          setTimeout(function () { window.DynDesignerOps.updateOverlay(mS); }, 60);
           return;
         }
         // TableColumnConfigView：校验 prop 非空、不重复

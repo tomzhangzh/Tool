@@ -1,4 +1,4 @@
-@* 顶部工具栏：独立 dyn app，通过 scope 共享 model *@
+﻿@* 顶部工具栏：独立 dyn app，通过 scope 共享 model *@
 <header class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5 bg-white border-b border-gray-200 shrink-0 text-sm"
         data-dyn-init-createapp data-dyn-use-scope="designer">
   <b class="text-orange-500 text-base">🎨 低代码设计器</b>
@@ -20,6 +20,8 @@
     <el-switch v-model="model.openConfig" size="small"></el-switch>
     <span class="text-gray-400 text-xs">开放配置</span>
     <el-button size="small" type="warning">存组合</el-button>
+    <el-button size="small" :disabled="model.undoStack.length === 0" @@click="onUndo">↩ 撤销</el-button>
+    <el-button size="small" :disabled="model.redoStack.length === 0" @@click="onRedo">↪ 重做</el-button>
 
     <div class="flex-1"></div>
 
@@ -55,6 +57,8 @@
       onViewJson: function () {
         this.model.showJsonEditor = true;
       },
+      onUndo: function () { window.DynDesignerOps.undoAction(this.model); },
+      onRedo: function () { window.DynDesignerOps.redoAction(this.model); },
       // ---------- 独立页：新建 / 保存 / 预览 ----------
       onNew: function () {
         var self = this;
