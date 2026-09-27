@@ -52,6 +52,11 @@
         function parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
 
         var initForm = parseJson(shared.DetailDefaultJson, {});
+        // 新增预填（主从联动：子表新增预填外键）
+        var prefill = {};
+        try { prefill = JSON.parse(shared.PrefillJson || '{}'); } catch (e) { prefill = {}; }
+        var apiDb = shared.Db || 'platform';
+        var apiBase = apiDb === 'business' ? '/api/business/dyndata' : '/api/platform/dyndata';
         var app = Vue.createApp({
             data: function () {
                 return {
@@ -60,24 +65,25 @@
                     table: shared.Table || '',
                     bizId: shared.BizId || 0,
                     detailCfg: shared.DetailConfig || null,
-                    form: JSON.parse(JSON.stringify(initForm)),
+                    form: Object.assign({}, JSON.parse(JSON.stringify(initForm)), prefill),
                     formError: '',
                     loading: false,
-                    saveUrl: '/api/platform/dyndata/save?table=' + encodeURIComponent(shared.Table || '')
+                    apiDb: apiDb,
+                    saveUrl: '/api/' + (apiDb === 'business' ? 'business' : 'platform') + '/dyndata/save?table=' + encodeURIComponent(shared.Table || '')
                 };
             },
             methods: {
                 load: function () {
                     var self = this;
                     if (!this.bizId) return;
-                    fetch('/api/platform/dyndata/search', {
+                    fetch(this.apiDb === 'business' ? '/api/business/dyndata/search' : '/api/platform/dyndata/search', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ table: this.table, page: 1, size: 1, filter: { Id: { op: 'eq', value: this.bizId } } })
                     }).then(function (r) { return r.json(); }).then(function (res) {
                         if (res.code !== 0 || !res.data || !res.data.rows || !res.data.rows.length) return;
                         var row = res.data.rows[0];
-                        // 深合并：以服务端行为准覆盖骨架
-                        self.form = Object.assign({}, initForm, row);
+                        // 深合并：以服务端行为准覆盖骨架（新增预填字段被服务端值覆盖）
+                        self.form = Object.assign({}, initForm, prefill, row);
                     }).catch(function (e) { dyn.showMessage('加载失败：' + (e && e.message || e), 'error'); });
                 },
                 onSave: function () {
@@ -90,17 +96,32 @@
                         return;
                     }
                     this.loading = true;
-                    fetch(this.saveUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.form) })
-                        .then(function (r) { return r.json(); }).then(function (res) {
-                            self.loading = false;
-                            if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
-                            self.formError = '';
-                            dyn.showMessage('保存成功', 'success');
-                            // 显式触发父列表刷新（弹窗/嵌入场景均适用；onclose 亦会触发，幂等）
-                            try { Object.keys(window).filter(function (k) { return k.indexOf('__crud_refresh_') === 0; }).forEach(function (k) { try { window[k](); } catch (e) { } }); } catch (e) { }
-                            // 关闭弹窗：触发 open 动作 onclose
-                            DynAction.run('close', {}, { element: rootEl }).catch(function (e) { console.warn('[detail close]', e); });
-                        }).catch(function (e) { self.loading = false; dyn.showMessage('保存失败：' + (e && e.message || e), 'error'); });
+                    var isEdit = this.bizId > 0;
+                    var req;
+                    if (this.apiDb === 'business') {
+                        // 业务库：insert / update 分开
+                        req = fetch('/api/business/dyndata/' + (isEdit ? 'update' : 'insert'), {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ table: this.table, data: this.form })
+                        }).then(function (r) { return r.json(); });
+                    } else {
+                        req = fetch(this.saveUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.form) })
+                            .then(function (r) { return r.json(); });
+                    }
+                    req.then(function (res) {
+                        self.loading = false;
+                        if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
+                        self.formError = '';
+                        dyn.showMessage('保存成功', 'success');
+                        // 显式触发父列表刷新（crud-basic/master-detail 等模板注册的全局刷新函数；onclose 亦会触发，幂等）
+                        try {
+                            Object.keys(window).filter(function (k) {
+                                return k.indexOf('__crud_refresh_') === 0 || k.indexOf('__md_refresh_') === 0;
+                            }).forEach(function (k) { try { window[k](); } catch (e) { } });
+                        } catch (e) { }
+                        // 关闭弹窗：触发 open 动作 onclose
+                        DynAction.run('close', {}, { element: rootEl }).catch(function (e) { console.warn('[detail close]', e); });
+                    }).catch(function (e) { self.loading = false; dyn.showMessage('保存失败：' + (e && e.message || e), 'error'); });
                 },
                 validateForm: function () {
                     var errs = [];

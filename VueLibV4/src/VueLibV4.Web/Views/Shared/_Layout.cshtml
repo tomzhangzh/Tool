@@ -18,6 +18,9 @@
     @* 组件注册表（服务端 ViewComponent 输出 JSON，前端消费） *@
     @await Component.InvokeAsync("DynComRegistry")
 
+    @* 全局图表依赖（DynEChart 组件使用；本地文件，无 CDN 依赖） *@
+    <script src="~/lib/echarts.min.js"></script>
+
     @* 唯一入口：dyn-lib.js 自动按顺序加载 vue / element-plus / layui / axios / 各 dyn 模块 *@
     <script src="~/dyn/dyn-lib.js" asp-append-version="true"></script>
 

@@ -2,6 +2,17 @@
     Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
 }
 
+@*
+    DynEChart —— ECharts 图表组件
+    · 数据来源：modelinfo（v-model 绑定）：
+        { xData:['周一',...], seriesData:[120,200,...] }         折线/柱状/面积（单系列）
+        { xData:[...], seriesData:[{name:'A',data:[...]},{name:'B',data:[...]}] } 折线/柱状多系列
+        { seriesData:[{name:'A',value:335},{name:'B',value:310}] }  饼图 / 雷达图（radar 用 data 数组）
+    · 图表类型：comoptions.chartType —— bar(柱状) / line(折线) / area(面积) / pie(饼图) / radar(雷达)
+    · 高级用法：comoptions.option 提供完整 ECharts option 时优先直接使用（数据绑定仍可覆盖）
+    · 配置项：title(标题) / height(高度) / seriesName / smooth(平滑) / pieRadius / radarIndicators / colors
+    · 特性：响应式自适应（ResizeObserver）、数据/配置变化自动重绘、设计器可配置
+*@
 <template>
 <div class="dyn-echart"
          ref="chartEl"
@@ -10,27 +21,78 @@
 </template>
 
 @section setupScripts{
-    DVALUE = null;
-    // ECharts 图表：comoptions.option 为图表配置（JSON），comoptions.height 设置高度
+    DVALUE = { xData: [], seriesData: [] };
     const chartEl = ref(null);
     let chart = null;
     const chartStyle = computed(() => {
         const st = getStyle(jc.options.itemoptions);
-        const h = jc.options?.comoptions?.height || 300;
+        const h = jc.options?.comoptions?.height || 320;
         return Object.assign({ width: '100%', height: typeof h === 'number' ? h + 'px' : h }, st);
     });
+    function _clone(o) { try { return o && typeof o === 'object' ? JSON.parse(JSON.stringify(o)) : o; } catch (e) { return o; } }
+    // 根据 chartType + 数据 组装 ECharts option；comoptions.option 存在时直接采用（高级用法）
+    function buildOption() {
+        const co = jc.options?.comoptions || {};
+        if (co.option && typeof co.option === 'object' && Object.keys(co.option).length) {
+            return _clone(co.option);
+        }
+        const m = modelinfo.value || {};
+        const xData = Array.isArray(m.xData) ? m.xData : [];
+        const sdata = Array.isArray(m.seriesData) ? m.seriesData : [];
+        const type = co.chartType || 'bar';
+        const base = { tooltip: {}, legend: {}, grid: {} };
+        if (Array.isArray(co.colors) && co.colors.length) base.color = _clone(co.colors);
+        if (co.title) base.title = { text: co.title, left: 'center' };
+        const multiSeries = sdata.length && typeof sdata[0] === 'object' && 'data' in sdata[0];
+        const mkSeries = (name, data) => {
+            const t = type === 'area' ? 'line' : type;
+            const s = { name: name || '数据', type: t, data: data || [] };
+            if (type === 'area') s.areaStyle = {};
+            if (co.smooth) s.smooth = true;
+            return s;
+        };
+        if (type === 'line' || type === 'bar' || type === 'area') {
+            base.tooltip = { trigger: 'axis' };
+            base.xAxis = { type: 'category', data: xData };
+            base.yAxis = { type: 'value' };
+            base.series = multiSeries ? sdata.map(function (s) { return mkSeries(s.name, s.data); }) : [mkSeries(co.seriesName, sdata)];
+            base.legend = { data: base.series.map(function (s) { return s.name; }), top: 28 };
+            base.grid = { left: 10, right: 20, top: 60, bottom: 30, containLabel: true };
+        } else if (type === 'pie') {
+            base.tooltip = { trigger: 'item', formatter: '{b}: {c} ({d}%)' };
+            base.legend = { orient: 'vertical', left: 'left', top: 'center' };
+            base.series = [{ type: 'pie', radius: co.pieRadius || '62%', data: sdata, label: { formatter: '{b}: {d}%' } }];
+        } else if (type === 'radar') {
+            const indicators = (Array.isArray(co.radarIndicators) && co.radarIndicators.length)
+                ? _clone(co.radarIndicators)
+                : xData.map(function (n) { return { name: String(n), max: co.radarMax || 100 }; });
+            base.radar = { indicator: indicators };
+            base.series = multiSeries
+                ? [{ type: 'radar', data: sdata.map(function (s) { return { name: s.name, value: s.data }; }) }]
+                : [{ type: 'radar', data: [{ value: sdata }] }];
+            base.tooltip = { trigger: 'item' };
+            base.legend = { top: 8 };
+        }
+        return base;
+    }
     function renderChart() {
         if (!chartEl.value || !window.echarts) return;
         if (!chart) chart = echarts.init(chartEl.value);
-        const opt = jc.options?.comoptions?.option;
-        if (opt && typeof opt === 'object') chart.setOption(opt);
+        chart.setOption(buildOption(), true);
     }
+    function resizeChart() { if (chart) chart.resize(); }
     onMounted(function () {
         renderChart();
         if (window.ResizeObserver) {
-            new ResizeObserver(function () { if (chart) chart.resize(); }).observe(chartEl.value);
+            new ResizeObserver(resizeChart).observe(chartEl.value);
         }
     });
-    // 配置变化时重绘（设计器修改 option 后实时预览）
-    watch(function () { return JSON.stringify(jc.options?.comoptions?.option || {}); }, function () { renderChart(); }, { deep: true });
+    onBeforeUnmount(function () { if (chart) { chart.dispose(); chart = null; } });
+    // model 数据变化 → 重绘
+    watch(function () { return modelinfo.value; }, function () { renderChart(); }, { deep: true });
+    // 配置变化（chartType/option/title 等）→ 重绘（设计器实时预览、类型切换）
+    watch(function () { return JSON.stringify(jc.options?.comoptions || {}); }, function () { renderChart(); }, { deep: true });
+
+    // 暴露到模板：chartEl(ref 绑定)/chartStyle/渲染方法（DynCom 组件私有成员必须挂 comExtra）
+    Object.assign(comExtra, { chartEl, chartStyle, renderChart, resizeChart });
 }

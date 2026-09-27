@@ -27,18 +27,22 @@ public class DynSharedModel
 
     public JObject? FilterConfig { get; set; }
     public JObject? ListConfig { get; set; }
+    public JObject? DetailConfig { get; set; }
 
-    /// <summary>三屏 PageSetting 的 Vue model 默认骨架（DefaultJson），与 ConfigJson 配套（列表页仅用 Filter/List）</summary>
+    /// <summary>三屏 PageSetting 的 Vue model 默认骨架（DefaultJson），与 ConfigJson 配套</summary>
     public string? FilterDefaultJson { get; set; }
     public string? ListDefaultJson { get; set; }
+    public string? DetailDefaultJson { get; set; }
 
-    /// <summary>三屏渲染方式：Front=前端DynCom动态控件 / Back=后端Razor局部视图（列表页仅用 Filter/List）</summary>
+    /// <summary>三屏渲染方式：Front=前端DynCom动态控件 / Back=后端Razor局部视图</summary>
     public string? FilterRenderMode { get; set; }
     public string? ListRenderMode { get; set; }
+    public string? DetailRenderMode { get; set; }
 
-    /// <summary>三屏后端局部视图路径（RenderMode=Back 时使用，列表页仅用 Filter/List）</summary>
+    /// <summary>三屏后端局部视图路径（RenderMode=Back 时使用）</summary>
     public string? FilterPartialPath { get; set; }
     public string? ListPartialPath { get; set; }
+    public string? DetailPartialPath { get; set; }
 }
 
 /// <summary>
@@ -67,4 +71,9 @@ public class DetailTemplateModel
     public string? WinWidth { get; set; }
     public string? WinHeight { get; set; }
     public bool WinMax { get; set; }
+
+    /// <summary>数据访问库：platform=平台库(默认) / business=业务库（缺省项目库）</summary>
+    public string? Db { get; set; }
+    /// <summary>新增时预填字段 JSON（主从联动：子表新增预填外键，如 {"OrderId":3}）</summary>
+    public string? PrefillJson { get; set; }
 }

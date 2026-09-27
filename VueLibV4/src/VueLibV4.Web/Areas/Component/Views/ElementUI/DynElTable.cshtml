@@ -36,8 +36,9 @@
     });
 
     // 数据：绑定 model（数组）优先；设计/演示时可用 demoRows（支持 JSON 字符串或数组）
+    // 注意：modelinfo 是 computed ref，必须用 .value 判断（模板自动解包，但 JS 里需显式 .value）
     const rows = computed(() => {
-        if (Array.isArray(modelinfo)) return modelinfo;
+        if (Array.isArray(modelinfo.value)) return modelinfo.value;
         const raw = (jc.options && jc.options.comoptions && jc.options.comoptions.demoRows);
         let arr = [];
         if (Array.isArray(raw)) arr = raw;

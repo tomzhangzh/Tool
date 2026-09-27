@@ -183,6 +183,10 @@ public class PageController : Controller
 
         // 2) 自动推导：TableName 有值且 Url 为空 → 补 dyndata 免 model 接口；手动填写优先
         var effective = BuildEffectiveParams(rawParams);
+        // 2.1) DynWebPage 三屏 PageSettingId 一并注入 effective（模板 openDetail 弹窗需要 DetailPageSettingId）
+        if (!HasValue(effective, "FilterPageSettingId") && page.FilterPageSettingId != null) effective["FilterPageSettingId"] = page.FilterPageSettingId.Value;
+        if (!HasValue(effective, "ListPageSettingId") && page.ListPageSettingId != null) effective["ListPageSettingId"] = page.ListPageSettingId.Value;
+        if (!HasValue(effective, "DetailPageSettingId") && page.DetailPageSettingId != null) effective["DetailPageSettingId"] = page.DetailPageSettingId.Value;
 
         // 3) 模板 ConfigJson 顶层 mPassThrough（透传属性，向下传给外壳 / createapp）
         var passThrough = new JObject();
@@ -197,11 +201,12 @@ public class PageController : Controller
         var templateConfig = new JObject();
         try { templateConfig = JObject.Parse(template.TemplateJson ?? "{}"); } catch { }
 
-        // 5) 引用 PageSetting 配置：列表页只加载 Filter / List 两屏。
-        //    Detail 屏不再随列表页预加载——新增/编辑通过 open 动作打开独立 Detail 页面（DynDetail），
-        //    由 Detail 页面按 detailSettingId 单独加载。detailSettingId 经 EffectiveParams 传前端供弹窗 url 使用。
+        // 5) 引用 PageSetting 配置：列表页加载 Filter/List；Detail 屏一并预加载
+        //    （crud-basic 列表页不直接使用；tree-basic 树形模板右侧内嵌表单按需使用 Detail 屏配置）。
+        //    新增/编辑弹窗场景仍走独立 Detail 页面（/Platform/Page/DynDetail），detailSettingId 经 EffectiveParams 传前端。
         var f = LoadSetting(page.FilterPageSettingId);
         var l = LoadSetting(page.ListPageSettingId);
+        var d = LoadSetting(page.DetailPageSettingId);
         var model = new DynSharedModel
         {
             DynWebPageId = page.Id,
@@ -219,7 +224,11 @@ public class PageController : Controller
             ListConfig = l?.Config,
             ListDefaultJson = l?.DefaultJson,
             ListRenderMode = l?.RenderMode,
-            ListPartialPath = l?.PartialPath
+            ListPartialPath = l?.PartialPath,
+            DetailConfig = d?.Config,
+            DetailDefaultJson = d?.DefaultJson,
+            DetailRenderMode = d?.RenderMode,
+            DetailPartialPath = d?.PartialPath
         };
 
         ViewData["Title"] = page.Name + " - VueLibV4";
@@ -255,6 +264,20 @@ public class PageController : Controller
     }
 
     /// <summary>
+    /// ECharts Demo 数据源：返回一组示例图表数据，演示 DynEChart 组件接口传数据。
+    /// </summary>
+    [HttpGet("/Platform/Page/EChartData")]
+    public IActionResult EChartData()
+    {
+        var data = new
+        {
+            xData = new[] { "华东", "华南", "华北", "西南", "华中", "东北" },
+            seriesData = new[] { 1280, 1560, 980, 720, 1120, 640 }
+        };
+        return Json(new { code = 0, msg = "ok", data });
+    }
+
+    /// <summary>
     /// 详情/表单独立页面：被列表页 open 动作以 fragment 弹窗拉取，也可独立访问。
     /// 只加载 Detail 屏的 PageSetting（ConfigJson=表单UI / DefaultJson=表单model骨架），
     /// 实现 Filter/List/Detail 三屏各自独立、按需取用，列表页不再预加载 Detail。
@@ -277,7 +300,10 @@ public class PageController : Controller
             WinTitle = Request.Query["winTitle"].FirstOrDefault(),
             WinWidth = Request.Query["winWidth"].FirstOrDefault(),
             WinHeight = Request.Query["winHeight"].FirstOrDefault(),
-            WinMax = string.Equals(Request.Query["winMax"].FirstOrDefault(), "true", StringComparison.OrdinalIgnoreCase)
+            WinMax = string.Equals(Request.Query["winMax"].FirstOrDefault(), "true", StringComparison.OrdinalIgnoreCase),
+            // 数据访问库 + 新增预填（主从联动：子表新增预填外键）
+            Db = Request.Query["db"].FirstOrDefault(),
+            PrefillJson = Request.Query["prefill"].FirstOrDefault()
         };
         if (!string.IsNullOrWhiteSpace(s.ConfigJson))
         {
