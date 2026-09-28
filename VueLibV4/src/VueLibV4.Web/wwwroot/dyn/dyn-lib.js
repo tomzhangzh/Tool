@@ -54,8 +54,6 @@ if(DYN_LIB_CONFIG.loadLayui){
 if(DYN_LIB_CONFIG.loadTailwind) DEFAULT_LIBS.push({url:"../lib/tailwind.css",name:"tailwind"});
 DEFAULT_LIBS.push({url:"../lib/sortable.min.js",name:"sortable"});
 DEFAULT_LIBS.push({url:"../lib/vue-draggable-plus.umd.js",name:"vue-draggable-plus"});
-// 设计器标尺（@scena/ruler，与 V1 一致）
-DEFAULT_LIBS.push({url:"../lib/ruler/ruler.min.js",name:"ruler"});
 if(DYN_LIB_CONFIG.loadCodemirror){
   DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.css",name:"codemirror-css"});
   DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.js",name:"codemirror"});

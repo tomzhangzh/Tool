@@ -1,15 +1,15 @@
 @* 中间画布：标尺(@@scena/ruler) + DynRender 递归渲染 + overlay 选中浮层 + drop 指示线 + 底部路径 *@
 <main class="flex-1 relative flex flex-col min-h-0 bg-gray-100 overflow-hidden"
       data-dyn-init-createapp data-dyn-use-scope="designer">
-  <!-- 标尺区：左上角 + 水平标尺（@@scena/ruler，随 zoom / 画布滚动同步） -->
+  <!-- 标尺区：左上角 + 水平标尺（手写 canvas 标尺，随 zoom / 画布滚动同步） -->
   <div v-if="model.showRuler" class="flex shrink-0 z-20 bg-gray-100 border-b border-gray-300" style="height:20px;">
     <div class="dyn-ruler-corner shrink-0" style="width:20px;height:20px;background:#f3f4f6;border-right:1px solid #e5e7eb;"></div>
-    <div ref="rulerHRef" class="flex-1 min-w-0" style="height:20px;"></div>
+    <div ref="rulerHRef" class="flex-1 min-w-0 overflow-hidden" style="height:20px;"><canvas ref="rulerHCanvas" style="display:block;"></canvas></div>
   </div>
 
   <div class="flex flex-1 min-h-0 overflow-hidden">
     <!-- 垂直标尺 -->
-    <div ref="rulerVRef" v-if="model.showRuler" class="dyn-ruler-v shrink-0 z-20 bg-gray-100 border-r border-gray-300" style="width:20px;"></div>
+    <div ref="rulerVRef" v-if="model.showRuler" class="dyn-ruler-v shrink-0 z-20 bg-gray-100 border-r border-gray-300 overflow-hidden" style="width:20px;"><canvas ref="rulerVCanvas" style="display:block;"></canvas></div>
     <!-- 画布滚动区（标尺与画布共用同一坐标系：刻度 = 画布坐标 × zoom，滚动同步 scrollPos） -->
     <div class="flex-1 min-w-0 min-h-0 overflow-auto relative" ref="canvasScrollRef" @@scroll="onCanvasScroll">
       <!-- 拖拽背景层：空区域 drop 到根 -->
@@ -267,7 +267,7 @@
         };
         mainEl.addEventListener('wheel', this._wheelH, { passive: false });
       }
-      // ===== 标尺（@@scena/ruler）：初始化 + zoom 联动 + 画布滚动同步 =====
+      // ===== 标尺（手写 canvas）：初始化 + zoom 联动 + 画布滚动同步 =====
       this.initRulers();
       this._stopWatchZoom = this.$watch(function () { return self.model.zoom; }, function (z) {
         self.setRulerZoom(z);
@@ -295,45 +295,100 @@
       this.destroyRulers();
     },
     methods: {
-      // ===== 标尺（@@scena/ruler）=====
+      // ===== 标尺（手写 canvas：画布坐标 × zoom + 滚动偏移，DPR 自适应，文字清晰可见）=====
       rulerZoom: function () { return (this.model.zoom || 100) / 100; },
       initRulers: function () {
         var self = this;
-        if (!window.Ruler || !this.model.showRuler) return;
+        if (!this.model.showRuler) return;
         this.$nextTick(function () {
-          var z = self.rulerZoom();
-          var hEl = self.$refs.rulerHRef, vEl = self.$refs.rulerVRef;
-          if (hEl && !self._rulerH) {
-            self._rulerH = new Ruler(hEl, { type: 'horizontal', zoom: z, unit: 50, backgroundColor: '#f3f4f6', lineColor: '#c0c4cc', textColor: '#909399' });
-          }
-          if (vEl && !self._rulerV) {
-            self._rulerV = new Ruler(vEl, { type: 'vertical', zoom: z, unit: 50, backgroundColor: '#f3f4f6', lineColor: '#c0c4cc', textColor: '#909399' });
-          }
-          self.syncRulerScroll();
+          self._hCanvas = self.$refs.rulerHCanvas;
+          self._vCanvas = self.$refs.rulerVCanvas;
+          self._hWrap = self.$refs.rulerHRef;
+          self._vWrap = self.$refs.rulerVRef;
+          self.drawRulers();
         });
       },
       destroyRulers: function () {
-        if (this._rulerH) { try { this._rulerH.destroy(); } catch (e) {} this._rulerH = null; }
-        if (this._rulerV) { try { this._rulerV.destroy(); } catch (e) {} this._rulerV = null; }
+        this._hCanvas = null; this._vCanvas = null; this._hWrap = null; this._vWrap = null;
       },
-      setRulerZoom: function (z) {
-        var zz = (z || 100) / 100;
-        if (this._rulerH) { try { this._rulerH.zoom = zz; } catch (e) {} }
-        if (this._rulerV) { try { this._rulerV.zoom = zz; } catch (e) {} }
-        this.syncRulerScroll();
-      },
-      resizeRulers: function () {
-        if (this._rulerH) { try { this._rulerH.resize(); } catch (e) {} }
-        if (this._rulerV) { try { this._rulerV.resize(); } catch (e) {} }
-        this.syncRulerScroll();
-      },
-      syncRulerScroll: function () {
+      setRulerZoom: function () { this.drawRulers(); },
+      resizeRulers: function () { this.drawRulers(); },
+      syncRulerScroll: function () { this.drawRulers(); },
+      // 重绘两个标尺
+      drawRulers: function () {
+        var z = this.rulerZoom();
         var cs = this.$refs.canvasScrollRef;
-        if (!cs) return;
-        // 画布在滚动区内有 16px margin：标尺 0 点对齐画布左上角 → scrollPos = 滚动量 - 16
-        var off = 16;
-        if (this._rulerH) { try { this._rulerH.scroll(cs.scrollLeft - off); } catch (e) {} }
-        if (this._rulerV) { try { this._rulerV.scroll(cs.scrollTop - off); } catch (e) {} }
+        var off = 16; // 画布在滚动区内 16px margin：标尺 0 点对齐画布左上角
+        var sx = cs ? cs.scrollLeft - off : 0;
+        var sy = cs ? cs.scrollTop - off : 0;
+        this.drawH(z, sx);
+        this.drawV(z, sy);
+      },
+      drawH: function (z, sx) {
+        var c = this._hCanvas, wrap = this._hWrap;
+        if (!c || !wrap) return;
+        var cssW = wrap.clientWidth, cssH = wrap.clientHeight || 20;
+        var dpr = window.devicePixelRatio || 1;
+        c.width = Math.max(1, Math.round(cssW * dpr));
+        c.height = Math.max(1, Math.round(cssH * dpr));
+        c.style.width = cssW + 'px'; c.style.height = cssH + 'px';
+        var ctx = c.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, cssW, cssH);
+        ctx.fillStyle = '#f3f4f6'; ctx.fillRect(0, 0, cssW, cssH);
+        var unit = 50, step = unit * z; // 缩放后的主刻度间距(px)
+        if (!(step > 0)) step = 1;
+        var start = Math.floor(sx / step) * step;
+        ctx.lineWidth = 1;
+        ctx.font = '10px sans-serif';
+        ctx.textBaseline = 'top';
+        for (var x = start; x <= sx + cssW; x += step) {
+          var px = Math.round(x - sx) + 0.5;
+          var val = Math.round((x / z) / unit) * unit;
+          ctx.strokeStyle = '#c0c4cc';
+          ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, cssH); ctx.stroke();
+          ctx.fillStyle = '#5a5a5a';
+          ctx.fillText(String(val), px + 3, 3);
+        }
+        var sub = step / 5;
+        ctx.strokeStyle = '#d5d8dd';
+        for (var x2 = start; x2 <= sx + cssW; x2 += sub) {
+          var px2 = Math.round(x2 - sx) + 0.5;
+          ctx.beginPath(); ctx.moveTo(px2, cssH - 6); ctx.lineTo(px2, cssH); ctx.stroke();
+        }
+      },
+      drawV: function (z, sy) {
+        var c = this._vCanvas, wrap = this._vWrap;
+        if (!c || !wrap) return;
+        var cssW = wrap.clientWidth || 20, cssH = wrap.clientHeight;
+        var dpr = window.devicePixelRatio || 1;
+        c.width = Math.max(1, Math.round(cssW * dpr));
+        c.height = Math.max(1, Math.round(cssH * dpr));
+        c.style.width = cssW + 'px'; c.style.height = cssH + 'px';
+        var ctx = c.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, cssW, cssH);
+        ctx.fillStyle = '#f3f4f6'; ctx.fillRect(0, 0, cssW, cssH);
+        var unit = 50, step = unit * z;
+        if (!(step > 0)) step = 1;
+        var start = Math.floor(sy / step) * step;
+        ctx.lineWidth = 1;
+        ctx.font = '9px sans-serif';
+        ctx.textBaseline = 'top';
+        for (var y = start; y <= sy + cssH; y += step) {
+          var py = Math.round(y - sy) + 0.5;
+          var val = Math.round((y / z) / unit) * unit;
+          ctx.strokeStyle = '#c0c4cc';
+          ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(cssW, py); ctx.stroke();
+          ctx.fillStyle = '#5a5a5a';
+          ctx.fillText(String(val), 2, py + 2);
+        }
+        var sub = step / 5;
+        ctx.strokeStyle = '#d5d8dd';
+        for (var y2 = start; y2 <= sy + cssH; y2 += sub) {
+          var py2 = Math.round(y2 - sy) + 0.5;
+          ctx.beginPath(); ctx.moveTo(cssW - 6, py2); ctx.lineTo(cssW, py2); ctx.stroke();
+        }
       },
       onCanvasScroll: function () { this.syncRulerScroll(); },
       onDragOverRoot: function (e) {

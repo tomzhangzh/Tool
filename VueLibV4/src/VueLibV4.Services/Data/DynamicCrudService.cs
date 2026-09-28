@@ -135,7 +135,44 @@ public class DynamicCrudService
                     var fv = val["value"];
                     if (fv == null || fv.Type == JTokenType.Null || fv.Type == JTokenType.Undefined) continue;
                     var op = val["op"]?.ToString() ?? "eq";
-                    AppendOp(sb, pars, prop.Name, dt, op, fv);
+
+                    // orFields：条件对象内数组，多字段共用同 op/value，字段间 OR，忽略外层 key
+                    // 例：{ "tmp": {"op":"like","value":"fff","orFields":["Name","Code"]} } → (Name LIKE .. OR Code LIKE ..)
+                    var orFieldsArr = val["orFields"] as JArray;
+                    if (orFieldsArr != null && orFieldsArr.Count > 0)
+                    {
+                        var fields = orFieldsArr
+                            .Select(t => t?.ToString()?.Trim())
+                            .Where(f => !string.IsNullOrEmpty(f) && colTypes.ContainsKey(f))
+                            .ToList();
+                        if (fields.Count > 1)
+                        {
+                            var orSb = new StringBuilder();
+                            foreach (var f in fields)
+                            {
+                                var itemSb = new StringBuilder();
+                                AppendOp(itemSb, pars, f, colTypes[f], op, fv);
+                                var seg = itemSb.ToString().Trim();
+                                // 去掉单条件前导 "AND "，避免 OR 组内重复 AND
+                                if (seg.StartsWith("AND ", StringComparison.OrdinalIgnoreCase))
+                                    seg = seg.Substring(4).TrimStart();
+                                if (orSb.Length > 0) orSb.Append(" OR ");
+                                orSb.Append(seg);
+                            }
+                            var orStr = orSb.ToString().Trim();
+                            if (orStr.Length > 0) sb.Append(" AND ( ").Append(orStr).Append(" ) ");
+                        }
+                        else if (fields.Count == 1)
+                        {
+                            AppendOp(sb, pars, fields[0], colTypes[fields[0]], op, fv);
+                        }
+                        // fields.Count == 0：orFields 内无任何有效字段 → 跳过该条件
+                    }
+                    else
+                    {
+                        // 无 orFields：沿用原有单字段条件（外层 key 即查询字段）
+                        AppendOp(sb, pars, prop.Name, dt, op, fv);
+                    }
                 }
                 else if (val.Type == JTokenType.Null || val.Type == JTokenType.Undefined)
                 {
