@@ -1,0 +1,125 @@
+@{
+    Layout = "_LayoutMac";
+    ViewData["Title"] = "Mac 桌面演示";
+}
+@*
+  Mac 风格桌面 Demo（仿 macOS / portfolio.zxh.me 拟物风格）
+  · 布局 _LayoutMac 提供：菜单栏 + 壁纸 + 窗口层 + Dock + 拖拽/置顶/最大最小化
+  · 本页只负责摆放窗口：About / Projects / Stats / Tech Stack
+  · 窗口内容用 .mac-card 卡片 + 步骤条示意，全部纯 CSS
+*@
+
+<!-- 窗口 1：关于我 -->
+<div class="mac-win" data-win="about" style="left:40px;top:40px;width:480px;height:330px;">
+    <div class="mac-titlebar">
+        <div class="mac-traffic">
+            <span class="mac-dot close"><span>×</span></span>
+            <span class="mac-dot min"><span>−</span></span>
+            <span class="mac-dot max"><span>＋</span></span>
+        </div>
+        <span class="mac-win-title">关于我</span>
+    </div>
+    <div class="mac-win-body">
+        <div class="mac-welcome">
+            <h2>你好，我是 Tom 👋</h2>
+            <p>一名 .NET 全栈开发者，业余低代码平台狂热爱好者。这个「VueLibV4」桌面就是我用平台能力拼出来的 macOS 拟物风格 Demo。</p>
+        </div>
+        <div class="mac-card">
+            <h3>👨‍💻 当前在做</h3>
+            <p>VueLibV4 低代码引擎：Razor + Vue3 混合渲染、容器元数据驱动设计器、DSL 配置化组件体系。</p>
+        </div>
+        <div class="mac-card">
+            <h3>📍 坐标</h3>
+            <p>中国 · 济南 / 远程协作</p>
+        </div>
+    </div>
+</div>
+
+<!-- 窗口 2：项目 -->
+<div class="mac-win" data-win="projects" style="left:560px;top:60px;width:520px;height:400px;">
+    <div class="mac-titlebar">
+        <div class="mac-traffic">
+            <span class="mac-dot close"><span>×</span></span>
+            <span class="mac-dot min"><span>−</span></span>
+            <span class="mac-dot max"><span>＋</span></span>
+        </div>
+        <span class="mac-win-title">Projects</span>
+    </div>
+    <div class="mac-win-body">
+        <div class="mac-card">
+            <h3>🖥️ VueLibV4 低代码平台</h3>
+            <p>组件元数据驱动设计器 / 双模板调度 / ActionHelper 动作引擎 / 桌面与菜单管理</p>
+            <span class="mac-tag">C#</span><span class="mac-tag">Vue3</span><span class="mac-tag">Razor</span><span class="mac-tag">SQLite</span>
+        </div>
+        <div class="mac-card">
+            <h3>🛒 订单主从 Demo</h3>
+            <p>三屏联动：筛选 → 列表 → 明细，主从表增删改查，全部由 DSL 配置生成。</p>
+            <span class="mac-tag">DynCrudPage</span><span class="mac-tag">三屏联动</span>
+        </div>
+        <div class="mac-card">
+            <h3>📊 ECharts 封装组件</h3>
+            <p>DynEChart：图表类型可切换、数据可配置，低代码页面直接拖入使用。</p>
+            <span class="mac-tag">ECharts</span><span class="mac-tag">DynCom</span>
+        </div>
+        <div class="mac-card">
+            <h3>🚗 车机大屏 Demo</h3>
+            <p>独立暗黑布局 + 侧边导航切换中间区域，展示多组件协同的整页体验。</p>
+            <span class="mac-tag">暗黑主题</span><span class="mac-tag">布局</span>
+        </div>
+    </div>
+</div>
+
+<!-- 窗口 3：统计 -->
+<div class="mac-win" data-win="stats" style="right:60px;top:40px;width:420px;height:340px;">
+    <div class="mac-titlebar">
+        <div class="mac-traffic">
+            <span class="mac-dot close"><span>×</span></span>
+            <span class="mac-dot min"><span>−</span></span>
+            <span class="mac-dot max"><span>＋</span></span>
+        </div>
+        <span class="mac-win-title">Statistics</span>
+    </div>
+    <div class="mac-win-body">
+        <div class="mac-card">
+            <h3>已注册组件</h3>
+            <p><b>72</b> 个 · 容器 12 个 · 表单 15 个</p>
+            <div class="mac-progress"><i style="width:92%"></i></div>
+        </div>
+        <div class="mac-card">
+            <h3>页面设计器能力</h3>
+            <p>撤销/重做 · 缩放 · 预览 · 标尺 · 容器批量配置</p>
+            <div class="mac-progress"><i style="width:86%"></i></div>
+        </div>
+        <div class="mac-card">
+            <h3>Demo 页面</h3>
+            <p>车机大屏 · Mac 桌面 · 订单主从 · ECharts · 树管理</p>
+            <div class="mac-progress"><i style="width:74%"></i></div>
+        </div>
+    </div>
+</div>
+
+<!-- 窗口 4：技术栈 -->
+<div class="mac-win" data-win="stack" style="left:120px;top:420px;width:460px;height:300px;">
+    <div class="mac-titlebar">
+        <div class="mac-traffic">
+            <span class="mac-dot close"><span>×</span></span>
+            <span class="mac-dot min"><span>−</span></span>
+            <span class="mac-dot max"><span>＋</span></span>
+        </div>
+        <span class="mac-win-title">Tech Stack</span>
+    </div>
+    <div class="mac-win-body">
+        <div class="mac-card">
+            <h3>🎨 前端</h3>
+            <p>Vue 3 · Element Plus · Tailwind 风格 CSS · CodeMirror · ECharts</p>
+        </div>
+        <div class="mac-card">
+            <h3>⚙️ 后端</h3>
+            <p>.NET 8 · ASP.NET Core MVC · Razor · SqlSugar · SQLite</p>
+        </div>
+        <div class="mac-card">
+            <h3>🧩 平台内核</h3>
+            <p>ComponentMeta 元数据 · DesignerMeta / DesignerOperates · dyn-core 渲染引擎 · DynAction 动作引擎</p>
+        </div>
+    </div>
+</div>

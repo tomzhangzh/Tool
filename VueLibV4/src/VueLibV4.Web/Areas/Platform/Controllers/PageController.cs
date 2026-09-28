@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -144,6 +144,15 @@ public class PageController : Controller
         ViewData["Title"] = "CodeMirror Demo - VueLibV4";
         ViewData["ApiBase"] = "/api";
         return View(string.Format(Demo, "CodeMirror"));
+    }
+
+    /// <summary>Mac 风格桌面 Demo（仿 macOS / portfolio.zxh.me 拟物风格，独立 _LayoutMac 布局）</summary>
+    [HttpGet("/Platform/Page/MacDesktopDemo")]
+    public IActionResult DemoMac()
+    {
+        ViewData["Title"] = "Mac 桌面 Demo - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View("~/Views/DynTemplates/MacDesktopDemo.cshtml");
     }
 
     /// <summary>Markdown 文档查看器（docs 目录内文档；安全：规范化路径并限制在 docs 内）</summary>

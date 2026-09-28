@@ -1,0 +1,30 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+<template>
+<div class="dyn-mac-window rounded-xl overflow-hidden shadow-2xl border border-gray-200 bg-white flex flex-col"
+     :style="getStyle(jc.options.itemoptions)"
+     :class="getClass(jc.options.itemoptions)"
+     data-mac-window>
+  <!-- 标题栏：traffic lights 三圆点 + 标题 -->
+  <div class="dyn-mac-titlebar flex items-center gap-1.5 px-3 py-2 bg-gray-100/80 border-b border-gray-200 select-none shrink-0"
+       data-mac-titlebar>
+    <span class="w-3 h-3 rounded-full bg-[#ff5f57] inline-block"></span>
+    <span class="w-3 h-3 rounded-full bg-[#febc2e] inline-block"></span>
+    <span class="w-3 h-3 rounded-full bg-[#28c840] inline-block"></span>
+    <span class="ml-2 text-xs font-medium text-gray-600 truncate">{{ props.jsonconfig?.options?.comoptions?.title || 'Mac 窗口' }}</span>
+  </div>
+  <!-- 内容区：渲染任意子组件 -->
+  <div class="dyn-mac-content flex-1 min-h-0 p-3 overflow-auto">
+    <n-dynamic-com v-for="(child, idx) in safeChildren"
+                   :key="child.component + '_' + idx"
+                   :jsonconfig="child"
+                   :parentmodelinfo="props.parentmodelinfo"
+                   :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
+    </n-dynamic-com>
+  </div>
+</div>
+</template>
+
+@section setupScripts{ DVALUE = null; }

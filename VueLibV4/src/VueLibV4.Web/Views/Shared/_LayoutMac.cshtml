@@ -1,0 +1,406 @@
+﻿@{
+    Layout = null;
+}
+@*
+  macOS 桌面布局（独立 Layout，仿 macOS Sequoia 风格）
+  · 全屏桌面：顶部菜单栏 + 壁纸渐变 + 窗口层(@RenderBody 放置窗口) + 底部 Dock
+  · 窗口管理 JS：拖拽 / 点击置顶 / 双击标题栏最大化 / 黄点最小化(缩入Dock) / 红点关闭(隐藏) / 绿点最大化
+  · Dock 图标点击恢复窗口，带 tooltip
+  · 参考 portfolio.zxh.me 的 macOS 拟物风格（traffic-lights 三圆点、dock、毛玻璃）
+*@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] ?? "Mac 桌面 - VueLibV4")</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="~/dyn/dyn.css" />
+    <style>
+        /* ===== macOS 桌面 ===== */
+        :root {
+            --mac-menubar: rgba(30, 30, 40, 0.72);
+            --mac-dock: rgba(255, 255, 255, 0.26);
+            --mac-win-bg: rgba(248, 249, 252, 0.92);
+            --mac-text: #1d1d1f;
+            --mac-text2: #6e6e73;
+            --dock-size: 46px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: 'Helvetica Neue', -apple-system, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+            color: var(--mac-text);
+            position: relative;
+            background: url('/img/mac-wallpaper.jpg') center/cover no-repeat fixed;
+            transition: background .5s ease;
+        }
+        body.mac-dark {
+            background-image: url('/img/mac-wallpaper-night.jpg');
+        }
+
+        /* ===== 顶部菜单栏 ===== */
+        .mac-menubar {
+            position: fixed; top: 0; left: 0; right: 0; height: 28px; z-index: 900;
+            display: flex; align-items: center; gap: 14px; padding: 0 14px;
+            background: var(--mac-menubar);
+            backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+            color: #f5f5f7; font-size: 13px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .mac-menubar .apple { font-size: 15px; font-weight: 700; margin-right: 2px; }
+        .mac-menubar .menu-item { cursor: default; padding: 1px 6px; border-radius: 4px; }
+        .mac-menubar .menu-item:hover { background: rgba(255,255,255,0.15); }
+        .mac-menubar .spacer { flex: 1; }
+        .mac-menubar .status { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+        .mac-status-icon { cursor: pointer; padding: 1px 5px; border-radius: 4px; }
+        .mac-status-icon:hover { background: rgba(255,255,255,0.15); }
+        .mac-clock { font-variant-numeric: tabular-nums; }
+
+        /* ===== 桌面窗口层 ===== */
+        .mac-stage { position: fixed; top: 28px; left: 0; right: 0; bottom: 0; overflow: hidden; }
+
+        /* ===== 窗口 ===== */
+        .mac-win {
+            position: absolute; display: flex; flex-direction: column;
+            background: var(--mac-win-bg);
+            border: 1px solid rgba(255,255,255,0.35);
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.12);
+            backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            min-width: 260px; min-height: 160px;
+            overflow: hidden;
+            transition: box-shadow .2s;
+        }
+        .mac-win.mac-maximized {
+            left: 16px !important; top: 16px !important;
+            width: calc(100% - 32px) !important; height: calc(100% - 32px) !important;
+            border-radius: 10px;
+        }
+        .mac-win.mac-hidden { display: none; }
+        .mac-win.mac-active { box-shadow: 0 28px 80px rgba(0,0,0,0.45), 0 3px 10px rgba(0,0,0,0.18); }
+        .mac-titlebar {
+            height: 38px; flex-shrink: 0;
+            display: flex; align-items: center; gap: 8px; padding: 0 12px;
+            background: rgba(230, 232, 238, 0.6);
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+            user-select: none; cursor: default;
+        }
+        .mac-traffic { display: flex; gap: 8px; }
+        .mac-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; color: rgba(0,0,0,0.55); cursor: pointer; }
+        .mac-dot.close { background: #ff5f57; }
+        .mac-dot.min { background: #febc2e; }
+        .mac-dot.max { background: #28c840; }
+        .mac-dot span { opacity: 0; }
+        .mac-win:hover .mac-dot span, .mac-dot:active span { opacity: 1; }
+        .mac-win-title {
+            flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: #3a3a3c;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            margin-right: 52px;
+        }
+        .mac-win-body { flex: 1; min-height: 0; overflow: auto; padding: 16px; }
+
+        /* ===== 底部 Dock（鱼眼放大） ===== */
+        .mac-dock {
+            position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 950;
+            display: flex; padding: 8px 14px;
+            background: var(--mac-dock);
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 24px;
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.4);
+        }
+        .mac-dock ul { display: flex; gap: 10px; list-style: none; }
+        .mac-dock .dock-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+        .mac-dock .dock-icon {
+            width: var(--dock-size); height: var(--dock-size);
+            display: flex; align-items: center; justify-content: center;
+            font-size: calc(var(--dock-size) * 0.52);
+            background: linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.35));
+            border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.6);
+            cursor: pointer;
+            will-change: width, height, font-size, border-radius;
+            transition: width .12s ease, height .12s ease, font-size .12s ease, border-radius .12s ease, transform .12s ease;
+        }
+        .mac-dock .dock-dot {
+            width: 4px; height: 4px; border-radius: 50%;
+            background: rgba(20,20,30,0.85);
+            margin-top: 4px; opacity: 0.25; transition: opacity .15s;
+        }
+        .mac-dock .dock-dot.active { opacity: 1; }
+        .mac-dock .dock-tip {
+            position: absolute; bottom: calc(var(--dock-size) + 12px); left: 50%; transform: translateX(-50%);
+            background: rgba(40,40,45,0.92); color: #fff; font-size: 12px;
+            padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+            opacity: 0; pointer-events: none; transition: opacity .15s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        }
+        .mac-dock .dock-item:hover .dock-tip { opacity: 1; }
+        .mac-dock .dock-icon.minimized { filter: grayscale(0.6) brightness(0.85); }
+
+        /* ===== 控制中心（设置面板） ===== */
+        .mac-settings {
+            position: fixed; top: 36px; right: 14px; z-index: 960;
+            width: 260px;
+            background: rgba(245, 245, 248, 0.72);
+            border: 1px solid rgba(255,255,255,0.55);
+            border-radius: 18px;
+            backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
+            padding: 14px;
+            display: none;
+        }
+        body.mac-dark .mac-settings { background: rgba(40,40,48,0.72); color: #f0f0f2; }
+        .mac-settings.open { display: block; animation: settingsIn .18s ease; }
+        @@keyframes settingsIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+        .mac-settings-head { font-size: 13px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+        .mac-setting-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid rgba(0,0,0,0.08); }
+        body.mac-dark .mac-setting-row { border-top-color: rgba(255,255,255,0.1); }
+        .mac-setting-row:first-of-type { border-top: none; }
+        .row-label { font-size: 12px; font-weight: 500; }
+        .seg { display: flex; background: rgba(0,0,0,0.08); border-radius: 8px; padding: 2px; }
+        body.mac-dark .seg { background: rgba(255,255,255,0.12); }
+        .seg-btn {
+            border: none; background: transparent; font-size: 12px; padding: 4px 12px;
+            border-radius: 6px; cursor: pointer; color: inherit;
+        }
+        .seg-btn.active { background: #fff; color: #111; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+        body.mac-dark .seg-btn.active { background: #fff; color: #111; }
+        .toggle {
+            width: 40px; height: 22px; border-radius: 999px; border: none; cursor: pointer;
+            background: rgba(0,0,0,0.18); position: relative; transition: background .2s;
+        }
+        body.mac-dark .toggle { background: rgba(255,255,255,0.25); }
+        .toggle::after {
+            content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+            border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .toggle.on { background: #34c759; }
+        .toggle.on::after { left: 20px; }
+        .mac-setting-row input[type=range] { width: 90px; accent-color: #007aff; }
+
+        /* ===== 窗口内通用样式 ===== */
+        .mac-welcome h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+        .mac-welcome p { color: var(--mac-text2); font-size: 13px; line-height: 1.7; }
+        .mac-card {
+            background: #fff; border: 1px solid rgba(0,0,0,0.08); border-radius: 10px;
+            padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .mac-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .mac-card p, .mac-card li { font-size: 12px; color: var(--mac-text2); line-height: 1.6; }
+        .mac-tag { display: inline-block; background: #eef2ff; color: #4f46e5; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin: 2px 2px 0 0; }
+        .mac-progress { height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin-top: 6px; }
+        .mac-progress i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #6366f1, #a855f7); }
+    </style>
+    @RenderSection("Head", required: false)
+</head>
+<body>
+    <!-- 顶部菜单栏 -->
+    <header class="mac-menubar">
+        <span class="apple"> Logo</span>
+        <span class="menu-item">文件</span>
+        <span class="menu-item">编辑</span>
+        <span class="menu-item">显示</span>
+        <span class="menu-item">窗口</span>
+        <span class="menu-item">帮助</span>
+        <span class="spacer"></span>
+        <span class="menu-item" onclick="window.location.href='/Platform/Page/Desktop'" title="切换到 Windows 桌面">🪟 切换 Windows</span>
+        <span class="status">
+            <span>Wi-Fi</span>
+            <span>🔋 100%</span>
+            <span class="mac-status-icon" id="macSettingsBtn" title="控制中心">⚙️ 设置</span>
+            <span class="mac-clock" id="macClock">00:00</span>
+        </span>
+    </header>
+
+    <!-- 控制中心（设置面板） -->
+    <div class="mac-settings" id="macSettings">
+        <div class="mac-settings-head">🎛️ 控制中心</div>
+        <div class="mac-setting-row">
+            <span class="row-label">🌅 外观</span>
+            <div class="seg">
+                <button class="seg-btn active" data-wp="day" onclick="setWallpaper('day', this)">亮色</button>
+                <button class="seg-btn" data-wp="night" onclick="setWallpaper('night', this)">暗色</button>
+            </div>
+        </div>
+        <div class="mac-setting-row">
+            <span class="row-label">🔍 Dock 放大</span>
+            <button class="toggle on" id="dockMagToggle" onclick="toggleMagnify(this)"></button>
+        </div>
+        <div class="mac-setting-row">
+            <span class="row-label">📏 Dock 大小</span>
+            <input type="range" id="dockSize" min="32" max="64" value="46" oninput="setDockSize(this.value)">
+        </div>
+    </div>
+
+    <!-- 桌面窗口层：页面通过 @RenderBody 放置 .mac-win 窗口 -->
+    <main class="mac-stage" id="macStage">
+        @RenderBody()
+    </main>
+
+    <!-- 底部 Dock（鱼眼放大，图标与窗口 data-win 关联） -->
+    <footer class="mac-dock" id="macDock">
+        <ul>
+            <li class="dock-item" data-dock="about"><div class="dock-icon">👤</div><div class="dock-dot"></div><div class="dock-tip">关于我</div></li>
+            <li class="dock-item" data-dock="projects"><div class="dock-icon">📁</div><div class="dock-dot"></div><div class="dock-tip">项目</div></li>
+            <li class="dock-item" data-dock="stats"><div class="dock-icon">📈</div><div class="dock-dot"></div><div class="dock-tip">统计</div></li>
+            <li class="dock-item" data-dock="stack"><div class="dock-icon">🛠️</div><div class="dock-tip">技术栈</div></li>
+        </ul>
+    </footer>
+
+    @await Component.InvokeAsync("DynComRegistry")
+    <script src="~/dyn/dyn-lib.js" asp-append-version="true"></script>
+    @RenderSection("Scripts", required: false)
+    @Html.RenderDynActions()
+    <script>
+        DynLib.ready(function () {
+            dyn.initActions("body");
+            /* ===== 窗口管理：拖拽 / 置顶 / 最大最小 / Dock ===== */
+            (function () {
+                var zTop = 10;
+                var wins = Array.prototype.slice.call(document.querySelectorAll('.mac-win'));
+                var dockMap = {};
+                document.querySelectorAll('#macDock li').forEach(function (li) {
+                    var k = li.getAttribute('data-dock');
+                    if (k) dockMap[k] = li;
+                });
+
+                function activate(win) {
+                    zTop++;
+                    win.style.zIndex = zTop;
+                    wins.forEach(function (w) { w.classList.remove('mac-active'); });
+                    win.classList.add('mac-active');
+                    /* Dock 指示点：活跃窗口点亮 */
+                    document.querySelectorAll('.mac-dock .dock-dot').forEach(function (d) { d.classList.remove('active'); });
+                    var key = win.getAttribute('data-win');
+                    if (dockMap[key]) {
+                        var dot = dockMap[key].querySelector('.dock-dot');
+                        if (dot) dot.classList.add('active');
+                    }
+                }
+
+                function setWinState(win, hidden) {
+                    win.classList.toggle('mac-hidden', hidden);
+                    var key = win.getAttribute('data-win');
+                    if (dockMap[key]) {
+                        dockMap[key].querySelector('.dock-icon').classList.toggle('minimized', hidden);
+                        var dot = dockMap[key].querySelector('.dock-dot');
+                        if (dot) dot.classList.remove('active');
+                    }
+                }
+
+                /* 拖拽移动 */
+                wins.forEach(function (win) {
+                    var bar = win.querySelector('.mac-titlebar');
+                    var dragging = null;
+                    bar.addEventListener('mousedown', function (e) {
+                        if (e.target.closest('.mac-dot')) return;
+                        if (win.classList.contains('mac-maximized')) return;
+                        activate(win);
+                        var r = win.getBoundingClientRect();
+                        dragging = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+                        e.preventDefault();
+                    });
+                    document.addEventListener('mousemove', function (e) {
+                        if (!dragging) return;
+                        var stage = document.getElementById('macStage').getBoundingClientRect();
+                        var nx = Math.min(Math.max(e.clientX - dragging.dx, 0), stage.width - win.offsetWidth);
+                        var ny = Math.min(Math.max(e.clientY - dragging.dy, 0), stage.height - win.offsetHeight);
+                        win.style.left = nx + 'px'; win.style.top = ny + 'px';
+                    });
+                    document.addEventListener('mouseup', function () { dragging = null; });
+
+                    /* 点击窗口 → 置顶 */
+                    win.addEventListener('mousedown', function () { activate(win); });
+
+                    /* 双击标题栏 → 最大化/还原 */
+                    bar.addEventListener('dblclick', function () { win.classList.toggle('mac-maximized'); });
+
+                    /* 交通灯：关闭(隐藏) / 最小化(隐藏) / 最大化(切换) */
+                    var dots = win.querySelectorAll('.mac-dot');
+                    dots[0].addEventListener('click', function () { setWinState(win, true); });
+                    dots[1].addEventListener('click', function () { setWinState(win, true); });
+                    dots[2].addEventListener('click', function () { win.classList.toggle('mac-maximized'); });
+                });
+
+                /* Dock 点击恢复窗口 */
+                Object.keys(dockMap).forEach(function (k) {
+                    dockMap[k].addEventListener('click', function () {
+                        var win = document.querySelector('.mac-win[data-win="' + k + '"]');
+                        if (!win) return;
+                        setWinState(win, false);
+                        activate(win);
+                    });
+                });
+
+                /* 时钟 */
+                function tick() {
+                    var d = new Date(), p = function (x) { return String(x).padStart(2, '0'); };
+                    document.getElementById('macClock').textContent = p(d.getHours()) + ':' + p(d.getMinutes());
+                }
+                tick(); setInterval(tick, 1000);
+
+                /* ===== Dock 鱼眼放大 ===== */
+                var dockEl = document.getElementById('macDock');
+                var magnifyOn = true;
+                var dockSize = 46;
+                var dockIcons = Array.prototype.slice.call(dockEl.querySelectorAll('.dock-icon'));
+
+                function applyDock() {
+                    dockIcons.forEach(function (el) {
+                        el.style.width = dockSize + 'px';
+                        el.style.height = dockSize + 'px';
+                        el.style.fontSize = Math.round(dockSize * 0.52) + 'px';
+                        el.style.borderRadius = Math.round(dockSize * 0.26) + 'px';
+                    });
+                }
+                dockEl.addEventListener('mousemove', function (e) {
+                    if (!magnifyOn) return;
+                    var cx = e.clientX;
+                    dockEl.querySelectorAll('.dock-item').forEach(function (li) {
+                        var ir = li.getBoundingClientRect();
+                        var ic = ir.left + ir.width / 2;
+                        var dist = Math.abs(cx - ic);
+                        var scale = Math.max(1, 1.5 - dist / 240);
+                        var el = li.querySelector('.dock-icon');
+                        el.style.width = Math.round(dockSize * scale) + 'px';
+                        el.style.height = Math.round(dockSize * scale) + 'px';
+                        el.style.fontSize = Math.round(dockSize * 0.52 * scale) + 'px';
+                        el.style.borderRadius = Math.round(dockSize * 0.26 * scale) + 'px';
+                    });
+                });
+                dockEl.addEventListener('mouseleave', applyDock);
+                applyDock();
+
+                /* ===== 控制中心（设置面板） ===== */
+                var settingsEl = document.getElementById('macSettings');
+                var settingsBtn = document.getElementById('macSettingsBtn');
+                settingsBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    settingsEl.classList.toggle('open');
+                });
+                document.addEventListener('click', function (e) {
+                    if (!settingsEl.contains(e.target)) settingsEl.classList.remove('open');
+                });
+                window.setWallpaper = function (mode, btn) {
+                    document.body.classList.toggle('mac-dark', mode === 'night');
+                    document.querySelectorAll('.seg-btn').forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                };
+                window.toggleMagnify = function (btn) {
+                    magnifyOn = !magnifyOn;
+                    btn.classList.toggle('on', magnifyOn);
+                    if (!magnifyOn) applyDock();
+                };
+                window.setDockSize = function (v) {
+                    dockSize = parseInt(v, 10);
+                    document.documentElement.style.setProperty('--dock-size', dockSize + 'px');
+                    applyDock();
+                };
+            })();
+        });
+    </script>
+</body>
+</html>

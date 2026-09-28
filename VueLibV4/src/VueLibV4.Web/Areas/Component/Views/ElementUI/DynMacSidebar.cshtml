@@ -1,0 +1,26 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+<template>
+<div class="dyn-mac-sidebar w-52 bg-[#1e1e2e] text-gray-300 flex flex-col rounded-xl overflow-hidden border border-gray-700/50"
+     :style="getStyle(jc.options.itemoptions)"
+     :class="getClass(jc.options.itemoptions)"
+     data-mac-sidebar>
+  <div class="px-4 py-3 text-sm font-semibold text-gray-100 border-b border-white/10 shrink-0">{{ props.jsonconfig?.options?.comoptions?.title || '导航' }}</div>
+  <nav class="flex-1 overflow-y-auto py-1">
+    <div v-for="(item, i) in safeChildren" :key="i"
+         class="mx-2 my-0.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer flex items-center gap-2"
+         :class="activeIndex === i ? 'bg-red-500 text-white' : 'hover:bg-white/10'"
+         @@click="activeIndex = i">
+      <span>{{ item.options?.comoptions?.icon || '•' }}</span>
+      <span class="truncate">{{ item.options?.labeloptions?.label || item.options?.comoptions?.label || ('项目 ' + (i + 1)) }}</span>
+    </div>
+  </nav>
+</div>
+</template>
+
+@section setupScripts{
+const activeIndex = ref(-1);
+DVALUE = null;
+}
