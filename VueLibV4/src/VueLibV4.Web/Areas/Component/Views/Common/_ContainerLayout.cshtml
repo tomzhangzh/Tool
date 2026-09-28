@@ -20,6 +20,12 @@
 </template> *@
 @section setupScripts{
 
+// ===== 透传白名单全局开关（容器侧顶部配置）=====
+// false（默认）：关闭白名单 —— 父容器 compassthrough 声明的字段直接透传给子组件，子组件无需写 compassthrough 接收；
+// true：启用白名单 —— 子组件需声明自身 compassthrough，与父清单取交集后才透传（旧行为）。
+const PASS_THROUGH_WHITE_LIST_MODE = false;
+provide('passThroughWhiteListMode', PASS_THROUGH_WHITE_LIST_MODE);
+
 // 容器：合并自身uiGlobalProps，向下provide给后代组件
 const finalUiGlobalProps = computed(() => {
     return mergePatch(originUiGlobalMerged.value, effectivePatch.comoptions);
@@ -30,14 +36,24 @@ provide('ui_global_props', finalUiGlobalProps.value);
 // 向下透传label默认配置
 provide('defaultLabelOptions', jc.options.defaultLabelOptions);
 
-// 父→子属性穿透：把本容器【合并后】的 comoptions/labeloptions 作为数据源 provide。
-// 子组件按自身 options.compassthrough 白名单，仅继承自己未显式配置的路径。
+// 父→子属性穿透：按父容器 compassthrough 清单提取要透传的字段（路径→值映射）。
+// 关闭白名单模式时子组件直接继承这些字段（自身未显式配置的路径）；
+// 开启模式时子组件再与自身 compassthrough 取交集（见 _BaseLayout.applyPassThrough）。
 // 用 getter 跟随 mergedOptions，确保容器配置变化或多级链式穿透时始终取到最新值；
 // 不依赖设计器 metaList，属性面板/运行时/画布行为一致。
 provide('comExtraPass', {
     get passValues() {
         const mo = mergedOptions.value || {};
-        return { comoptions: mo.comoptions, labeloptions: mo.labeloptions };
+        const passStr = (mo.compassthrough || '')
+            .split(',')
+            .map(i => i.trim())
+            .filter(Boolean);
+        const vals = {};
+        passStr.forEach(function (path) {
+            const v = _.get(mo, path);
+            if (v !== undefined) vals[path] = v;
+        });
+        return vals;
     }
 });
 

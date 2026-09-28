@@ -235,25 +235,32 @@ var comConfig = {
         }
         // ========== 新增：属性穿透相关 ==========
         /**
-         * 按 comExtra.comPassThrough 白名单合并父穿透配置
+         * 合并父容器穿透配置
          * @@param {object} localOptions 当前组件 jc.options
-         * @@param {object} parentPass 父注入的 comExtraPass
-         * @@param {string} passStr comExtra.comPassThrough 白名单字符串，支持 ,, 空项
+         * @@param {object} parentPass 父注入的 comExtraPass（父 compassthrough 清单提取的 路径→值 映射）
+         * @@param {string} passStr comExtra.comPassThrough 白名单字符串（仅白名单模式启用时使用）
+         * @@param {boolean} whiteListMode 透传白名单开关（来自容器 provide 的 passThroughWhiteListMode）
          * @@returns {object} 合并后的完整options
          */
-        function applyPassThrough(localOptions, parentPass, passStr) {
+        function applyPassThrough(localOptions, parentPass, passStr, whiteListMode) {
             const opts = _.cloneDeep(localOptions || {});
-            if (!parentPass || !passStr) return opts;
-            // 分割，trim，过滤空字符串，自动忽略 ,, 产生的空条目
-            const keys = passStr.split(',')
-                .map(i => i.trim())
-                .filter(path => !!path);
-            const parentVals = parentPass.passValues;
-            for (const path of keys) {
+            if (!parentPass) return opts;
+            const parentVals = parentPass.passValues || {};
+            const paths = Object.keys(parentVals);
+            // 白名单模式：true=启用（子自身 compassthrough 过滤，取交集）；false=关闭（忽略子白名单，父清单字段全收）
+            let allowed = paths;
+            if (whiteListMode) {
+                const childKeys = (passStr || '')
+                    .split(',')
+                    .map(i => i.trim())
+                    .filter(path => !!path);
+                allowed = paths.filter(function (p) { return childKeys.indexOf(p) >= 0; });
+            }
+            for (const path of allowed) {
                 const localVal = _.get(opts, path);
                 // 子组件该路径未显式定义，才继承父的值
                 if (localVal === undefined) {
-                    const pVal = _.get(parentVals, path);
+                    const pVal = parentVals[path];
                     if (pVal !== undefined) {
                         _.set(opts, path, pVal);
                     }
@@ -261,13 +268,15 @@ var comConfig = {
             }
             return opts;
         }
-        // 穿透白名单：来自组件持久化配置 options.compassthrough（见 defaults），不再写死
+        // 穿透白名单：来自组件持久化配置 options.compassthrough（见 defaults），仅白名单模式启用时参与过滤
         comExtra.comPassThrough = jc.options.compassthrough;
         // 注入父穿透数据源
         const parentPassSource = inject('comExtraPass', null);
+        // 透传白名单开关：容器 _ContainerLayout 顶部配置 provide；无容器父时默认 false（关闭白名单）
+        const passWhiteListMode = inject('passThroughWhiteListMode', false) === true;
         // 合并本地配置 + 上层穿透
         const mergedOptions = computed(() => {
-            return applyPassThrough(jc.options, parentPassSource, comExtra.comPassThrough);
+            return applyPassThrough(jc.options, parentPassSource, comExtra.comPassThrough, passWhiteListMode);
         });
         // ========== end 属性穿透 ==========
         // inject before section scripts
