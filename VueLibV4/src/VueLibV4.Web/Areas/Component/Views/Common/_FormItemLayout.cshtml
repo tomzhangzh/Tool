@@ -52,15 +52,14 @@
         if (labelPos.value === 'left') {
             // 标签在左、文字左对齐
             return {
-                height:'unset',
+                height:lineHeight,
                 width: finalLabelOptions.value?.labelwidth || 'auto',
                 flexShrink: '0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-start',
                 paddingRight: '12px',
-                fontSize,
-                lineHeight
+                fontSize
             };
         } else if (labelPos.value === 'right') {
             // 标签在左、文字右对齐（Element 语义），与内容留 12px 间距

@@ -1,16 +1,48 @@
-﻿@{
+@{
     ViewData["Title"] = "VueLibV4 桌面工作台";
     var extId = "Ctrl" + Guid.NewGuid().ToString("N");
 }
 <div id="@extId">
     <div class="desktop" @@contextmenu.prevent="showContextMenu($event)">
-        <!-- 桌面快捷方式（数据源：SysMenu，IsAddToDesktop=true；父菜单=文件夹，单击 float 子菜单） -->
-        <div class="desktop-icons">
+        <!-- 桌面快捷方式：两种展示模式（icons=经典平铺图标 / cards=分组卡片小组件） -->
+        <div v-if="displayMode === 'icons'" class="desktop-icons">
             <div v-for="m in roots" :key="m.Id" class="desktop-icon"
                  :class="{ selected: selectedId === m.Id, folder: isFolder(m) }"
                  @@click.stop="onIconClick(m, $event)" @@dblclick="openApp(m)"
                  :title="isFolder(m) ? '文件夹：点击展开子菜单' : (m.TargetType === 'NewWindow' ? '新窗口打开' : '双击打开')">
                 <div class="icon">{{ m.Icon || (isFolder(m) ? '📁' : '📄') }}</div>
+                <div class="label">{{ m.Name }}</div>
+            </div>
+        </div>
+
+        <!-- 卡片小组件模式：文件夹=分组卡片（hover 鱼眼弹跳），无分组菜单=独立图标 -->
+        <div v-else class="desktop-cards">
+            <div v-for="g in folderGroups" :key="g.Id" class="group-card">
+                <div class="group-card-header">
+                    <span class="gci">{{ g.Icon || '📁' }}</span>
+                    <span class="gcn">{{ g.Name }}</span>
+                </div>
+                <div class="group-card-grid"
+                     :class="cardFlow === 'column' ? 'flow-col' : 'flow-row'"
+                     :style="cardFlow === 'column'
+                        ? { gridTemplateRows: 'repeat(' + cardRows + ', auto)' }
+                        : { gridTemplateColumns: 'repeat(' + cardColumns + ', minmax(0, 1fr))' }">
+                    <div v-for="c in groupItems(g)" :key="c.Id"
+                         class="group-card-item"
+                         :class="isFolder(c) ? 'folder' : ''"
+                         @@click.stop="onGroupItemClick(c, $event)"
+                         :title="isFolder(c) ? '文件夹：点击展开子菜单' : c.Name">
+                        <div class="icon">{{ c.Icon || (isFolder(c) ? '📁' : '📄') }}</div>
+                        <div class="label">{{ c.Name }}</div>
+                    </div>
+                </div>
+            </div>
+            <!-- 无分组菜单：独立桌面图标，不包卡片，保持经典图标大小 -->
+            <div v-for="m in nonFolderRoots" :key="m.Id" class="desktop-icon"
+                 :class="{ selected: selectedId === m.Id }"
+                 @@click.stop="onIconClick(m, $event)" @@dblclick="openApp(m)"
+                 :title="m.TargetType === 'NewWindow' ? '新窗口打开' : '双击打开'">
+                <div class="icon">{{ m.Icon || '📄' }}</div>
                 <div class="label">{{ m.Name }}</div>
             </div>
         </div>
@@ -86,6 +118,41 @@
             <div class="context-menu-item" @@click="go('/Platform/Page/Demo/Crud')">📋 CRUD Demo</div>
         </div>
 
+        <!-- 桌面设置面板（向上弹出，Tailwind） -->
+        <div v-if="showSettingPanel" class="desktop-setting-panel" @@click.stop>
+            <div class="panel-title">桌面视图设置</div>
+            <div class="setting-item">
+                <label>显示模式</label>
+                <div class="setting-options">
+                    <button @@click="setMode('icons')" :class="{ active: displayMode === 'icons' }" class="setting-option">经典平铺</button>
+                    <button @@click="setMode('cards')" :class="{ active: displayMode === 'cards' }" class="setting-option">分组卡片</button>
+                </div>
+            </div>
+            <div v-if="displayMode === 'cards'" class="setting-item">
+                <label>卡片内部排列</label>
+                <div class="setting-options">
+                    <button @@click="cardFlow = 'row'" :class="{ active: cardFlow === 'row' }" class="setting-option">横向（行优先）</button>
+                    <button @@click="cardFlow = 'column'" :class="{ active: cardFlow === 'column' }" class="setting-option">竖向（列优先）</button>
+                </div>
+            </div>
+            <div v-if="displayMode === 'cards'" class="setting-item">
+                <label>{{ cardFlow === 'column' ? '每列图标数量' : '每行图标数量' }}</label>
+                <div class="setting-options">
+                    <template v-if="cardFlow === 'column'">
+                        <button @@click="cardRows = 2" :class="{ active: cardRows === 2 }" class="setting-option">每列 2 个</button>
+                        <button @@click="cardRows = 3" :class="{ active: cardRows === 3 }" class="setting-option">每列 3 个</button>
+                    </template>
+                    <template v-else>
+                        <button @@click="cardColumns = 2" :class="{ active: cardColumns === 2 }" class="setting-option">每行 2 个</button>
+                        <button @@click="cardColumns = 3" :class="{ active: cardColumns === 3 }" class="setting-option">每行 3 个</button>
+                        <button @@click="cardColumns = 4" :class="{ active: cardColumns === 4 }" class="setting-option">每行 4 个</button>
+                    </template>
+                </div>
+            </div>
+            <div class="setting-desc">修改后实时生效</div>
+        </div>
+        <div v-if="showSettingPanel" class="setting-mask" @@click="showSettingPanel = false"></div>
+
         <!-- 任务栏 -->
         <div class="taskbar">
             <div class="start-btn" @@click.stop="showStartMenu = !showStartMenu" title="开始">
@@ -99,6 +166,15 @@
                     <span class="icon">{{ win.icon }}</span>
                     <span class="title">{{ win.title }}</span>
                 </div>
+            </div>
+            <div class="taskbar-switch" @@click="toggleDisplayMode"
+                 :title="displayMode === 'icons' ? '切换到分组卡片小组件模式' : '切换到经典平铺图标模式'">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M3 5h4v4H3V5zm7 0h11v2H10V5zm-7 5h4v4H3v-4zm7 0h11v2H10v-2zm-7 5h4v4H3v-4zm7 0h11v2H10v-2z"/></svg>
+                {{ displayMode === 'icons' ? '分组卡片' : '经典图标' }}
+            </div>
+            <div class="taskbar-switch" @@click.stop="showSettingPanel = !showSettingPanel" title="桌面视图设置（向上弹出）">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.23-1.14.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.9 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.41.33.64.22l2.39-.96c.49.4 1.04.72 1.63.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.59-.22 1.14-.54 1.63-.94l2.39.96c.24.11.5.02.64-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
+                桌面设置
             </div>
             <div class="taskbar-switch" @@click="go('/Platform/Page/MacDesktopDemo')" title="切换到 Mac 风格桌面">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M18 3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V6a3 3 0 0 0-3-3zM8 7a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm8 10H8v-1c0-1.66 3.34-3 4-3s4 1.34 4 3v1z"/></svg>
@@ -206,6 +282,205 @@
         max-height: 32px;
         overflow: hidden;
     }
+
+    /* ===== 卡片小组件模式（displayMode='cards'）===== */
+    .desktop-cards {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 48px;
+        padding: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        gap: 16px;
+        overflow-y: auto;
+    }
+
+    .group-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 12px;
+        padding: 10px;
+        min-width: 150px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        /* 鱼眼弹跳动画：hover 上浮 + 放大（回弹缓动） */
+        transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease, box-shadow 0.35s ease;
+    }
+
+    .group-card:hover {
+        transform: translateY(-8px) scale(1.12);
+        background: rgba(255, 255, 255, 0.16);
+        box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+    }
+
+    .group-card-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 4px 8px;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 12px;
+        font-weight: 600;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 8px;
+    }
+
+    .group-card-header .gci {
+        font-size: 16px;
+    }
+
+    .group-card-header .gcn {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .group-card-grid {
+        display: grid;
+        gap: 6px;
+    }
+
+    /* 竖向（列优先）：每列固定宽，行数由 Vue 绑定 gridTemplateRows 控制 */
+    .group-card-grid.flow-col {
+        grid-auto-flow: column;
+        grid-auto-columns: 64px;
+    }
+
+    /* 横向（行优先）：列数由 Vue 绑定 gridTemplateColumns 控制（每行 cardColumns 个） */
+    .group-card-grid.flow-row {
+        grid-auto-flow: row;
+    }
+
+    .group-card-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 8px 4px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: transform 0.25s ease, background 0.15s;
+    }
+
+    .group-card-item:hover {
+        background: rgba(255, 255, 255, 0.14);
+        transform: scale(1.22);
+    }
+
+    .group-card-item.folder {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px dashed rgba(255, 255, 255, 0.25);
+    }
+
+    .group-card-item .icon {
+        font-size: 22px;
+        filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+    }
+
+    .group-card-item .label {
+        color: #fff;
+        font-size: 10px;
+        text-align: center;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+        word-break: break-all;
+        line-height: 1.2;
+    }
+
+    /* ===== 桌面设置面板（底部向上弹出）===== */
+    .setting-mask {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 99;
+    }
+
+    .desktop-setting-panel {
+        position: fixed;
+        bottom: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 420px;
+        background: rgba(35, 35, 45, 0.96);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        padding: 16px;
+        z-index: 100;
+        box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5);
+        animation: panelUp 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @@keyframes panelUp {
+        from {
+            transform: translateX(-50%) translateY(120%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .panel-title {
+        font-weight: 700;
+        font-size: 16px;
+        color: #fff;
+        margin-bottom: 12px;
+        text-align: center;
+    }
+
+    .setting-item {
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .setting-item label {
+        display: block;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 12px;
+        margin-bottom: 8px;
+    }
+
+    .setting-options {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .setting-option {
+        border: none;
+        cursor: pointer;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.85);
+        background: rgba(255, 255, 255, 0.1);
+        transition: background 0.15s, color 0.15s;
+    }
+
+    .setting-option:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .setting-option.active {
+        background: #3b82f6;
+        color: #fff;
+    }
+
+    .setting-desc {
+        margin-top: 12px;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.5);
+        text-align: center;
+    }
+
 
     .taskbar {
         position: absolute;
@@ -606,11 +881,31 @@
                         contextMenu: { show: false, x: 0, y: 0 },
                         treeData: [],
                         floatStack: [],
+                        displayMode: 'icons', // 桌面快捷方式展示模式：icons=经典平铺 / cards=分组卡片小组件
+                        cardRows: 3, // 卡片内部每列图标数（竖向列优先：一列 2 或 3 个）
+                        cardColumns: 3, // 卡片内部每行图标数（横向行优先：一行 2/3/4 个）
+                        cardFlow: 'column', // 卡片内部排列方向：row=行优先 / column=列优先
+                        showSettingPanel: false, // 桌面设置面板显隐
                         _winId: 0, _z: 100
                     };
                 },
+                computed: {
+                    // 卡片小组件模式（仅取顶层菜单，避免与文件夹子项重复）：
+                    // 顶层文件夹 = 分组卡片；顶层非文件夹 = 独立图标（无分组，不包卡片）
+                    folderGroups: function () {
+                        return (this.treeData || []).filter(function (m) { return m.IsAddToDesktopRoot !== false && m.children && m.children.length; });
+                    },
+                    nonFolderRoots: function () {
+                        return (this.treeData || []).filter(function (m) { return m.IsAddToDesktopRoot !== false && !(m.children && m.children.length); });
+                    }
+                },
                 methods: {
                     go: function (url) { window.location.href = url; },
+                    toggleDisplayMode: function () {
+                        this.displayMode = this.displayMode === 'icons' ? 'cards' : 'icons';
+                    },
+                    setMode: function (m) { this.displayMode = m; },
+                    groupItems: function (g) { return (g.children || []).filter(function (c) { return c.IsAddToDesktop !== false; }); },
                     load: function () {
                         var self = this;
                         fetch('/api/platform/sysmenu/desktoplist').then(function (r) { return r.json(); })
@@ -643,6 +938,13 @@
                         this.selectedId = m.Id;
                         this.closeFloatMenu();
                         if (this.isFolder(m)) this.openFloat(m, e);
+                    },
+                    // 卡片内子项点击：文件夹 → 弹级联 float 子菜单（多级嵌套）；叶子 → 直接打开
+                    onGroupItemClick: function (c, e) {
+                        this.selectedId = c.Id;
+                        this.closeFloatMenu();
+                        if (this.isFolder(c)) this.openFloat(c, e);
+                        else this.openApp(c);
                     },
                     // 打开一层 float 面板（顶层定位在图标旁；放不下时向上展开）
                     openFloat: function (m, e) {
