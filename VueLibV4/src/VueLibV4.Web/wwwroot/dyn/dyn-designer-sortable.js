@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 设计器拖拽封装 —— 基于 vue-draggable-plus 的 useDraggable
  * vue-draggable-plus 内部自动处理 SortableJS 与 Vue 响应式数组的同步，
  * 我们只负责：左侧组件库 clone、拖入时把 metadata 转成实际组件配置、高亮。
@@ -74,7 +74,9 @@
         return useDraggable(listEl, parentCfg.childrenctrls, {
             group: { name: "dyn-designer", pull: false, put: true },
             sort: true,
-            draggable: "[data-dyn-uid]",
+            // 不指定 draggable：SortableJS 默认只处理根元素的直接子元素。
+            // 嵌套容器场景下，若用 "[data-dyn-uid]" 会匹配到内层容器的子组件，
+            // 导致外层 Sortable 拦截内层子组件的拖拽，使其无法拖动。
             emptyInsertThreshold: 40,
             dragoverBubble: true,
             animation: 150,

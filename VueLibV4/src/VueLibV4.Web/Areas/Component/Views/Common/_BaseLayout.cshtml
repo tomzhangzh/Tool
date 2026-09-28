@@ -502,8 +502,11 @@ var comConfig = {
                 rootEl.__dynValidate = validate;
 }
   			// 设计模式下，容器组件初始化 Sortable
+            // 注意：DynDynamicCom 透明包装层（transparentMode）与真实容器组件挂在同一根元素、
+            // 都能看到同一个 .dyn-children-wrap，若两层都初始化会在同一元素上重复绑定 Sortable，
+            // 嵌套容器时残留的旧实例 mousedown 监听器会与内层实例争抢，导致子组件拖不动。
             nextTick(() => {
-            if (designMode && window.DesignerSortable && rootEl) {
+            if (designMode && !comExtra.transparentMode && window.DesignerSortable && rootEl) {
                 var compName = jc.component || "";
                 var isContainer = lookupIsContainer(compName);
                 var isGrid = compName === "DynGridContainer";
