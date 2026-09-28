@@ -66,6 +66,8 @@
                             <el-option label="开关" value="switch"></el-option>
                             <el-option label="日期" value="date"></el-option>
                             <el-option label="下拉选择" value="select"></el-option>
+                            <el-option label="Emoji图标" value="emoji"></el-option>
+                            <el-option label="JSON设计器" value="json"></el-option>
                         </el-select>
                     </template>
                 </el-table-column>
@@ -141,6 +143,8 @@
                 },
                 inferControl: function (name, dataType) {
                     var t = (dataType || '').toUpperCase();
+                    if (/ICON/.test(name)) return 'emoji';
+                    if (/JSON$/.test(name)) return 'json';
                     if (/INT|DECIMAL|NUMERIC|REAL|DOUBLE|FLOAT/.test(t)) return 'number';
                     if (/DATE|TIME/.test(t)) return 'date';
                     if (DICT_HINTS[name]) return 'select';
@@ -152,25 +156,27 @@
                     self.loadingCols = true;
                     if (!self.form.code) self.form.code = (self.form.table || '').toLowerCase();
                     if (!self.form.name) self.form.name = self.form.table + '管理';
-                    var url = '/api/business/dyndata/columns?table=' + encodeURIComponent(self.form.table)
-                        + (self.form.project ? '&project=' + encodeURIComponent(self.form.project) : '');
+                    // 字段元数据 + 推荐控件由后端 PageGenService 统一推断（GetTableFieldMeta），
+                    // 保证第二步预填的控件/屏归属与最终生成完全一致；用户可手动修改覆盖。
+                    var url = '/api/business/pagegen/fields?table=' + encodeURIComponent(self.form.table);
                     fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
                         if (res && res.code === 0) {
-                            var cols = res.data || [];
-                            self.fields = cols.map(function (c) {
-                                var name = c.Name;
-                                var isPk = c.IsPrimaryKey === true;
-                                var dt = (c.DataType || '').toUpperCase();
+                            var metas = res.data || [];
+                            self.fields = metas.map(function (m) {
+                                var name = m.FieldName || '';
+                                var isPk = m.IsPrimaryKey === true;
+                                var dt = (m.DbType || '').toUpperCase();
                                 return {
                                     name: name,
                                     dataType: dt,
                                     isPk: isPk,
-                                    label: LABEL_HINTS[name] || name,
-                                    inFilter: !isPk,
-                                    inList: true,
-                                    inDetail: true,
-                                    op: /TEXT|CHAR|CLOB/.test(dt) ? 'like' : 'eq',
-                                    control: self.inferControl(name, dt),
+                                    label: LABEL_HINTS[name] || m.Label || name,
+                                    inFilter: m.InFilter === true,
+                                    inList: m.InList !== false,
+                                    inDetail: m.InDetail !== false,
+                                    op: (dt && /TEXT|CHAR|CLOB/.test(dt) && m.Control !== 'number') ? 'like' : 'eq',
+                                    control: m.Control || self.inferControl(name, dt),
+                                    suggestComponent: m.SuggestComponent || '',
                                     width: null,
                                     sortable: /INT|DECIMAL|NUMERIC|REAL|DOUBLE|FLOAT/.test(dt),
                                     dictType: DICT_HINTS[name] || null
