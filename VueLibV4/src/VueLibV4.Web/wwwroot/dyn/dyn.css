@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
  * VueLibV3  dyn.css  动态组件/设计器公共样式
  * ============================================================ */
 
@@ -122,27 +122,33 @@
 /* 悬停高亮（display:contents 包裹层无盒子，hover 由 JS 加到组件根） */
 .dyn-hover-active { outline: 1px dashed #409eff; outline-offset: -1px; }
 
-/* 两种场景隐藏空提示：
-1.本容器正在拖拽 dyn‑dragging‑active
-2.鼠标悬浮作为投放目标 dyn‑container‑hover
-*/
-.dyn-children-wrap.dyn-dragging-active.designer-empty-container::before,
-.dyn-children-wrap.dyn-container-hover.designer-empty-container::before {
-    display: none !important;
-}
-
+/* ===== 空容器占位符（非拖拽态）：浅蓝底虚线框，清晰可见 ===== */
 .design-mode .designer-empty-container::before {
-    content: "📦 空容器，请拖入组件";
+    content: "＋ 拖放组件到此处";
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 20px;
-    color: #909399;
-    border: 1px dashed #dcdfe6;
-    margin: 8px;
+    min-height: 84px;
+    margin: 6px;
+    color: #7a8699;
+    font-size: 13px;
+    letter-spacing: .5px;
+    background: #f4f8ff;
+    border: 1.5px dashed #a0c4f0;
+    border-radius: 6px;
+    transition: border-color .15s, color .15s, background-color .15s;
+}
+.design-mode .designer-empty-container:hover::before {
+    border-color: #409eff;
+    color: #2f7fe0;
+    background: #e6f1ff;
 }
 
-.design-mode .designer-empty-container:hover::before { border-color: #409eff; color: #409eff; }
+/* 拖拽进行中：空提示文字隐藏（由候选框/高亮框接管表达） */
+body.dyn-drag-active .designer-empty-container::before,
+.dyn-children-wrap.dyn-dragging-active.designer-empty-container::before {
+    display: none !important;
+}
 
 /* 组件树节点 */
 .dyn-struct-node { padding: 4px 6px; font-size: 13px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 4px; }
@@ -202,53 +208,49 @@
 /* 容器 children 包裹层 */
 .dyn-children-wrap { min-height: 4px; }
 
-/* Sortable container hover highlight */
-.dyn-container-hover { outline: 3px dashed #409eff !important; outline-offset: 2px; background: rgba(64,158,255,0.05) !important; }
-
-/* 拖拽容器高亮（强化） */
-.dyn-container-hover {
-    outline: 4px solid #409eff !important;
-    outline-offset: 3px;
-    background-color: rgba(64, 158, 255, 0.12) !important;
+/* ===== 非拖拽态：鼠标悬停容器，用绿色虚线提示"这里可以放组件" ===== */
+.design-mode .dyn-children-wrap:hover {
+    outline: 1.5px dashed #67c23a;
+    outline-offset: -1px;
+    background: rgba(103, 194, 58, .05);
     border-radius: 4px;
 }
 
-/* 拖拽进行中隐藏空容器占位 */
-.dyn-dragging-active.designer-empty-container::before {
-    display: none !important;
+/* ===== 拖拽进行中（body.dyn-drag-active）===== */
+/* 所有候选容器：淡蓝虚线框，提示"可以放" */
+body.dyn-drag-active .dyn-children-wrap {
+    outline: 1.5px dashed #9fc7f2;
+    outline-offset: -1px;
+    background: rgba(64, 158, 255, .06);
+    border-radius: 4px;
+    transition: outline-color .1s, background-color .1s;
 }
+/* 当前悬停且可接收：绿色实心高亮 */
+.dyn-children-wrap.dyn-container-hover {
+    outline: 3px solid #67c23a !important;
+    outline-offset: -1px;
+    background: rgba(103, 194, 58, .14) !important;
+    border-radius: 6px;
+}
+/* 当前悬停但不能接收：红色描边 + 禁止光标 */
+.dyn-children-wrap.dyn-container-denied {
+    outline: 3px solid #f56c6c !important;
+    outline-offset: -1px;
+    background: rgba(245, 108, 108, .10) !important;
+    border-radius: 6px;
+}
+
 /* fallback拖拽预览（鼠标跟随的组件快照） */
 .dyn-fallback-drag {
     opacity: 0.85 !important;
     pointer-events: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
-/* 放置占位线条（原来的蓝线，保留作为放置指示器） */
+/* 放置占位线条 */
 .dyn-designer-ghost {
     background: #409EFF !important;
     height: 4px !important;
     border-radius: 2px;
-}
-/* 容器高亮 */
-.dyn-container-hover {
-    outline:4px solid #409EFF !important;
-    outline-offset:4px;
-    background:rgba(64,158,255,0.15) !important;
-    border-radius:6px;
-}
-/* 拖拽激活时，隐藏空容器提示文字 */
-.dyn-dragging-active.designer-empty-container::before {
-    display:none !important;
-}
-.design-mode .designer-empty-container::before {
-    content:"📦 空容器，请拖入组件";
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    min-height:130px;
-    color:#909399;
-    border:1px dashed #dcdfe6;
-    margin:8px;
 }
 .dyn-move-move {
     transition: transform 0.2s ease;
@@ -282,15 +284,6 @@
 }
 .dyn-designer-chosen {
   opacity: 0.4;
-}
-.dyn-container-hover {
-  outline: 4px solid #409eff !important;
-  outline-offset: 4px;
-  background: rgba(64,158,255,0.12) !important;
-  border-radius: 6px;
-}
-.dyn-dragging-active.designer-empty-container::before {
-  display: none !important;
 }
 
 /* 禁止原生HTML5拖拽干扰 */

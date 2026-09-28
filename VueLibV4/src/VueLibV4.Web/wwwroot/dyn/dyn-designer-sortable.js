@@ -31,6 +31,49 @@
         return null;
     }
 
+    // ===== 拖拽视觉状态辅助 =====
+    function setDragActive(on) {
+        document.body.classList.toggle("dyn-drag-active", !!on);
+    }
+    function clearDropMarks() {
+        document.querySelectorAll(".dyn-container-hover,.dyn-container-denied").forEach(function (el) {
+            el.classList.remove("dyn-container-hover");
+            el.classList.remove("dyn-container-denied");
+        });
+    }
+    // 被拖组件名：库卡片看 data-meta；画布节点看 data-dyn-uid 反查配置树
+    function getDragName(item, scope) {
+        if (!item) return null;
+        var metaName = item.getAttribute && item.getAttribute("data-meta");
+        if (metaName) return metaName;
+        var uid = item.getAttribute && item.getAttribute("data-dyn-uid");
+        if (uid && scope && scope.pageJson && window.DynDesignerOps) {
+            var node = window.DynDesignerOps.findNode(scope.pageJson, uid);
+            return node ? node.component : null;
+        }
+        return null;
+    }
+    // 目标容器（.dyn-children-wrap）所属组件名
+    function getContainerNode(wrap, scope) {
+        if (!wrap || !wrap.closest || !scope || !scope.pageJson || !window.DynDesignerOps) return null;
+        var host = wrap.closest("[data-dyn-uid]");
+        if (!host) return null;
+        return window.DynDesignerOps.findNode(scope.pageJson, host.getAttribute("data-dyn-uid"));
+    }
+    // 判断目标 wrap 当前能否接收被拖组件：类型白名单 + 禁止放进自身/自己的后代
+    function canAccept(wrap, item, scope) {
+        var dragName = getDragName(item, scope);
+        var targetNode = getContainerNode(wrap, scope);
+        if (!dragName || !targetNode || !window.DynDesignerOps) return false;
+        if (!window.DynDesignerOps.checkCanDrop(targetNode.component, dragName)) return false;
+        var dragUid = item.getAttribute && item.getAttribute("data-dyn-uid");
+        if (dragUid) {
+            if (targetNode.__uid === dragUid) return false;
+            if (window.DynDesignerOps.isDescendantOf(targetNode, window.DynDesignerOps.findNode(scope.pageJson, dragUid))) return false;
+        }
+        return true;
+    }
+
     /**
      * 左侧组件库：clone 模式，sort 关闭
      * @param {HTMLElement} el 卡片容器
@@ -51,7 +94,10 @@
             fallbackTolerance: 3,
             fallbackOnBody: true,
             filter: "input,textarea,button,img",
-            preventOnFilter: true
+            preventOnFilter: true,
+            onStart: function () { setDragActive(true); },
+            onEnd: function () { setDragActive(false); clearDropMarks(); },
+            onUnchoose: function () { setDragActive(false); clearDropMarks(); }
         });
     };
 
@@ -63,16 +109,9 @@
         if (!listEl || !useDraggable || !parentCfg) return null;
         if (!Array.isArray(parentCfg.childrenctrls)) parentCfg.childrenctrls = [];
 
-        var highlightTarget = null;
-        function clearHighlight() {
-            if (highlightTarget) {
-                highlightTarget.classList.remove("dyn-container-hover");
-                highlightTarget = null;
-            }
-        }
-
         return useDraggable(listEl, parentCfg.childrenctrls, {
-            group: { name: "dyn-designer", pull: false, put: true },
+            // pull:true：允许在画布各容器间移动（同组 + put:true 可互相接收）；左侧库是 clone 不受影响
+            group: { name: "dyn-designer", pull: true, put: true },
             sort: true,
             // 不指定 draggable：SortableJS 默认只处理根元素的直接子元素。
             // 嵌套容器场景下，若用 "[data-dyn-uid]" 会匹配到内层容器的子组件，
@@ -91,37 +130,45 @@
             preventOnFilter: true,
             swapThreshold: 0.65,
 
-            onStart: function () {
+            onStart: function (evt) {
+                setDragActive(true);
                 listEl.classList.add("dyn-dragging-active");
+                if (scope) {
+                    var name = getDragName(evt && evt.item, scope);
+                    if (name) scope.dragging = name;
+                }
             },
 
             onMove: function (evt) {
-                // 清除所有高亮
-                document.querySelectorAll(".dyn-container-hover").forEach(function (el) {
-                    el.classList.remove("dyn-container-hover");
-                });
-                // 找鼠标下最内层的 dyn-children-wrap 高亮
+                // 清除上一个目标的红绿标记
+                clearDropMarks();
+                // evt.to = 鼠标当前悬停的列表根元素（.dyn-children-wrap）
                 var target = evt.to;
-                if (target) {
-                    var wrap = target.classList && target.classList.contains("dyn-children-wrap")
-                        ? target
-                        : (target.closest ? target.closest(".dyn-children-wrap") : null);
-                    if (wrap) {
-                        wrap.classList.add("dyn-container-hover");
-                        highlightTarget = wrap;
-                    }
-                }
-                return true;
+                var wrap = target && target.classList && target.classList.contains("dyn-children-wrap")
+                    ? target
+                    : (target && target.closest ? target.closest(".dyn-children-wrap") : null);
+                if (!wrap) return false;
+                var ok = canAccept(wrap, evt.dragged || evt.item, scope);
+                wrap.classList.add(ok ? "dyn-container-hover" : "dyn-container-denied");
+                // 返回 false 直接禁止放入（SortableJS 会回弹并显示禁止光标）
+                return ok;
             },
 
             onEnd: function () {
+                setDragActive(false);
                 listEl.classList.remove("dyn-dragging-active");
-                document.querySelectorAll(".dyn-container-hover").forEach(function (el) {
-                    el.classList.remove("dyn-container-hover");
-                });
+                clearDropMarks();
+                if (scope) scope.dragging = null;
                 if (scope && window.DynDesignerOps) {
                     setTimeout(function () { window.DynDesignerOps.updateOverlay(scope); }, 50);
                 }
+            },
+
+            onUnchoose: function () {
+                setDragActive(false);
+                listEl.classList.remove("dyn-dragging-active");
+                clearDropMarks();
+                if (scope) scope.dragging = null;
             },
 
             // 从左侧拖入：vue-draggable-plus 已经把 metadata 对象 splice 到 childrenctrls
