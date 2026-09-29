@@ -1,51 +1,114 @@
-@model VueLibV4.Web.Core.DynSharedModel
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Models
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
 @{
     // =====================================================================================
     // 三屏组合模板（积木化·共享上下文版）：Filter / List / Detail 三块独立积木（各自独立 createApp），
-    // 由本模板作为树根（TreeRoot）拼装。共享数据/通信不走 window 全局，也不依赖共享 scope：
-    //   - 根 app（@extIdRoot, createApp）持有消息中心 + 模板自定义的业务配置 + 手写订阅转发
-    //   - 根 model 的【业务 key 由本模板决定】：（filterCfg / listCfg / detailCfg 三个配置对象）
-    //     唯一约定：消息中心固定放在 model.msgCenter（通信基础设施，属底层约定而非业务字段）
-    //   - RenderPartial 三个 Block 时传入 RootExtId + ModelKey + MsgCenterKey（ViewData），
+    // 由本模板作为树根（TreeRoot）拼装。
+    //   - Model 即 DynWebPage 实例（渲染入口对 triscreen-blocks 直接透传，不做预组装）
+    //   - 本模板自己负责「组装根 model」：
+    //       ① 用 ClayHelper 安全读取实例 ConfigJson（TableName/URLs/三个 PageSettingId/ChildFkField）
+    //       ② 用 PageSettingService 读取 Filter/List/Detail 三个 PageSetting（ConfigJson=组件树 / DefaultJson=骨架）
+    //       ③ 拼装根 model 业务 key（filterCfg / listCfg / detailCfg / childFkField）——key 由本模板决定
+    //       ④ 唯一约定：消息中心固定放 model.msgCenter（通信基础设施，属底层约定而非业务字段）
+    //   - RenderPartial 三个 Block 时传入 RootExtId + ModelKey + MsgCenterKey，
     //     Block 容器带 data-root-ext-id / data-model-key / data-msg-center-key
     //   - Block dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，
     //     再按 data-model-key 动态读取对应配置对象、按 data-msg-center-key 读取消息中心
     //   - 挂载顺序：先 mount 根 app（写入配置 + 消息中心）→ 再 mount 三个积木（读根 app model）
     // 积木之间不直接通信，一律经消息中心；积木不关心自己被放哪（面板/弹窗/行展开）。
-    // 数据来源：DynSharedModel（EffectiveParams 已含 TableName/ListUrl/AddUrl/EditUrl/DeleteUrl 及三屏 PageSettingId）。
     // =====================================================================================
     Layout = "_Layout";
-    ViewData["Title"] = Model.PageTitle + " - VueLibV4";
-    var sharedJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model, new Newtonsoft.Json.JsonSerializerSettings
+    ViewData["Title"] = Model.Name + " - VueLibV4";
+
+    // ===== ① ClayHelper 安全读取实例 ConfigJson（不存在/空/不可解析均不抛异常）=====
+    dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
+    var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
+    var loadUrl = ClayHelper.GetString(runTimeModel, "ListUrl") ?? "/api/platform/dyndata/search";
+    var addUrl = ClayHelper.GetString(runTimeModel, "AddUrl") ?? ("/api/platform/dyndata/save?table=" + tableName);
+    var editUrl = ClayHelper.GetString(runTimeModel, "EditUrl") ?? ("/api/platform/dyndata/save?table=" + tableName);
+    var deleteUrl = ClayHelper.GetString(runTimeModel, "DeleteUrl") ?? ("/api/platform/dyndata/delete?table=" + tableName);
+    var childFkField = ClayHelper.GetString(runTimeModel, "ChildFkField") ?? "";
+    // 项目维度：dyndata 接口通过请求体 project 字段定位项目库（ProjectDbResolver 支持项目 Id 或 Code）。
+    // 从页面实例的 ProjectId 读取（int?），注入各 Block 配置，请求时随 body 一并下发；为空则由接口缺省 BusinessDb。
+    var project = Model.ProjectId?.ToString() ?? "";
+    var filterPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "FilterPageSettingId") ?? "", out int fv) ? fv : (int?)null;
+    var listPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "ListPageSettingId") ?? "", out int lv) ? lv : (int?)null;
+    var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
+
+    // ===== ② 读取三个 PageSetting =====
+    var filterPs = filterPsId != null ? PageSettingService.GetById(filterPsId.Value) : null;
+    var listPs = listPsId != null ? PageSettingService.GetById(listPsId.Value) : null;
+    var detailPs = detailPsId != null ? PageSettingService.GetById(detailPsId.Value) : null;
+
+    // ===== ③ 拼装根 model（JObject 保证序列化正确；业务 key 由本模板决定）=====
+    var filterCfg = new JObject();
+    if (filterPs != null)
     {
-        NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
-        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
-    });
+        filterCfg["filterConfig"] = string.IsNullOrWhiteSpace(filterPs.ConfigJson) ? new JObject() : JObject.Parse(filterPs.ConfigJson);
+        filterCfg["filterDefault"] = string.IsNullOrWhiteSpace(filterPs.DefaultJson) ? new JObject() : JObject.Parse(filterPs.DefaultJson);
+    }
+    var listCfg = new JObject();
+    if (listPs != null && !string.IsNullOrWhiteSpace(listPs.ConfigJson))
+    {
+        var lc = JObject.Parse(listPs.ConfigJson);
+        listCfg["columns"] = lc["columns"] ?? new JArray();
+    }
+    else { listCfg["columns"] = new JArray(); }
+    listCfg["table"] = tableName;
+    listCfg["project"] = project;
+    listCfg["loadUrl"] = loadUrl;
+    listCfg["deleteUrl"] = deleteUrl;
+    var detailCfg = new JObject();
+    if (detailPs != null)
+    {
+        detailCfg["detailConfig"] = string.IsNullOrWhiteSpace(detailPs.ConfigJson) ? new JObject() : JObject.Parse(detailPs.ConfigJson);
+        detailCfg["detailDefault"] = string.IsNullOrWhiteSpace(detailPs.DefaultJson) ? new JObject() : JObject.Parse(detailPs.DefaultJson);
+    }
+    detailCfg["table"] = tableName;
+    detailCfg["project"] = project;
+    detailCfg["addUrl"] = addUrl;
+    detailCfg["editUrl"] = editUrl;
+
+    var rootModel = new JObject
+    {
+        ["msgCenter"] = null,   // 唯一约定：通信基础设施，前端 mount 后实例化
+        ["childFkField"] = childFkField,
+        ["filterCfg"] = filterCfg,
+        ["listCfg"] = listCfg,
+        ["detailCfg"] = detailCfg
+    };
+    // 转义 "</" → "<\/"（合法 JSON，防止内联 script 提前闭合）
+    var rootModelForScript = rootModel.ToString(Newtonsoft.Json.Formatting.None).Replace("</", "<\\/");
+
     var extId = "Tsb" + Guid.NewGuid().ToString("N");
     var extIdRoot = extId + "-root";
     var extIdFilter = extId + "-filter";
     var extIdList = extId + "-list";
     var extIdDetail = extId + "-detail";
-    var ep = Model.EffectiveParams;
-    var title = Model.PageTitle;
-    var tableName = (ep != null && ep.TryGetValue("TableName", out var t) ? t?.ToString() : null) ?? "";
-    // 供注入 script 使用：把 JSON 中的 "</" 转义为 "<\/"（合法 JSON，防止内联 script 提前闭合）
-    var sharedForScript = sharedJson.Replace("</", "<\\/");
+    var title = Model.Name;
 }
 <div class="tsb-root">
     <div class="tsb-head">
         <span class="tsb-title">@title</span>
-        <el-tag size="small" type="info" effect="plain">@Model.TemplateCode</el-tag>
+        <el-tag size="small" type="info" effect="plain">@Model.Code</el-tag>
         <el-tag size="small" type="warning" effect="plain">@tableName</el-tag>
     </div>
 
-    @* 根 app：共享上下文宿主（承载 shared 配置 + 消息中心 + 手写订阅转发），本身无可见 UI *@
+    @* 根 app：共享上下文宿主（承载模板拼装的根 model + 消息中心 + 手写订阅转发），本身无可见 UI *@
     <div id="@extIdRoot" data-dyn-mode="createApp" class="tsb-rootapp">
-        <script tag="dynconfig">
-        // 根 app 的 dynconfig：mount 时把共享上下文写入自身 model（Filter/List/Detail 经 data-root-ext-id 找到本根 app 读取）
-        var __shared = @Html.Raw(sharedForScript);
-        function __parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
+        @* 根 model 由 dynmodel script 承载 —— dyn-core 挂载时以 readModelScript(script[type=application/json][tag=dynmodel])
+           为准构建 reactive model，而非 dynConfig.data()。故模板拼装的 filterCfg/listCfg/detailCfg/childFkField
+           + msgCenter 占位必须写在这里，否则根 model 只剩 mounted 里动态加的 msgCenter。 *@
+        <script type="application/json" tag="dynmodel">@Html.Raw(rootModelForScript)</script>
+        <script type="text/plain" tag="dynconfig">
+        // 根 app dynconfig：model 由上方 dynmodel 承载；mounted 时创建消息中心并手写订阅转发。
+        // Block 经 data-root-ext-id 找到本根 app，按 data-model-key 动态读取。
         var dynConfig = {
+            data: function () { return {}; },
             methods: {
                 // 主从预填：若实例参数配置了 ChildFkField，把当前行主键预填到表单该字段
                 childPreFill: function (row) {
@@ -56,34 +119,10 @@
             },
             mounted: function () {
                 var m = this.model;
-                var ep = __shared.EffectiveParams || {};
-                var table = ep.TableName || '';
-                var loadUrl = ep.ListUrl || '';
-                var addUrl = ep.AddUrl || '';
-                var editUrl = ep.EditUrl || '';
-                var deleteUrl = ep.DeleteUrl || '';
-                var childFkField = ep.ChildFkField || '';
-                // ===== 消息中心：固定 key 'msgCenter'（通信基础设施，Block 经 data-msg-center-key 读取）=====
                 m.msgCenter = createMessageCenter();
-                // ===== 模板自定义业务配置 key：Block 经 data-model-key 动态读取，名字由本模板决定，非平台硬编码 =====
-                m.filterCfg = {
-                    filterConfig: __shared.FilterConfig || null,
-                    filterDefault: __parseJson(__shared.FilterDefaultJson, {})
-                };
-                m.listCfg = {
-                    columns: (__shared.ListConfig && __shared.ListConfig.columns) || [],
-                    table: table, loadUrl: loadUrl, deleteUrl: deleteUrl
-                };
-                m.detailCfg = {
-                    detailConfig: __shared.DetailConfig || null,
-                    detailDefault: __parseJson(__shared.DetailDefaultJson, {}),
-                    table: table, addUrl: addUrl, editUrl: editUrl
-                };
-                m.childFkField = childFkField;
-                var msg = m.msgCenter;
-                var self = this;
+                var msg = m.msgCenter, self = this;
                 self.__unsubs = [];
-                // ========== 手写订阅转发（树根接线）：见文件头注释 ==========
+                // ========== 手写订阅转发（树根接线）：积木间不直接通信，一律经消息中心 ==========
                 self.__unsubs.push(msg.subscribeEvent('filter.changed', function (p) {
                     msg.sendCommand('list', { cmd: 'loadData', filter: p.params });
                 }));
@@ -137,7 +176,7 @@
     <script src="~/dyn/blocks/message-center.js?v=3"></script>
     <script>
         DynLib.ready(function () {
-            // ========== 挂载根 app（写入共享 model 的 shared 上下文 + 消息中心）→ 再挂载三个积木 ==========
+            // ========== 挂载根 app（写入模板拼装的根 model + 消息中心）→ 再挂载三个积木 ==========
             var rootEl = document.getElementById('@extIdRoot');
             var fEl = document.getElementById('@extIdFilter');
             var lEl = document.getElementById('@extIdList');

@@ -23,11 +23,13 @@
     var blkTable = (ViewData["BlkTable"] as string) ?? "";
     var blkAddUrl = (ViewData["BlkAddUrl"] as string) ?? "";
     var blkEditUrl = (ViewData["BlkEditUrl"] as string) ?? "";
+    var blkProject = (ViewData["BlkProject"] as string) ?? "";
 }
 <div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-default="@blkDefault" data-blk-table="@blkTable"
-     data-blk-addurl="@blkAddUrl" data-blk-editurl="@blkEditUrl" class="db">
+     data-blk-addurl="@blkAddUrl" data-blk-editurl="@blkEditUrl"
+     data-blk-project="@blkProject" class="db">
     <div class="db-errbar" v-if="formError">{{ formError }}</div>
     <div class="db-body">
         <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
@@ -39,7 +41,7 @@
         <button type="button" class="el-button el-button--small" data-dyn-click-DetailCancel>取消</button>
         <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" data-dyn-click-DetailSave>保存</button>
     </div>
-    <script tag="dynconfig">
+    <script type="text/plain" tag="dynconfig">
     // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
     var __rid = element.getAttribute('data-root-ext-id');
     var __rootApp = null;
@@ -67,6 +69,7 @@
             table: element.getAttribute('data-blk-table') || '',
             addUrl: element.getAttribute('data-blk-addurl') || '',
             editUrl: element.getAttribute('data-blk-editurl') || '',
+            project: element.getAttribute('data-blk-project') || '',
             msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
         };
     }
@@ -81,6 +84,7 @@
                 table: __ctx.table || '',
                 addUrl: __ctx.addUrl || '',
                 editUrl: __ctx.editUrl || '',
+                project: __ctx.project || '',
                 __initForm: initForm
             };
         },
@@ -143,7 +147,7 @@
                 }
                 this.loading = true;
                 var isEdit = this.form && this.form.Id !== null && this.form.Id !== undefined && this.form.Id !== '';
-                DynCall.post(isEdit ? this.editUrl : this.addUrl, { table: this.table, data: this.form }, { scopeEl: element })
+                DynCall.post(isEdit ? this.editUrl : this.addUrl, { table: this.table, data: this.form, project: this.project }, { scopeEl: element })
                     .then(function () {
                         self.loading = false;
                         self.formError = '';

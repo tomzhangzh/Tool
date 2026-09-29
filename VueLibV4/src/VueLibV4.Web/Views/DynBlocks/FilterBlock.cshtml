@@ -33,7 +33,7 @@
         <button type="button" class="el-button el-button--primary el-button--small" data-dyn-click-FilterQuery>查询</button>
         <button type="button" class="el-button el-button--small" data-dyn-click-FilterReset>重置</button>
     </div>
-    <script tag="dynconfig">
+    <script type="text/plain" tag="dynconfig">
     // 注意：由 mount 以 new Function('element','dyn',...) 执行，必须顶层定义 var dynConfig（勿包 IIFE）
     // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
     var __rid = element.getAttribute('data-root-ext-id');

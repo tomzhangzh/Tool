@@ -22,11 +22,13 @@
     var blkTable = (ViewData["BlkTable"] as string) ?? "";
     var blkLoadUrl = (ViewData["BlkLoadUrl"] as string) ?? "";
     var blkDeleteUrl = (ViewData["BlkDeleteUrl"] as string) ?? "";
+    var blkProject = (ViewData["BlkProject"] as string) ?? "";
 }
 <div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-table="@blkTable"
-     data-blk-loadurl="@blkLoadUrl" data-blk-deleteurl="@blkDeleteUrl" class="lb">
+     data-blk-loadurl="@blkLoadUrl" data-blk-deleteurl="@blkDeleteUrl"
+     data-blk-project="@blkProject" class="lb">
     <div class="lb-toolbar">
         @* 按钮统一走 dyn-click 动作体系；操作列按钮通过 data-row-id 把当前行主键传给动作（ctx.params['row-id']）。
            注意：el-button 会拦截冒泡阻断 dyn 委托，故用【原生 button + el-button 样式类】保持视觉一致。 *@
@@ -48,7 +50,7 @@
             :page-sizes="[10, 20, 50, 100]" @@current-change="onPage" @@size-change="onSize"></el-pagination>
     </div>
     <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
-    <script tag="dynconfig">
+    <script type="text/plain" tag="dynconfig">
     // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
     var __rid = element.getAttribute('data-root-ext-id');
     var __rootApp = null;
@@ -76,6 +78,7 @@
             table: element.getAttribute('data-blk-table') || '',
             loadUrl: element.getAttribute('data-blk-loadurl') || '',
             deleteUrl: element.getAttribute('data-blk-deleteurl') || '',
+            project: element.getAttribute('data-blk-project') || '',
             msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
         };
     }
@@ -85,7 +88,8 @@
                 columns: __ctx.columns || [],
                 table: __ctx.table || '',
                 loadUrl: __ctx.loadUrl || '',
-                deleteUrl: __ctx.deleteUrl || ''
+                deleteUrl: __ctx.deleteUrl || '',
+                project: __ctx.project || ''
             };
         },
         methods: {
@@ -95,7 +99,8 @@
                 if (!this.table) return Promise.resolve(null);
                 this.model.loading = true;
                 return DynCall.post(this.loadUrl, {
-                    table: this.table, page: this.model.page, size: this.model.size, filter: this.model.filter || {}
+                    table: this.table, page: this.model.page, size: this.model.size,
+                    filter: this.model.filter || {}, project: this.project
                 }, { scopeEl: element })
                     .then(function (data) {
                         self.model.loading = false;
@@ -128,7 +133,7 @@
                 var id = row && row.Id;
                 if (id === null || id === undefined) return;
                 var doDelete = function () {
-                    DynCall.post(self.deleteUrl, { table: self.table, keys: { Id: id } }, { scopeEl: element })
+                    DynCall.post(self.deleteUrl, { table: self.table, keys: { Id: id }, project: self.project }, { scopeEl: element })
                         .then(function () {
                             dyn.showMessage('删除成功', 'success');
                             self.loadData();
