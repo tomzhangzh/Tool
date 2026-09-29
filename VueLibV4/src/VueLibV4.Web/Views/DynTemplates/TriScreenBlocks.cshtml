@@ -3,10 +3,14 @@
     // =====================================================================================
     // 三屏组合模板（积木化·共享上下文版）：Filter / List / Detail 三块独立积木（各自独立 createApp），
     // 由本模板作为树根（TreeRoot）拼装。共享数据/通信不走 window 全局，也不依赖共享 scope：
-    //   - 根 app（@extIdRoot, createApp）持有共享上下文（table/URL/PageSetting 配置 + 消息中心 + 手写订阅转发）
-    //   - RenderPartial 三个 Block 时把根 ExtId 传入（ViewData["RootExtId"]），Block 容器带 data-root-ext-id
-    //   - Block dynconfig 里按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，读其 model 取共享配置与消息中心
-    //   - 挂载顺序：先 mount 根 app（写入共享上下文）→ 再 mount 三个积木（读根 app model）
+    //   - 根 app（@extIdRoot, createApp）持有消息中心 + 模板自定义的业务配置 + 手写订阅转发
+    //   - 根 model 的【业务 key 由本模板决定】：（filterCfg / listCfg / detailCfg 三个配置对象）
+    //     唯一约定：消息中心固定放在 model.msgCenter（通信基础设施，属底层约定而非业务字段）
+    //   - RenderPartial 三个 Block 时传入 RootExtId + ModelKey + MsgCenterKey（ViewData），
+    //     Block 容器带 data-root-ext-id / data-model-key / data-msg-center-key
+    //   - Block dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，
+    //     再按 data-model-key 动态读取对应配置对象、按 data-msg-center-key 读取消息中心
+    //   - 挂载顺序：先 mount 根 app（写入配置 + 消息中心）→ 再 mount 三个积木（读根 app model）
     // 积木之间不直接通信，一律经消息中心；积木不关心自己被放哪（面板/弹窗/行展开）。
     // 数据来源：DynSharedModel（EffectiveParams 已含 TableName/ListUrl/AddUrl/EditUrl/DeleteUrl 及三屏 PageSettingId）。
     // =====================================================================================
@@ -53,18 +57,29 @@
             mounted: function () {
                 var m = this.model;
                 var ep = __shared.EffectiveParams || {};
-                m.table = ep.TableName || '';
-                m.loadUrl = ep.ListUrl || '';
-                m.addUrl = ep.AddUrl || '';
-                m.editUrl = ep.EditUrl || '';
-                m.deleteUrl = ep.DeleteUrl || '';
-                m.childFkField = ep.ChildFkField || '';
-                m.filterConfig = __shared.FilterConfig || null;
-                m.filterDefault = __parseJson(__shared.FilterDefaultJson, {});
-                m.listConfig = __shared.ListConfig || null;
-                m.detailConfig = __shared.DetailConfig || null;
-                m.detailDefault = __parseJson(__shared.DetailDefaultJson, {});
+                var table = ep.TableName || '';
+                var loadUrl = ep.ListUrl || '';
+                var addUrl = ep.AddUrl || '';
+                var editUrl = ep.EditUrl || '';
+                var deleteUrl = ep.DeleteUrl || '';
+                var childFkField = ep.ChildFkField || '';
+                // ===== 消息中心：固定 key 'msgCenter'（通信基础设施，Block 经 data-msg-center-key 读取）=====
                 m.msgCenter = createMessageCenter();
+                // ===== 模板自定义业务配置 key：Block 经 data-model-key 动态读取，名字由本模板决定，非平台硬编码 =====
+                m.filterCfg = {
+                    filterConfig: __shared.FilterConfig || null,
+                    filterDefault: __parseJson(__shared.FilterDefaultJson, {})
+                };
+                m.listCfg = {
+                    columns: (__shared.ListConfig && __shared.ListConfig.columns) || [],
+                    table: table, loadUrl: loadUrl, deleteUrl: deleteUrl
+                };
+                m.detailCfg = {
+                    detailConfig: __shared.DetailConfig || null,
+                    detailDefault: __parseJson(__shared.DetailDefaultJson, {}),
+                    table: table, addUrl: addUrl, editUrl: editUrl
+                };
+                m.childFkField = childFkField;
                 var msg = m.msgCenter;
                 var self = this;
                 self.__unsubs = [];
@@ -96,13 +111,16 @@
     </div>
 
     <div class="tsb-card">
-        @await Html.PartialAsync("~/Views/DynBlocks/FilterBlock.cshtml", new ViewDataDictionary(ViewData) { { "ExtId", extIdFilter }, { "RootExtId", extIdRoot } })
+        @await Html.PartialAsync("~/Views/DynBlocks/FilterBlock.cshtml", new ViewDataDictionary(ViewData) {
+            { "ExtId", extIdFilter }, { "RootExtId", extIdRoot }, { "ModelKey", "filterCfg" }, { "MsgCenterKey", "msgCenter" } })
     </div>
     <div class="tsb-card">
-        @await Html.PartialAsync("~/Views/DynBlocks/ListBlock.cshtml", new ViewDataDictionary(ViewData) { { "ExtId", extIdList }, { "RootExtId", extIdRoot } })
+        @await Html.PartialAsync("~/Views/DynBlocks/ListBlock.cshtml", new ViewDataDictionary(ViewData) {
+            { "ExtId", extIdList }, { "RootExtId", extIdRoot }, { "ModelKey", "listCfg" }, { "MsgCenterKey", "msgCenter" } })
     </div>
     <div class="tsb-card">
-        @await Html.PartialAsync("~/Views/DynBlocks/DetailBlock.cshtml", new ViewDataDictionary(ViewData) { { "ExtId", extIdDetail }, { "RootExtId", extIdRoot } })
+        @await Html.PartialAsync("~/Views/DynBlocks/DetailBlock.cshtml", new ViewDataDictionary(ViewData) {
+            { "ExtId", extIdDetail }, { "RootExtId", extIdRoot }, { "ModelKey", "detailCfg" }, { "MsgCenterKey", "msgCenter" } })
     </div>
 </div>
 

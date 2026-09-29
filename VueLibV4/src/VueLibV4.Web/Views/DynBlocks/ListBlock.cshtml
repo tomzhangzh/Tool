@@ -1,8 +1,10 @@
 @{
     // =====================================================================================
     // List 积木（平台规范·双模式版）：壳 + 动态列渲染，行为定义在 dynconfig。
-    //   组合模式：data-root-ext-id 指向根 app（模板注入 RootExtId），dynconfig 用 dyn.getApp(根元素)
-    //             读根 app model 的 listConfig / table / loadUrl / deleteUrl / msgCenter
+    //   组合模式：容器带 data-root-ext-id + data-model-key + data-msg-center-key。
+    //             dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，再按 data-model-key
+    //             动态读取根 model 中【模板自定义】的配置对象（含 columns/table/loadUrl/deleteUrl），
+    //             按 data-msg-center-key 读取消息中心。Block 不预设根 model 的任何固定 key。
     //   独立模式：未传 RootExtId 时，从自身 data-blk-config / data-blk-table / data-blk-loadurl /
     //             data-blk-deleteurl 读取配置，自建消息中心
     //   - 列定义：PageSetting.ConfigJson 的 { columns:[...] }，el-table-column v-for 渲染
@@ -13,6 +15,8 @@
     // =====================================================================================
     var extId = (ViewData["ExtId"] as string) ?? ("Lb" + Guid.NewGuid().ToString("N"));
     var rootExtId = (ViewData["RootExtId"] as string) ?? "";
+    var modelKey = (ViewData["ModelKey"] as string) ?? "";
+    var msgCenterKey = (ViewData["MsgCenterKey"] as string) ?? "";
     // 独立模式参数（可选）：外部不传 RootExtId 时，Block 从这些 data-blk-* 属性读取配置自主运行
     var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
     var blkTable = (ViewData["BlkTable"] as string) ?? "";
@@ -20,6 +24,7 @@
     var blkDeleteUrl = (ViewData["BlkDeleteUrl"] as string) ?? "";
 }
 <div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
+     data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-table="@blkTable"
      data-blk-loadurl="@blkLoadUrl" data-blk-deleteurl="@blkDeleteUrl" class="lb">
     <div class="lb-toolbar">
@@ -44,17 +49,30 @@
     </div>
     <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
     <script tag="dynconfig">
-    // ========== 双模式：组合（有 data-root-ext-id，读根 app model） / 独立（无，读自身 data-blk-*） ==========
+    // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
     var __rid = element.getAttribute('data-root-ext-id');
     var __rootApp = null;
     if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }
-    var __ctx = (__rootApp && __rootApp.model) || {};
-    // 独立模式：外部未注入根上下文 → 从自身 data-blk-config / data-blk-table / data-blk-loadurl / data-blk-deleteurl 读取，并自建消息中心。
-    // 约定：独立使用时，页面/容器需自行引入 message-center.js 并提供上述属性；组合模式下由根 app 统一注入，忽略本分支。
-    if (!__rootApp) {
+    var __ctx = {};
+    if (__rootApp) {
+        // 组合模式：配置对象由模板通过 data-model-key 指定，消息中心由 data-msg-center-key 指定（缺省 'msgCenter'）。
+        // 模板根 model 用什么 key 完全由模板决定，Block 不预设任何固定字段，只按传入 key 动态读取。
+        var __modelKey = element.getAttribute('data-model-key');
+        var __msgKey = element.getAttribute('data-msg-center-key') || 'msgCenter';
+        var __cfg = __modelKey ? __rootApp.model[__modelKey] : null;
+        if (__cfg && typeof __cfg === 'object') {
+            __ctx = __cfg;
+        } else if (__rid) {
+            console.error('[ListBlock] 根 model 不存在 key【' + __modelKey + '】或值非对象，请检查模板 Partial 传参 ModelKey');
+        }
+        __ctx.msgCenter = __rootApp.model[__msgKey] || null;
+    } else {
+        // 独立模式：外部未注入根上下文 → 从自身 data-blk-config / data-blk-table / data-blk-loadurl / data-blk-deleteurl 读取，并自建消息中心。
+        // 约定：独立使用时，页面/容器需自行引入 message-center.js 并提供上述属性。
         var __P = function (s) { try { return JSON.parse(s || 'null') || null; } catch (e) { return null; } };
+        var __indCfg = __P(element.getAttribute('data-blk-config')) || {};
         __ctx = {
-            listConfig: __P(element.getAttribute('data-blk-config')),
+            columns: __indCfg.columns || [],
             table: element.getAttribute('data-blk-table') || '',
             loadUrl: element.getAttribute('data-blk-loadurl') || '',
             deleteUrl: element.getAttribute('data-blk-deleteurl') || '',
@@ -64,7 +82,7 @@
     var dynConfig = {
         data: function () {
             return {
-                columns: (__ctx.listConfig && __ctx.listConfig.columns) || [],
+                columns: __ctx.columns || [],
                 table: __ctx.table || '',
                 loadUrl: __ctx.loadUrl || '',
                 deleteUrl: __ctx.deleteUrl || ''
