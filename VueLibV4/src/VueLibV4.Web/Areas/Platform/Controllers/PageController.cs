@@ -192,10 +192,7 @@ public class PageController : Controller
 
         // 2) 自动推导：TableName 有值且 Url 为空 → 补 dyndata 免 model 接口；手动填写优先
         var effective = BuildEffectiveParams(rawParams);
-        // 2.1) DynWebPage 三屏 PageSettingId 一并注入 effective（模板 openDetail 弹窗需要 DetailPageSettingId）
-        if (!HasValue(effective, "FilterPageSettingId") && page.FilterPageSettingId != null) effective["FilterPageSettingId"] = page.FilterPageSettingId.Value;
-        if (!HasValue(effective, "ListPageSettingId") && page.ListPageSettingId != null) effective["ListPageSettingId"] = page.ListPageSettingId.Value;
-        if (!HasValue(effective, "DetailPageSettingId") && page.DetailPageSettingId != null) effective["DetailPageSettingId"] = page.DetailPageSettingId.Value;
+        // 三屏 PageSettingId 作为实例参数存于 ConfigJson（rawParams→effective），不再作为 DynWebPage 独立列。
 
         // 3) 模板 ConfigJson 顶层 mPassThrough（透传属性，向下传给外壳 / createapp）
         var passThrough = new JObject();
@@ -213,9 +210,9 @@ public class PageController : Controller
         // 5) 引用 PageSetting 配置：列表页加载 Filter/List；Detail 屏一并预加载
         //    （crud-basic 列表页不直接使用；tree-basic 树形模板右侧内嵌表单按需使用 Detail 屏配置）。
         //    新增/编辑弹窗场景仍走独立 Detail 页面（/Platform/Page/DynDetail），detailSettingId 经 EffectiveParams 传前端。
-        var f = LoadSetting(page.FilterPageSettingId);
-        var l = LoadSetting(page.ListPageSettingId);
-        var d = LoadSetting(page.DetailPageSettingId);
+        var f = LoadSetting(GetInt(effective, "FilterPageSettingId"));
+        var l = LoadSetting(GetInt(effective, "ListPageSettingId"));
+        var d = LoadSetting(GetInt(effective, "DetailPageSettingId"));
         var model = new DynSharedModel
         {
             DynWebPageId = page.Id,
@@ -263,6 +260,13 @@ public class PageController : Controller
     private static bool HasValue(Dictionary<string, object> d, string key)
     {
         return d.TryGetValue(key, out var v) && v != null && !string.IsNullOrWhiteSpace(v.ToString());
+    }
+
+    /// <summary>从参数字典安全读取 int?（值缺失、空或不可解析时返回 null）</summary>
+    private static int? GetInt(Dictionary<string, object> d, string key)
+    {
+        if (d.TryGetValue(key, out var v) && v != null && int.TryParse(v.ToString(), out var i)) return i;
+        return null;
     }
 
     private static Dictionary<string, object> TryParseDict(string json)

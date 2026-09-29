@@ -244,6 +244,7 @@ public class DynTemplate
 /// 动态网页：真正的动态页面。选择一个 DynTemplate，结合用户配置参数（ConfigJson）实例化 PageJson 即可运行。
 /// PageJson 为空时回退模板 TemplateJson（模板即页面）。
 /// 外键一律使用 int Id（ProjectId → DynProject.Id；TemplateId → DynTemplate.Id）。
+/// 三屏配置（Filter/List/Detail 的 PageSettingId）不再作为独立列，统一作为实例参数存于 ConfigJson，由模板渲染时读取。
 /// </summary>
 [SugarTable("DynWebPage")]
 public class DynWebPage
@@ -263,18 +264,10 @@ public class DynWebPage
     /// <summary>使用的模板 Id（DynTemplate.Id）</summary>
     public int? TemplateId { get; set; }
 
-    /// <summary>筛选区 PageSetting Id（三屏固定模板 filter-list-detail 使用）</summary>
-    public int? FilterPageSettingId { get; set; }
-
-    /// <summary>列表区 PageSetting Id</summary>
-    public int? ListPageSettingId { get; set; }
-
-    /// <summary>详情区 PageSetting Id</summary>
-    public int? DetailPageSettingId { get; set; }
-
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? PageJson { get; set; }
 
+    /// <summary>实例参数 JSON：用户在参数面板填写的配置（含 TableName、三屏 PageSettingId 等）</summary>
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ConfigJson { get; set; }
 
@@ -291,7 +284,7 @@ public class DynWebPage
 
 /// <summary>
 /// 三屏页面设置（M4）：一条记录对应“筛选区 / 列表区 / 详情区”之一的组件配置树（ConfigJson）。
-/// DynWebPage 通过 Filter/List/DetailPageSettingId 三个外键绑定三屏，由固定模板 View 渲染。
+/// DynWebPage 通过实例参数 ConfigJson 中的 Filter/List/DetailPageSettingId 绑定三屏，由模板 View 渲染。
 /// </summary>
 [SugarTable("PageSetting")]
 public class PageSetting

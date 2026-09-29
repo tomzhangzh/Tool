@@ -198,7 +198,7 @@ public class PageGenService : IPageGenService
             table, projectId, listCfg, listDefault);
         var detailId = UpsertSetting(code + "_detail", name + " - 详情区", "Detail", "Front", null, table, projectId, detailCfg, detailDefault);
 
-        // DynWebPage：ConfigJson=模板参数（TableName + DetailPageSettingId；ListUrl/AddUrl/EditUrl/DeleteUrl 由外壳自动补齐）
+        // DynWebPage：ConfigJson=实例参数（TableName + Filter/List/DetailPageSettingId；ListUrl/AddUrl/EditUrl/DeleteUrl 由外壳自动补齐）
         var tpl = _templates.Query(t => t.Code == "crud-basic").First();
         var existPage = _pages.Query(p => p.Code == code).First();
         var page = new DynWebPage
@@ -207,13 +207,12 @@ public class PageGenService : IPageGenService
             Name = name,
             ProjectId = projectId,
             TemplateId = tpl?.Id,
-            FilterPageSettingId = filterId,
-            ListPageSettingId = listId,
-            DetailPageSettingId = detailId,
             PageJson = null,
             ConfigJson = new JObject
             {
                 ["TableName"] = table,
+                ["FilterPageSettingId"] = filterId,
+                ["ListPageSettingId"] = listId,
                 ["DetailPageSettingId"] = detailId
             }.ToJson(),
             IsActive = true

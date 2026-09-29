@@ -123,15 +123,13 @@ CREATE TABLE IF NOT EXISTS DynTemplate (
 );
 
 -- ---------------- 8. 动态网页 ----------------
+-- 三屏配置Id（Filter/List/DetailPageSettingId）统一作为实例参数存于 ConfigJson，不再作为独立列
 CREATE TABLE IF NOT EXISTS DynWebPage (
     Id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     Code                  TEXT NOT NULL UNIQUE,
     ProjectId             INTEGER NULL,
     Name                  TEXT NOT NULL,
     TemplateId            INTEGER NULL,
-    FilterPageSettingId   INTEGER NULL,
-    ListPageSettingId     INTEGER NULL,
-    DetailPageSettingId   INTEGER NULL,
     PageJson              TEXT NULL,
     ConfigJson            TEXT NULL,
     Url                   TEXT NULL,

@@ -31,6 +31,21 @@ public class TemplatesController : Controller
         _settings = settings;
     }
 
+    /// <summary>从实例 ConfigJson 参数读取三屏 PageSettingId 并加载对应 PageSetting；缺失/无效返回 null</summary>
+    private PageSetting? GetSetting(DynWebPage page, string key)
+    {
+        if (string.IsNullOrWhiteSpace(page.ConfigJson)) return null;
+        int? id = null;
+        try
+        {
+            var o = JObject.Parse(page.ConfigJson);
+            var v = o[key];
+            if (v != null && v.Type != JTokenType.Null && int.TryParse(v.ToString(), out var i)) id = i;
+        }
+        catch { }
+        return id != null ? _settings.GetById(id.Value) : null;
+    }
+
     /// <summary>三屏整页：筛选区 + 列表区（详情区以 layer 片段方式打开）</summary>
     [HttpGet("/Business/Templates/Run")]
     public IActionResult Run(string code)
@@ -38,9 +53,9 @@ public class TemplatesController : Controller
         var page = _pages.Query(p => p.Code == code).First();
         if (page == null) return Content("页面不存在：" + code);
 
-        var filter = page.FilterPageSettingId != null ? _settings.GetById(page.FilterPageSettingId.Value) : null;
-        var list = page.ListPageSettingId != null ? _settings.GetById(page.ListPageSettingId.Value) : null;
-        var detail = page.DetailPageSettingId != null ? _settings.GetById(page.DetailPageSettingId.Value) : null;
+        var filter = GetSetting(page, "FilterPageSettingId");
+        var list = GetSetting(page, "ListPageSettingId");
+        var detail = GetSetting(page, "DetailPageSettingId");
 
         ViewBag.PageName = page.Name;
         ViewBag.PageCode = page.Code;
@@ -56,10 +71,10 @@ public class TemplatesController : Controller
     public IActionResult Detail(string code, string id = null)
     {
         var page = _pages.Query(p => p.Code == code).First();
-        if (page == null || page.DetailPageSettingId == null) return Content("详情配置不存在");
-        var detailSetting = _settings.GetById(page.DetailPageSettingId.Value);
+        if (page == null) return Content("详情配置不存在");
+        var detailSetting = GetSetting(page, "DetailPageSettingId");
         if (detailSetting == null) return Content("详情配置不存在");
-        var listSetting = page.ListPageSettingId != null ? _settings.GetById(page.ListPageSettingId.Value) : null;
+        var listSetting = GetSetting(page, "ListPageSettingId");
 
         var (table, project) = ResolveTableProject(detailSetting, listSetting, page);
         ViewBag.DetailCfgJson = detailSetting.ConfigJson ?? "{}";
@@ -89,9 +104,10 @@ public class TemplatesController : Controller
     public ApiResult Save(string code, [FromBody] JObject data)
     {
         var page = _pages.Query(p => p.Code == code).First();
-        if (page == null || page.DetailPageSettingId == null) return ApiResult.Fail("页面配置不存在");
-        var detailSetting = _settings.GetById(page.DetailPageSettingId.Value);
-        var listSetting = page.ListPageSettingId != null ? _settings.GetById(page.ListPageSettingId.Value) : null;
+        if (page == null) return ApiResult.Fail("页面配置不存在");
+        var detailSetting = GetSetting(page, "DetailPageSettingId");
+        if (detailSetting == null) return ApiResult.Fail("详情配置不存在");
+        var listSetting = GetSetting(page, "ListPageSettingId");
         var (table, project) = ResolveTableProject(detailSetting, listSetting, page);
 
         object result;

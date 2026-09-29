@@ -97,9 +97,10 @@ public class DynWebPageController : ControllerBase
         }
         result["templateCode"] = templateCode;
         result["url"] = row.Url;
-        result["filterConfig"] = LoadSettingConfig(row.FilterPageSettingId);
-        result["listConfig"] = LoadSettingConfig(row.ListPageSettingId);
-        result["detailConfig"] = LoadSettingConfig(row.DetailPageSettingId);
+        // 三屏 PageSettingId 作为实例参数存于 ConfigJson，不再作为独立列
+        result["filterConfig"] = LoadSettingConfig(GetIntFromJson(row.ConfigJson, "FilterPageSettingId"));
+        result["listConfig"] = LoadSettingConfig(GetIntFromJson(row.ConfigJson, "ListPageSettingId"));
+        result["detailConfig"] = LoadSettingConfig(GetIntFromJson(row.ConfigJson, "DetailPageSettingId"));
         return ApiResult.Ok(result);
     }
 
@@ -109,6 +110,20 @@ public class DynWebPageController : ControllerBase
         var s = _settings.GetById(settingId.Value);
         if (s == null || string.IsNullOrWhiteSpace(s.ConfigJson)) return null;
         try { return JObject.Parse(s.ConfigJson); } catch { return null; }
+    }
+
+    /// <summary>从实例 ConfigJson（参数字典）安全读取 int?，缺失/空/不可解析返回 null</summary>
+    private static int? GetIntFromJson(string json, string key)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            var o = JObject.Parse(json);
+            var v = o[key];
+            if (v == null || v.Type == JTokenType.Null) return null;
+            return int.TryParse(v.ToString(), out var i) ? i : null;
+        }
+        catch { return null; }
     }
 
     [HttpPost("save")]

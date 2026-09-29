@@ -111,9 +111,6 @@ CREATE TABLE PageSetting (
             create.ExecuteNonQuery();
             _logger.LogInformation("[Init] 迁移：新建表 PageSetting");
         }
-        EnsureColumn(conn, "DynWebPage", "FilterPageSettingId", "INTEGER NULL");
-        EnsureColumn(conn, "DynWebPage", "ListPageSettingId", "INTEGER NULL");
-        EnsureColumn(conn, "DynWebPage", "DetailPageSettingId", "INTEGER NULL");
         EnsureColumn(conn, "PageSetting", "RenderMode", "TEXT NOT NULL DEFAULT 'Front'");
         EnsureColumn(conn, "PageSetting", "PartialPath", "TEXT NULL");
         EnsureColumn(conn, "PageSetting", "DefaultJson", "TEXT NULL");
@@ -229,7 +226,7 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
         cnt.CommandText = "SELECT COUNT(*) FROM DynWebPage WHERE Code='page-setting-mgmt';";
         if (Convert.ToInt32(cnt.ExecuteScalar()) > 0) return;
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO DynWebPage (Code, Name, TemplateId, FilterPageSettingId, ListPageSettingId, DetailPageSettingId, PageJson, ConfigJson, Url, IsActive) VALUES ('page-setting-mgmt', '页面设置管理', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, NULL, NULL, NULL, '{\"TableName\":\"PageSetting\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1), ('dyn-webpage-list', '页面实例列表', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, NULL, NULL, NULL, '{\"TableName\":\"DynWebPage\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1);";
+        cmd.CommandText = "INSERT INTO DynWebPage (Code, Name, TemplateId, PageJson, ConfigJson, Url, IsActive) VALUES ('page-setting-mgmt', '页面设置管理', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"PageSetting\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1), ('dyn-webpage-list', '页面实例列表', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"DynWebPage\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1);";
         cmd.ExecuteNonQuery();
         _logger.LogInformation("[Init] DynWebPage 实例种子插入完成");
     }
@@ -263,12 +260,7 @@ WHERE NOT EXISTS (SELECT 1 FROM PageSetting WHERE Code='setting-list-basic');
 INSERT INTO PageSetting (Code, Name, SettingType, TableName, ConfigJson, RenderMode, PartialPath, DefaultJson, SortNo, IsActive)
 SELECT 'setting-detail-basic', '通用表单配置', 'Detail', NULL, @dc, 'Front', NULL, @dd, 3, 1
 WHERE NOT EXISTS (SELECT 1 FROM PageSetting WHERE Code='setting-detail-basic');
-UPDATE DynWebPage
-SET FilterPageSettingId = (SELECT Id FROM PageSetting WHERE Code='setting-filter-basic'),
-    ListPageSettingId  = (SELECT Id FROM PageSetting WHERE Code='setting-list-basic'),
-    DetailPageSettingId= (SELECT Id FROM PageSetting WHERE Code='setting-detail-basic')
-WHERE Code='page-setting-mgmt' AND FilterPageSettingId IS NULL;
-";
+        // 三屏配置Id（Filter/List/DetailPageSettingId）已作为实例参数写入 DynWebPage.ConfigJson，无需独立列回填";
         cmd.Parameters.AddWithValue("@fc", filterConfig);
         cmd.Parameters.AddWithValue("@fd", filterDefault);
         cmd.Parameters.AddWithValue("@lc", listConfig);
