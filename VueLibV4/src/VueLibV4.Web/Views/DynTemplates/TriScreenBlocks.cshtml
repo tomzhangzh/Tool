@@ -1,0 +1,125 @@
+@model VueLibV4.Web.Core.DynSharedModel
+@{
+    // =====================================================================================
+    // 三屏组合模板（积木化）：Filter / List / Detail 三块独立积木（各自独立 createApp），
+    // 由本模板作为树根（TreeRoot）拼装：
+    //   - 创建本模板独享消息中心 createMessageCenter（Command/Event 分离）
+    //   - RenderPartial 引入三个 Block View（Views/DynBlocks/*，平台规范：data-dyn-mode=createApp + dynconfig）
+    //   - 本模板统一 dyn.mount() 三块积木（Block View 不自挂载，避免重复 mount 拿不到实例）
+    //   - 挂载完成后注册 handleCommand 到消息中心；手写消息流转：
+    //     Filter变更→List加载；List新增/编辑/主子→Detail；Detail保存→List刷新
+    // 积木之间不直接通信，一律经消息中心；积木不关心自己被放哪（面板/弹窗/行展开）。
+    // 数据来源：DynSharedModel（EffectiveParams 已含 TableName/ListUrl/AddUrl/EditUrl/DeleteUrl 及三屏 PageSettingId）。
+    // =====================================================================================
+    Layout = "_Layout";
+    ViewData["Title"] = Model.PageTitle + " - VueLibV4";
+    var sharedJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model, new Newtonsoft.Json.JsonSerializerSettings
+    {
+        NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
+        ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore
+    });
+    var extId = "Tsb" + Guid.NewGuid().ToString("N");
+    var extIdFilter = extId + "-filter";
+    var extIdList = extId + "-list";
+    var extIdDetail = extId + "-detail";
+    var ep = Model.EffectiveParams;
+    var title = Model.PageTitle;
+    var tableName = (ep != null && ep.TryGetValue("TableName", out var t) ? t?.ToString() : null) ?? "";
+}
+<div class="tsb-root">
+    <div class="tsb-head">
+        <span class="tsb-title">@title</span>
+        <el-tag size="small" type="info" effect="plain">@Model.TemplateCode</el-tag>
+        <el-tag size="small" type="warning" effect="plain">@tableName</el-tag>
+    </div>
+
+    <div class="tsb-card">
+        @await Html.PartialAsync("~/Views/DynBlocks/FilterBlock.cshtml", new ViewDataDictionary(ViewData) { { "ExtId", extIdFilter } })
+    </div>
+    <div class="tsb-card">
+        @await Html.PartialAsync("~/Views/DynBlocks/ListBlock.cshtml", new ViewDataDictionary(ViewData) { { "ExtId", extIdList } })
+    </div>
+    <div class="tsb-card">
+        @await Html.PartialAsync("~/Views/DynBlocks/DetailBlock.cshtml", new ViewDataDictionary(ViewData) { { "ExtId", extIdDetail } })
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .tsb-root { padding: 0 0 20px; }
+    .tsb-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .tsb-title { font-size: 16px; font-weight: 600; color: #303133; }
+    .tsb-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
+</style>
+
+@section Scripts {
+    <script src="~/dyn/blocks/message-center.js?v=3"></script>
+    <script>
+        DynLib.ready(function () {
+            var shared = @Html.Raw(sharedJson);
+            var ep = shared.EffectiveParams || {};
+            function parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
+
+            // ========== 1. 创建本模板独享消息中心 ==========
+            var msg = createMessageCenter();
+            window.__tsbMsg = msg; // Block View 的 dynconfig 通过 window.__tsbMsg 收发事件
+            var unsubs = [];
+
+            // ========== 2. 注入各 Block 共享参数（mount 前就绪，dynconfig 执行时可读） ==========
+            window.__blkFilterShared = { config: shared.FilterConfig || null, default: parseJson(shared.FilterDefaultJson, {}) };
+            window.__blkListShared = { config: shared.ListConfig || null, table: ep.TableName || '', loadUrl: ep.ListUrl || '', deleteUrl: ep.DeleteUrl || '' };
+            window.__blkDetailShared = { config: shared.DetailConfig || null, default: parseJson(shared.DetailDefaultJson, {}), table: ep.TableName || '', addUrl: ep.AddUrl || '', editUrl: ep.EditUrl || '' };
+
+            // ========== 3. 统一挂载三块积木（Block View 不自挂载，避免重复 mount 拿不到实例） ==========
+            var mf = window.dyn.mount(document.getElementById('@extIdFilter'));
+            var ml = window.dyn.mount(document.getElementById('@extIdList'));
+            var md = window.dyn.mount(document.getElementById('@extIdDetail'));
+
+            // ========== 4. 挂载完成后：注册 handleCommand + 手写消息流转 ==========
+            Promise.all([mf, ml, md]).then(function (apps) {
+                // 积木注册自己（声明可接收命令），返回注销函数收集到 unsubs
+                ['filter', 'list', 'detail'].forEach(function (bid, i) {
+                    unsubs.push(msg.registerBlock(bid, function (cmd, payload) {
+                        var proxy = apps[i] ? apps[i].__dynProxy : null;
+                        return proxy && typeof proxy.handleCommand === 'function'
+                            ? proxy.handleCommand(cmd, payload) : Promise.resolve(null);
+                    }));
+                });
+                // Filter 筛选变更 → List 加载数据
+                unsubs.push(msg.subscribeEvent('filter.changed', function (p) {
+                    msg.sendCommand('list', { cmd: 'loadData', filter: p.params });
+                }));
+                // List 点击 +新增 → Detail 打开新增表单
+                unsubs.push(msg.subscribeEvent('list.add', function () {
+                    msg.sendCommand('detail', { cmd: 'newForm', preFill: {} });
+                }));
+                // List 点击 +子（新增子记录）→ Detail 新增，预填外键（主从联动）
+                unsubs.push(msg.subscribeEvent('list.addChild', function (p) {
+                    msg.sendCommand('detail', { cmd: 'newForm', preFill: childPreFill(p.row) });
+                }));
+                // List 点击行 编辑 → Detail 打开编辑表单并回填
+                unsubs.push(msg.subscribeEvent('list.edit', function (p) {
+                    msg.sendCommand('detail', { cmd: 'editForm', row: p.row });
+                }));
+                // Detail 保存成功 → List 刷新
+                unsubs.push(msg.subscribeEvent('detail.saved', function () {
+                    msg.sendCommand('list', { cmd: 'reload' });
+                }));
+                console.log('[TriScreenBlocks] 三屏积木已就绪: filter/list/detail');
+            });
+
+            // 主从预填：若实例参数配置了 ChildFkField，把当前行主键预填到表单该字段
+            function childPreFill(row) {
+                var fk = ep.ChildFkField;
+                if (!fk) return {};
+                var pf = {}; pf[fk] = row ? row.Id : null; return pf;
+            }
+
+            // ========== 5. 生命周期清理（页面卸载时销毁消息中心，自动清空订阅） ==========
+            window.addEventListener('beforeunload', function () {
+                unsubs.forEach(function (f) { try { f(); } catch (e) { } });
+                msg.destroy();
+            });
+        });
+    </script>
+}

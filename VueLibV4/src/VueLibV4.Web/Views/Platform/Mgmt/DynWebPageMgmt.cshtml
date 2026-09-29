@@ -64,15 +64,32 @@
             </el-form-item>
 
             <el-divider content-position="left">实例参数（DynCom · {{ currentTemplate ? currentTemplate.Name : '' }}）</el-divider>
-            <div v-if="paramFields.length" class="param-panel">
-                <el-form-item v-for="f in paramFields" :key="f.field" :label="f.labeloptions && f.labeloptions.label ? f.labeloptions.label : f.field"
-                              :required="f.labeloptions && f.labeloptions.required"
-                              :style="(f.itemoptions && f.itemoptions.style) ? f.itemoptions.style : {}">
-                    <el-select v-if="f.type === 'settingSelect'" v-model="params[f.field]" clearable placeholder="选择 PageSetting" style="width:100%">
-                        <el-option v-for="s in settings" :key="s.Id" :label="s.Name + '（' + s.SettingType + '）'" :value="s.Id"></el-option>
-                    </el-select>
-                    <el-input v-else v-model="params[f.field]" :placeholder="(f.comoptions && f.comoptions.placeholder) || ''" clearable></el-input>
-                </el-form-item>
+            <div v-if="paramGroups.length" class="param-panel">
+                <template v-for="(g, gi) in paramGroups" :key="gi">
+                    <!-- 普通字段项 -->
+                    <el-form-item v-if="g.type === 'field'" :label="g.def.labeloptions && g.def.labeloptions.label ? g.def.labeloptions.label : g.field"
+                                  :required="g.def.labeloptions && g.def.labeloptions.required"
+                                  :style="(g.def.itemoptions && g.def.itemoptions.style) ? g.def.itemoptions.style : {}">
+                        <el-select v-if="g.def.type === 'settingSelect'" v-model="params[g.field]" clearable placeholder="选择 PageSetting" style="width:100%">
+                            <el-option v-for="s in settings" :key="s.Id" :label="s.Name + '（' + s.SettingType + '）'" :value="s.Id"></el-option>
+                        </el-select>
+                        <el-input v-else v-model="params[g.field]" :placeholder="(g.def.comoptions && g.def.comoptions.placeholder) || ''" clearable></el-input>
+                    </el-form-item>
+                    <!-- 折叠分组项：一组配置折叠成面板，内部仍按字段渲染 -->
+                    <el-collapse v-else class="param-group" v-model="activeGroups">
+                        <el-collapse-item :name="g.name" :title="g.label">
+                            <el-form-item v-for="f in g.children" :key="f.field"
+                                          :label="f.labeloptions && f.labeloptions.label ? f.labeloptions.label : f.field"
+                                          :required="f.labeloptions && f.labeloptions.required"
+                                          :style="(f.itemoptions && f.itemoptions.style) ? f.itemoptions.style : {}">
+                                <el-select v-if="f.type === 'settingSelect'" v-model="params[f.field]" clearable placeholder="选择 PageSetting" style="width:100%">
+                                    <el-option v-for="s in settings" :key="s.Id" :label="s.Name + '（' + s.SettingType + '）'" :value="s.Id"></el-option>
+                                </el-select>
+                                <el-input v-else v-model="params[f.field]" :placeholder="(f.comoptions && f.comoptions.placeholder) || ''" clearable></el-input>
+                            </el-form-item>
+                        </el-collapse-item>
+                    </el-collapse>
+                </template>
                 <div style="line-height:1.4;color:#909399;font-size:12px;padding:0 10px 6px;">
                     TableName 有值且 ListUrl/AddUrl/EditUrl/DeleteUrl 留空 → 自动生成 dyndata 免 model 接口；手动填写 URL 优先。
                 </div>
@@ -103,6 +120,9 @@
                 dialog: { visible: false, title: '新建页面' },
                 currentTemplate: null,
                 paramFields: [],
+                // 分组化参数面板：每项 {type:'field', field, def} 或 {type:'group', label, children:[fields]}
+                paramGroups: [],
+                activeGroups: [],
                 form: { Id: 0, Code: '', Name: '', TemplateId: null, ConfigJson: '', IsActive: true },
                 params: {}
             };
@@ -152,6 +172,8 @@
                 var self = this;
                 this.currentTemplate = this.templateMap[tid] || null;
                 this.paramFields = [];
+                this.paramGroups = [];
+                this.activeGroups = [];
                 this.params = {};
                 if (!tid) return;
                 fetch('/api/platform/dyntemplate/get?id=' + tid).then(function (r) { return r.json(); }).then(function (res) {
@@ -159,14 +181,33 @@
                     var t = res.data;
                     try {
                         var cfg = JSON.parse(t.ConfigJson || '{}');
-                        self.paramFields = (cfg.childrenctrls || []).filter(function (f) { return f.field; });
+                        var parsed = self.parseParamFields(cfg);
+                        self.paramFields = parsed.flat;
+                        self.paramGroups = parsed.groups;
+                        self.activeGroups = parsed.groups.filter(function (g) { return g.type === 'group'; }).map(function (g) { return g.name; });
                         // 默认值
-                        self.paramFields.forEach(function (f) {
+                        parsed.flat.forEach(function (f) {
                             if (f.defaultValue !== undefined && f.defaultValue !== null) self.params[f.field] = f.defaultValue;
                             else self.params[f.field] = null;
                         });
                     } catch (e) { dyn.showMessage('模板 ConfigJson 解析失败', 'warning'); }
                 });
+            },
+            // 解析模板 ConfigJson 的 childrenctrls：普通字段项 → {type:'field'}；含 children 的节点 → 折叠分组 {type:'group'}
+            // 同时返回 flat（全部字段，用于默认值/保存值读写）
+            parseParamFields: function (cfg) {
+                var groups = [], flat = [];
+                (cfg.childrenctrls || []).forEach(function (c) {
+                    if (c.children && Array.isArray(c.children)) {
+                        var kids = c.children.filter(function (f) { return f.field; });
+                        groups.push({ type: 'group', name: c.name || c.field || ('g' + groups.length), label: c.label || c.title || '配置', children: kids });
+                        kids.forEach(function (k) { flat.push(k); });
+                    } else if (c.field) {
+                        groups.push({ type: 'field', field: c.field, def: c });
+                        flat.push(c);
+                    }
+                });
+                return { groups: groups, flat: flat };
             },
             onEdit: function (row) {
                 var self = this;
@@ -174,6 +215,8 @@
                 this.dialog = { visible: true, title: '编辑页面：' + row.Name };
                 this.params = {};
                 this.paramFields = [];
+                this.paramGroups = [];
+                this.activeGroups = [];
                 this.currentTemplate = null;
                 var tid = row.TemplateId;
                 if (!tid) return;
@@ -184,10 +227,13 @@
                     self.currentTemplate = t;
                     try {
                         var cfg = JSON.parse(t.ConfigJson || '{}');
-                        self.paramFields = (cfg.childrenctrls || []).filter(function (f) { return f.field; });
+                        var parsed = self.parseParamFields(cfg);
+                        self.paramFields = parsed.flat;
+                        self.paramGroups = parsed.groups;
+                        self.activeGroups = parsed.groups.filter(function (g) { return g.type === 'group'; }).map(function (g) { return g.name; });
                         var saved = {};
                         try { saved = JSON.parse(row.ConfigJson || '{}'); } catch (e2) { saved = {}; }
-                        self.paramFields.forEach(function (f) {
+                        parsed.flat.forEach(function (f) {
                             self.params[f.field] = (saved[f.field] !== undefined && saved[f.field] !== null) ? saved[f.field] : null;
                         });
                     } catch (e) { dyn.showMessage('模板 ConfigJson 解析失败', 'warning'); }

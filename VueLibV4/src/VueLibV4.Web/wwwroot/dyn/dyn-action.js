@@ -1145,6 +1145,8 @@ async function loadDbActionHelpers(){
 }
 
 let _delegationBound = false;
+/** 已绑定的委托监听（事件名 + 处理函数），供 rebindActions 先解绑旧监听，避免 document 监听叠加 */
+const _delegationHandlers = [];
 /**
  * @description 根据动作注册表生成事件委托选择器（data-dyn-{event}-{actionName}）
  * @returns {string}
@@ -1160,9 +1162,13 @@ function generateSelector(){
 }
 
 /**
- * @description 重新绑定事件委托；新增自定义动作后调用 dyn.rebindActions() 刷新选择器
+ * @description 重新绑定事件委托；新增自定义动作后调用 dyn.rebindActions() 刷新选择器。
+ *   【重要】每次 rebind 前先解绑旧委托监听，防止多次 rebind 导致 document 上监听叠加
+ *   （否则一次点击会触发多次同一动作，例如保存被重复执行插入多条数据）。
  */
 function rebindActions(){
+  _delegationHandlers.forEach(function(h){ try{ document.removeEventListener(h.ev, h.fn, true); }catch(e){ /*忽略*/ } });
+  _delegationHandlers.length = 0;
   _delegationBound = false;
   bindDelegation();
 }
@@ -1177,7 +1183,7 @@ function bindDelegation(){
     // 1) 短语法：data-dyn-{event}-{actionName}
     CONST.ACTION_EVENTS.forEach(ev=>{
       const prefix = 'data-dyn-'+ev+'-';
-      document.addEventListener(ev,async e=>{
+      const handler = async e=>{
         const sel = generateSelector();
         if(!sel) return;
         const target = e.target&&e.target.closest?e.target.closest(sel):null;
@@ -1211,12 +1217,14 @@ function bindDelegation(){
           console.error("[DynAction]动作执行异常",actNameRaw,err);
           dyn.showMessage("操作失败："+err.message,'error');
         }
-      },true);
+      };
+      document.addEventListener(ev, handler, true);
+      _delegationHandlers.push({ev:ev, fn:handler});
     });
     // 2) 字符串管道语法：dyn-click="ActionHelper.Submit|ActionHelper.Toast('保存成功')"
     Object.keys(CONST.PIPE_EVENT_ATTR).forEach(ev=>{
       const attrName = CONST.PIPE_EVENT_ATTR[ev];
-      document.addEventListener(ev,async e=>{
+      const handler = async e=>{
         const target = e.target&&e.target.closest?e.target.closest('['+attrName+']'):null;
         if(!target) return;
         const steps = parsePipe(target.getAttribute(attrName)||'');
@@ -1229,7 +1237,9 @@ function bindDelegation(){
           console.error("[DynAction]管道执行异常",steps,err);
           dyn.showMessage("操作失败："+err.message,'error');
         }
-      },true);
+      };
+      document.addEventListener(ev, handler, true);
+      _delegationHandlers.push({ev:ev, fn:handler});
     });
   };
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',doBind);

@@ -1,0 +1,161 @@
+@{
+    // =====================================================================================
+    // Detail 积木（平台规范版）：壳 + 动态表单渲染，行为定义在 dynconfig。
+    //   - 容器 data-dyn-mode="createApp"，由宿主模板统一 dyn.mount()（本 View 不做挂载）。
+    //   - 表单渲染：<dyn-dynamic-com :jsonconfig>（PageSetting.ConfigJson 表单组件树），
+    //     :parentmodelinfo="form"（DefaultJson 骨架 + 命令预填/回填合并结果）
+    //   - 命令（接收）：newForm{preFill} 新增（静态 default + preFill 浅合并）/ editForm{row} 编辑回填
+    //   - 事件（发出）：detail.saved{action,row} —— 宿主模板收到后命令 List 刷新
+    //   - 网络：window.axios；URL 来自模板注入（addUrl/editUrl 业务库 insert/update）
+    // =====================================================================================
+    var extId = (ViewData["ExtId"] as string) ?? ("Db" + Guid.NewGuid().ToString("N"));
+}
+<div id="@extId" data-dyn-mode="createApp" class="db">
+    <div class="db-errbar" v-if="formError">{{ formError }}</div>
+    <div class="db-body">
+        <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+    </div>
+    <div class="db-btns">
+        @* 按钮用 dyn-click 动作体系（平台规范，对齐 DetailTemplate），ctx.vm 即本 Block proxy。
+           注意：el-button 会拦截冒泡阻断 dyn 委托，故用【原生 button + el-button 样式类】保持视觉一致；
+           保存按钮用 :disabled 代替 loading（原生 button 无 loading 态）。 *@
+        <button type="button" class="el-button el-button--small" data-dyn-click-DetailCancel>取消</button>
+        <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" data-dyn-click-DetailSave>保存</button>
+    </div>
+    <script type="application/json" tag="dynmodel">{}</script>
+    <script tag="dynconfig">
+    // 共享参数：模板 mount 前写入 window.__blkDetailShared = { config, default, table, addUrl, editUrl }
+    var __s = window.__blkDetailShared || {};
+    var __initForm = __s.default || {};
+    var dynConfig = {
+        data: function () {
+            return {
+                detailCfg: __s.config || null,
+                form: JSON.parse(JSON.stringify(__initForm)),
+                formError: '',
+                loading: false,
+                table: __s.table || '',
+                addUrl: __s.addUrl || '',
+                editUrl: __s.editUrl || ''
+            };
+        },
+        methods: {
+            // 统一网络层：优先 window.axios（dyn-core），缺失时降级 fetch
+            httpRequest: function (url, method, data) {
+                var m = (method || 'GET').toUpperCase();
+                if (window.axios) {
+                    var p = m === 'GET'
+                        ? window.axios.get(url)
+                        : window.axios.post(url, data, { headers: { 'Content-Type': 'application/json' } });
+                    return p.then(function (r) { return r.data; });
+                }
+                return fetch(url, {
+                    method: m,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: data ? JSON.stringify(data) : undefined
+                }).then(function (r) { return r.json(); });
+            },
+            // 表单校验：扫描容器内动态组件节点的 __dynValidate 钩子
+            validateForm: function () {
+                var errs = [];
+                var nodes = element.querySelectorAll('*');
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    if (typeof n.__dynValidate === 'function') {
+                        try {
+                            var ok = n.__dynValidate();
+                            if (ok !== true) {
+                                var msg = null;
+                                if (n.__dynErrors && n.__dynErrors.length) {
+                                    msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
+                                }
+                                if (!msg) {
+                                    try {
+                                        var inst = n.__vueParentComponent;
+                                        var comp = inst && inst.proxy;
+                                        if (comp && comp.comInnerInfo && comp.comInnerInfo.validation && comp.comInnerInfo.validation.errors) {
+                                            comp.comInnerInfo.validation.errors.forEach(function (e) { if (e && e.message) msg = e.message; });
+                                        }
+                                    } catch (e) { }
+                                }
+                                if (!msg) msg = '存在未通过校验的字段';
+                                if (errs.indexOf(msg) < 0) errs.push(msg);
+                            }
+                        } catch (e) { console.warn('[detail validate]', e); }
+                    }
+                }
+                return errs;
+            },
+            // 命令入口：newForm（新增，静态 default + preFill 浅合并，不改 PageSetting）/ editForm（回填）
+            handleCommand: function (cmd, payload) {
+                if (cmd === 'newForm') {
+                    var preFill = (payload && payload.preFill) || {};
+                    this.form = Object.assign({}, JSON.parse(JSON.stringify(__initForm)), preFill);
+                    this.formError = '';
+                    return Promise.resolve(null);
+                }
+                if (cmd === 'editForm') {
+                    var row = (payload && payload.row) || {};
+                    this.form = Object.assign({}, JSON.parse(JSON.stringify(__initForm)), row);
+                    this.formError = '';
+                    return Promise.resolve(null);
+                }
+                return Promise.resolve(null);
+            },
+            // 保存：校验 → 业务库 insert/update（body {table,data}）→ 发 detail.saved 事件
+            onSave: function () {
+                var self = this;
+                var errs = this.validateForm();
+                if (errs.length) {
+                    this.formError = errs.join('；');
+                    dyn.showMessage(errs.join('；'), 'warning');
+                    return;
+                }
+                this.loading = true;
+                var isEdit = this.form && this.form.Id !== null && this.form.Id !== undefined && this.form.Id !== '';
+                var req = this.httpRequest(isEdit ? this.editUrl : this.addUrl, 'POST', { table: this.table, data: this.form });
+                req.then(function (res) {
+                    self.loading = false;
+                    if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
+                    self.formError = '';
+                    dyn.showMessage('保存成功', 'success');
+                    var msg = window.__tsbMsg;
+                    if (msg) msg.emitEvent('detail.saved', { action: isEdit ? 'edit' : 'add', row: self.form });
+                }).catch(function (e) {
+                    self.loading = false;
+                    dyn.showMessage('保存失败：' + ((e && e.message) || e), 'error');
+                });
+            },
+            // 取消：清空表单（新增态骨架）
+            onCancel: function () {
+                this.form = JSON.parse(JSON.stringify(__initForm));
+                this.formError = '';
+            },
+            // 注册本 Block 的保存/取消动作（dyn-click 委托在 document 捕获层触发，ctx.vm 即本 Block proxy）
+            registerActions: function () {
+                if (!dyn || typeof dyn.defineAction !== 'function') return;
+                dyn.defineAction('DetailSave', function (ctx) {
+                    var vm = ctx && ctx.vm;
+                    if (vm && typeof vm.onSave === 'function') return vm.onSave();
+                });
+                dyn.defineAction('DetailCancel', function (ctx) {
+                    var vm = ctx && ctx.vm;
+                    if (vm && typeof vm.onCancel === 'function') return vm.onCancel();
+                });
+                // 注意：无需 dyn.rebindActions —— generateSelector 每次点击动态生成，动作注册即生效；
+                // 多次 rebind 会导致 document 监听叠加（一次点击触发多次动作）。
+            }
+        },
+        mounted: function () { this.registerActions(); }
+    };
+    </script>
+</div>
+
+<style>
+    .db { display: flex; flex-direction: column; }
+    .db-errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
+        border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .db-body { flex: 1; }
+    .db-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
+        padding-top: 12px; border-top: 1px solid #e4e7ed; }
+</style>

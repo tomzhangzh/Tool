@@ -1,0 +1,159 @@
+@{
+    // =====================================================================================
+    // List 积木（平台规范版）：壳 + 动态列渲染，行为定义在 dynconfig。
+    //   - 容器 data-dyn-mode="createApp"，由宿主模板统一 dyn.mount()（本 View 不做挂载）。
+    //   - 列定义：PageSetting.ConfigJson 的 { columns:[...] }，el-table-column v-for 渲染
+    //   - model：平台注入 <script type="application/json" tag="dynmodel"> 初始骨架
+    //     { rows, page, size, total, loading, filter }，组件实例上 this.model 为响应式对象
+    //   - 消息（事件）：list.add / list.edit{row} / list.addChild{row}
+    //   - 命令（接收）：loadData{filter} / reload —— 宿主模板经消息中心 sendCommand 下发
+    //   - 网络：window.axios（dyn-core 网络层）；URL 来自模板注入（loadUrl/deleteUrl）
+    // =====================================================================================
+    var extId = (ViewData["ExtId"] as string) ?? ("Lb" + Guid.NewGuid().ToString("N"));
+}
+<div id="@extId" data-dyn-mode="createApp" class="lb">
+    <div class="lb-toolbar">
+        @* 按钮统一走 dyn-click 动作体系；操作列按钮通过 data-row-id 把当前行主键传给动作（ctx.params['row-id']）。
+           注意：el-button 会拦截冒泡阻断 dyn 委托，故用【原生 button + el-button 样式类】保持视觉一致。 *@
+        <button type="button" class="el-button el-button--primary el-button--small" data-dyn-click-ListAdd>+ 新增</button>
+    </div>
+    <el-table :data="model.rows" v-loading="model.loading" size="small" border>
+        <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label" :width="col.width || undefined"></el-table-column>
+        <el-table-column label="操作" width="180" fixed="right">
+            <template #default="scope">
+                <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListEdit :data-row-id="scope.row.Id">编辑</button>
+                <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListAddChild :data-row-id="scope.row.Id">+子</button>
+                <button type="button" class="el-button el-button--small is-link is-text" data-dyn-click-ListDelete :data-row-id="scope.row.Id">删除</button>
+            </template>
+        </el-table-column>
+    </el-table>
+    <div class="lb-page">
+        <el-pagination background layout="total, prev, pager, next, sizes"
+            :total="model.total" :current-page="model.page" :page-size="model.size"
+            :page-sizes="[10, 20, 50, 100]" @@current-change="onPage" @@size-change="onSize"></el-pagination>
+    </div>
+    <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
+    <script tag="dynconfig">
+    // 共享参数：模板 mount 前写入 window.__blkListShared = { config, table, loadUrl, deleteUrl }
+    var __s = window.__blkListShared || {};
+    var dynConfig = {
+        data: function () {
+            return {
+                columns: (__s.config && __s.config.columns) || [],
+                table: __s.table || '',
+                loadUrl: __s.loadUrl || '',
+                deleteUrl: __s.deleteUrl || ''
+            };
+        },
+        methods: {
+            // 统一网络层：优先 window.axios（dyn-core），缺失时降级 fetch
+            httpRequest: function (url, method, data) {
+                var m = (method || 'GET').toUpperCase();
+                if (window.axios) {
+                    var p = m === 'GET'
+                        ? window.axios.get(url)
+                        : window.axios.post(url, data, { headers: { 'Content-Type': 'application/json' } });
+                    return p.then(function (r) { return r.data; });
+                }
+                return fetch(url, {
+                    method: m,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: data ? JSON.stringify(data) : undefined
+                }).then(function (r) { return r.json(); });
+            },
+            // 加载列表：body {table,page,size,filter}；结果写入 model.rows/total
+            loadData: function () {
+                var self = this;
+                if (!this.table) return Promise.resolve(null);
+                this.model.loading = true;
+                return this.httpRequest(this.loadUrl, 'POST', {
+                    table: this.table, page: this.model.page, size: this.model.size, filter: this.model.filter || {}
+                }).then(function (res) {
+                    self.model.loading = false;
+                    if (res.code !== 0) { dyn.showMessage(res.msg || '加载失败', 'error'); return null; }
+                    self.model.rows = res.data.rows || [];
+                    self.model.total = res.data.total || 0;
+                    return res.data;
+                }).catch(function (e) {
+                    self.model.loading = false;
+                    dyn.showMessage('加载失败：' + ((e && e.message) || e), 'error');
+                    return null;
+                });
+            },
+            // 命令入口：loadData（带筛选）/ reload（刷新当前）
+            handleCommand: function (cmd, payload) {
+                if (cmd === 'loadData') {
+                    this.model.filter = (payload && payload.filter) || {};
+                    this.model.page = 1;
+                    return this.loadData();
+                }
+                if (cmd === 'reload') { return this.loadData(); }
+                return Promise.resolve(null);
+            },
+            onPage: function (p) { this.model.page = p; this.loadData(); },
+            onSize: function (s) { this.model.size = s; this.model.page = 1; this.loadData(); },
+            // 事件：+新增 / 行编辑 / +子（主子预填由模板处理）
+            onAdd: function () { var msg = window.__tsbMsg; if (msg) msg.emitEvent('list.add', {}); },
+            onEdit: function (row) { var msg = window.__tsbMsg; if (msg) msg.emitEvent('list.edit', { row: row }); },
+            onAddChild: function (row) { var msg = window.__tsbMsg; if (msg) msg.emitEvent('list.addChild', { row: row }); },
+            // 删除：POST deleteUrl {table, keys:{Id}}，删除前用平台原生 dyn.confirmAsync 确认；
+            // 确认通过后删除，成功后本地刷新
+            onDelete: function (row) {
+                var self = this;
+                var id = row && row.Id;
+                if (id === null || id === undefined) return;
+                var doDelete = function () {
+                    self.httpRequest(self.deleteUrl, 'POST', { table: self.table, keys: { Id: id } })
+                        .then(function (res) {
+                            if (res.code !== 0) { dyn.showMessage(res.msg || '删除失败', 'error'); return; }
+                            dyn.showMessage('删除成功', 'success');
+                            self.loadData();
+                        })
+                        .catch(function (e) { dyn.showMessage('删除失败：' + ((e && e.message) || e), 'error'); });
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该条记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else {
+                    doDelete();
+                }
+            },
+            // 由动作 ctx.params['row-id'] 反查当前行（dyn-click 传参，操作列按钮 data-row-id）
+            findRow: function (ctx) {
+                var vm = ctx && ctx.vm;
+                var id = ctx && ctx.params && ctx.params['row-id'];
+                if (!vm || id === null || id === undefined) return null;
+                return (vm.model.rows || []).find(function (r) { return String(r.Id) === String(id); }) || null;
+            },
+            // 注册本 Block 的操作动作（ctx.vm 即本 Block proxy）
+            registerActions: function () {
+                if (!dyn || typeof dyn.defineAction !== 'function') return;
+                var self = this;
+                dyn.defineAction('ListAdd', function (ctx) { var vm = ctx && ctx.vm; if (vm) vm.onAdd(); });
+                dyn.defineAction('ListEdit', function (ctx) {
+                    var vm = ctx && ctx.vm, row = self.findRow(ctx);
+                    if (vm && row) vm.onEdit(row);
+                });
+                dyn.defineAction('ListAddChild', function (ctx) {
+                    var vm = ctx && ctx.vm, row = self.findRow(ctx);
+                    if (vm && row) vm.onAddChild(row);
+                });
+                dyn.defineAction('ListDelete', function (ctx) {
+                    var vm = ctx && ctx.vm, row = self.findRow(ctx);
+                    if (vm && row) vm.onDelete(row);
+                });
+                // 注意：无需调用 dyn.rebindActions —— generateSelector 在每次点击时动态生成，
+                // 动作注册后即生效；多次 rebind 反而导致 document 监听叠加（一次点击触发多次动作）。
+            }
+        },
+        // 挂载完成即加载列表并注册动作
+        mounted: function () { this.loadData(); this.registerActions(); }
+    };
+    </script>
+</div>
+
+<style>
+    .lb { display: flex; flex-direction: column; }
+    .lb-toolbar { margin-bottom: 12px; }
+    .lb .el-table { width: 100%; }
+    .lb-page { display: flex; justify-content: flex-end; margin-top: 14px; }
+</style>

@@ -1,14 +1,23 @@
 @model VueLibV4.Web.Core.DetailTemplateModel
 @using VueLibV4.Services.Extensions
 @{
+    // =====================================================================================
     // 详情/表单独立页面模板：不套整页 Layout，输出可被 open(fragment) 拉入弹窗、也可独立访问的表单片段。
     // Detail 屏 PageSetting（ConfigJson=表单UI / DefaultJson=表单model骨架）由本页按 SettingId 单独加载。
+    //
+    // 平台规范写法（对齐 dyn-core / dyn-action 能力）：
+    //   1) 创建应用：根容器 data-dyn-mode="createApp" + <script tag="dynconfig">，由 dyn.mount() 统一挂载，
+    //      不再手写 Vue.createApp / DynCom.setupApp / DynCom.ensureRegistered / app.mount。
+    //   2) 网络层：统一走 window.axios（dyn-core 网络层，替代原生 fetch）。
+    //   3) 按钮动作：保存/取消用 dyn-click 动作体系（data-dyn-click-DetailSave / data-dyn-click-DetailClose），
+    //      动作经 dyn.defineAction 注册，委托在 document 捕获层触发；业务逻辑仍集中在 methods。
+    // =====================================================================================
     Layout = null;
     var sharedJson = Model.ToJsonSafe();
     var extId = "Dtl" + Guid.NewGuid().ToString("N");
     var detailBack = Model.RenderMode == "Back" && !string.IsNullOrWhiteSpace(Model.PartialPath);
 }
-<div id="@extId" class="dtpl-root">
+<div id="@extId" data-dyn-mode="createApp" class="dtpl-root">
     @* <div class="dtpl-head">
         <span class="dtpl-title">{{ winTitle || pageTitle }}</span>
     </div> *@
@@ -26,38 +35,21 @@
         }
     </div>
     <div class="dtpl-footer">
-        <el-button size="small" @@click="onCancel">取消</el-button>
-        <el-button type="primary" size="small" :loading="loading" @@click="onSave">保存</el-button>
+        <el-button size="small" data-dyn-click-DetailClose>取消</el-button>
+        <el-button type="primary" size="small" :loading="loading" data-dyn-click-DetailSave>保存</el-button>
     </div>
-</div>
 
-<style>
-    .dtpl-root { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; background: #fff; padding: 16px 18px; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .dtpl-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e4e7ed; }
-    .dtpl-title { font-size: 15px; font-weight: 600; color: #303133; }
-    .dtpl-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 4px 8px; }
-    .dtpl-errbar { position: sticky; top: 0; z-index: 30; margin-bottom: 10px; padding: 9px 12px;
-        background: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2; border-radius: 4px;
-        font-size: 13px; line-height: 1.5; font-weight: 500; box-shadow: 0 2px 8px rgba(245,108,108,.15); }
-    .dtpl-errbar::before { content: "⚠ "; }
-    .dtpl-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid #e4e7ed; }
-</style>
+    <script tag="dynconfig">
+    // 注意：本脚本由 mount 以 new Function('element','dyn',...) 执行，必须在顶层定义全局变量 dynConfig
+    //（mountCore 用 typeof dynConfig 判空），因此不能包在 IIFE 里；element/dyn 为执行时传入参数。
+    var shared = window.__dtplShared || {};
+    function parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
 
-<script>
-    DynLib.ready(function () {
-        var shared = @Html.Raw(sharedJson);
-        var rootEl = document.querySelector('#@extId');
-        if (!rootEl) return;
+    var initForm = parseJson(shared.DetailDefaultJson, {});
+    var prefill = {};
+    try { prefill = JSON.parse(shared.PrefillJson || '{}'); } catch (e) { prefill = {}; }
 
-        function parseJson(s, def) { try { var o = JSON.parse(s || 'null'); return o || def; } catch (e) { return def; } }
-
-        var initForm = parseJson(shared.DetailDefaultJson, {});
-        // 新增预填（主从联动：子表新增预填外键）
-        var prefill = {};
-        try { prefill = JSON.parse(shared.PrefillJson || '{}'); } catch (e) { prefill = {}; }
-        var apiDb = shared.Db || 'platform';
-        var apiBase = apiDb === 'business' ? '/api/business/dyndata' : '/api/platform/dyndata';
-        var app = Vue.createApp({
+    var dynConfig = {
             data: function () {
                 return {
                     pageTitle: shared.PageTitle || '详情',
@@ -68,71 +60,47 @@
                     form: Object.assign({}, JSON.parse(JSON.stringify(initForm)), prefill),
                     formError: '',
                     loading: false,
-                    apiDb: apiDb,
-                    saveUrl: '/api/' + (apiDb === 'business' ? 'business' : 'platform') + '/dyndata/save?table=' + encodeURIComponent(shared.Table || '')
+                    apiDb: shared.Db || 'platform'
                 };
             },
             methods: {
+                // 统一网络层：优先 window.axios（dyn-core），缺失时降级 fetch，返回 JSON
+                httpRequest: function (url, method, data) {
+                    var m = (method || 'GET').toUpperCase();
+                    if (window.axios) {
+                        var p = m === 'GET'
+                            ? window.axios.get(url)
+                            : window.axios.post(url, data, { headers: { 'Content-Type': 'application/json' } });
+                        return p.then(function (r) { return r.data; });
+                    }
+                    return fetch(url, {
+                        method: m,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: data ? JSON.stringify(data) : undefined
+                    }).then(function (r) { return r.json(); });
+                },
                 load: function () {
                     var self = this;
                     if (!this.bizId) return;
-                    fetch(this.apiDb === 'business' ? '/api/business/dyndata/search' : '/api/platform/dyndata/search', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ table: this.table, page: 1, size: 1, filter: { Id: { op: 'eq', value: this.bizId } } })
-                    }).then(function (r) { return r.json(); }).then(function (res) {
-                        if (res.code !== 0 || !res.data || !res.data.rows || !res.data.rows.length) return;
-                        var row = res.data.rows[0];
-                        // 深合并：以服务端行为准覆盖骨架（新增预填字段被服务端值覆盖）
-                        self.form = Object.assign({}, initForm, prefill, row);
-                    }).catch(function (e) { dyn.showMessage('加载失败：' + (e && e.message || e), 'error'); });
-                },
-                onSave: function () {
-                    var self = this;
-                    var errs = this.validateForm();
-                    if (errs.length) {
-                        this.formError = errs.join('；');
-                        try { var eb = rootEl.querySelector('.dtpl-body'); if (eb) eb.scrollTop = 0; } catch (e) { }
-                        dyn.showMessage(errs.join('；'), 'warning');
-                        return;
-                    }
-                    this.loading = true;
-                    var isEdit = this.bizId > 0;
-                    var req;
-                    if (this.apiDb === 'business') {
-                        // 业务库：insert / update 分开
-                        req = fetch('/api/business/dyndata/' + (isEdit ? 'update' : 'insert'), {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ table: this.table, data: this.form })
-                        }).then(function (r) { return r.json(); });
-                    } else {
-                        req = fetch(this.saveUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.form) })
-                            .then(function (r) { return r.json(); });
-                    }
-                    req.then(function (res) {
-                        self.loading = false;
-                        if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
-                        self.formError = '';
-                        dyn.showMessage('保存成功', 'success');
-                        // 显式触发父列表刷新（crud-basic/master-detail 等模板注册的全局刷新函数；onclose 亦会触发，幂等）
-                        try {
-                            Object.keys(window).filter(function (k) {
-                                return k.indexOf('__crud_refresh_') === 0 || k.indexOf('__md_refresh_') === 0;
-                            }).forEach(function (k) { try { window[k](); } catch (e) { } });
-                        } catch (e) { }
-                        // 关闭弹窗：触发 open 动作 onclose
-                        DynAction.run('close', {}, { element: rootEl }).catch(function (e) { console.warn('[detail close]', e); });
-                    }).catch(function (e) { self.loading = false; dyn.showMessage('保存失败：' + (e && e.message || e), 'error'); });
+                    var url = this.apiDb === 'business' ? '/api/business/dyndata/search' : '/api/platform/dyndata/search';
+                    this.httpRequest(url, 'POST', { table: this.table, page: 1, size: 1, filter: { Id: { op: 'eq', value: this.bizId } } })
+                        .then(function (res) {
+                            if (res.code !== 0 || !res.data || !res.data.rows || !res.data.rows.length) return;
+                            var row = res.data.rows[0];
+                            // 深合并：以服务端行为准覆盖骨架（新增预填字段被服务端值覆盖）
+                            self.form = Object.assign({}, initForm, prefill, row);
+                        })
+                        .catch(function (e) { dyn.showMessage('加载失败：' + ((e && e.message) || e), 'error'); });
                 },
                 validateForm: function () {
                     var errs = [];
-                    var nodes = rootEl.querySelectorAll('*');
+                    var nodes = element.querySelectorAll('*');
                     for (var i = 0; i < nodes.length; i++) {
                         var n = nodes[i];
                         if (typeof n.__dynValidate === 'function') {
                             try {
                                 var ok = n.__dynValidate();
                                 if (ok !== true) {
-                                    // 优先读取组件写入根元素的校验错误（__dynErrors，prod 版可读）；读不到再尝试组件实例，最后占位
                                     var msg = null;
                                     if (n.__dynErrors && n.__dynErrors.length) {
                                         msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
@@ -154,27 +122,108 @@
                     }
                     return errs;
                 },
+                // 保存成功：提示 + 触发父列表刷新 + 关闭弹窗
+                refreshParent: function () {
+                    try {
+                        Object.keys(window).filter(function (k) {
+                            return k.indexOf('__crud_refresh_') === 0 || k.indexOf('__md_refresh_') === 0;
+                        }).forEach(function (k) { try { window[k](); } catch (e) { } });
+                    } catch (e) { }
+                },
+                onSave: function () {
+                    var self = this;
+                    var errs = this.validateForm();
+                    if (errs.length) {
+                        this.formError = errs.join('；');
+                        try { var eb = element.querySelector('.dtpl-body'); if (eb) eb.scrollTop = 0; } catch (e) { }
+                        dyn.showMessage(errs.join('；'), 'warning');
+                        return;
+                    }
+                    this.loading = true;
+                    var isEdit = this.bizId > 0;
+                    var dbUrl = '/api/' + (this.apiDb === 'business' ? 'business' : 'platform') + '/dyndata/';
+                    var req;
+                    if (this.apiDb === 'business') {
+                        // 业务库：insert / update 分开
+                        req = this.httpRequest(dbUrl + (isEdit ? 'update' : 'insert'), 'POST', { table: this.table, data: this.form });
+                    } else {
+                        req = this.httpRequest(dbUrl + 'save?table=' + encodeURIComponent(this.table), 'POST', this.form);
+                    }
+                    req.then(function (res) {
+                        self.loading = false;
+                        if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
+                        self.formError = '';
+                        dyn.showMessage('保存成功', 'success');
+                        self.refreshParent();
+                        DynAction.run('close', {}, { element: element }).catch(function (e) { console.warn('[detail close]', e); });
+                    }).catch(function (e) { self.loading = false; dyn.showMessage('保存失败：' + ((e && e.message) || e), 'error'); });
+                },
                 onCancel: function () {
                     this.formError = '';
-                    DynAction.run('close', {}, { element: rootEl }).catch(function (e) { console.warn('[detail close]', e); });
-                }
-            },
-            mounted: function () {
-                this.load();
+                    DynAction.run('close', {}, { element: element }).catch(function (e) { console.warn('[detail close]', e); });
+                },
                 // setwin：应用 open 动作传入的窗口参数（标题/宽/高/全屏）
-                if (shared.WinTitle || shared.WinWidth || shared.WinHeight || shared.WinMax) {
+                applyWin: function () {
+                    if (!(shared.WinTitle || shared.WinWidth || shared.WinHeight || shared.WinMax)) return;
                     var w = {};
                     if (shared.WinTitle) w.title = shared.WinTitle;
                     if (shared.WinWidth) w.width = shared.WinWidth;
                     if (shared.WinHeight) w.height = shared.WinHeight;
-                    DynAction.run('setwin', w, { element: rootEl }).catch(function (e) { console.warn('[detail setwin]', e); });
-                    if (shared.WinMax) {
-                        DynAction.run('open', {}, { element: rootEl }).catch(function(){});
+                    DynAction.run('setwin', w, { element: element }).catch(function (e) { console.warn('[detail setwin]', e); });
+                    if (shared.WinMax) { DynAction.run('open', {}, { element: element }).catch(function () { }); }
+                },
+                // 注册本模板的保存/取消动作（dyn-click 委托在 document 捕获层触发），并刷新委托选择器
+                registerActions: function () {
+                    var self = this;
+                    // 注：dynconfig 由 mount 以 new Function('element','dyn',...) 执行，此处 dyn 为参数（=global.dyn）
+                    if (!dyn || typeof dyn.defineAction !== 'function') return;
+                    function locateHost(ctx) {
+                        if (ctx && ctx.element) {
+                            return dyn.closestDynInit(ctx.element) || ctx.element.closest('[data-dyn-mode="createApp"]');
+                        }
+                        return element;
                     }
+                    dyn.defineAction('DetailSave', function (ctx) {
+                        var host = locateHost(ctx);
+                        var proxy = host ? dyn.getProxy(host) : null;
+                        if (proxy && typeof proxy.onSave === 'function') return proxy.onSave();
+                    });
+                    dyn.defineAction('DetailClose', function (ctx) {
+                        var host = locateHost(ctx);
+                        var proxy = host ? dyn.getProxy(host) : null;
+                        if (proxy && typeof proxy.onCancel === 'function') proxy.onCancel();
+                    });
+                    if (typeof dyn.rebindActions === 'function') dyn.rebindActions();
                 }
+            },
+            mounted: function () {
+                this.load();
+                this.applyWin();
+                this.registerActions();
             }
-        });
-        DynCom.setupApp(app);
-        DynCom.ensureRegistered(app).then(function () { app.mount(rootEl); });
+        };
+    </script>
+</div>
+
+<style>
+    .dtpl-root { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; background: #fff; padding: 16px 18px; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .dtpl-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e4e7ed; }
+    .dtpl-title { font-size: 15px; font-weight: 600; color: #303133; }
+    .dtpl-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 4px 8px; }
+    .dtpl-errbar { position: sticky; top: 0; z-index: 30; margin-bottom: 10px; padding: 9px 12px;
+        background: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2; border-radius: 4px;
+        font-size: 13px; line-height: 1.5; font-weight: 500; box-shadow: 0 2px 8px rgba(245,108,108,.15); }
+    .dtpl-errbar::before { content: "⚠ "; }
+    .dtpl-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid #e4e7ed; }
+</style>
+
+<script>
+    // 供 dynconfig 读取的共享参数（页面级全局，mount 时已就绪）
+    window.__dtplShared = @Html.Raw(sharedJson);
+    // 注：fragment 内联 script 由 dyn-core 以 new Function('parentElement',code) 在全局作用域执行，
+    //     浏览器环境统一用 window.*（勿用 global.*）；DynLib 为 window 全局。
+    window.DynLib.ready(function () {
+        var rootEl = document.querySelector('#@extId');
+        if (rootEl && window.dyn && typeof window.dyn.mount === 'function') { window.dyn.mount(rootEl); }
     });
 </script>
