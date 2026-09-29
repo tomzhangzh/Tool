@@ -1,18 +1,19 @@
 @{
     // =====================================================================================
-    // Filter 积木（平台规范版）：壳 + 动态配置渲染，行为定义在 dynconfig。
-    //   - 容器 data-dyn-mode="createApp"，由宿主模板统一 dyn.mount()（本 View 不做挂载）。
-    //   - 配置渲染：<dyn-dynamic-com :jsonconfig>（PageSetting.ConfigJson 筛选组件树）
+    // Filter 积木（平台规范·共享上下文版）：壳 + 动态配置渲染，行为定义在 dynconfig。
+    //   - 容器 data-dyn-mode="createApp"，由宿主模板统一挂载；data-root-ext-id 指向根 app（模板注入 RootExtId）
+    //   - 共享读取：dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，读其 model 的
+    //     filterConfig / filterDefault / msgCenter（根 app 已写入，不用 window 全局）
     //   - model：字段值结构 {字段:值}，DynElInput 正常显示；操作符 op 从 DefaultJson 提取
-    //   - 消息：查询/重置 → 发事件 filter.changed{params:{字段:{op,value}}}，宿主模板收到后命令 List 加载
-    //   - 共享参数：模板在 mount 前写入 window.__blkFilterShared = { config, default }
+    //   - 消息：查询/重置 → 发事件 filter.changed{params:{字段:{op,value}}}，根 app 收到后命令 List 加载
     // =====================================================================================
     var extId = (ViewData["ExtId"] as string) ?? ("Fb" + Guid.NewGuid().ToString("N"));
+    var rootExtId = (ViewData["RootExtId"] as string) ?? "";
 }
-<div id="@extId" data-dyn-mode="createApp" class="fb">
+<div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId" class="fb">
     <div class="fb-body">
-        @* 注意：不能用键名 model —— mountCore 的 setup() 会暴露同名的 model（空的 reactive 对象）并覆盖 data，
-            导致 DynElInput 输入写不进我们的数据；故用 filterModel 避开重名（Detail 用 form、List 用 dynmodel 均不冲突）*@
+        @* 注意：不能用键名 model —— mountCore 的 setup() 会暴露同名的 model 并覆盖 data，
+            导致 DynElInput 输入写不进我们的数据；故用 filterModel 避开重名（Detail 用 form、List 用自身 model 均不冲突）*@
         <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
     </div>
     <div class="fb-btns">
@@ -25,19 +26,22 @@
     </div>
     <script tag="dynconfig">
     // 注意：由 mount 以 new Function('element','dyn',...) 执行，必须顶层定义 var dynConfig（勿包 IIFE）
-    var __s = window.__blkFilterShared || {};
-    var __initDefault = __s.default || {};
-    // model 用「字段值」结构；op 从 DefaultJson（{字段:{op}} 或 {字段:值} 两种写法兼容）
-    var __opMap = {};
-    var __initModel = {};
-    Object.keys(__initDefault).forEach(function (k) {
-        var v = __initDefault[k];
-        if (v && typeof v === 'object' && v.op) { __opMap[k] = v.op; __initModel[k] = null; }
-        else { __opMap[k] = 'eq'; __initModel[k] = (v === null || v === undefined) ? null : v; }
-    });
+    // 共享上下文：按 data-root-ext-id 找到根 app（模板 RootExtId），读其 model（根 app mount 时已写入）
+    var __rid = element.getAttribute('data-root-ext-id');
+    var __rootApp = null;
+    if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }
+    var __ctx = (__rootApp && __rootApp.model) || {};
     var dynConfig = {
         data: function () {
-            return { pageCfg: __s.config || null, filterModel: JSON.parse(JSON.stringify(__initModel)) };
+            var fd = __ctx.filterDefault || {};
+            // model 用「字段值」结构；op 从 DefaultJson（{字段:{op}} 或 {字段:值} 两种写法兼容）
+            var opMap = {}, initModel = {};
+            Object.keys(fd).forEach(function (k) {
+                var v = fd[k];
+                if (v && typeof v === 'object' && v.op) { opMap[k] = v.op; initModel[k] = null; }
+                else { opMap[k] = 'eq'; initModel[k] = (v === null || v === undefined) ? null : v; }
+            });
+            return { pageCfg: __ctx.filterConfig || null, filterModel: JSON.parse(JSON.stringify(initModel)), __opMap: opMap, __initModel: initModel };
         },
         methods: {
             // 组装 {字段:{op,value}} 提交结构；剔除空值字段
@@ -45,19 +49,19 @@
                 var f = {}, self = this;
                 Object.keys(this.filterModel).forEach(function (k) {
                     var v = self.filterModel[k];
-                    if (v !== null && v !== undefined && v !== '') f[k] = { op: __opMap[k] || 'eq', value: v };
+                    if (v !== null && v !== undefined && v !== '') f[k] = { op: self.__opMap[k] || 'eq', value: v };
                 });
                 return f;
             },
-            // 查询：发事件，宿主模板收到后命令 List 重新加载
+            // 查询：发事件，根 app 收到后命令 List 重新加载
             query: function () {
-                var msg = window.__tsbMsg;
+                var msg = __ctx.msgCenter;
                 if (msg) msg.emitEvent('filter.changed', { params: this.buildSubmit() });
             },
             // 重置：清空筛选条件并通知 List 恢复全量
             reset: function () {
-                this.filterModel = JSON.parse(JSON.stringify(__initModel));
-                var msg = window.__tsbMsg;
+                this.filterModel = JSON.parse(JSON.stringify(this.__initModel));
+                var msg = __ctx.msgCenter;
                 if (msg) msg.emitEvent('filter.changed', { params: {} });
             },
             // 注册本 Block 的查询/重置动作（dyn-click 委托在 document 捕获层触发，ctx.vm 即本 Block proxy）

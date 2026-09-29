@@ -66,6 +66,7 @@ const DYN_MODULES = [
   "dyn-load-com.js",
   "dyn-com.js",
   "dyn-core.js",
+  "dyn-call.js",
   "dyn-validator.js",
   "dyn-designer-ops.js",
   "dyn-designer-sortable.js",

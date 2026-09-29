@@ -1,16 +1,19 @@
 @{
     // =====================================================================================
-    // Detail 积木（平台规范版）：壳 + 动态表单渲染，行为定义在 dynconfig。
-    //   - 容器 data-dyn-mode="createApp"，由宿主模板统一 dyn.mount()（本 View 不做挂载）。
+    // Detail 积木（平台规范·共享上下文版）：壳 + 动态表单渲染，行为定义在 dynconfig。
+    //   - 容器 data-dyn-mode="createApp"，由宿主模板统一挂载；data-root-ext-id 指向根 app（模板注入 RootExtId）
     //   - 表单渲染：<dyn-dynamic-com :jsonconfig>（PageSetting.ConfigJson 表单组件树），
     //     :parentmodelinfo="form"（DefaultJson 骨架 + 命令预填/回填合并结果）
+    //   - 共享读取：dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，读其 model 的
+    //     detailConfig / detailDefault / table / addUrl / editUrl / msgCenter（根 app 已写入，不用 window 全局）
     //   - 命令（接收）：newForm{preFill} 新增（静态 default + preFill 浅合并）/ editForm{row} 编辑回填
-    //   - 事件（发出）：detail.saved{action,row} —— 宿主模板收到后命令 List 刷新
-    //   - 网络：window.axios；URL 来自模板注入（addUrl/editUrl 业务库 insert/update）
+    //   - 事件（发出）：detail.saved{action,row} —— 根 app 收到后命令 List 刷新
+    //   - 网络：统一走 DynCall（信封解包 + 统一错误处理），不再手写 axios/fetch
     // =====================================================================================
     var extId = (ViewData["ExtId"] as string) ?? ("Db" + Guid.NewGuid().ToString("N"));
+    var rootExtId = (ViewData["RootExtId"] as string) ?? "";
 }
-<div id="@extId" data-dyn-mode="createApp" class="db">
+<div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId" class="db">
     <div class="db-errbar" v-if="formError">{{ formError }}</div>
     <div class="db-body">
         <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
@@ -22,39 +25,27 @@
         <button type="button" class="el-button el-button--small" data-dyn-click-DetailCancel>取消</button>
         <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" data-dyn-click-DetailSave>保存</button>
     </div>
-    <script type="application/json" tag="dynmodel">{}</script>
     <script tag="dynconfig">
-    // 共享参数：模板 mount 前写入 window.__blkDetailShared = { config, default, table, addUrl, editUrl }
-    var __s = window.__blkDetailShared || {};
-    var __initForm = __s.default || {};
+    // 共享上下文：按 data-root-ext-id 找到根 app（模板 RootExtId），读其 model（根 app mount 时已写入）
+    var __rid = element.getAttribute('data-root-ext-id');
+    var __rootApp = null;
+    if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }
+    var __ctx = (__rootApp && __rootApp.model) || {};
     var dynConfig = {
         data: function () {
+            var initForm = __ctx.detailDefault || {};
             return {
-                detailCfg: __s.config || null,
-                form: JSON.parse(JSON.stringify(__initForm)),
+                detailCfg: __ctx.detailConfig || null,
+                form: JSON.parse(JSON.stringify(initForm)),
                 formError: '',
                 loading: false,
-                table: __s.table || '',
-                addUrl: __s.addUrl || '',
-                editUrl: __s.editUrl || ''
+                table: __ctx.table || '',
+                addUrl: __ctx.addUrl || '',
+                editUrl: __ctx.editUrl || '',
+                __initForm: initForm
             };
         },
         methods: {
-            // 统一网络层：优先 window.axios（dyn-core），缺失时降级 fetch
-            httpRequest: function (url, method, data) {
-                var m = (method || 'GET').toUpperCase();
-                if (window.axios) {
-                    var p = m === 'GET'
-                        ? window.axios.get(url)
-                        : window.axios.post(url, data, { headers: { 'Content-Type': 'application/json' } });
-                    return p.then(function (r) { return r.data; });
-                }
-                return fetch(url, {
-                    method: m,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: data ? JSON.stringify(data) : undefined
-                }).then(function (r) { return r.json(); });
-            },
             // 表单校验：扫描容器内动态组件节点的 __dynValidate 钩子
             validateForm: function () {
                 var errs = [];
@@ -90,19 +81,19 @@
             handleCommand: function (cmd, payload) {
                 if (cmd === 'newForm') {
                     var preFill = (payload && payload.preFill) || {};
-                    this.form = Object.assign({}, JSON.parse(JSON.stringify(__initForm)), preFill);
+                    this.form = Object.assign({}, JSON.parse(JSON.stringify(this.__initForm)), preFill);
                     this.formError = '';
                     return Promise.resolve(null);
                 }
                 if (cmd === 'editForm') {
                     var row = (payload && payload.row) || {};
-                    this.form = Object.assign({}, JSON.parse(JSON.stringify(__initForm)), row);
+                    this.form = Object.assign({}, JSON.parse(JSON.stringify(this.__initForm)), row);
                     this.formError = '';
                     return Promise.resolve(null);
                 }
                 return Promise.resolve(null);
             },
-            // 保存：校验 → 业务库 insert/update（body {table,data}）→ 发 detail.saved 事件
+            // 保存：校验 → 业务库 insert/update（body {table,data}，统一走 DynCall）→ 发 detail.saved 事件
             onSave: function () {
                 var self = this;
                 var errs = this.validateForm();
@@ -113,22 +104,19 @@
                 }
                 this.loading = true;
                 var isEdit = this.form && this.form.Id !== null && this.form.Id !== undefined && this.form.Id !== '';
-                var req = this.httpRequest(isEdit ? this.editUrl : this.addUrl, 'POST', { table: this.table, data: this.form });
-                req.then(function (res) {
-                    self.loading = false;
-                    if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }
-                    self.formError = '';
-                    dyn.showMessage('保存成功', 'success');
-                    var msg = window.__tsbMsg;
-                    if (msg) msg.emitEvent('detail.saved', { action: isEdit ? 'edit' : 'add', row: self.form });
-                }).catch(function (e) {
-                    self.loading = false;
-                    dyn.showMessage('保存失败：' + ((e && e.message) || e), 'error');
-                });
+                DynCall.post(isEdit ? this.editUrl : this.addUrl, { table: this.table, data: this.form }, { scopeEl: element })
+                    .then(function () {
+                        self.loading = false;
+                        self.formError = '';
+                        dyn.showMessage('保存成功', 'success');
+                        var msg = __ctx.msgCenter;
+                        if (msg) msg.emitEvent('detail.saved', { action: isEdit ? 'edit' : 'add', row: self.form });
+                    })
+                    .catch(function (e) { self.loading = false; /* DynCall 已统一 toast */ });
             },
             // 取消：清空表单（新增态骨架）
             onCancel: function () {
-                this.form = JSON.parse(JSON.stringify(__initForm));
+                this.form = JSON.parse(JSON.stringify(this.__initForm));
                 this.formError = '';
             },
             // 注册本 Block 的保存/取消动作（dyn-click 委托在 document 捕获层触发，ctx.vm 即本 Block proxy）
@@ -146,7 +134,14 @@
                 // 多次 rebind 会导致 document 监听叠加（一次点击触发多次动作）。
             }
         },
-        mounted: function () { this.registerActions(); }
+        mounted: function () {
+            this.registerActions();
+            // 向根 app 消息中心注册本积木（接收 newForm/editForm 命令）
+            var self = this, msg = __ctx.msgCenter;
+            if (msg && typeof msg.registerBlock === 'function') {
+                msg.registerBlock('detail', function (cmd, payload) { return self.handleCommand(cmd, payload); });
+            }
+        }
     };
     </script>
 </div>
