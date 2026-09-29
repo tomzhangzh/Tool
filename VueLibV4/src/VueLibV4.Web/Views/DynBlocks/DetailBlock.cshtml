@@ -24,12 +24,13 @@
     var blkAddUrl = (ViewData["BlkAddUrl"] as string) ?? "";
     var blkEditUrl = (ViewData["BlkEditUrl"] as string) ?? "";
     var blkProject = (ViewData["BlkProject"] as string) ?? "";
+    var blkModal = (ViewData["BlkModal"] as string) ?? "";
 }
 <div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-default="@blkDefault" data-blk-table="@blkTable"
      data-blk-addurl="@blkAddUrl" data-blk-editurl="@blkEditUrl"
-     data-blk-project="@blkProject" class="db">
+     data-blk-project="@blkProject" data-blk-modal="@blkModal" class="db">
     <div class="db-errbar" v-if="formError">{{ formError }}</div>
     <div class="db-body">
         <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
@@ -59,8 +60,7 @@
             console.error('[DetailBlock] 根 model 不存在 key【' + __modelKey + '】或值非对象，请检查模板 Partial 传参 ModelKey');
         }
         __ctx.msgCenter = __rootApp.model[__msgKey] || null;
-    } else {
-        // 独立模式：外部未注入根上下文 → 从自身 data-blk-config / data-blk-default / data-blk-table / data-blk-addurl / data-blk-editurl 读取，并自建消息中心。
+    } else {        // 独立模式：外部未注入根上下文 → 从自身 data-blk-config / data-blk-default / data-blk-table / data-blk-addurl / data-blk-editurl 读取，并自建消息中心。
         // 约定：独立使用时，页面/容器需自行引入 message-center.js 并提供上述属性。
         var __P = function (s) { try { return JSON.parse(s || 'null') || null; } catch (e) { return null; } };
         __ctx = {
@@ -73,6 +73,8 @@
             msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
         };
     }
+    // 弹窗模式：data-blk-modal="true" 时，保存成功后发全局 dyndata.saved 事件并关闭弹窗（宿主页面据此刷新列表）
+    __ctx.modal = element.getAttribute('data-blk-modal') === 'true';
     var dynConfig = {
         data: function () {
             var initForm = __ctx.detailDefault || {};
@@ -85,6 +87,7 @@
                 addUrl: __ctx.addUrl || '',
                 editUrl: __ctx.editUrl || '',
                 project: __ctx.project || '',
+                modal: __ctx.modal === true,
                 __initForm: initForm
             };
         },
@@ -154,6 +157,18 @@
                         dyn.showMessage('保存成功', 'success');
                         var msg = __ctx.msgCenter;
                         if (msg) msg.emitEvent('detail.saved', { action: isEdit ? 'edit' : 'add', row: self.form });
+                        // 弹窗模式：通知宿主页面刷新 + 关闭弹窗（宿主据此重新加载列表）
+                        if (self.modal) {
+                            try {
+                                window.dispatchEvent(new CustomEvent('dyndata.saved', { detail: { table: self.table, project: self.project } }));
+                            } catch (e) { }
+                            var layero = element.closest ? element.closest('.layui-layer') : null;
+                            if (window.layui && window.layui.layer) {
+                                var times = layero ? layero.getAttribute('times') : null;
+                                if (times && times !== '') window.layui.layer.close(times);
+                                else window.layui.layer.closeAll();
+                            }
+                        }
                     })
                     .catch(function (e) { self.loading = false; /* DynCall 已统一 toast */ });
             },

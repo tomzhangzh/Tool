@@ -1,0 +1,192 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
+@{
+    // =====================================================================================
+    // 筛选+列表模板（filterlist-crud）：顶部 FilterBlock + 下方 ListBlock，共用一个根 App（消息中心）。
+    //   新增 / 编辑走弹窗：List 按钮发 list.add / list.edit 事件，本模板根 app 订阅后打开 Detail 弹窗
+    //   （弹窗内容是独立页面 DetailModal，经 /Platform/Page/DetailModal?id={ModalPageId} 拉取片段）。
+    //   弹窗保存成功后 DetailBlock 发全局 dyndata.saved 事件，本根 app 监听后命令 List 刷新。
+    //   - Model 即 DynWebPage 实例（渲染入口对 filterlist-crud 透传，不做预组装）
+    //   - 实例参数：TableName / ListUrl / DeleteUrl / FilterPageSettingId / ListPageSettingId /
+    //               ModalPageId（Detail 弹窗页面实例 Id）/（可选 ChildFkField 主子预填）
+    //   - 唯一固定 key：msgCenter（通信基础设施）
+    // =====================================================================================
+    Layout = "_Layout";
+    ViewData["Title"] = Model.Name + " - VueLibV4";
+
+    dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
+    var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
+    var loadUrl = ClayHelper.GetString(runTimeModel, "ListUrl") ?? "/api/business/dyndata/search";
+    var deleteUrl = ClayHelper.GetString(runTimeModel, "DeleteUrl") ?? "/api/business/dyndata/delete";
+    var project = Model.ProjectId?.ToString() ?? "";
+    var modalPageId = ClayHelper.GetString(runTimeModel, "ModalPageId") ?? "";
+    var childFkField = ClayHelper.GetString(runTimeModel, "ChildFkField") ?? "";
+    var filterPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "FilterPageSettingId") ?? "", out int fv) ? fv : (int?)null;
+    var listPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "ListPageSettingId") ?? "", out int lv) ? lv : (int?)null;
+
+    var filterPs = filterPsId != null ? PageSettingService.GetById(filterPsId.Value) : null;
+    var listPs = listPsId != null ? PageSettingService.GetById(listPsId.Value) : null;
+
+    var filterCfg = new JObject();
+    if (filterPs != null)
+    {
+        filterCfg["filterConfig"] = string.IsNullOrWhiteSpace(filterPs.ConfigJson) ? new JObject() : JObject.Parse(filterPs.ConfigJson);
+        filterCfg["filterDefault"] = string.IsNullOrWhiteSpace(filterPs.DefaultJson) ? new JObject() : JObject.Parse(filterPs.DefaultJson);
+    }
+    var listCfg = new JObject();
+    if (listPs != null && !string.IsNullOrWhiteSpace(listPs.ConfigJson))
+    {
+        var lc = JObject.Parse(listPs.ConfigJson);
+        listCfg["columns"] = lc["columns"] ?? new JArray();
+    }
+    else { listCfg["columns"] = new JArray(); }
+    listCfg["table"] = tableName;
+    listCfg["project"] = project;
+    listCfg["loadUrl"] = loadUrl;
+    listCfg["deleteUrl"] = deleteUrl;
+
+    var rootModel = new JObject
+    {
+        ["msgCenter"] = null,
+        ["filterCfg"] = filterCfg,
+        ["listCfg"] = listCfg,
+        ["childFkField"] = childFkField
+    };
+    var rootModelForScript = rootModel.ToString(Newtonsoft.Json.Formatting.None).Replace("</", "<\\/");
+
+    var extId = "Tfl" + Guid.NewGuid().ToString("N");
+    var extIdRoot = extId + "-root";
+    var extIdFilter = extId + "-filter";
+    var extIdList = extId + "-list";
+    var title = Model.Name;
+}
+<div class="flc-root">
+    <div class="flc-head">
+        <span class="flc-title">@title</span>
+        <el-tag size="small" type="info" effect="plain">@Model.Code</el-tag>
+        <el-tag size="small" type="warning" effect="plain">@tableName</el-tag>
+    </div>
+
+    @* 根 app：共享上下文宿主（filterCfg/listCfg + msgCenter），处理弹窗打开与保存后刷新 *@
+    <div id="@extIdRoot" data-dyn-mode="createApp" class="flc-rootapp">
+        <script type="application/json" tag="dynmodel">@Html.Raw(rootModelForScript)</script>
+        <script type="text/plain" tag="dynconfig">
+        var dynConfig = {
+            data: function () { return {}; },
+            methods: {
+                // 主子预填：实例配置了 ChildFkField 时，把当前行主键预填到表单该字段
+                childPreFill: function (row) {
+                    var fk = this.model.childFkField;
+                    if (!fk) return {};
+                    var pf = {}; pf[fk] = row ? row.Id : null; return pf;
+                },
+                // 打开 Detail 弹窗：拉取 DetailModal 片段（?id=ModalPageId），注入 layui layer 并 mount
+                openDetailModal: function (rowId) {
+                    var self = this;
+                    var q = '/Platform/Page/DetailModal?id=' + (self.modalPageId || '') +
+                        '&rowId=' + (rowId || '') + '&project=' + (self.project || '');
+                    if (!self.modalPageId) { dyn.showMessage('实例未配置 ModalPageId（Detail 弹窗页面 Id）', 'warning'); return; }
+                    window.dyn.getLayer().then(function (layer) {
+                        var holder = document.createElement('div');
+                        holder.className = 'dyn-modal-host dyn-layer-fragment';
+                        holder.style.padding = '0px';
+                        holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
+                        document.body.appendChild(holder);
+                        layer.open({
+                            type: 1, title: rowId ? ('编辑记录 #' + rowId) : '新增记录',
+                            area: ['60%', '80%'], shadeClose: false, maxmin: true,
+                            content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
+                            success: function () {
+                                window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
+                                    holder.innerHTML = html;
+                                    // 片段内含根 app + detail 块多个 createApp：按文档顺序串行挂载（根在前保证 model 就绪）
+                                    var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
+                                    var chain = window.Promise.resolve();
+                                    [].forEach.call(apps, function (ae) { chain = chain.then(function () { return window.dyn.mount(ae); }); });
+                                    chain.catch(function (e) { console.error('[FilterListCrud] 弹窗mount失败', e); });
+                                }).catch(function (e) {
+                                    holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+                                });
+                            },
+                            end: function () {
+                                var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
+                                [].forEach.call(apps, function (ae) { try { window.dyn.unmount(ae); } catch (e) { } });
+                                try { window.dyn.unmount(holder); } catch (e) { }
+                                try { holder.remove(); } catch (e) { }
+                            }
+                        });
+                    });
+                },
+                // 弹窗保存成功回调：命令 List 重新加载
+                onDataSaved: function (ev) {
+                    var det = (ev && ev.detail) || {};
+                    // 表名一致才刷新（多列表页面防误刷）
+                    if (det.table && det.table !== this.model.listCfg.table) return;
+                    var msg = this.model.msgCenter;
+                    if (msg) msg.sendCommand('list', { cmd: 'reload' });
+                }
+            },
+            mounted: function () {
+                var m = this.model;
+                m.msgCenter = createMessageCenter();
+                var self = this;
+                this.__unsubs = [];
+                this.modalPageId = '@modalPageId';
+                this.project = '@project';
+                // 订阅 List 事件 → 打开弹窗
+                this.__unsubs.push(m.msgCenter.subscribeEvent('list.add', function () { self.openDetailModal(null); }));
+                this.__unsubs.push(m.msgCenter.subscribeEvent('list.edit', function (p) { self.openDetailModal(p.row ? p.row.Id : null); }));
+                this.__unsubs.push(m.msgCenter.subscribeEvent('list.addChild', function (p) {
+                    self.openDetailModal(null);
+                }));
+                // 监听弹窗保存成功全局事件 → 刷新列表
+                this.__onDataSaved = function (ev) { self.onDataSaved(ev); };
+                window.addEventListener('dyndata.saved', this.__onDataSaved);
+                console.log('[FilterListCrud] 已就绪');
+            },
+            beforeUnmount: function () {
+                if (this.__unsubs) { this.__unsubs.forEach(function (f) { try { f(); } catch (e) { } }); this.__unsubs = []; }
+                if (this.__onDataSaved) { window.removeEventListener('dyndata.saved', this.__onDataSaved); this.__onDataSaved = null; }
+                if (this.model && this.model.msgCenter) { try { this.model.msgCenter.destroy(); } catch (e) { } this.model.msgCenter = null; }
+            }
+        };
+        </script>
+    </div>
+
+    <div class="flc-card">
+        @await Html.PartialAsync("~/Views/DynBlocks/FilterBlock.cshtml", new ViewDataDictionary(ViewData) {
+            { "ExtId", extIdFilter }, { "RootExtId", extIdRoot }, { "ModelKey", "filterCfg" }, { "MsgCenterKey", "msgCenter" } })
+    </div>
+    <div class="flc-card">
+        @await Html.PartialAsync("~/Views/DynBlocks/ListBlock.cshtml", new ViewDataDictionary(ViewData) {
+            { "ExtId", extIdList }, { "RootExtId", extIdRoot }, { "ModelKey", "listCfg" }, { "MsgCenterKey", "msgCenter" } })
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .flc-root { padding: 0 0 20px; }
+    .flc-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .flc-title { font-size: 16px; font-weight: 600; color: #303133; }
+    .flc-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
+    .flc-rootapp { display: none; }
+</style>
+
+@section Scripts {
+    <script src="~/dyn/blocks/message-center.js?v=3"></script>
+    <script>
+        DynLib.ready(function () {
+            var rootEl = document.getElementById('@extIdRoot');
+            var fEl = document.getElementById('@extIdFilter');
+            var lEl = document.getElementById('@extIdList');
+            window.dyn.mount(rootEl).then(function () {
+                return Promise.all([window.dyn.mount(fEl), window.dyn.mount(lEl)]);
+            }).then(function () {
+                console.log('[FilterListCrud] 就绪（filter+list，detail走弹窗）');
+            });
+        });
+    </script>
+}

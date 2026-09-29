@@ -240,13 +240,31 @@ public class PageController : Controller
         ViewData["Title"] = page.Name + " - VueLibV4";
         ViewData["ApiBase"] = "/api";
         var viewPath = string.IsNullOrWhiteSpace(template.ViewPath) ? "~/Views/DynTemplates/CrudBasic.cshtml" : template.ViewPath;
-        // 三屏积木模板（triscreen-blocks）：模板自行从 ConfigJson 读实例参数 + PageSettingService 读取三个 PageSetting
-        // 并动态拼装根 model（业务 key 由模板决定），因此直接透传 DynWebPage 实例本身，不预组装 DynSharedModel。
-        if (string.Equals(template.Code, "triscreen-blocks", StringComparison.OrdinalIgnoreCase))
+        // 积木化模板（triscreen-blocks 三屏 / filterlist-crud 筛选列表）：模板自行从 ConfigJson 读实例参数 +
+        // PageSettingService 读取相关 PageSetting 并动态拼装根 model（业务 key 由模板决定），直接透传 DynWebPage 实例。
+        if (string.Equals(template.Code, "triscreen-blocks", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "filterlist-crud", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);
         }
         return View(viewPath, model);
+    }
+
+    /// <summary>Detail 弹窗片段：供宿主页面 fetchPartial 拉取并注入弹窗。
+    /// 读取 DynWebPage（detail-modal 模板实例），透传 rowId/project 入参，返回无 Layout 片段。</summary>
+    [HttpGet("/Platform/Page/DetailModal")]
+    public IActionResult DetailModal(long id, long? rowId = null, string project = null)
+    {
+        var page = _webPages.GetById((int)id);
+        if (page == null) return Content("弹窗页面实例不存在：" + id);
+        // project 优先取请求参数，缺省用页面实例自身的 ProjectId
+        ViewBag.RowId = rowId?.ToString() ?? "";
+        ViewBag.ProjectId = string.IsNullOrEmpty(project) ? (page.ProjectId?.ToString() ?? "") : project;
+        var template = page.TemplateId != null ? _templates.GetById(page.TemplateId.Value) : null;
+        var viewPath = string.IsNullOrWhiteSpace(template?.ViewPath)
+            ? "~/Views/DynTemplates/DetailModal.cshtml"
+            : template.ViewPath;
+        return View(viewPath, page);
     }
 
     /// <summary>TableName 自动补齐 dyndata 免 model 接口 Url（手动填写优先）</summary>

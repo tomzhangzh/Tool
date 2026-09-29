@@ -1,0 +1,105 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
+@{
+    // =====================================================================================
+    // Detail 弹窗模板（detail-modal）：作为独立片段被宿主页面经 fetchPartial 拉取并注入 layui layer。
+    //   - Model 即 DynWebPage 实例（渲染入口 DetailModal action 直接透传）
+    //   - 本模板只挂载 DetailBlock（组合模式）：根 model 由模板拼装，Block 按 data-model-key 读取
+    //   - 入参（ViewBag）：RowId（编辑时当前行主键）/ ProjectId（项目维度）
+    //   - 编辑模式：根 app mounted 里按 rowId 拉单行数据，sendCommand('detail', {cmd:'editForm', row}) 回填
+    //   - 保存成功：DetailBlock 弹窗模式下发全局 dyndata.saved 事件 + 关闭弹窗，宿主页面据此刷新列表
+    // =====================================================================================
+    Layout = null;
+    var rowId = (ViewBag.RowId as string) ?? "";
+    var project = (ViewBag.ProjectId as string) ?? "";
+
+    // 读实例参数（TableName / URLs / DetailPageSettingId）
+    dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
+    var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
+    var addUrl = ClayHelper.GetString(runTimeModel, "AddUrl") ?? ("/api/business/dyndata/insert");
+    var editUrl = ClayHelper.GetString(runTimeModel, "EditUrl") ?? ("/api/business/dyndata/update");
+    var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
+    var detailPs = detailPsId != null ? PageSettingService.GetById(detailPsId.Value) : null;
+
+    var detailCfg = new JObject();
+    if (detailPs != null)
+    {
+        detailCfg["detailConfig"] = string.IsNullOrWhiteSpace(detailPs.ConfigJson) ? new JObject() : JObject.Parse(detailPs.ConfigJson);
+        detailCfg["detailDefault"] = string.IsNullOrWhiteSpace(detailPs.DefaultJson) ? new JObject() : JObject.Parse(detailPs.DefaultJson);
+    }
+    detailCfg["table"] = tableName;
+    detailCfg["project"] = project;
+    detailCfg["addUrl"] = addUrl;
+    detailCfg["editUrl"] = editUrl;
+    detailCfg["rowId"] = rowId;
+
+    var rootModel = new JObject
+    {
+        ["msgCenter"] = null,
+        ["detailCfg"] = detailCfg
+    };
+    var rootModelForScript = rootModel.ToString(Newtonsoft.Json.Formatting.None).Replace("</", "<\\/");
+
+    var extId = "Tdb" + Guid.NewGuid().ToString("N");
+    var extIdRoot = extId + "-root";
+    var extIdDetail = extId + "-detail";
+    var title = Model.Name;
+}
+<div class="tsb-modal" style="padding:4px 2px;">
+    <div class="tsb-mhead" style="display:flex;align-items:center;gap:8px;padding-bottom:10px;">
+        <span style="font-size:14px;font-weight:600;color:#303133;">@title</span>
+        <el-tag size="small" type="info" effect="plain">@tableName</el-tag>
+        @if (!string.IsNullOrEmpty(rowId)) { <el-tag size="small" type="warning" effect="plain">编辑 #@rowId</el-tag> }
+        else { <el-tag size="small" type="success" effect="plain">新增</el-tag> }
+    </div>
+
+    @* 根 app：承载 detailCfg + 消息中心；mounted 时若 rowId 有值则拉行数据回填 DetailBlock *@
+    <div id="@extIdRoot" data-dyn-mode="createApp" class="tsb-rootapp" style="display:none;">
+        <script type="application/json" tag="dynmodel">@Html.Raw(rootModelForScript)</script>
+        <script type="text/plain" tag="dynconfig">
+        var dynConfig = {
+            data: function () { return {}; },
+            mounted: function () {
+                var m = this.model;
+                m.msgCenter = createMessageCenter();
+                var self = this;
+                this.__unsubs = [];
+                // 编辑模式：按 rowId 拉单行数据回填 DetailBlock
+                var dc = m.detailCfg;
+                if (dc && dc.rowId && dc.rowId !== '') {
+                    var q = '/api/business/dyndata/get';
+                    if (window.axios) {
+                        axios.get(q, { params: { table: dc.table || '', id: dc.rowId, project: dc.project || undefined } })
+                            .then(function (r) {
+                                var row = r && r.data && r.data.data;
+                                if (row) { self.model.msgCenter.sendCommand('detail', { cmd: 'editForm', row: row }); }
+                            })
+                            .catch(function (e) { console.error('[DetailModal] 加载行数据失败', e); });
+                    } else if (window.dyn && window.dyn.fetchPartial) {
+                        dyn.fetchPartial(q, { table: dc.table || '', id: dc.rowId, project: dc.project || undefined }, 'GET', 'json')
+                            .then(function (r) {
+                                var row = r && r.data && r.data.data;
+                                if (row) { self.model.msgCenter.sendCommand('detail', { cmd: 'editForm', row: row }); }
+                            })
+                            .catch(function (e) { console.error('[DetailModal] 加载行数据失败', e); });
+                    }
+                }
+            },
+            beforeUnmount: function () {
+                if (this.__unsubs) { this.__unsubs.forEach(function (f) { try { f(); } catch (e) { } }); this.__unsubs = []; }
+                if (this.model && this.model.msgCenter) { try { this.model.msgCenter.destroy(); } catch (e) { } this.model.msgCenter = null; }
+            }
+        };
+        </script>
+    </div>
+
+    @await Html.PartialAsync("~/Views/DynBlocks/DetailBlock.cshtml", new ViewDataDictionary(ViewData) {
+        { "ExtId", extIdDetail }, { "RootExtId", extIdRoot }, { "ModelKey", "detailCfg" }, { "MsgCenterKey", "msgCenter" }, { "BlkModal", "true" } })
+
+    <style>
+        .tsb-modal .db-btns { margin-top: 8px; }
+    </style>
+</div>
