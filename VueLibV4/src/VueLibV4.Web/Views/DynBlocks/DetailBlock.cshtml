@@ -1,19 +1,28 @@
 @{
     // =====================================================================================
-    // Detail 积木（平台规范·共享上下文版）：壳 + 动态表单渲染，行为定义在 dynconfig。
-    //   - 容器 data-dyn-mode="createApp"，由宿主模板统一挂载；data-root-ext-id 指向根 app（模板注入 RootExtId）
+    // Detail 积木（平台规范·双模式版）：壳 + 动态表单渲染，行为定义在 dynconfig。
+    //   组合模式：data-root-ext-id 指向根 app（模板注入 RootExtId），dynconfig 用 dyn.getApp(根元素)
+    //             读根 app model 的 detailConfig / detailDefault / table / addUrl / editUrl / msgCenter
+    //   独立模式：未传 RootExtId 时，从自身 data-blk-config / data-blk-default / data-blk-table /
+    //             data-blk-addurl / data-blk-editurl 读取配置，自建消息中心
     //   - 表单渲染：<dyn-dynamic-com :jsonconfig>（PageSetting.ConfigJson 表单组件树），
     //     :parentmodelinfo="form"（DefaultJson 骨架 + 命令预填/回填合并结果）
-    //   - 共享读取：dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，读其 model 的
-    //     detailConfig / detailDefault / table / addUrl / editUrl / msgCenter（根 app 已写入，不用 window 全局）
     //   - 命令（接收）：newForm{preFill} 新增（静态 default + preFill 浅合并）/ editForm{row} 编辑回填
     //   - 事件（发出）：detail.saved{action,row} —— 根 app 收到后命令 List 刷新
     //   - 网络：统一走 DynCall（信封解包 + 统一错误处理），不再手写 axios/fetch
     // =====================================================================================
     var extId = (ViewData["ExtId"] as string) ?? ("Db" + Guid.NewGuid().ToString("N"));
     var rootExtId = (ViewData["RootExtId"] as string) ?? "";
+    // 独立模式参数（可选）：外部不传 RootExtId 时，Block 从这些 data-blk-* 属性读取配置自主运行
+    var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
+    var blkDefault = (ViewData["BlkDefault"] as string) ?? "";
+    var blkTable = (ViewData["BlkTable"] as string) ?? "";
+    var blkAddUrl = (ViewData["BlkAddUrl"] as string) ?? "";
+    var blkEditUrl = (ViewData["BlkEditUrl"] as string) ?? "";
 }
-<div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId" class="db">
+<div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
+     data-blk-config="@blkConfig" data-blk-default="@blkDefault" data-blk-table="@blkTable"
+     data-blk-addurl="@blkAddUrl" data-blk-editurl="@blkEditUrl" class="db">
     <div class="db-errbar" v-if="formError">{{ formError }}</div>
     <div class="db-body">
         <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
@@ -26,11 +35,24 @@
         <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" data-dyn-click-DetailSave>保存</button>
     </div>
     <script tag="dynconfig">
-    // 共享上下文：按 data-root-ext-id 找到根 app（模板 RootExtId），读其 model（根 app mount 时已写入）
+    // ========== 双模式：组合（有 data-root-ext-id，读根 app model） / 独立（无，读自身 data-blk-*） ==========
     var __rid = element.getAttribute('data-root-ext-id');
     var __rootApp = null;
     if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }
     var __ctx = (__rootApp && __rootApp.model) || {};
+    // 独立模式：外部未注入根上下文 → 从自身 data-blk-config / data-blk-default / data-blk-table / data-blk-addurl / data-blk-editurl 读取，并自建消息中心。
+    // 约定：独立使用时，页面/容器需自行引入 message-center.js 并提供上述属性；组合模式下由根 app 统一注入，忽略本分支。
+    if (!__rootApp) {
+        var __P = function (s) { try { return JSON.parse(s || 'null') || null; } catch (e) { return null; } };
+        __ctx = {
+            detailConfig: __P(element.getAttribute('data-blk-config')),
+            detailDefault: __P(element.getAttribute('data-blk-default')) || {},
+            table: element.getAttribute('data-blk-table') || '',
+            addUrl: element.getAttribute('data-blk-addurl') || '',
+            editUrl: element.getAttribute('data-blk-editurl') || '',
+            msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
+        };
+    }
     var dynConfig = {
         data: function () {
             var initForm = __ctx.detailDefault || {};
