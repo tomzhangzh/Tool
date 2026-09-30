@@ -46,6 +46,8 @@
     </div>
     <script type="text/plain" tag="dynconfig">
     // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
+    // 注意：必须保留 type="text/plain"，否则浏览器会把本脚本当普通 JS 在解析期直接执行，
+    // 那时框架的 element 形参尚未注入，会报 "element is not defined"。
     var __rid = element.getAttribute('data-root-ext-id');
     var __rootApp = null;
     if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }

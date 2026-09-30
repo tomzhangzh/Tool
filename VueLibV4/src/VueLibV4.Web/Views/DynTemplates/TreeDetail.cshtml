@@ -250,7 +250,13 @@
                                 chosenClass: 'dyn-tree-chosen',
                                 dragClass: 'dyn-tree-drag',
                                 onMove: function (evt) {
+                                    // 过滤中只显示子集，此时采集序号会污染未显示节点，禁止拖拽
+                                    if (self.filterText) return false;
                                     if (self.dragSameLevelOnly && evt.from !== evt.to) return false;
+                                    // 防环：禁止把节点拖进它自己的子树（目标列表位于被拖节点内部），
+                                    // 否则 ParentId 形成环，刷新后整支子树挂不上根而消失。
+                                    var dragged = evt.dragged;
+                                    if (dragged && evt.to && (evt.to === dragged || dragged.contains(evt.to))) return false;
                                     return true;
                                 },
                                 onStart: function () { // 拖拽时禁用文本选择，避免出现蓝色选中底
@@ -284,44 +290,83 @@
                             if (tries <= 10) setTimeout(tryInit, 120); // 最多重试约 1.2s 等树渲染完成
                         })();
                     },
+                    // 由列表容器反查所属父节点 key：
+                    //  - 根级列表就是 .el-tree 自身（根节点直接挂在它下面）→ ''（根级 ParentId 写 null）
+                    //  - 子级列表 .el-tree-node__children → 其所在 .el-tree-node 的 content 内 [data-key]
+                    // 旧实现用 listEl.parentElement.querySelector('[data-key]')：根列表的父容器是
+                    // .tr-tree-wrap，querySelector 命中的是整棵树第一个节点，导致根级拖拽时所有根节点
+                    // 的 ParentId 被错写成第一个根节点的 Id。
+                    parentKeyOfList: function (listEl) {
+                        if (!listEl) return '';
+                        if (listEl.classList && listEl.classList.contains('el-tree')) return '';
+                        var nodeEl = listEl.closest ? listEl.closest('.el-tree-node') : null;
+                        if (!nodeEl) return '';
+                        var keyEl = nodeEl.querySelector(':scope > .el-tree-node__content [data-key]')
+                                  || nodeEl.querySelector('[data-key]');
+                        return keyEl ? keyEl.getAttribute('data-key') : '';
+                    },
+                    // 拖前树数据（treeData）的 key → 父 key 映射，根节点父为 ''；用于判定 ParentId 是否真的变化
+                    buildParentMap: function () {
+                        var map = {};
+                        (function walk(list, parentKey) {
+                            (list || []).forEach(function (n) {
+                                map[n.__key] = parentKey || '';
+                                if (n.children && n.children.length) walk(n.children, n.__key);
+                            });
+                        })(this.treeData, '');
+                        return map;
+                    },
                     collectOrder: function (listEl, updates) {
-                        var parentEl = listEl.parentElement;
-                        var parentKeyEl = parentEl ? parentEl.querySelector('[data-key]') : null;
-                        var parent = parentKeyEl ? parentKeyEl.getAttribute('data-key') : '';
+                        var parent = this.parentKeyOfList(listEl);
                         var nodes = listEl.querySelectorAll(':scope > .el-tree-node');
                         for (var i = 0; i < nodes.length; i++) {
-                            var keyEl = nodes[i].querySelector('[data-key]');
+                            var keyEl = nodes[i].querySelector(':scope > .el-tree-node__content [data-key]')
+                                     || nodes[i].querySelector('[data-key]');
                             var key = keyEl ? keyEl.getAttribute('data-key') : '';
                             if (!key) continue;
-                            var prev = updates[key];
-                            updates[key] = { key: key, sortNo: (i + 1) * 100, parent: parent, parentChanged: !prev || prev.parent !== parent };
+                            updates[key] = { key: key, sortNo: (i + 1) * 100, parent: parent };
                         }
                     },
                     saveOrder: function (evt) {
                         var self = this;
+                        if (!evt || !evt.from) return;
                         var updates = {};
                         this.collectOrder(evt.from, updates);
                         if (evt.to && evt.to !== evt.from) this.collectOrder(evt.to, updates);
                         var keys = Object.keys(updates);
-                        if (!keys.length) return;
+                        if (!keys.length) { this.loadTree(); return; }
+                        // ParentId 是否真的变化，必须与【拖前】真实父级比对（不能凭 DOM 采集先后猜），
+                        // 没变化就不带父级字段，避免误改；只有跨层移动的节点才写 ParentId。
+                        var currentParent = this.buildParentMap();
                         // 关键契约差异：
                         //  - /api/platform/dyndata/save?table=xxx ：body 为【扁平实体字段】（主键+要改的列），table 走 URL query
                         //  - /api/business/dyndata/update      ：body 为 {table, project, data:{主键,...}}
-                        // 旧实现恒用 {table,project,data}，导致 platform/save 取不到主键→误走新增→排序从未保存。
                         var isPlatformSave = self.editUrl.indexOf('dyndata/save') !== -1;
-                        var reqs = keys.map(function (k) {
+                        var tasks = keys.map(function (k) {
                             var u = updates[k];
+                            var oldParent = currentParent[k] != null ? currentParent[k] : '';
+                            var parentChanged = oldParent !== (u.parent || '');
                             var flat = {};
                             flat[self.keyField] = u.key;
                             flat[self.sortField] = Number(u.sortNo);
-                            if (u.parentChanged) flat[self.parentField] = u.parent || null;
-                            var payload = isPlatformSave ? flat : { table: self.tableName, project: self.project, data: flat };
-                            return DynCall.post(self.editUrl, payload, { scopeEl: element });
+                            if (parentChanged) flat[self.parentField] = u.parent || null;
+                            return isPlatformSave ? flat : { table: self.tableName, project: self.project, data: flat };
                         });
-                        Promise.all(reqs).then(function () {
+                        // 串行提交：SQLite 并发写会 database is locked，Promise.all 曾导致部分行保存丢失
+                        var chain = Promise.resolve();
+                        tasks.forEach(function (payload) {
+                            chain = chain.then(function () {
+                                return DynCall.post(self.editUrl, payload, { scopeEl: element, silent: true });
+                            });
+                        });
+                        chain.then(function () {
                             dyn.showMessage('排序已保存', 'success');
                             self.loadTree();
-                        }).catch(function () { dyn.showMessage('排序保存失败', 'error'); });
+                        }).catch(function (e) {
+                            // 失败必须回滚 DOM（Sortable 已移动了节点），重新从库加载，避免界面与数据不一致
+                            dyn.showMessage('排序保存失败，已还原：' + ((e && e.message) || e), 'error');
+                            self.loadTree();
+                        });
                     }
                 },
                 mounted: function () {
