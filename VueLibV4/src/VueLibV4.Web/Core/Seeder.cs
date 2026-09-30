@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
 namespace VueLibV4.Web.Core;
@@ -44,6 +47,8 @@ public class Seeder
 
         // 旧列改名迁移：必须最先执行（seed-extra.sql 的 INSERT 引用 DefaultJson 列；新库建表已含，旧库需先 RENAME）
         EnsureTemplateDefaultJson(conn);
+        // DynWebPage：ConfigJson → ParamsJson（实例参数；新结构 blocks 槽位分组兼容旧扁平值）
+        EnsureWebPageParamsJson(conn);
 
         if (TableExists(conn, "ComponentMeta"))
         {
@@ -150,6 +155,59 @@ CREATE TABLE SysMenu (
         SeedDynTemplates(conn);
         SeedDynWebPages(conn);
         SeedPageSettings(conn);
+        // 动态积木：DynBlock / DynTemplateBlock（旧库幂等建表 + 内置种子 + 内置模板参数包重塑）
+        EnsureDynBlockTables(conn);
+        SeedDynBlocks(conn);
+        SeedDynTemplateBlocks(conn);
+    }
+
+    /// <summary>DynBlock / DynTemplateBlock 建表（旧库迁移；新库 platform.sql 已含）</summary>
+    private void EnsureDynBlockTables(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynBlock"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE DynBlock (
+    Id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    Code              TEXT NOT NULL UNIQUE,
+    Name              TEXT NOT NULL,
+    Category          TEXT NULL,
+    ImplementsRole    TEXT NOT NULL DEFAULT '',
+    ViewPath          TEXT NULL,
+    HtmlCode          TEXT NULL,
+    ScriptCode        TEXT NULL,
+    ParamConfigJson   TEXT NULL,
+    ParamDefaultJson  TEXT NULL,
+    Commands          TEXT NULL,
+    Events            TEXT NULL,
+    Description       TEXT NULL,
+    SortNo            INTEGER NOT NULL DEFAULT 0,
+    IsActive          INTEGER NOT NULL DEFAULT 1,
+    CreateTime        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);";
+            create.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 DynBlock");
+        }
+        if (!TableExists(conn, "DynTemplateBlock"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE DynTemplateBlock (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    TemplateId  INTEGER NOT NULL,
+    Slot        TEXT NOT NULL,
+    BlockId     INTEGER NOT NULL,
+    Required    INTEGER NOT NULL DEFAULT 0,
+    SortNo      INTEGER NOT NULL DEFAULT 0,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);";
+            create.ExecuteNonQuery();
+            using var idx = conn.CreateCommand();
+            idx.CommandText = "CREATE UNIQUE INDEX IF NOT EXISTS UX_DynTemplateBlock_Template_Slot ON DynTemplateBlock(TemplateId, Slot);";
+            idx.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 DynTemplateBlock");
+        }
     }
 
     /// <summary>SysMenu 初始种子（幂等：仅当表为空时插入根菜单与示例子菜单）</summary>
@@ -239,6 +297,23 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
         EnsureColumn(conn, "DynTemplate", "DefaultJson", "TEXT NULL");
     }
 
+    /// <summary>
+    /// DynWebPage：ConfigJson → ParamsJson（实例参数；新结构 = 模板自身参数 + blocks 槽位分组）。
+    /// 新库建表已含 ParamsJson（幂等跳过），旧库 RENAME 保留全部已保存参数。
+    /// </summary>
+    private void EnsureWebPageParamsJson(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynWebPage")) return;
+        if (HasColumn(conn, "DynWebPage", "ConfigJson") && !HasColumn(conn, "DynWebPage", "ParamsJson"))
+        {
+            using var rn = conn.CreateCommand();
+            rn.CommandText = "ALTER TABLE DynWebPage RENAME COLUMN ConfigJson TO ParamsJson;";
+            rn.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：DynWebPage.ConfigJson → ParamsJson");
+        }
+        EnsureColumn(conn, "DynWebPage", "ParamsJson", "TEXT NULL");
+    }
+
     // ---------------- DynTemplate / DynWebPage 种子 ----------------
 
     /// <summary>页面模板种子（幂等：仅当 Code 不存在时插入）</summary>
@@ -262,7 +337,7 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
         cnt.CommandText = "SELECT COUNT(*) FROM DynWebPage WHERE Code='page-setting-mgmt';";
         if (Convert.ToInt32(cnt.ExecuteScalar()) > 0) return;
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO DynWebPage (Code, Name, TemplateId, PageJson, ConfigJson, Url, IsActive) VALUES ('page-setting-mgmt', '页面设置管理', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"PageSetting\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1), ('dyn-webpage-list', '页面实例列表', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"DynWebPage\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1);";
+        cmd.CommandText = "INSERT INTO DynWebPage (Code, Name, TemplateId, PageJson, ParamsJson, Url, IsActive) VALUES ('page-setting-mgmt', '页面设置管理', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"PageSetting\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1), ('dyn-webpage-list', '页面实例列表', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"DynWebPage\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1);";
         cmd.ExecuteNonQuery();
         _logger.LogInformation("[Init] DynWebPage 实例种子插入完成");
     }
@@ -295,8 +370,8 @@ SELECT 'setting-list-basic', '通用列表配置', 'List', NULL, @lc, 'Back', '~
 WHERE NOT EXISTS (SELECT 1 FROM PageSetting WHERE Code='setting-list-basic');
 INSERT INTO PageSetting (Code, Name, SettingType, TableName, ConfigJson, RenderMode, PartialPath, DefaultJson, SortNo, IsActive)
 SELECT 'setting-detail-basic', '通用表单配置', 'Detail', NULL, @dc, 'Front', NULL, @dd, 3, 1
-WHERE NOT EXISTS (SELECT 1 FROM PageSetting WHERE Code='setting-detail-basic');
-        // 三屏配置Id（Filter/List/DetailPageSettingId）已作为实例参数写入 DynWebPage.ConfigJson，无需独立列回填";
+WHERE NOT EXISTS (SELECT 1 FROM PageSetting WHERE Code='setting-detail-basic');";
+        // 三屏配置Id（Filter/List/DetailPageSettingId）已作为实例参数写入 DynWebPage.ParamsJson，无需独立列回填
         cmd.Parameters.AddWithValue("@fc", filterConfig);
         cmd.Parameters.AddWithValue("@fd", filterDefault);
         cmd.Parameters.AddWithValue("@lc", listConfig);
@@ -305,6 +380,246 @@ WHERE NOT EXISTS (SELECT 1 FROM PageSetting WHERE Code='setting-detail-basic');
         cmd.Parameters.AddWithValue("@dd", detailDefault);
         cmd.ExecuteNonQuery();
         _logger.LogInformation("[Init] PageSetting 三屏种子插入完成");
+    }
+
+    // ---------------- DynBlock / DynTemplateBlock 种子 ----------------
+
+    private static readonly JsonSerializerOptions SeedJsonOptions = new()
+    {
+        // 匿名对象属性名已按 DSL 约定手工写为 camelCase
+        PropertyNamingPolicy = null,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    private static string Js(object? o) => JsonSerializer.Serialize(o, SeedJsonOptions);
+
+    /// <summary>积木/模板参数表单根容器（与内置模板现有 DSL 同构：DynElContainer vertical）</summary>
+    private static object ParamTree(object[] children) => new
+    {
+        component = "DynElContainer",
+        modelname = "",
+        options = new
+        {
+            comoptions = new { direction = "vertical", size = "small" },
+            comlisteners = new { },
+            labeloptions = new { label = "", required = false, show = false },
+            itemoptions = new { style = new { gap = "0" }, @class = "" },
+            defaultLabelOptions = new { labelposition = "right", labelwidth = "120px", requiredmark = true },
+            compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"
+        },
+        validators = Array.Empty<object>(),
+        childrenctrls = children,
+        slots = new { },
+        extendinfo = new { }
+    };
+
+    private static object SelectCtrl(string model, string label, string settingType) => new
+    {
+        component = "DynElSelect",
+        modelname = model,
+        options = new
+        {
+            comoptions = new
+            {
+                sourceType = "ajax",
+                url = $"/api/platform/pagesetting/all?type={settingType}",
+                valueKey = "Id",
+                labelKey = "Name"
+            },
+            labeloptions = new { label, show = true, required = false },
+            itemoptions = new { }
+        }
+    };
+
+    private static object InputCtrl(string model, string label, string? placeholder = null, bool required = false) => new
+    {
+        component = "DynElInput",
+        modelname = model,
+        options = new
+        {
+            comoptions = string.IsNullOrEmpty(placeholder) ? (object)new { } : new { placeholder },
+            labeloptions = new { label, show = true, required },
+            itemoptions = new { }
+        }
+    };
+
+    private static object NumberCtrl(string model, string label, int min, int max) => new
+    {
+        component = "DynElInputNumber",
+        modelname = model,
+        options = new
+        {
+            comoptions = new { min, max },
+            labeloptions = new { label, show = true, required = false },
+            itemoptions = new { }
+        }
+    };
+
+    private static object SwitchCtrl(string model, string label) => new
+    {
+        component = "DynElSwitch",
+        modelname = model,
+        options = new
+        {
+            comoptions = new { },
+            labeloptions = new { label, show = true, required = false },
+            itemoptions = new { }
+        }
+    };
+
+    /// <summary>
+    /// 三个内置积木种子（filter/list/detail）。
+    /// 策略：Code 不存在则 INSERT，存在则 UPDATE 全部种子字段（平台托管自愈，Id 保持稳定，
+    /// DynTemplateBlock 按 Id 引用不受影响）。
+    /// </summary>
+    private void SeedDynBlocks(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynBlock")) return;
+
+        var blocks = new (string Code, string Name, string Role, string View, int Sort, string Desc,
+            string Cfg, string Def, string Cmds, string Evs)[]
+        {
+            ("filter", "筛选积木", "filter", "~/Views/DynBlocks/Apps/FilterApp.cshtml", 1,
+                "顶部筛选区 Block；选择 Filter 类型 PageSetting，条件变化时发出 changed 事件",
+                Js(ParamTree(new[] { SelectCtrl("settingId", "筛选配置", "Filter") })),
+                "{\"settingId\":null}",
+                "[]", "[\"changed\"]"),
+            ("list", "列表积木", "list", "~/Views/DynBlocks/Apps/ListApp.cshtml", 2,
+                "列表区 Block；选择 List 类型 PageSetting，支持列表/删除接口自定义；接受 loadData/reload，发出 add/edit/addChild",
+                Js(ParamTree(new[]
+                {
+                    SelectCtrl("settingId", "列表配置", "List"),
+                    InputCtrl("loadUrl", "列表接口", "留空自动生成 dyndata 接口"),
+                    InputCtrl("deleteUrl", "删除接口", "留空自动生成 dyndata 接口")
+                })),
+                "{\"settingId\":null,\"loadUrl\":\"\",\"deleteUrl\":\"\"}",
+                "[\"loadData\",\"reload\"]", "[\"add\",\"edit\",\"addChild\"]"),
+            ("detail", "明细表单积木", "detail", "~/Views/DynBlocks/Apps/DetailApp.cshtml", 3,
+                "明细/表单 Block（三屏常驻或弹窗承载）；选择 Detail 类型 PageSetting，支持新增/编辑/删除接口自定义；接受 newForm/editForm，发出 saved/cancel",
+                Js(ParamTree(new[]
+                {
+                    SelectCtrl("settingId", "表单配置", "Detail"),
+                    InputCtrl("addUrl", "新增接口", "留空自动生成 dyndata 接口"),
+                    InputCtrl("editUrl", "编辑接口", "留空自动生成 dyndata 接口"),
+                    InputCtrl("deleteUrl", "删除接口", "留空自动生成 dyndata 接口")
+                })),
+                "{\"settingId\":null,\"addUrl\":\"\",\"editUrl\":\"\",\"deleteUrl\":\"\"}",
+                "[\"newForm\",\"editForm\"]", "[\"saved\",\"cancel\"]")
+        };
+
+        foreach (var b in blocks)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+INSERT INTO DynBlock (Code,Name,Category,ImplementsRole,ViewPath,ParamConfigJson,ParamDefaultJson,Commands,Events,Description,SortNo,IsActive)
+SELECT @code,@name,@cat,@role,@view,@cfg,@def,@cmds,@evs,@desc,@sort,1
+WHERE NOT EXISTS (SELECT 1 FROM DynBlock WHERE Code=@code);
+UPDATE DynBlock SET Name=@name,Category=@cat,ImplementsRole=@role,ViewPath=@view,
+    ParamConfigJson=@cfg,ParamDefaultJson=@def,Commands=@cmds,Events=@evs,
+    Description=@desc,SortNo=@sort,IsActive=1
+WHERE Code=@code;";
+            cmd.Parameters.AddWithValue("@code", b.Code);
+            cmd.Parameters.AddWithValue("@name", b.Name);
+            cmd.Parameters.AddWithValue("@cat", "内置");
+            cmd.Parameters.AddWithValue("@role", b.Role);
+            cmd.Parameters.AddWithValue("@view", b.View);
+            cmd.Parameters.AddWithValue("@cfg", b.Cfg);
+            cmd.Parameters.AddWithValue("@def", b.Def);
+            cmd.Parameters.AddWithValue("@cmds", b.Cmds);
+            cmd.Parameters.AddWithValue("@evs", b.Evs);
+            cmd.Parameters.AddWithValue("@desc", b.Desc);
+            cmd.Parameters.AddWithValue("@sort", b.Sort);
+            cmd.ExecuteNonQuery();
+        }
+        _logger.LogInformation("[Init] DynBlock 内置积木种子同步完成（filter/list/detail）");
+    }
+
+    /// <summary>
+    /// 内置积木模板重塑：
+    /// 1) 模板自身参数 UI 包（ConfigJson 平台托管自愈；DefaultJson 仅当为空时补）；
+    /// 2) DynTemplateBlock 槽位关系（按模板/积木 Code 关联 Id；先删内置四模板旧关系再重插，幂等）。
+    /// </summary>
+    private void SeedDynTemplateBlocks(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynTemplate") || !TableExists(conn, "DynBlock") || !TableExists(conn, "DynTemplateBlock")) return;
+
+        var triCfg = Js(ParamTree(new[]
+        {
+            InputCtrl("TableName", "数据表名", null, true),
+            InputCtrl("KeyField", "主键字段", "默认 Id"),
+            InputCtrl("ChildFkField", "主子外键字段", "如 SourceId，主子预填用")
+        }));
+        var flcCfg = Js(ParamTree(new[]
+        {
+            InputCtrl("TableName", "数据表名", null, true),
+            InputCtrl("KeyField", "主键字段", "默认 Id"),
+            InputCtrl("ChildFkField", "主子外键字段", "如 SourceId，主子预填用"),
+            InputCtrl("ModalPageId", "Detail弹窗页面Id", "DynWebPage 实例Id(detail-modal模板)", true)
+        }));
+        var treeCfg = Js(ParamTree(new[]
+        {
+            InputCtrl("TableName", "数据表名", "如 SysMenu / Student", true),
+            InputCtrl("KeyField", "主键字段", "默认 Id"),
+            InputCtrl("ParentField", "父级字段", "默认 ParentId"),
+            InputCtrl("TitleField", "标题字段", "默认 Name"),
+            InputCtrl("IconField", "图标字段", "默认 Icon（Emoji）"),
+            InputCtrl("SortField", "排序字段", "默认 SortNo"),
+            NumberCtrl("LeftWidth", "左侧宽度(%)", 18, 60),
+            SwitchCtrl("EnableDrag", "开启拖拽排序"),
+            SwitchCtrl("DragSameLevelOnly", "仅同层级拖拽"),
+            InputCtrl("ListUrl", "树数据接口", "留空自动生成 dyndata 接口"),
+            InputCtrl("EditUrl", "拖拽排序保存接口", "留空自动生成 dyndata 接口")
+        }));
+        var dmCfg = Js(ParamTree(new[]
+        {
+            InputCtrl("TableName", "数据表名", null, true),
+            InputCtrl("KeyField", "主键字段", "默认 Id")
+        }));
+
+        var packs = new (string Code, string Cfg, string Def)[]
+        {
+            ("triscreen-blocks", triCfg, "{\"TableName\":\"\",\"KeyField\":\"Id\",\"ChildFkField\":\"\"}"),
+            ("filterlist-crud", flcCfg, "{\"TableName\":\"\",\"KeyField\":\"Id\",\"ChildFkField\":\"\",\"ModalPageId\":null}"),
+            ("tree-detail", treeCfg, "{\"TableName\":\"\",\"KeyField\":\"Id\"}"),
+            ("detail-modal", dmCfg, "{\"TableName\":\"\",\"KeyField\":\"Id\"}")
+        };
+        foreach (var p in packs)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+UPDATE DynTemplate SET ConfigJson=@cfg WHERE Code=@code;
+UPDATE DynTemplate SET DefaultJson=@def WHERE Code=@code AND (DefaultJson IS NULL OR DefaultJson='');";
+            cmd.Parameters.AddWithValue("@code", p.Code);
+            cmd.Parameters.AddWithValue("@cfg", p.Cfg);
+            cmd.Parameters.AddWithValue("@def", p.Def);
+            cmd.ExecuteNonQuery();
+        }
+
+        // 槽位关系：(模板Code, 槽位, 积木Code, 必选, 排序)
+        var slots = new (string Tpl, string Slot, string Blk, int Required, int Sort)[]
+        {
+            ("triscreen-blocks", "filter", "filter", 1, 1),
+            ("triscreen-blocks", "list", "list", 1, 2),
+            ("triscreen-blocks", "detail", "detail", 1, 3),
+            ("filterlist-crud", "filter", "filter", 0, 1),
+            ("filterlist-crud", "list", "list", 1, 2),
+            ("tree-detail", "detail", "detail", 1, 1),
+            ("detail-modal", "detail", "detail", 1, 1)
+        };
+        using var rel = conn.CreateCommand();
+        var sql = new StringBuilder();
+        sql.Append("DELETE FROM DynTemplateBlock WHERE TemplateId IN (SELECT Id FROM DynTemplate WHERE Code IN ('triscreen-blocks','filterlist-crud','tree-detail','detail-modal'));");
+        for (var i = 0; i < slots.Length; i++)
+        {
+            var s = slots[i];
+            sql.Append($@"
+INSERT INTO DynTemplateBlock (TemplateId,Slot,BlockId,Required,SortNo)
+SELECT (SELECT Id FROM DynTemplate WHERE Code='{s.Tpl}'),'{s.Slot}',(SELECT Id FROM DynBlock WHERE Code='{s.Blk}'),{s.Required},{s.Sort}
+WHERE EXISTS (SELECT 1 FROM DynTemplate WHERE Code='{s.Tpl}') AND EXISTS (SELECT 1 FROM DynBlock WHERE Code='{s.Blk}');");
+        }
+        rel.CommandText = sql.ToString();
+        rel.ExecuteNonQuery();
+        _logger.LogInformation("[Init] DynTemplateBlock 槽位关系与内置模板参数包同步完成");
     }
 
     // ---------------- 业务库 ----------------

@@ -15,24 +15,26 @@
     //     list.edit       → detail.editForm
     //     detail.saved    → list.reload（含新增/编辑/删除后刷新）
     //   Detail 常驻右侧（非弹窗）：cancel 事件无需外接（Block 内部已自行重置表单）。
-    //   实例参数（ConfigJson）：TableName/ListUrl/AddUrl/EditUrl/DeleteUrl/
-    //     FilterPageSettingId/ListPageSettingId/DetailPageSettingId/ChildFkField/KeyField
+    //   实例参数（ParamsJson）：模板自身 TableName/KeyField/ChildFkField（顶层）+
+    //     blocks.filter/list/detail 各槽位 {settingId,model:{loadUrl/addUrl/...}}；旧扁平键自动回退。
     // =====================================================================================
     Layout = "_Layout";
     ViewData["Title"] = Model.Name + " - VueLibV4";
 
-    dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
-    var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
-    var loadUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "ListUrl"), DynPageViewHelper.BizSearch);
-    var addUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "AddUrl"), DynPageViewHelper.BizInsert);
-    var editUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "EditUrl"), DynPageViewHelper.BizUpdate);
-    var deleteUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "DeleteUrl"), DynPageViewHelper.BizDelete);
-    var childFkField = ClayHelper.GetString(runTimeModel, "ChildFkField") ?? "";
-    var keyField = ClayHelper.GetString(runTimeModel, "KeyField") ?? "Id";
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    var tableName = ps["TableName"]?.ToString() ?? "";
+    var loadUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "loadUrl", "ListUrl"), DynPageViewHelper.BizSearch);
+    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.BizInsert);
+    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.BizUpdate);
+    // 列表/详情各自持有删除接口（旧扁平 DeleteUrl 同时回退，行为不变）
+    var listDeleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
+    var detailDeleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
+    var childFkField = ps["ChildFkField"]?.ToString() ?? "";
+    var keyField = ps["KeyField"]?.ToString() ?? "Id";
     var project = Model.ProjectId?.ToString() ?? "";
-    var filterPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "FilterPageSettingId") ?? "", out int fv) ? fv : (int?)null;
-    var listPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "ListPageSettingId") ?? "", out int lv) ? lv : (int?)null;
-    var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
+    var filterPsId = DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId");
+    var listPsId = DynPageViewHelper.SlotSettingId(ps, "list", "ListPageSettingId");
+    var detailPsId = DynPageViewHelper.SlotSettingId(ps, "detail", "DetailPageSettingId");
 
     var filterCfg = new JObject();
     DynPageViewHelper.ApplyFrontSetting(filterCfg, PageSettingService, filterPsId, "filterConfig", "filterDefault");
@@ -42,7 +44,7 @@
     listCfg["keyField"] = keyField;
     listCfg["project"] = project;
     listCfg["loadUrl"] = loadUrl;
-    listCfg["deleteUrl"] = deleteUrl;
+    listCfg["deleteUrl"] = listDeleteUrl;
     var detailCfg = new JObject();
     DynPageViewHelper.ApplyFrontSetting(detailCfg, PageSettingService, detailPsId, "detailConfig", "detailDefault");
     detailCfg["table"] = tableName;
@@ -50,7 +52,7 @@
     detailCfg["project"] = project;
     detailCfg["addUrl"] = addUrl;
     detailCfg["editUrl"] = editUrl;
-    detailCfg["deleteUrl"] = deleteUrl;
+    detailCfg["deleteUrl"] = detailDeleteUrl;
 
     var extId = "Tsb" + Guid.NewGuid().ToString("N");
     var extIdFilter = extId + "-filter";

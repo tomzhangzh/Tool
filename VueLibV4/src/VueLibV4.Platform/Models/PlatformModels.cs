@@ -242,10 +242,10 @@ public class DynTemplate
 }
 
 /// <summary>
-/// 动态网页：真正的动态页面。选择一个 DynTemplate，结合用户配置参数（ConfigJson）实例化 PageJson 即可运行。
+/// 动态网页：真正的动态页面。选择一个 DynTemplate，结合用户配置参数（ParamsJson）实例化 PageJson 即可运行。
 /// PageJson 为空时回退模板 DefaultJson（模板即页面）。
 /// 外键一律使用 int Id（ProjectId → DynProject.Id；TemplateId → DynTemplate.Id）。
-/// 三屏配置（Filter/List/Detail 的 PageSettingId）不再作为独立列，统一作为实例参数存于 ConfigJson，由模板渲染时读取。
+/// 实例参数统一存于 ParamsJson：模板自身参数顶层扁平 + blocks 槽位分组（各 Block 的 settingId/model/options）。
 /// </summary>
 [SugarTable("DynWebPage")]
 public class DynWebPage
@@ -268,9 +268,13 @@ public class DynWebPage
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? PageJson { get; set; }
 
-    /// <summary>实例参数 JSON：用户在参数面板填写的配置（含 TableName、三屏 PageSettingId 等）</summary>
+    /// <summary>
+    /// 实例参数 JSON（原 ConfigJson 改名）：用户在参数面板填写的配置。
+    /// 新结构 = 模板自身参数（顶层扁平，与旧版完全兼容）+ blocks 槽位分组：
+    /// { TableName:'...', ...模板参数, blocks:{ filter:{settingId,model,options}, list:{...}, detail:{...} } }
+    /// </summary>
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
-    public string? ConfigJson { get; set; }
+    public string? ParamsJson { get; set; }
 
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Url { get; set; }
@@ -362,4 +366,96 @@ public class DynCom
 
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ExtJson { get; set; }
+}
+
+/// <summary>
+/// 动态积木（Block）：可复用的独立功能单元（FilterApp / ListApp / DetailApp …）。
+/// 终态支持 DB 动态注册：ViewPath（静态 cshtml，开发期便利）与 HtmlCode/ScriptCode（在线编辑）双源；
+/// 当前阶段内置 Block 以 ViewPath 为准。
+/// 接线参数遵循 UI 包语义：ParamConfigJson=参数表单 UI 树（dyn-dynamic-com 可渲染），
+/// ParamDefaultJson=参数 model 骨架/默认值；Commands/Events 为命令/事件契约清单（JSON 数组）。
+/// </summary>
+[SugarTable("DynBlock")]
+public class DynBlock
+{
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+    public int Id { get; set; }
+
+    /// <summary>积木编码（filter/list/detail，全局唯一，关系/装配按 Code 稳定引用）</summary>
+    [SugarColumn(Length = 64, IsNullable = false)]
+    public string Code { get; set; } = string.Empty;
+
+    [SugarColumn(Length = 100, IsNullable = false)]
+    public string Name { get; set; } = string.Empty;
+
+    [SugarColumn(Length = 50, IsNullable = true)]
+    public string? Category { get; set; }
+
+    /// <summary>实现的槽位角色：filter/list/detail/tree（同一角色允许有多个 Block 实现）</summary>
+    [SugarColumn(Length = 50, IsNullable = false)]
+    public string ImplementsRole { get; set; } = string.Empty;
+
+    /// <summary>静态 Razor 视图路径（内置 Block；在线 HtmlCode 为空时使用）</summary>
+    [SugarColumn(Length = 300, IsNullable = true)]
+    public string? ViewPath { get; set; }
+
+    /// <summary>在线 HTML（终态：DB 动态布局，本阶段预留）</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? HtmlCode { get; set; }
+
+    /// <summary>在线脚本（终态：DB 动态脚本，本阶段预留）</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? ScriptCode { get; set; }
+
+    /// <summary>接线参数 UI 包之 ConfigJson：参数表单 UI 树（与 PageSetting.ConfigJson 同构）</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? ParamConfigJson { get; set; }
+
+    /// <summary>接线参数 UI 包之 DefaultJson：参数 model 骨架/默认值</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? ParamDefaultJson { get; set; }
+
+    /// <summary>接受的命令清单（JSON 数组，如 ["loadData","reload"]；契约文档/在线接线用）</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? Commands { get; set; }
+
+    /// <summary>发出的事件清单（JSON 数组，如 ["add","edit"]；契约文档/在线接线用）</summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? Events { get; set; }
+
+    [SugarColumn(Length = 500, IsNullable = true)]
+    public string? Description { get; set; }
+
+    public int SortNo { get; set; } = 0;
+    public bool IsActive { get; set; } = true;
+
+    public DateTime CreateTime { get; set; } = DateTime.Now;
+}
+
+/// <summary>
+/// 模板-积木槽位关系：一个 Template 的每个槽位（filter/list/detail/tree）放哪个 Block。
+/// (TemplateId, Slot) 唯一；WebPage 参数页按本表折叠分组渲染各 Block 的接线参数。
+/// </summary>
+[SugarTable("DynTemplateBlock")]
+public class DynTemplateBlock
+{
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+    public int Id { get; set; }
+
+    /// <summary>模板 Id（DynTemplate.Id）</summary>
+    public int TemplateId { get; set; }
+
+    /// <summary>槽位角色：filter/list/detail/tree</summary>
+    [SugarColumn(Length = 50, IsNullable = false)]
+    public string Slot { get; set; } = string.Empty;
+
+    /// <summary>该槽位使用的 Block Id（DynBlock.Id）</summary>
+    public int BlockId { get; set; }
+
+    /// <summary>是否必选槽位（参数页提示/校验用）</summary>
+    public bool Required { get; set; } = false;
+
+    public int SortNo { get; set; } = 0;
+
+    public DateTime CreateTime { get; set; } = DateTime.Now;
 }

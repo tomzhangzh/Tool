@@ -1,8 +1,9 @@
-﻿@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
+@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
 
 <template>
-<el-collapse-item :title="props.jsonconfig?.options?.comoptions?.label || props.jsonconfig?.label || ''"
-                      v-bind="comBind"
+<el-collapse-item :name="itemName"
+                      :title="itemTitle"
+                      v-bind="itemBind"
                       v-on="getComlisteners()">
         <n-dynamic-com v-for="(child, idx) in safeChildren"
                        :key="child.component + '_' + idx"
@@ -13,4 +14,29 @@
     </el-collapse-item>
 </template>
 
-@section setupScripts{ DVALUE = null; }
+@section setupScripts{
+ DVALUE = null;
+ // name：配置 comoptions.name 优先；缺省由父 DynElCollapse 按子项索引解析（与父级默认展开计算同源）；
+ // 脱离折叠容器单独使用时回退组件实例 uid，保证 name 唯一可用。
+ const resolveCollapseName = inject('dynCollapseResolveName', null);
+ const itemName = computed(() => {
+     const n = props.jsonconfig?.options?.comoptions?.name;
+     if (n !== '' && n !== null && n !== undefined) return String(n);
+     if (resolveCollapseName) {
+         const resolved = resolveCollapseName(props.jsonconfig);
+         if (resolved !== '' && resolved !== null && resolved !== undefined) return String(resolved);
+     }
+     return 'collapse-item-' + inst.uid;
+ });
+ // 标题契约字段：comoptions.label（设计器 CollapseConfigView / 属性面板均写此处）
+ const itemTitle = computed(() => props.jsonconfig?.options?.comoptions?.label || '');
+ // 透传 disabled 等 EP 原生属性，但剔除 name/label/expand（name/title 已显式绑定，expand 是配置态语义非 DOM 属性）
+ // 注意：comBind 定义在 comExtra 上，setupScripts 内必须写 comExtra.comBind
+ const itemBind = computed(() => {
+     const o = {};
+     const src = comExtra.comBind.value || {};
+     Object.keys(src).forEach((k) => { if (k !== 'name' && k !== 'label' && k !== 'expand') o[k] = src[k]; });
+     return o;
+ });
+ Object.assign(comExtra, { itemName, itemTitle, itemBind });
+}

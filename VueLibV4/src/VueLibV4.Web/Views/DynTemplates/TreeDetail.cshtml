@@ -14,41 +14,49 @@
     //     - 两个 app 的 DOM 子树不相交（.tr-pane-left 与 .tr-pane-right 是纯布局兄弟节点，
     //       gutter 也是布局元素）；关系由本模板 Scripts 段的句柄接线显式表达：
     //         tree.nodeClick/addRoot/addChild → detail.editForm/newForm；detail.saved → tree.reload
-    //   实例参数（ConfigJson）：TableName/KeyField/ParentField/TitleField/IconField/SortField/
-    //     DetailPageSettingId/AddUrl/EditUrl/DeleteUrl/ListUrl/LeftWidth/EnableDrag/DragSameLevelOnly
+    //   实例参数（ParamsJson）：树自身参数在顶层（TableName/KeyField/ParentField/TitleField/
+    //     IconField/SortField/ListUrl/EditUrl(拖拽排序)/LeftWidth/EnableDrag/DragSameLevelOnly）；
+    //     右侧表单走 blocks.detail 槽位 {settingId,model:{addUrl/editUrl/deleteUrl}}；旧扁平键自动回退。
     // =====================================================================================
     Layout = "_Layout";
     ViewData["Title"] = Model.Name + " - VueLibV4";
 
-    dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
-    var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
-    var keyField = ClayHelper.GetString(runTimeModel, "KeyField") ?? "Id";
-    var parentField = ClayHelper.GetString(runTimeModel, "ParentField") ?? "ParentId";
-    var titleField = ClayHelper.GetString(runTimeModel, "TitleField") ?? "Name";
-    var iconField = ClayHelper.GetString(runTimeModel, "IconField") ?? "Icon";
-    var sortField = ClayHelper.GetString(runTimeModel, "SortField") ?? "SortNo";
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    static string? Top(JObject o, string k)
+    {
+        var v = o[k];
+        return v == null || v.Type == JTokenType.Null ? null : v.ToString();
+    }
+    var tableName = Top(ps, "TableName") ?? "";
+    var keyField = Top(ps, "KeyField") ?? "Id";
+    var parentField = Top(ps, "ParentField") ?? "ParentId";
+    var titleField = Top(ps, "TitleField") ?? "Name";
+    var iconField = Top(ps, "IconField") ?? "Icon";
+    var sortField = Top(ps, "SortField") ?? "SortNo";
     var project = Model.ProjectId?.ToString() ?? "";
-    var loadUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "ListUrl"), DynPageViewHelper.BizSearch);
-    var addUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "AddUrl"), DynPageViewHelper.BizInsert);
-    var editUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "EditUrl"), DynPageViewHelper.BizUpdate);
-    var deleteUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "DeleteUrl"), DynPageViewHelper.BizDelete);
-    var leftWidth = int.TryParse(ClayHelper.GetString(runTimeModel, "LeftWidth") ?? "30", out int lw) ? lw : 30;
+    var loadUrl = DynPageViewHelper.UrlOr(Top(ps, "ListUrl"), DynPageViewHelper.BizSearch);
+    // 树拖拽排序保存接口走模板自身参数；右侧 DetailApp 的接口走 detail 槽位（旧扁平 AddUrl/EditUrl/DeleteUrl 同键回退）
+    var treeEditUrl = DynPageViewHelper.UrlOr(Top(ps, "EditUrl"), DynPageViewHelper.BizUpdate);
+    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.BizInsert);
+    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.BizUpdate);
+    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
+    var leftWidth = int.TryParse(Top(ps, "LeftWidth") ?? "30", out int lw) ? lw : 30;
     static bool ParseBool(string v)
     {
         if (string.IsNullOrWhiteSpace(v)) return false;
         if (v.Trim() == "1" || string.Equals(v.Trim(), "true", StringComparison.OrdinalIgnoreCase)) return true;
         return false;
     }
-    var enableDrag = ParseBool(ClayHelper.GetString(runTimeModel, "EnableDrag"));
-    var dragSameLevelOnly = ParseBool(ClayHelper.GetString(runTimeModel, "DragSameLevelOnly"));
-    var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
+    var enableDrag = ParseBool(Top(ps, "EnableDrag"));
+    var dragSameLevelOnly = ParseBool(Top(ps, "DragSameLevelOnly"));
+    var detailPsId = DynPageViewHelper.SlotSettingId(ps, "detail", "DetailPageSettingId");
 
     // 左树 app 自读配置（dynmodel 承载）
     var treeParams = new JObject
     {
         ["table"] = tableName, ["keyField"] = keyField, ["parentField"] = parentField,
         ["titleField"] = titleField, ["iconField"] = iconField, ["sortField"] = sortField,
-        ["loadUrl"] = loadUrl, ["editUrl"] = editUrl, ["project"] = project,
+        ["loadUrl"] = loadUrl, ["editUrl"] = treeEditUrl, ["project"] = project,
         ["enableDrag"] = enableDrag, ["dragSameLevelOnly"] = dragSameLevelOnly
     };
     var treeModelForScript = DynPageViewHelper.SafeJson(new JObject { ["treeParams"] = treeParams });

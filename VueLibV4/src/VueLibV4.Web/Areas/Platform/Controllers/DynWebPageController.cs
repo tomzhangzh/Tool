@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using SqlSugar;
 using VueLibV4.Platform.Models;
@@ -9,7 +9,7 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
 /// 动态网页：真正的动态页面（强类型 Model + 强类型服务，外键 int Id）。
-/// 选择一个 DynTemplate，结合用户配置参数（ConfigJson）实例化 PageJson，即可运行。
+/// 选择一个 DynTemplate，结合用户配置参数（ParamsJson：模板自身参数 + blocks 槽位分组）实例化 PageJson，即可运行。
 /// </summary>
 [Area("Platform")]
 [Route("api/platform/dynwebpage")]
@@ -20,17 +20,23 @@ public class DynWebPageController : ControllerBase
     private readonly IDynProjectService _projects;
     private readonly IDynTemplateService _templates;
     private readonly IPageSettingService _settings;
+    private readonly IDynTemplateBlockService _templateBlocks;
+    private readonly IDynBlockService _blocks;
 
     public DynWebPageController(
         IDynWebPageService svc,
         IDynProjectService projects,
         IDynTemplateService templates,
-        IPageSettingService settings)
+        IPageSettingService settings,
+        IDynTemplateBlockService templateBlocks,
+        IDynBlockService blocks)
     {
         _svc = svc;
         _projects = projects;
         _templates = templates;
         _settings = settings;
+        _templateBlocks = templateBlocks;
+        _blocks = blocks;
     }
 
     [HttpGet("all")]
@@ -85,8 +91,10 @@ public class DynWebPageController : ControllerBase
         }
 
         result["config"] = config ?? new JObject();
-        try { result["configjson"] = JObject.Parse(row.ConfigJson ?? "{}"); }
-        catch { result["configjson"] = new JObject(); }
+        var ps = DynPageViewHelper.ParseParams(row.ParamsJson);
+        // paramsjson 为新名；configjson 保留同内容兼容旧消费方
+        result["paramsjson"] = ps;
+        result["configjson"] = ps;
 
         // M4 三屏固定模板：返回模板 Code、运行 URL 与筛选/列表/详情三份配置树
         string templateCode = null;
@@ -97,11 +105,145 @@ public class DynWebPageController : ControllerBase
         }
         result["templateCode"] = templateCode;
         result["url"] = row.Url;
-        // 三屏 PageSettingId 作为实例参数存于 ConfigJson，不再作为独立列
-        result["filterConfig"] = LoadSettingConfig(GetIntFromJson(row.ConfigJson, "FilterPageSettingId"));
-        result["listConfig"] = LoadSettingConfig(GetIntFromJson(row.ConfigJson, "ListPageSettingId"));
-        result["detailConfig"] = LoadSettingConfig(GetIntFromJson(row.ConfigJson, "DetailPageSettingId"));
+        // 槽位 PageSettingId：blocks[slot].settingId 优先，回退旧扁平键
+        result["filterConfig"] = LoadSettingConfig(DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId"));
+        result["listConfig"] = LoadSettingConfig(DynPageViewHelper.SlotSettingId(ps, "list", "ListPageSettingId"));
+        result["detailConfig"] = LoadSettingConfig(DynPageViewHelper.SlotSettingId(ps, "detail", "DetailPageSettingId"));
         return ApiResult.Ok(result);
+    }
+
+    /// <summary>槽位中文名（参数页折叠标题；装配契约的一部分）</summary>
+    private static readonly Dictionary<string, string> SlotNames = new()
+    {
+        ["filter"] = "筛选区",
+        ["list"] = "列表区",
+        ["detail"] = "明细表单",
+        ["tree"] = "左树"
+    };
+
+    /// <summary>
+    /// WebPage 参数页 schema：模板自身参数 UI 包（ConfigJson/DefaultJson）+ 各槽位 Block 的
+    /// 参数 UI 包与已保存 values。values 已在后端完成「Block 默认值打底 + 新结构 blocks 读取 +
+    /// 旧扁平 ConfigJson 迁移」，前端直接渲染/回显。
+    /// 入参：templateId（必传）；pageId（编辑态，用于取已保存 ParamsJson）。
+    /// </summary>
+    [HttpGet("paramschema")]
+    public ApiResult ParamSchema(int templateId, int? pageId = null)
+    {
+        var tpl = templateId > 0 ? _templates.GetById(templateId) : null;
+        if (tpl == null) return ApiResult.Fail("模板不存在");
+
+        DynWebPage? page = null;
+        if (pageId is > 0) page = _svc.GetById(pageId.Value);
+        var pageParams = DynPageViewHelper.ParseParams(page?.ParamsJson);
+
+        var data = new JObject
+        {
+            ["template"] = new JObject
+            {
+                ["id"] = tpl.Id,
+                ["code"] = tpl.Code,
+                ["name"] = tpl.Name,
+                ["configJson"] = tpl.ConfigJson,
+                ["defaultJson"] = tpl.DefaultJson
+            },
+            // 已保存的实例参数（含 blocks）；前端模板自身参数按 DSL 键从顶层取值
+            ["params"] = pageParams,
+            ["slots"] = new JArray()
+        };
+        var slotsArr = (JArray)data["slots"]!;
+
+        foreach (var rel in _templateBlocks.ListByTemplate(tpl.Id))
+        {
+            var block = _blocks.GetById(rel.BlockId);
+            if (block == null || !block.IsActive) continue;
+            var slot = new JObject
+            {
+                ["slot"] = rel.Slot,
+                ["slotName"] = SlotNames.TryGetValue(rel.Slot, out var sn) ? sn : rel.Slot,
+                ["required"] = rel.Required,
+                ["sortNo"] = rel.SortNo,
+                ["block"] = new JObject
+                {
+                    ["id"] = block.Id,
+                    ["code"] = block.Code,
+                    ["name"] = block.Name,
+                    ["implementsRole"] = block.ImplementsRole,
+                    ["paramConfigJson"] = block.ParamConfigJson,
+                    ["commands"] = ParseJsonArray(block.Commands),
+                    ["events"] = ParseJsonArray(block.Events),
+                    ["description"] = block.Description
+                },
+                ["values"] = BuildSlotValues(pageParams, rel.Slot, block)
+            };
+            slotsArr.Add(slot);
+        }
+        return ApiResult.Ok(data);
+    }
+
+    /// <summary>槽位默认值 → 已保存 blocks → 旧扁平键 三层合并，统一输出 {settingId,model,options}。</summary>
+    private static JObject BuildSlotValues(JObject pageParams, string slot, DynBlock block)
+    {
+        var def = DynPageViewHelper.ParseParams(block.ParamDefaultJson);
+        var settingId = def["settingId"]?.Type == JTokenType.Null ? null : def["settingId"];
+        var model = new JObject();
+        foreach (var p in def.Properties())
+            if (p.Name != "settingId") model[p.Name] = p.Value;
+
+        JObject? options = null;
+        var saved = DynPageViewHelper.SlotBlock(pageParams, slot);
+        if (saved != null)
+        {
+            // 新结构：blocks[slot] = {settingId, model, options}
+            if (saved["settingId"] is { Type: not JTokenType.Null } sv) settingId = sv;
+            if (saved["model"] is JObject sm)
+                foreach (var p in sm.Properties())
+                    if (p.Value.Type != JTokenType.Null) model[p.Name] = p.Value;
+            options = saved["options"] as JObject;
+        }
+        else
+        {
+            // 旧扁平 ConfigJson 迁移（仅回填非空值）
+            var legacySetting = slot switch
+            {
+                "filter" => "FilterPageSettingId",
+                "list" => "ListPageSettingId",
+                "detail" => "DetailPageSettingId",
+                _ => null
+            };
+            if (legacySetting != null)
+            {
+                var lv = pageParams[legacySetting];
+                if (lv is { Type: not JTokenType.Null } && int.TryParse(lv.ToString(), out var li))
+                    settingId = new JValue(li);
+            }
+            var legacyUrls = slot switch
+            {
+                "list" => new[] { ("loadUrl", "ListUrl"), ("deleteUrl", "DeleteUrl") },
+                "detail" => new[] { ("addUrl", "AddUrl"), ("editUrl", "EditUrl"), ("deleteUrl", "DeleteUrl") },
+                _ => Array.Empty<(string, string)>()
+            };
+            foreach (var (modelKey, legacyKey) in legacyUrls)
+            {
+                var lv = pageParams[legacyKey];
+                var ls = lv?.Type == JTokenType.Null ? null : lv?.ToString();
+                if (!string.IsNullOrWhiteSpace(ls)) model[modelKey] = ls;
+            }
+        }
+
+        return new JObject
+        {
+            ["settingId"] = settingId ?? JValue.CreateNull(),
+            ["model"] = model,
+            ["options"] = options ?? new JObject()
+        };
+    }
+
+    private static JArray ParseJsonArray(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new JArray();
+        try { return JToken.Parse(json) as JArray ?? new JArray(); }
+        catch { return new JArray(); }
     }
 
     private JObject LoadSettingConfig(int? settingId)
@@ -110,20 +252,6 @@ public class DynWebPageController : ControllerBase
         var s = _settings.GetById(settingId.Value);
         if (s == null || string.IsNullOrWhiteSpace(s.ConfigJson)) return null;
         try { return JObject.Parse(s.ConfigJson); } catch { return null; }
-    }
-
-    /// <summary>从实例 ConfigJson（参数字典）安全读取 int?，缺失/空/不可解析返回 null</summary>
-    private static int? GetIntFromJson(string json, string key)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return null;
-        try
-        {
-            var o = JObject.Parse(json);
-            var v = o[key];
-            if (v == null || v.Type == JTokenType.Null) return null;
-            return int.TryParse(v.ToString(), out var i) ? i : null;
-        }
-        catch { return null; }
     }
 
     [HttpPost("save")]

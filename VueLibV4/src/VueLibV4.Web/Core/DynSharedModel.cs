@@ -7,7 +7,7 @@ namespace VueLibV4.Web.Core;
 /// 外壳视图（DynTemplate.ViewPath 指向的 Razor）以 @model DynSharedModel 接收，
 /// 前端 data-dyn-shared-model 序列化后同源读取，消除 ViewBag 零散传参。
 /// 字段：
-///  - RawParams：用户在 DynWebPage.ConfigJson 保存的原始实例参数
+///  - RawParams：用户在 DynWebPage.ParamsJson 保存的原始实例参数（积木模板另含 blocks 槽位分组）
 ///  - EffectiveParams：TableName 自动补齐 dyndata Url 之后最终生效的参数
 ///  - PassThrough：模板 ConfigJson 顶层 mPassThrough（透传属性）
 ///  - TemplateConfig：模板 DefaultJson（模板默认配置，外壳可选使用）

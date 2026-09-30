@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS DynTemplate (
 );
 
 -- ---------------- 8. 动态网页 ----------------
--- 三屏配置Id（Filter/List/DetailPageSettingId）统一作为实例参数存于 ConfigJson，不再作为独立列
+-- 实例参数统一存于 ParamsJson：模板自身参数（顶层扁平）+ blocks 槽位分组（各 Block 的 settingId/model/options）
 CREATE TABLE IF NOT EXISTS DynWebPage (
     Id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     Code                  TEXT NOT NULL UNIQUE,
@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS DynWebPage (
     Name                  TEXT NOT NULL,
     TemplateId            INTEGER NULL,
     PageJson              TEXT NULL,
-    ConfigJson            TEXT NULL,
+    ParamsJson            TEXT NULL,
     Url                   TEXT NULL,
     IsActive              INTEGER NOT NULL DEFAULT 1,
     CreateTime            TEXT NOT NULL DEFAULT (datetime('now','localtime')),
@@ -154,6 +154,38 @@ CREATE TABLE IF NOT EXISTS PageSetting (
     IsActive        INTEGER NOT NULL DEFAULT 1,
     CreateTime      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+
+-- ---------------- 8c. 动态积木 Block（独立功能单元，可 DB 动态注册） ----------------
+CREATE TABLE IF NOT EXISTS DynBlock (
+    Id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    Code              TEXT NOT NULL UNIQUE,
+    Name              TEXT NOT NULL,
+    Category          TEXT NULL,
+    ImplementsRole    TEXT NOT NULL DEFAULT '',   -- filter/list/detail/tree
+    ViewPath          TEXT NULL,
+    HtmlCode          TEXT NULL,
+    ScriptCode        TEXT NULL,
+    ParamConfigJson   TEXT NULL,                  -- 接线参数 UI 包：参数表单 UI 树
+    ParamDefaultJson  TEXT NULL,                  -- 接线参数 UI 包：参数 model 骨架
+    Commands          TEXT NULL,                  -- 接受命令清单（JSON 数组）
+    Events            TEXT NULL,                  -- 发出事件清单（JSON 数组）
+    Description       TEXT NULL,
+    SortNo            INTEGER NOT NULL DEFAULT 0,
+    IsActive          INTEGER NOT NULL DEFAULT 1,
+    CreateTime        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- ---------------- 8d. 模板-积木槽位关系（(TemplateId,Slot) 唯一） ----------------
+CREATE TABLE IF NOT EXISTS DynTemplateBlock (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    TemplateId  INTEGER NOT NULL,
+    Slot        TEXT NOT NULL,                    -- filter/list/detail/tree
+    BlockId     INTEGER NOT NULL,
+    Required    INTEGER NOT NULL DEFAULT 0,
+    SortNo      INTEGER NOT NULL DEFAULT 0,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS UX_DynTemplateBlock_Template_Slot ON DynTemplateBlock(TemplateId, Slot);
 
 -- ---------------- 9. 动态组件库 ----------------
 CREATE TABLE IF NOT EXISTS DynCom (

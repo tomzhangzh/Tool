@@ -68,4 +68,50 @@ public static class DynPageViewHelper
     /// <summary>输出到内联 script 的 JSON，并转义 &lt;/ 防止提前闭合 script 标签。</summary>
     public static string SafeJson(JObject obj)
         => obj.ToString(Newtonsoft.Json.Formatting.None).Replace("</", "<\\/");
+
+    // ---------------- 实例参数（ParamsJson）读取：blocks 槽位优先 + 旧扁平键回退 ----------------
+
+    /// <summary>解析 WebPage 实例参数（ParamsJson）；空/非法返回空 JObject（结构恒存在）。</summary>
+    public static JObject ParseParams(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new JObject();
+        try { return JObject.Parse(json); }
+        catch { return new JObject(); }
+    }
+
+    /// <summary>取某槽位 Block 的保存节点：params.blocks[slot]（无则 null）。</summary>
+    public static JObject? SlotBlock(JObject ps, string slot)
+        => ps["blocks"]?[slot] as JObject;
+
+    /// <summary>
+    /// 取槽位接线的 PageSetting Id：blocks[slot].settingId 优先，回退旧扁平键
+    /// （FilterPageSettingId/ListPageSettingId/DetailPageSettingId）。
+    /// </summary>
+    public static int? SlotSettingId(JObject ps, string slot, string legacyKey)
+    {
+        var blk = SlotBlock(ps, slot);
+        var v = blk?["settingId"];
+        if (v is { Type: not JTokenType.Null } && int.TryParse(v.ToString(), out var i)) return i;
+        v = ps[legacyKey];
+        if (v is { Type: not JTokenType.Null } && int.TryParse(v.ToString(), out var j)) return j;
+        return null;
+    }
+
+    /// <summary>
+    /// 取槽位 Block 的运行参数（URL 等）：blocks[slot].model[key] 优先，
+    /// 可回退旧扁平键（如 list.loadUrl → ListUrl）。空字符串视同未配置返回 null（交给 UrlOr 走缺省）。
+    /// </summary>
+    public static string? SlotValue(JObject ps, string slot, string key, string? legacyKey = null)
+    {
+        var v = SlotBlock(ps, slot)?["model"]?[key];
+        var s = v?.Type == JTokenType.Null ? null : v?.ToString();
+        if (!string.IsNullOrWhiteSpace(s)) return s;
+        if (!string.IsNullOrEmpty(legacyKey))
+        {
+            var lv = ps[legacyKey];
+            var ls = lv?.Type == JTokenType.Null ? null : lv?.ToString();
+            if (!string.IsNullOrWhiteSpace(ls)) return ls;
+        }
+        return null;
+    }
 }

@@ -3,10 +3,12 @@
 }
 @*
   页面实例管理（DynWebPage）：
-  · 选择一个 DynTemplate → 按模板 ConfigJson（标准 DynamicControl DSL：DynElCollapse + Com 控件）渲染参数面板 → 保存实例
-  · 新建页面：实例参数以模板 DefaultJson（模板默认值）初始化；编辑页面：以 DefaultJson 为底叠加已保存实例参数
+  · 选择一个 DynTemplate → 拉 paramschema：模板自身参数 UI 包 + DynTemplateBlock 各槽位 Block 的参数 UI 包
+    （均为标准 DynamicControl DSL，槽位用 el-collapse 折叠分组）→ 保存实例
+  · 新建页面：参数以各 UI 包 DefaultJson 初始化；编辑页面：后端合并已保存值，旧扁平 ConfigJson 自动迁移到槽位
+  · 保存结构 ParamsJson = { …模板自身参数, blocks:{ slot:{settingId,model,options} } }
   · 运行入口：/Platform/Page/DynWebPage?id={Id}（可直接挂到系统菜单）
-  · 数据走 /api/platform/dynwebpage/*（all / get / save / delete）+ /api/platform/dyntemplate/all（模板）
+  · 数据走 /api/platform/dynwebpage/*（all / get / save / delete / paramschema）+ /api/platform/dyntemplate/all（模板）
 *@
 <div data-dyn-init-createapp class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
 
@@ -60,17 +62,36 @@
                 <el-select v-model="form.TemplateId" style="width:100%" @@change="onTemplateChange">
                     <el-option v-for="t in templates" :key="t.Id" :label="t.Name + '（' + t.Code + '）'" :value="t.Id"></el-option>
                 </el-select>
-                <div style="line-height:1.4;color:#909399;font-size:12px;margin-top:4px;">选择模板后，下方按模板 ConfigJson（DynamicControl DSL）渲染参数面板</div>
+                <div style="line-height:1.4;color:#909399;font-size:12px;margin-top:4px;">选择模板后，下方按模板/积木的参数 UI 包（DynamicControl DSL）分组渲染参数面板</div>
             </el-form-item>
 
-            <el-divider content-position="left">实例参数（DynamicControl · {{ currentTemplate ? currentTemplate.Name : '' }}）</el-divider>
+            <el-divider content-position="left">模板参数（{{ currentTemplate ? currentTemplate.Name : '' }}）</el-divider>
             <dyn-dynamic-com v-if="templateCfg && templateCfg.component"
                              :jsonconfig="templateCfg"
                              :parentmodelinfo="params"
                              style="padding:0 2px;"></dyn-dynamic-com>
-            <el-empty v-else-if="form.TemplateId" :image-size="60" description="模板未配置参数面板（ConfigJson 需为标准 DynamicControl DSL，且顶层含 component）"></el-empty>
+            <el-empty v-else-if="form.TemplateId" :image-size="60" description="该模板无自身参数"></el-empty>
             <el-empty v-else :image-size="60" description="请先选择模板"></el-empty>
-            <div v-if="templateCfg && templateCfg.component" style="line-height:1.4;color:#909399;font-size:12px;padding:0 10px 6px;">
+
+            <template v-if="slots.length">
+                <el-divider content-position="left">积木槽位参数（{{ slots.length }} 个 Block）</el-divider>
+                <el-collapse v-model="activeSlots" style="margin:0 2px 4px;">
+                    <el-collapse-item v-for="s in slots" :key="s.slot" :name="s.slot">
+                        <template #title>
+                            <span style="font-weight:600;">{{ s.slotName }}</span>
+                            <el-tag size="small" type="info" effect="plain" style="margin-left:8px;">{{ s.blockName }}</el-tag>
+                            <el-tag v-if="s.required" size="small" type="danger" effect="plain" style="margin-left:4px;">必选</el-tag>
+                        </template>
+                        <dyn-dynamic-com :jsonconfig="s.cfg"
+                                         :parentmodelinfo="s.model"
+                                         style="padding:0 2px;"></dyn-dynamic-com>
+                    </el-collapse-item>
+                </el-collapse>
+                <div style="line-height:1.4;color:#909399;font-size:12px;padding:0 10px 6px;">
+                    各 Block 的接口 URL 留空 → 自动走标准 dyndata 接口；手动填写 URL 优先（全 POST）。
+                </div>
+            </template>
+            <div v-else-if="templateCfg && templateCfg.component" style="line-height:1.4;color:#909399;font-size:12px;padding:0 10px 6px;">
                 TableName 有值且 ListUrl/AddUrl/EditUrl/DeleteUrl 留空 → 自动生成 dyndata 免 model 接口；手动填写 URL 优先。
             </div>
 
@@ -96,20 +117,25 @@
                 templateMap: {},
                 dialog: { visible: false, title: '新建页面' },
                 currentTemplate: null,
-                // 模板 ConfigJson（标准 DynamicControl DSL 配置树），由 dyn-dynamic-com 渲染参数面板
+                // 模板自身参数 UI 包（ConfigJson 标准 DynamicControl DSL 配置树）
                 templateCfg: {},
+                // 模板 DSL 声明的参数键白名单（保存时只挑这些顶层键，丢弃已迁移到槽位的旧扁平键）
+                declaredTemplateKeys: [],
+                // 积木槽位：[{slot,slotName,required,blockCode,blockName,cfg,model,options}]
+                slots: [],
+                activeSlots: [],
                 // 运行时「进入设计器」带 id 自动打开编辑的页面 Id
                 autoEditId: null,
-                form: { Id: 0, Code: '', Name: '', TemplateId: null, ConfigJson: '', IsActive: true },
-                // 实例参数：作为 parentmodelinfo 传给 dyn-dynamic-com；保存时 JSON.stringify(params)
+                form: { Id: 0, Code: '', Name: '', TemplateId: null, ParamsJson: '', IsActive: true },
+                // 模板自身参数：作为 parentmodelinfo 传给 dyn-dynamic-com
                 params: {}
             };
         },
         methods: {
             paramOf: function (row, key) {
-                if (!row.ConfigJson) return '';
+                if (!row.ParamsJson) return '';
                 try {
-                    var o = JSON.parse(row.ConfigJson);
+                    var o = JSON.parse(row.ParamsJson);
                     var v = o[key];
                     return v === null || v === undefined ? '' : String(v);
                 } catch (e) { return ''; }
@@ -135,33 +161,28 @@
                 }).catch(function () { self.loading = false; dyn.showMessage('加载失败', 'error'); });
             },
             resetForm: function () {
-                this.form = { Id: 0, Code: '', Name: '', TemplateId: null, ConfigJson: '', IsActive: true };
+                this.form = { Id: 0, Code: '', Name: '', TemplateId: null, ParamsJson: '', IsActive: true };
                 this.params = {};
                 this.templateCfg = {};
+                this.declaredTemplateKeys = [];
+                this.slots = [];
+                this.activeSlots = [];
                 this.currentTemplate = null;
             },
             onAdd: function () {
                 this.resetForm();
                 this.dialog = { visible: true, title: '新建页面' };
             },
-            // 选择模板后：解析模板 ConfigJson 为 DynamicControl 配置树；新建以模板 DefaultJson 初始化实例参数
+            // 选择模板后：拉参数 schema（模板自身参数 UI 包 + 各槽位 Block 参数 UI 包）；新建无 pageId
             onTemplateChange: function (tid) {
-                var self = this;
                 this.currentTemplate = this.templateMap[tid] || null;
                 this.templateCfg = {};
+                this.declaredTemplateKeys = [];
                 this.params = {};
+                this.slots = [];
+                this.activeSlots = [];
                 if (!tid) return;
-                fetch('/api/platform/dyntemplate/get?id=' + tid).then(function (r) { return r.json(); }).then(function (res) {
-                    if (res.code !== 0 || !res.data) return;
-                    var t = res.data;
-                    self.currentTemplate = t;
-                    var cfg = {};
-                    try { cfg = JSON.parse(t.ConfigJson || '{}'); } catch (e) { cfg = {}; }
-                    self.templateCfg = cfg;
-                    var def = {};
-                    try { def = JSON.parse(t.DefaultJson || '{}'); } catch (e) { def = {}; }
-                    self.params = def || {};
-                });
+                this.loadParamSchema(tid, null);
             },
             onEdit: function (row) {
                 var self = this;
@@ -169,30 +190,92 @@
                 this.dialog = { visible: true, title: '编辑页面：' + row.Name };
                 this.params = {};
                 this.templateCfg = {};
+                this.declaredTemplateKeys = [];
+                this.slots = [];
+                this.activeSlots = [];
                 this.currentTemplate = null;
                 var tid = row.TemplateId;
                 if (!tid) return;
                 this.form.TemplateId = tid;
-                fetch('/api/platform/dyntemplate/get?id=' + tid).then(function (r) { return r.json(); }).then(function (res) {
-                    if (res.code !== 0 || !res.data) return;
-                    var t = res.data;
-                    self.currentTemplate = t;
+                // pageId 带上后，后端从已保存 ParamsJson 回填模板参数与槽位 values（旧扁平值自动迁移）
+                this.loadParamSchema(tid, row.Id);
+            },
+            // 拉取并装配参数 schema：template{configJson,defaultJson} + slots[{block.paramConfigJson,values}]
+            loadParamSchema: function (tid, pageId) {
+                var self = this;
+                var url = '/api/platform/dynwebpage/paramschema?templateId=' + tid + (pageId ? '&pageId=' + pageId : '');
+                fetch(url).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '参数 schema 加载失败', 'error'); return; }
+                    var d = res.data;
+                    self.currentTemplate = { Id: d.template.id, Code: d.template.code, Name: d.template.name };
+
+                    // ---- 模板自身参数：DSL 白名单键 × 模板默认值 × 已保存顶层值 ----
                     var cfg = {};
-                    try { cfg = JSON.parse(t.ConfigJson || '{}'); } catch (e) { cfg = {}; }
+                    try { cfg = JSON.parse(d.template.configJson || '{}'); } catch (e) { cfg = {}; }
                     self.templateCfg = cfg;
                     var def = {};
-                    try { def = JSON.parse(t.DefaultJson || '{}'); } catch (e) { def = {}; }
-                    var saved = {};
-                    try { saved = JSON.parse(row.ConfigJson || '{}'); } catch (e) { saved = {}; }
-                    // 编辑：以模板 DefaultJson 为底，叠加已保存的实例参数
-                    self.params = Object.assign({}, def, saved);
+                    try { def = JSON.parse(d.template.defaultJson || '{}'); } catch (e) { def = {}; }
+                    var savedTop = d.params || {};
+                    var merged = Object.assign({}, def);
+                    var keys = [];
+                    ((cfg && cfg.childrenctrls) || []).forEach(function (c) {
+                        if (!c || !c.modelname) return;
+                        keys.push(c.modelname);
+                        if (savedTop[c.modelname] !== undefined && savedTop[c.modelname] !== null) {
+                            merged[c.modelname] = savedTop[c.modelname];
+                        }
+                    });
+                    self.declaredTemplateKeys = keys;
+                    self.params = merged;
+
+                    // ---- 槽位 Block 参数：values 已由后端合并（默认+保存+旧扁平迁移）----
+                    var arr = [];
+                    (d.slots || []).forEach(function (s) {
+                        var scfg = {};
+                        try { scfg = JSON.parse((s.block && s.block.paramConfigJson) || '{}'); } catch (e) { scfg = {}; }
+                        var model = Object.assign({}, (s.values && s.values.model) || {});
+                        model.settingId = s.values ? s.values.settingId : null;
+                        arr.push({
+                            slot: s.slot, slotName: s.slotName, required: !!s.required,
+                            blockCode: s.block.code, blockName: s.block.name,
+                            cfg: scfg, model: model, options: (s.values && s.values.options) || {}
+                        });
+                    });
+                    self.slots = arr;
+                    self.activeSlots = arr.map(function (s) { return s.slot; });
                 });
             },
             onSave: function () {
                 var self = this;
                 if (!this.form.Name) { dyn.showMessage('页面名称必填', 'warning'); return; }
                 if (!this.form.TemplateId) { dyn.showMessage('请选择模板', 'warning'); return; }
+                // 必选槽位校验：settingId 不能为空
+                for (var i = 0; i < this.slots.length; i++) {
+                    var s = this.slots[i];
+                    if (s.required && (s.model.settingId === null || s.model.settingId === undefined || s.model.settingId === '')) {
+                        dyn.showMessage('槽位「' + s.slotName + '」为必选，请选择对应配置', 'warning');
+                        if (this.activeSlots.indexOf(s.slot) === -1) this.activeSlots.push(s.slot);
+                        return;
+                    }
+                }
                 var code = this.form.Code || (this.currentTemplate ? this.currentTemplate.Code : 'page') + '-' + Date.now().toString(36);
+
+                // ParamsJson = 模板自身参数（白名单键，顶层扁平）+ blocks 槽位分组
+                var payloadParams = {};
+                (this.declaredTemplateKeys || []).forEach(function (k) {
+                    payloadParams[k] = self.params[k] === undefined ? null : self.params[k];
+                });
+                var blocks = {};
+                this.slots.forEach(function (s) {
+                    var sid = (s.model.settingId === undefined || s.model.settingId === '') ? null : s.model.settingId;
+                    var model = {};
+                    Object.keys(s.model).forEach(function (k) {
+                        if (k !== 'settingId') model[k] = s.model[k];
+                    });
+                    blocks[s.slot] = { settingId: sid, model: model, options: s.options || {} };
+                });
+                payloadParams.blocks = blocks;
+
                 this.saving = true;
                 fetch('/api/platform/dynwebpage/save', {
                     method: 'POST',
@@ -202,7 +285,7 @@
                         Code: code,
                         Name: this.form.Name,
                         TemplateId: this.form.TemplateId,
-                        ConfigJson: JSON.stringify(this.params || {}),
+                        ParamsJson: JSON.stringify(payloadParams),
                         IsActive: this.form.IsActive === undefined ? true : this.form.IsActive
                     })
                 }).then(function (r) { return r.json(); }).then(function (res) {

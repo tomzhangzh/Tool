@@ -31,18 +31,23 @@ public class TemplatesController : Controller
         _settings = settings;
     }
 
-    /// <summary>从实例 ConfigJson 参数读取三屏 PageSettingId 并加载对应 PageSetting；缺失/无效返回 null</summary>
+    /// <summary>
+    /// 读取三屏 PageSetting 并加载；新结构取 blocks[slot].settingId，回退旧扁平键
+    /// （FilterPageSettingId/ListPageSettingId/DetailPageSettingId）；缺失/无效返回 null。
+    /// </summary>
     private PageSetting? GetSetting(DynWebPage page, string key)
     {
-        if (string.IsNullOrWhiteSpace(page.ConfigJson)) return null;
-        int? id = null;
-        try
+        var ps = DynPageViewHelper.ParseParams(page.ParamsJson);
+        var slot = key switch
         {
-            var o = JObject.Parse(page.ConfigJson);
-            var v = o[key];
-            if (v != null && v.Type != JTokenType.Null && int.TryParse(v.ToString(), out var i)) id = i;
-        }
-        catch { }
+            "FilterPageSettingId" => "filter",
+            "ListPageSettingId" => "list",
+            "DetailPageSettingId" => "detail",
+            _ => null
+        };
+        int? id = slot != null
+            ? DynPageViewHelper.SlotSettingId(ps, slot, key)
+            : (ps[key] is { Type: not JTokenType.Null } && int.TryParse(ps[key]!.ToString(), out var ti) ? ti : null);
         return id != null ? _settings.GetById(id.Value) : null;
     }
 
@@ -143,9 +148,9 @@ public class TemplatesController : Controller
     {
         try
         {
-            if (!string.IsNullOrWhiteSpace(page.ConfigJson))
+            if (!string.IsNullOrWhiteSpace(page.ParamsJson))
             {
-                var pc = JObject.Parse(page.ConfigJson);
+                var pc = JObject.Parse(page.ParamsJson);
                 var g = pc["gridId"]?.ToString();
                 if (!string.IsNullOrWhiteSpace(g)) return g;
             }

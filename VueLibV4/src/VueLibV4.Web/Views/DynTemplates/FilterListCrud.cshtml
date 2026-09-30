@@ -12,22 +12,22 @@
     //   - 新增/编辑/+子 → 拉 DetailModal 片段（内含 DetailApp）注入 layer；
     //     DetailApp 保存/删除成功只 emit saved，本模板订阅后关窗；弹窗 end 是唯一刷新通道
     //     （保存自动关窗 / X / 取消都走 end → list reload），无 window 事件、无 tick 去重。
-    //   - 实例参数（ConfigJson）：TableName / ListUrl / DeleteUrl / FilterPageSettingId /
-    //     ListPageSettingId / ModalPageId / ChildFkField（可选）/ KeyField（可选）
+    //   实例参数（ParamsJson）：模板自身 TableName/ModalPageId/KeyField/ChildFkField（顶层）+
+    //     blocks.filter/list 槽位 {settingId,model:{loadUrl/deleteUrl}}；旧扁平键自动回退。
     // =====================================================================================
     Layout = "_Layout";
     ViewData["Title"] = Model.Name + " - VueLibV4";
 
-    dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
-    var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
-    var loadUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "ListUrl"), DynPageViewHelper.BizSearch);
-    var deleteUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "DeleteUrl"), DynPageViewHelper.BizDelete);
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    var tableName = ps["TableName"]?.ToString() ?? "";
+    var loadUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "loadUrl", "ListUrl"), DynPageViewHelper.BizSearch);
+    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
     var project = Model.ProjectId?.ToString() ?? "";
-    var modalPageId = ClayHelper.GetString(runTimeModel, "ModalPageId") ?? "";
-    var childFkField = ClayHelper.GetString(runTimeModel, "ChildFkField") ?? "";
-    var keyField = ClayHelper.GetString(runTimeModel, "KeyField") ?? "Id";
-    var filterPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "FilterPageSettingId") ?? "", out int fv) ? fv : (int?)null;
-    var listPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "ListPageSettingId") ?? "", out int lv) ? lv : (int?)null;
+    var modalPageId = ps["ModalPageId"]?.ToString() ?? "";
+    var childFkField = ps["ChildFkField"]?.ToString() ?? "";
+    var keyField = ps["KeyField"]?.ToString() ?? "Id";
+    var filterPsId = DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId");
+    var listPsId = DynPageViewHelper.SlotSettingId(ps, "list", "ListPageSettingId");
 
     // Filter Block 配置：{filterConfig:UI树, filterDefault:骨架}
     var filterCfg = new JObject();

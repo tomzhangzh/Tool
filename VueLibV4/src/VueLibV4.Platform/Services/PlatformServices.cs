@@ -108,6 +108,42 @@ public class DynTemplateService : SugarService<DynTemplate>, IDynTemplateService
     public DynTemplateService(ISqlSugarClient db) : base(db) { }
 }
 
+/// <summary>动态积木（Block）元数据服务：Code 稳定引用 + 按角色列出可用实现</summary>
+public interface IDynBlockService : ISugarService<DynBlock>, IScopeDependency
+{
+    /// <summary>按 Code 取启用中的 Block（无则 null）</summary>
+    DynBlock? GetByCode(string code);
+
+    /// <summary>按槽位角色列启用 Block（filter/list/detail/tree），SortNo 排序</summary>
+    List<DynBlock> ListByRole(string role);
+}
+
+public class DynBlockService : SugarService<DynBlock>, IDynBlockService
+{
+    public DynBlockService(ISqlSugarClient db) : base(db) { }
+
+    public DynBlock? GetByCode(string code)
+        => Query(b => b.IsActive && b.Code == code).First();
+
+    public List<DynBlock> ListByRole(string role)
+        => List(b => b.IsActive && b.ImplementsRole == role, "SortNo ASC, Id ASC");
+}
+
+/// <summary>模板-积木槽位关系服务：参数 schema 组装与装配时按模板取槽位</summary>
+public interface IDynTemplateBlockService : ISugarService<DynTemplateBlock>, IScopeDependency
+{
+    /// <summary>按模板取全部槽位关系（SortNo 排序）</summary>
+    List<DynTemplateBlock> ListByTemplate(int templateId);
+}
+
+public class DynTemplateBlockService : SugarService<DynTemplateBlock>, IDynTemplateBlockService
+{
+    public DynTemplateBlockService(ISqlSugarClient db) : base(db) { }
+
+    public List<DynTemplateBlock> ListByTemplate(int templateId)
+        => List(r => r.TemplateId == templateId, "SortNo ASC, Id ASC");
+}
+
 public interface IDynWebPageService : ISugarService<DynWebPage>, IScopeDependency
 {
     /// <summary>按项目列页面</summary>

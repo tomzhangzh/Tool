@@ -1,7 +1,7 @@
 ﻿@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
 
 <template>
-<el-collapse v-bind="comBind" v-on="getComlisteners()"
+<el-collapse v-model="activeModel" v-bind="collapseBind" v-on="getComlisteners()"
                  :style="getStyle(jc.options.itemoptions)"
                  :class="getClass(jc.options.itemoptions)">
         <n-dynamic-com v-for="(child, idx) in safeChildren"
@@ -13,4 +13,81 @@
     </el-collapse>
 </template>
 
-@section setupScripts{ DVALUE = null; }
+@* 注意：本 section 在子视图顶层以 Razor markup 上下文解析（虽最终输出到 Layout 的 script 标签内），
+   JS 源码中禁止出现裸 '<'（会被当作 HTML 标签起始导致视图编译失败），比较一律用 === -1 / >= 写法。 *@
+@section setupScripts{
+ DVALUE = null;
+ // el-collapse 为受控组件：必须持有并回写 modelValue，否则点击头部只 emit 事件、激活态永远为空，面板无法展开/折叠。
+ // 手风琴(accordion=true)时 modelValue 为单值(string|null)，普通模式为 name 数组。
+ const isAccordion = computed(() => jc.options.comoptions?.accordion === true);
+ // 折叠项 name 解析（父子共用同一份映射）：item 配置 comoptions.name 优先，缺省用索引字符串，
+ // 保证未配置 name 时父级计算「默认展开」与子项实际 name 仍然一致。
+ const itemNameMap = computed(() => {
+     const m = new Map();
+     safeChildren.value.forEach((c, i) => {
+         const n = c?.options?.comoptions?.name;
+         m.set(c, (n === '' || n === null || n === undefined) ? String(i) : String(n));
+     });
+     return m;
+ });
+ const allNames = computed(() => Array.from(itemNameMap.value.values()));
+ function pickExpanded(list) {
+     const res = [];
+     (list || []).forEach((c, i) => {
+         if (c?.options?.comoptions?.expand === true) {
+             const n = c?.options?.comoptions?.name;
+             // 与 itemNameMap 同规则：name 缺省用索引
+             res.push((n === '' || n === null || n === undefined) ? String(i) : String(n));
+         }
+     });
+     return res;
+ }
+ // 初始激活：setup 阶段直接从配置树计算（jc.childrenctrls 基座已保证为数组），首帧即正确
+ const initActive = pickExpanded(jc.childrenctrls);
+ const activeNames = ref(isAccordion.value ? (initActive[0] ?? null) : initActive);
+ onMounted(() => {
+     // 子项动态新增（设计器拖入 / ForEach）：新项 expand=true 时并入激活集合；只增不抢，用户手动折叠不被弹回
+     watch(safeChildren, (list) => {
+         if (designMode) return;
+         const ex = pickExpanded(list);
+         if (isAccordion.value) {
+             if (activeNames.value == null && ex.length) activeNames.value = ex[0];
+         } else {
+             const cur = Array.isArray(activeNames.value) ? activeNames.value.slice() : [];
+             let changed = false;
+             ex.forEach((n) => { if (n !== undefined && cur.indexOf(n) === -1) { cur.push(n); changed = true; } });
+             if (changed) activeNames.value = cur;
+         }
+     });
+     // 手风琴开关切换时归一化 modelValue 类型（数组 ↔ 单值）
+     watch(isAccordion, (acc) => {
+         if (acc) {
+             activeNames.value = Array.isArray(activeNames.value) ? (activeNames.value[0] ?? null) : activeNames.value;
+         } else {
+             activeNames.value = activeNames.value == null
+                 ? []
+                 : (Array.isArray(activeNames.value) ? activeNames.value : [activeNames.value]);
+         }
+     });
+ });
+ // 设计态：全部展开且忽略折叠回写——画布内容须常驻可见、可选中可拖放（与 Tabs 设计态隔离思路一致）；
+ // 运行态：内部自持激活态。
+ const activeModel = computed({
+     get() {
+         if (designMode) return isAccordion.value ? (allNames.value[0] ?? null) : allNames.value.slice();
+         return activeNames.value;
+     },
+     set(v) { if (!designMode) activeNames.value = v; }
+ });
+ // 子折叠项 inject 此函数，按自身配置引用解析稳定 name
+ provide('dynCollapseResolveName', (cfg) => itemNameMap.value.get(cfg));
+ // comBind 定义在 comExtra 上（基座 _BaseLayout），setupScripts 作用域内只能通过 comExtra.comBind 引用
+ // 再剔除折叠项专属键（name/label/expand），避免作为无效 attr 泄漏到 el-collapse 根节点
+ const collapseBind = computed(() => {
+     const o = {};
+     const src = comExtra.comBind.value || {};
+     Object.keys(src).forEach((k) => { if (k !== 'name' && k !== 'label' && k !== 'expand') o[k] = src[k]; });
+     return o;
+ });
+ Object.assign(comExtra, { activeModel, collapseBind });
+}

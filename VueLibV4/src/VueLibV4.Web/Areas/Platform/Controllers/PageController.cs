@@ -201,8 +201,8 @@ public class PageController : Controller
         var template = page.TemplateId != null ? _templates.GetById(page.TemplateId.Value) : null;
         if (template == null) return Content("页面实例未绑定模板（TemplateId 为空）");
 
-        // 1) 原始参数：用户在 DynCom 参数面板填写的结果（存于实例 ConfigJson）
-        var rawParams = TryParseDict(page.ConfigJson);
+        // 1) 原始参数：用户在参数面板填写的结果（存于实例 ParamsJson；积木模板另有 blocks 槽位分组）
+        var rawParams = TryParseDict(page.ParamsJson);
 
         // 2) 自动推导：TableName 有值且 Url 为空 → 补 dyndata 免 model 接口；手动填写优先
         var effective = BuildEffectiveParams(rawParams);
