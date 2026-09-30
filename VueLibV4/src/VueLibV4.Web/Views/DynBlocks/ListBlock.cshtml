@@ -33,9 +33,8 @@
      data-blk-project="@blkProject" data-blk-keyfield="@blkKeyField" class="dyn-blk-list">
     <div class="dyn-blk-list__error" v-if="ctxState==='error'">{{ ctxError }}</div>
     <div class="dyn-blk-list__toolbar">
-        @* 按钮统一走 dyn-click 动作体系；操作列按钮通过 data-row-id 把当前行主键传给动作（ctx.params['row-id']）。
-           注意：el-button 会拦截冒泡阻断 dyn 委托，故用【原生 button + el-button 样式类】保持视觉一致。 *@
-        <button type="button" class="el-button el-button--primary el-button--small" data-dyn-click-ListAdd>+ 新增</button>
+        @* Block 内部固定行为直接用 Vue 原生事件（不再走 dyn 全局动作表，无需 defineAction 转发）。 *@
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">+ 新增</button>
     </div>
     <el-table :data="model.rows" v-loading="model.loading" size="small" border>
         <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label"
@@ -51,9 +50,9 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
-                <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListEdit :data-row-id="scope.row[keyField]">编辑</button>
-                <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListAddChild :data-row-id="scope.row[keyField]">+子</button>
-                <button type="button" class="el-button el-button--small is-link is-text" data-dyn-click-ListDelete :data-row-id="scope.row[keyField]">删除</button>
+                <button type="button" class="el-button el-button--small is-link" @@click="onEdit(scope.row)">编辑</button>
+                <button type="button" class="el-button el-button--small is-link" @@click="onAddChild(scope.row)">+子</button>
+                <button type="button" class="el-button el-button--small is-link is-text" @@click="onDelete(scope.row)">删除</button>
             </template>
         </el-table-column>
     </el-table>
@@ -236,38 +235,10 @@
                 } else {
                     doDelete();
                 }
-            },
-            // 由动作 ctx.params['row-id'] 反查当前行（dyn-click 传参，操作列按钮 data-row-id）
-            findRow: function (ctx) {
-                var vm = ctx && ctx.vm;
-                var id = ctx && ctx.params && ctx.params['row-id'];
-                if (!vm || id === null || id === undefined) return null;
-                var kf = vm.keyField || 'Id';
-                return (vm.model.rows || []).find(function (r) { return String(r[kf]) === String(id); }) || null;
-            },
-            // 注册本 Block 的操作动作（全部以 ctx.vm 为准——同页多个 ListBlock 时各点各的，不依赖闭包 self）
-            registerActions: function () {
-                if (!dyn || typeof dyn.defineAction !== 'function') return;
-                dyn.defineAction('ListAdd', function (ctx) { var vm = ctx && ctx.vm; if (vm) vm.onAdd(); });
-                dyn.defineAction('ListEdit', function (ctx) {
-                    var vm = ctx && ctx.vm, row = vm ? vm.findRow(ctx) : null;
-                    if (vm && row) vm.onEdit(row);
-                });
-                dyn.defineAction('ListAddChild', function (ctx) {
-                    var vm = ctx && ctx.vm, row = vm ? vm.findRow(ctx) : null;
-                    if (vm && row) vm.onAddChild(row);
-                });
-                dyn.defineAction('ListDelete', function (ctx) {
-                    var vm = ctx && ctx.vm, row = vm ? vm.findRow(ctx) : null;
-                    if (vm && row) vm.onDelete(row);
-                });
-                // 注意：无需调用 dyn.rebindActions —— generateSelector 在每次点击时动态生成，
-                // 动作注册后即生效；多次 rebind 反而导致 document 监听叠加（一次点击触发多次动作）。
             }
         },
-        // 挂载完成：注册动作 + 水合（水合内注册命令并首次加载）
+        // 挂载完成：水合（水合内注册命令并首次加载）
         mounted: function () {
-            this.registerActions();
             var self = this;
             __hydrateCb = function () { self.__hydrate(); };
             if (__ctx.state !== 'loading') this.__hydrate();

@@ -27,12 +27,9 @@
         <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
     </div>
     <div class="dyn-blk-filter__btns">
-        @* 按钮用 dyn-click 动作体系（平台规范，对齐 DetailTemplate）：动作经 defineAction 注册，
-           委托在 document 捕获层触发，ctx.vm 自动指向本 Block 的 proxy。
-           注意：Element Plus 的 el-button 会拦截事件冒泡、阻断 dyn 的 document 委托捕获，
-           故此处用【原生 button + el-button 样式类】保持视觉一致，事件可正常冒泡到委托。 *@
-        <button type="button" class="el-button el-button--primary el-button--small" data-dyn-click-FilterQuery>查询</button>
-        <button type="button" class="el-button el-button--small" data-dyn-click-FilterReset>重置</button>
+        @* Block 内部固定行为直接用 Vue 原生事件（不再走 dyn 全局动作表，无需 defineAction 转发）。 *@
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="query()">查询</button>
+        <button type="button" class="el-button el-button--small" @@click="reset()">重置</button>
     </div>
     <script type="text/plain" tag="dynconfig">
     // 注意：由 mount 以 new Function('element','dyn',...) 执行，必须顶层定义 var dynConfig（勿包 IIFE）
@@ -128,24 +125,9 @@
                 this.filterModel = JSON.parse(JSON.stringify(this.__initModel));
                 var msg = __ctx.msgCenter;
                 if (msg) msg.emitEvent('filter.changed', { params: {} });
-            },
-            // 注册本 Block 的查询/重置动作（dyn-click 委托在 document 捕获层触发，ctx.vm 即本 Block proxy）
-            registerActions: function () {
-                if (!dyn || typeof dyn.defineAction !== 'function') return;
-                dyn.defineAction('FilterQuery', function (ctx) {
-                    var vm = ctx && ctx.vm;
-                    if (vm && typeof vm.query === 'function') return vm.query();
-                });
-                dyn.defineAction('FilterReset', function (ctx) {
-                    var vm = ctx && ctx.vm;
-                    if (vm && typeof vm.reset === 'function') return vm.reset();
-                });
-                // 注意：无需 dyn.rebindActions —— generateSelector 每次点击动态生成，动作注册即生效；
-                // 多次 rebind 会导致 document 监听叠加（一次点击触发多次动作）。
             }
         },
         mounted: function () {
-            this.registerActions();
             var self = this;
             __hydrateCb = function () { self.__hydrate(); };
             if (__ctx.state !== 'loading') this.__hydrate();
