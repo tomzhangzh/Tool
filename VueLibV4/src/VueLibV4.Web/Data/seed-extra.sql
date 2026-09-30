@@ -99,7 +99,7 @@ SELECT 'student-manage',
 WHERE NOT EXISTS (SELECT 1 FROM DynWebPage WHERE Code='student-manage');
 
 -- ---------------- M4 三屏固定模板（筛选区/列表区/详情区；固定 Razor View 渲染，配置树存 PageSetting） ----------------
-INSERT INTO DynTemplate (Code, Name, Category, Icon, TemplateJson, ConfigJson, Description, SortNo, IsActive)
+INSERT INTO DynTemplate (Code, Name, Category, Icon, DefaultJson, ConfigJson, Description, SortNo, IsActive)
 SELECT 'filter-list-detail', '三屏列表页（筛选/列表/详情）', '固定模板', '🗂️',
        NULL,
        '{"params":["code"],"regions":["filter","list","detail"],"runUrl":"/Business/Templates/Run?code={code}","detailUrl":"/Business/Templates/Detail?code={code}","saveUrl":"/Business/Templates/Save?code={code}"}',

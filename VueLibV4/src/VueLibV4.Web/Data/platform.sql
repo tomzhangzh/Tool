@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS DynTemplate (
     Name         TEXT NOT NULL,
     Category     TEXT NULL,
     Icon         TEXT NULL,
-    TemplateJson TEXT NULL,
+    DefaultJson  TEXT NULL,
     ConfigJson   TEXT NULL,
     Description  TEXT NULL,
     ViewPath     TEXT NULL,

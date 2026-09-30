@@ -71,7 +71,7 @@ public class MgmtController : Controller
         return PartialView(string.Format(Page, "DesktopShortcutForm"));
     }
 
-    /// <summary>页面模板管理（DynTemplate：外壳 ViewPath + ConfigJson 参数面板 + TemplateJson 页面树）</summary>
+    /// <summary>页面模板管理（DynTemplate：外壳 ViewPath + ConfigJson 参数面板 + DefaultJson 默认配置）</summary>
     [HttpGet("/Platform/Mgmt/DynTemplateMgmt")]
     public IActionResult DynTemplateMgmt()
     {

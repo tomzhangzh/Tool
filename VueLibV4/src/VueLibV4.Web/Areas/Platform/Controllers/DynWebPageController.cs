@@ -59,7 +59,7 @@ public class DynWebPageController : ControllerBase
 
     /// <summary>
     /// 运行时渲染数据：解析 PageJson；
-    /// 若页面未实例化（PageJson 为空）则回退到模板 TemplateJson —— 选择模板+配置即完成页面。
+    /// 若页面未实例化（PageJson 为空）则回退到模板 DefaultJson —— 选择模板+配置即完成页面。
     /// </summary>
     [HttpGet("render")]
     public ApiResult Render(string id, string code = null)
@@ -80,7 +80,7 @@ public class DynWebPageController : ControllerBase
             var tpl = _templates.GetById(row.TemplateId.Value);
             if (tpl != null)
             {
-                try { config = JObject.Parse(tpl.TemplateJson ?? "{}"); } catch { config = null; }
+                try { config = JObject.Parse(tpl.DefaultJson ?? "{}"); } catch { config = null; }
             }
         }
 

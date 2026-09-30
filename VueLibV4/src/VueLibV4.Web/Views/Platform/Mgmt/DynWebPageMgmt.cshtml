@@ -3,8 +3,8 @@
 }
 @*
   页面实例管理（DynWebPage）：
-  · 选择一个 DynTemplate → 按模板 ConfigJson（DynCom 组件树 childrenctrls）渲染参数面板 → 保存实例
-  · TableName 驱动免 model：ListUrl/AddUrl/EditUrl/DeleteUrl 留空自动推导 dyndata 接口
+  · 选择一个 DynTemplate → 按模板 ConfigJson（标准 DynamicControl DSL：DynElCollapse + Com 控件）渲染参数面板 → 保存实例
+  · 新建页面：实例参数以模板 DefaultJson（模板默认值）初始化；编辑页面：以 DefaultJson 为底叠加已保存实例参数
   · 运行入口：/Platform/Page/DynWebPage?id={Id}（可直接挂到系统菜单）
   · 数据走 /api/platform/dynwebpage/*（all / get / save / delete）+ /api/platform/dyntemplate/all（模板）
 *@
@@ -60,41 +60,19 @@
                 <el-select v-model="form.TemplateId" style="width:100%" @@change="onTemplateChange">
                     <el-option v-for="t in templates" :key="t.Id" :label="t.Name + '（' + t.Code + '）'" :value="t.Id"></el-option>
                 </el-select>
-                <div style="line-height:1.4;color:#909399;font-size:12px;margin-top:4px;">选择模板后，下方按模板 ConfigJson 渲染参数面板</div>
+                <div style="line-height:1.4;color:#909399;font-size:12px;margin-top:4px;">选择模板后，下方按模板 ConfigJson（DynamicControl DSL）渲染参数面板</div>
             </el-form-item>
 
-            <el-divider content-position="left">实例参数（DynCom · {{ currentTemplate ? currentTemplate.Name : '' }}）</el-divider>
-            <div v-if="paramGroups.length" class="param-panel">
-                <template v-for="(g, gi) in paramGroups" :key="gi">
-                    <!-- 普通字段项 -->
-                    <el-form-item v-if="g.type === 'field'" :label="g.def.labeloptions && g.def.labeloptions.label ? g.def.labeloptions.label : g.field"
-                                  :required="g.def.labeloptions && g.def.labeloptions.required"
-                                  :style="(g.def.itemoptions && g.def.itemoptions.style) ? g.def.itemoptions.style : {}">
-                        <el-select v-if="g.def.type === 'settingSelect'" v-model="params[g.field]" clearable placeholder="选择 PageSetting" style="width:100%">
-                            <el-option v-for="s in settings" :key="s.Id" :label="s.Name + '（' + s.SettingType + '）'" :value="s.Id"></el-option>
-                        </el-select>
-                        <el-input v-else v-model="params[g.field]" :placeholder="(g.def.comoptions && g.def.comoptions.placeholder) || ''" clearable></el-input>
-                    </el-form-item>
-                    <!-- 折叠分组项：一组配置折叠成面板，内部仍按字段渲染 -->
-                    <el-collapse v-else class="param-group" v-model="activeGroups">
-                        <el-collapse-item :name="g.name" :title="g.label">
-                            <el-form-item v-for="f in g.children" :key="f.field"
-                                          :label="f.labeloptions && f.labeloptions.label ? f.labeloptions.label : f.field"
-                                          :required="f.labeloptions && f.labeloptions.required"
-                                          :style="(f.itemoptions && f.itemoptions.style) ? f.itemoptions.style : {}">
-                                <el-select v-if="f.type === 'settingSelect'" v-model="params[f.field]" clearable placeholder="选择 PageSetting" style="width:100%">
-                                    <el-option v-for="s in settings" :key="s.Id" :label="s.Name + '（' + s.SettingType + '）'" :value="s.Id"></el-option>
-                                </el-select>
-                                <el-input v-else v-model="params[f.field]" :placeholder="(f.comoptions && f.comoptions.placeholder) || ''" clearable></el-input>
-                            </el-form-item>
-                        </el-collapse-item>
-                    </el-collapse>
-                </template>
-                <div style="line-height:1.4;color:#909399;font-size:12px;padding:0 10px 6px;">
-                    TableName 有值且 ListUrl/AddUrl/EditUrl/DeleteUrl 留空 → 自动生成 dyndata 免 model 接口；手动填写 URL 优先。
-                </div>
-            </div>
+            <el-divider content-position="left">实例参数（DynamicControl · {{ currentTemplate ? currentTemplate.Name : '' }}）</el-divider>
+            <dyn-dynamic-com v-if="templateCfg && templateCfg.component"
+                             :jsonconfig="templateCfg"
+                             :parentmodelinfo="params"
+                             style="padding:0 2px;"></dyn-dynamic-com>
+            <el-empty v-else-if="form.TemplateId" :image-size="60" description="模板未配置参数面板（ConfigJson 需为标准 DynamicControl DSL，且顶层含 component）"></el-empty>
             <el-empty v-else :image-size="60" description="请先选择模板"></el-empty>
+            <div v-if="templateCfg && templateCfg.component" style="line-height:1.4;color:#909399;font-size:12px;padding:0 10px 6px;">
+                TableName 有值且 ListUrl/AddUrl/EditUrl/DeleteUrl 留空 → 自动生成 dyndata 免 model 接口；手动填写 URL 优先。
+            </div>
 
             <el-divider content-position="left">运行信息</el-divider>
             <div style="line-height:1.8;color:#303133;font-size:13px;">
@@ -115,15 +93,15 @@
                 loading: false, saving: false,
                 rows: [],
                 templates: [],
-                settings: [],
                 templateMap: {},
                 dialog: { visible: false, title: '新建页面' },
                 currentTemplate: null,
-                paramFields: [],
-                // 分组化参数面板：每项 {type:'field', field, def} 或 {type:'group', label, children:[fields]}
-                paramGroups: [],
-                activeGroups: [],
+                // 模板 ConfigJson（标准 DynamicControl DSL 配置树），由 dyn-dynamic-com 渲染参数面板
+                templateCfg: {},
+                // 运行时「进入设计器」带 id 自动打开编辑的页面 Id
+                autoEditId: null,
                 form: { Id: 0, Code: '', Name: '', TemplateId: null, ConfigJson: '', IsActive: true },
+                // 实例参数：作为 parentmodelinfo 传给 dyn-dynamic-com；保存时 JSON.stringify(params)
                 params: {}
             };
         },
@@ -145,15 +123,13 @@
                 this.loading = true;
                 Promise.all([
                     fetch('/api/platform/dynwebpage/all').then(function (r) { return r.json(); }),
-                    fetch('/api/platform/dyntemplate/all').then(function (r) { return r.json(); }),
-                    fetch('/api/platform/pagesetting/all').then(function (r) { return r.json(); })
+                    fetch('/api/platform/dyntemplate/all').then(function (r) { return r.json(); })
                 ]).then(function (arr) {
                     self.loading = false;
-                    var wp = arr[0], tp = arr[1], ps = arr[2];
+                    var wp = arr[0], tp = arr[1];
                     if (wp.code !== 0) { dyn.showMessage(wp.msg || '加载失败', 'error'); return; }
                     self.rows = wp.data || [];
                     self.templates = (tp.data || []).filter(function (x) { return x.IsActive; });
-                    self.settings = (ps.data || []).filter(function (x) { return x.IsActive; });
                     self.templateMap = {};
                     (tp.data || []).forEach(function (t) { self.templateMap[t.Id] = t; });
                 }).catch(function () { self.loading = false; dyn.showMessage('加载失败', 'error'); });
@@ -161,62 +137,38 @@
             resetForm: function () {
                 this.form = { Id: 0, Code: '', Name: '', TemplateId: null, ConfigJson: '', IsActive: true };
                 this.params = {};
-                this.paramFields = [];
+                this.templateCfg = {};
                 this.currentTemplate = null;
             },
             onAdd: function () {
                 this.resetForm();
                 this.dialog = { visible: true, title: '新建页面' };
             },
+            // 选择模板后：解析模板 ConfigJson 为 DynamicControl 配置树；新建以模板 DefaultJson 初始化实例参数
             onTemplateChange: function (tid) {
                 var self = this;
                 this.currentTemplate = this.templateMap[tid] || null;
-                this.paramFields = [];
-                this.paramGroups = [];
-                this.activeGroups = [];
+                this.templateCfg = {};
                 this.params = {};
                 if (!tid) return;
                 fetch('/api/platform/dyntemplate/get?id=' + tid).then(function (r) { return r.json(); }).then(function (res) {
                     if (res.code !== 0 || !res.data) return;
                     var t = res.data;
-                    try {
-                        var cfg = JSON.parse(t.ConfigJson || '{}');
-                        var parsed = self.parseParamFields(cfg);
-                        self.paramFields = parsed.flat;
-                        self.paramGroups = parsed.groups;
-                        self.activeGroups = parsed.groups.filter(function (g) { return g.type === 'group'; }).map(function (g) { return g.name; });
-                        // 默认值
-                        parsed.flat.forEach(function (f) {
-                            if (f.defaultValue !== undefined && f.defaultValue !== null) self.params[f.field] = f.defaultValue;
-                            else self.params[f.field] = null;
-                        });
-                    } catch (e) { dyn.showMessage('模板 ConfigJson 解析失败', 'warning'); }
+                    self.currentTemplate = t;
+                    var cfg = {};
+                    try { cfg = JSON.parse(t.ConfigJson || '{}'); } catch (e) { cfg = {}; }
+                    self.templateCfg = cfg;
+                    var def = {};
+                    try { def = JSON.parse(t.DefaultJson || '{}'); } catch (e) { def = {}; }
+                    self.params = def || {};
                 });
-            },
-            // 解析模板 ConfigJson 的 childrenctrls：普通字段项 → {type:'field'}；含 children 的节点 → 折叠分组 {type:'group'}
-            // 同时返回 flat（全部字段，用于默认值/保存值读写）
-            parseParamFields: function (cfg) {
-                var groups = [], flat = [];
-                (cfg.childrenctrls || []).forEach(function (c) {
-                    if (c.children && Array.isArray(c.children)) {
-                        var kids = c.children.filter(function (f) { return f.field; });
-                        groups.push({ type: 'group', name: c.name || c.field || ('g' + groups.length), label: c.label || c.title || '配置', children: kids });
-                        kids.forEach(function (k) { flat.push(k); });
-                    } else if (c.field) {
-                        groups.push({ type: 'field', field: c.field, def: c });
-                        flat.push(c);
-                    }
-                });
-                return { groups: groups, flat: flat };
             },
             onEdit: function (row) {
                 var self = this;
                 this.form = Object.assign({}, row);
                 this.dialog = { visible: true, title: '编辑页面：' + row.Name };
                 this.params = {};
-                this.paramFields = [];
-                this.paramGroups = [];
-                this.activeGroups = [];
+                this.templateCfg = {};
                 this.currentTemplate = null;
                 var tid = row.TemplateId;
                 if (!tid) return;
@@ -225,18 +177,15 @@
                     if (res.code !== 0 || !res.data) return;
                     var t = res.data;
                     self.currentTemplate = t;
-                    try {
-                        var cfg = JSON.parse(t.ConfigJson || '{}');
-                        var parsed = self.parseParamFields(cfg);
-                        self.paramFields = parsed.flat;
-                        self.paramGroups = parsed.groups;
-                        self.activeGroups = parsed.groups.filter(function (g) { return g.type === 'group'; }).map(function (g) { return g.name; });
-                        var saved = {};
-                        try { saved = JSON.parse(row.ConfigJson || '{}'); } catch (e2) { saved = {}; }
-                        parsed.flat.forEach(function (f) {
-                            self.params[f.field] = (saved[f.field] !== undefined && saved[f.field] !== null) ? saved[f.field] : null;
-                        });
-                    } catch (e) { dyn.showMessage('模板 ConfigJson 解析失败', 'warning'); }
+                    var cfg = {};
+                    try { cfg = JSON.parse(t.ConfigJson || '{}'); } catch (e) { cfg = {}; }
+                    self.templateCfg = cfg;
+                    var def = {};
+                    try { def = JSON.parse(t.DefaultJson || '{}'); } catch (e) { def = {}; }
+                    var saved = {};
+                    try { saved = JSON.parse(row.ConfigJson || '{}'); } catch (e) { saved = {}; }
+                    // 编辑：以模板 DefaultJson 为底，叠加已保存的实例参数
+                    self.params = Object.assign({}, def, saved);
                 });
             },
             onSave: function () {
@@ -291,7 +240,20 @@
                 });
             }
         },
-        mounted: function () { this.load(); }
+        mounted: function () {
+            var self = this;
+            this.load();
+            // 支持 /DynWebPageMgmt?id={pageId}：加载完成后自动打开该页面编辑弹窗（运行时「进入设计器」入口）
+            var m = (window.location.search || '').match(/[?&]id=(\d+)/);
+            if (m && m[1]) {
+                this.autoEditId = parseInt(m[1], 10);
+                this.$watch('rows', function (rows) {
+                    if (self.autoEditId == null) return;
+                    var row = (rows || []).find(function (r) { return r.Id === self.autoEditId; });
+                    if (row) { self.onEdit(row); self.autoEditId = null; }
+                });
+            }
+        }
     };
     </script>
 </div>

@@ -3,8 +3,8 @@
 }
 @*
   页面模板管理（DynTemplate）：
-  · 模板 = 外壳 ViewPath + ConfigJson（DynCom 参数面板，DynWebPage 新建时渲染）+ TemplateJson（页面配置树）
-  · 列表 el-table + 编辑弹窗（ConfigJson / TemplateJson 文本编辑）
+  · 模板 = 外壳 ViewPath + ConfigJson（DynamicControl 参数面板，DynWebPage 新建时渲染）+ DefaultJson（模板默认值）
+  · 列表 el-table + 编辑弹窗（ConfigJson / DefaultJson 文本编辑）
   · 数据走 /api/platform/dyntemplate/*（all / get / save / delete）
 *@
 <div data-dyn-init-createapp class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
@@ -86,8 +86,8 @@
                 完整 DynCom 组件树：{ "type":"form", "mPassThrough":{...}, "childrenctrls":[ { "field":"TableName", "type":"input", "labeloptions":{...}, "comoptions":{...} } ] }
             </div>
 
-            <el-divider content-position="left">TemplateJson · 页面配置树（外壳可选使用：columns / formFields / filterFields）</el-divider>
-            <el-input v-model="form.TemplateJson" type="textarea" :rows="10" spellcheck="false" style="font-family:Consolas,Menlo,monospace;font-size:12px;"></el-input>
+            <el-divider content-position="left">DefaultJson · 模板默认值（新建页面实例时复制为初始参数）</el-divider>
+            <el-input v-model="form.DefaultJson" type="textarea" :rows="10" spellcheck="false" style="font-family:Consolas,Menlo,monospace;font-size:12px;"></el-input>
         </el-form>
         <template #footer>
             <el-button size="small" @@click="dialog.visible=false">取消</el-button>
@@ -106,7 +106,7 @@
                     Id: 0, Code: '', Name: '', Category: '', Icon: '',
                     ViewPath: '~/Views/DynTemplates/CrudBasic.cshtml',
                     Description: '', SortNo: 0, IsActive: true,
-                    ConfigJson: '', TemplateJson: ''
+                    ConfigJson: '', DefaultJson: ''
                 }
             };
         },
@@ -124,7 +124,7 @@
                     Id: 0, Code: '', Name: '', Category: '', Icon: '',
                     ViewPath: '~/Views/DynTemplates/CrudBasic.cshtml',
                     Description: '', SortNo: 0, IsActive: true,
-                    ConfigJson: '', TemplateJson: ''
+                    ConfigJson: '', DefaultJson: ''
                 };
             },
             onAdd: function () {

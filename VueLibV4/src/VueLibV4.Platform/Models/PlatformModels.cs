@@ -198,7 +198,7 @@ public class DynActionHelper
 
 /// <summary>
 /// 页面模板：预定义模板（学生管理 CRUD / 左树右列表 / 主页 / 空白页 等）。
-/// TemplateJson = 可实例化的 DynCom 配置树；ConfigJson = 模板参数 schema（用户配置后即生成页面）。
+/// DefaultJson = 模板默认配置/默认值；ConfigJson = 模板参数 schema（DynamicControl 渲染参数面板）。
 /// </summary>
 [SugarTable("DynTemplate")]
 public class DynTemplate
@@ -218,8 +218,9 @@ public class DynTemplate
     [SugarColumn(Length = 200, IsNullable = true)]
     public string? Icon { get; set; }
 
+    /// <summary>模板默认配置/默认值 JSON：新建页面实例时复制作为初始参数；等价于旧字段 TemplateJson（页面配置树）。</summary>
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
-    public string? TemplateJson { get; set; }
+    public string? DefaultJson { get; set; }
 
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ConfigJson { get; set; }
@@ -242,7 +243,7 @@ public class DynTemplate
 
 /// <summary>
 /// 动态网页：真正的动态页面。选择一个 DynTemplate，结合用户配置参数（ConfigJson）实例化 PageJson 即可运行。
-/// PageJson 为空时回退模板 TemplateJson（模板即页面）。
+/// PageJson 为空时回退模板 DefaultJson（模板即页面）。
 /// 外键一律使用 int Id（ProjectId → DynProject.Id；TemplateId → DynTemplate.Id）。
 /// 三屏配置（Filter/List/Detail 的 PageSettingId）不再作为独立列，统一作为实例参数存于 ConfigJson，由模板渲染时读取。
 /// </summary>

@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VueLibV4.Platform.Services;
@@ -26,15 +27,18 @@ public class PageController : Controller
     private readonly IDynWebPageService _webPages;
     private readonly IDynTemplateService _templates;
     private readonly IPageSettingService _settings;
+    private readonly IConfiguration _config;
 
     public PageController(
         IDynWebPageService webPages,
         IDynTemplateService templates,
-        IPageSettingService settings)
+        IPageSettingService settings,
+        IConfiguration config)
     {
         _webPages = webPages;
         _templates = templates;
         _settings = settings;
+        _config = config;
     }
 
     /// <summary>工作台桌面（DesktopSolution + DesktopShortcut）</summary>
@@ -203,9 +207,9 @@ public class PageController : Controller
         }
         catch { }
 
-        // 4) 模板页面配置树（外壳可选用）
+        // 4) 模板默认配置（外壳可选用）
         var templateConfig = new JObject();
-        try { templateConfig = JObject.Parse(template.TemplateJson ?? "{}"); } catch { }
+        try { templateConfig = JObject.Parse(template.DefaultJson ?? "{}"); } catch { }
 
         // 5) 引用 PageSetting 配置：列表页加载 Filter/List；Detail 屏一并预加载
         //    （crud-basic 列表页不直接使用；tree-basic 树形模板右侧内嵌表单按需使用 Detail 屏配置）。
@@ -239,11 +243,15 @@ public class PageController : Controller
 
         ViewData["Title"] = page.Name + " - VueLibV4";
         ViewData["ApiBase"] = "/api";
+        // 运行时右上角「进入设计器」入口：由配置 Dyn:ShowRuntimeDesignEntry 控制显隐（无认证时以此充当"管理员可见"开关）
+        ViewData["ShowDesignEntry"] = _config.GetValue<bool>("Dyn:ShowRuntimeDesignEntry");
         var viewPath = string.IsNullOrWhiteSpace(template.ViewPath) ? "~/Views/DynTemplates/CrudBasic.cshtml" : template.ViewPath;
-        // 积木化模板（triscreen-blocks 三屏 / filterlist-crud 筛选列表）：模板自行从 ConfigJson 读实例参数 +
-        // PageSettingService 读取相关 PageSetting 并动态拼装根 model（业务 key 由模板决定），直接透传 DynWebPage 实例。
+        // 积木化模板（triscreen-blocks 三屏 / filterlist-crud 筛选列表 / tree-detail 树形管理）：
+        // 模板自行从 ConfigJson 读实例参数 + PageSettingService 读取相关 PageSetting 并动态拼装根 model
+        // （业务 key 由模板决定），直接透传 DynWebPage 实例。
         if (string.Equals(template.Code, "triscreen-blocks", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "filterlist-crud", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(template.Code, "filterlist-crud", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "tree-detail", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);
         }

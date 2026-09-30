@@ -42,6 +42,9 @@ public class Seeder
         using var conn = OpenSqlite(cs);
         conn.Open();
 
+        // 旧列改名迁移：必须最先执行（seed-extra.sql 的 INSERT 引用 DefaultJson 列；新库建表已含，旧库需先 RENAME）
+        EnsureTemplateDefaultJson(conn);
+
         if (TableExists(conn, "ComponentMeta"))
         {
             // 自愈：若种子新增的组件缺失（开发期换表结构/加组件），清空后重跑种子
@@ -186,21 +189,41 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
     private void EnsureColumn(SqliteConnection conn, string table, string column, string definition)
     {
         if (!TableExists(conn, table)) return;
-        using var check = conn.CreateCommand();
-        check.CommandText = $"PRAGMA table_info({table});";
-        var exists = false;
-        using (var rd = check.ExecuteReader())
-        {
-            while (rd.Read())
-            {
-                if (string.Equals(rd.GetString(1), column, StringComparison.OrdinalIgnoreCase)) { exists = true; break; }
-            }
-        }
-        if (exists) return;
+        if (HasColumn(conn, table, column)) return;
         using var alter = conn.CreateCommand();
         alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
         alter.ExecuteNonQuery();
         _logger.LogInformation("[Init] 迁移：{Table} 新增列 {Column}", table, column);
+    }
+
+    private bool HasColumn(SqliteConnection conn, string table, string column)
+    {
+        if (!TableExists(conn, table)) return false;
+        using var check = conn.CreateCommand();
+        check.CommandText = $"PRAGMA table_info({table});";
+        using var rd = check.ExecuteReader();
+        while (rd.Read())
+        {
+            if (string.Equals(rd.GetString(1), column, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// DynTemplate：TemplateJson → DefaultJson（模板默认值）。须在 seed-extra.sql 之前执行，
+    /// 因其 INSERT 引用 DefaultJson 列。新库建表已含 DefaultJson（幂等跳过），旧库 RENAME 保留数据。
+    /// </summary>
+    private void EnsureTemplateDefaultJson(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynTemplate")) return;
+        if (HasColumn(conn, "DynTemplate", "TemplateJson") && !HasColumn(conn, "DynTemplate", "DefaultJson"))
+        {
+            using var rn = conn.CreateCommand();
+            rn.CommandText = "ALTER TABLE DynTemplate RENAME COLUMN TemplateJson TO DefaultJson;";
+            rn.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：DynTemplate.TemplateJson → DefaultJson");
+        }
+        EnsureColumn(conn, "DynTemplate", "DefaultJson", "TEXT NULL");
     }
 
     // ---------------- DynTemplate / DynWebPage 种子 ----------------
@@ -213,7 +236,7 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
         cnt.CommandText = "SELECT COUNT(*) FROM DynTemplate WHERE Code='crud-basic';";
         if (Convert.ToInt32(cnt.ExecuteScalar()) > 0) return;
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, TemplateJson, ConfigJson, Description, SortNo, IsActive) VALUES ('crud-basic', '基础CRUD页面', '平台', '📋', '~/Views/DynTemplates/CrudBasic.cshtml', '{\"type\": \"page\", \"meta\": {\"title\": \"基础CRUD页面\"}, \"columns\": [{\"field\": \"Id\", \"label\": \"Id\", \"width\": 90}, {\"field\": \"Code\", \"label\": \"编码\", \"width\": 180}, {\"field\": \"Name\", \"label\": \"名称\", \"width\": 220}, {\"field\": \"IsActive\", \"label\": \"启用\", \"width\": 100, \"type\": \"tag\"}, {\"field\": \"CreateTime\", \"label\": \"创建时间\", \"width\": 190}], \"formFields\": [{\"field\": \"Code\", \"label\": \"编码\", \"type\": \"input\", \"required\": true}, {\"field\": \"Name\", \"label\": \"名称\", \"type\": \"input\", \"required\": true}, {\"field\": \"IsActive\", \"label\": \"启用\", \"type\": \"switch\"}], \"filterFields\": [{\"field\": \"Keyword\", \"label\": \"关键字\", \"type\": \"input\", \"placeholder\": \"名称/编码模糊搜索\"}, {\"field\": \"IsActive\", \"label\": \"启用\", \"type\": \"select\", \"options\": [{\"value\": \"\", \"label\": \"全部\"}, {\"value\": \"1\", \"label\": \"启用\"}, {\"value\": \"0\", \"label\": \"停用\"}]}], \"buttons\": [\"新增\", \"查询\", \"重置\"]}', '{\"type\": \"form\", \"mPassThrough\": {\"comoptions\": {\"labelWidth\": \"140px\", \"labelPosition\": \"right\"}}, \"childrenctrls\": [{\"field\": \"TableName\", \"type\": \"input\", \"labeloptions\": {\"label\": \"数据表名\", \"show\": true, \"required\": true}, \"comoptions\": {\"placeholder\": \"填写后自动生成dyndata的List/Save/Delete地址\"}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"ListUrl\", \"type\": \"input\", \"labeloptions\": {\"label\": \"列表接口Url\", \"show\": true, \"required\": false}, \"comoptions\": {\"placeholder\": \"为空则根据TableName自动生成\"}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"AddUrl\", \"type\": \"input\", \"labeloptions\": {\"label\": \"新增保存Url\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"EditUrl\", \"type\": \"input\", \"labeloptions\": {\"label\": \"编辑保存Url\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"DeleteUrl\", \"type\": \"input\", \"labeloptions\": {\"label\": \"删除Url\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"FilterPageSettingId\", \"type\": \"settingSelect\", \"labeloptions\": {\"label\": \"筛选配置Id\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"ListPageSettingId\", \"type\": \"settingSelect\", \"labeloptions\": {\"label\": \"列表配置Id\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"DetailPageSettingId\", \"type\": \"settingSelect\", \"labeloptions\": {\"label\": \"详情/编辑配置Id\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}]}', '免Model CRUD外壳：TableName 自动推导 dyndata 接口；可引用 Filter/List/Detail PageSetting 三屏配置', 1, 1);";
+        cmd.CommandText = "INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive) VALUES ('crud-basic', '基础CRUD页面', '平台', '📋', '~/Views/DynTemplates/CrudBasic.cshtml', '{\"type\": \"page\", \"meta\": {\"title\": \"基础CRUD页面\"}, \"columns\": [{\"field\": \"Id\", \"label\": \"Id\", \"width\": 90}, {\"field\": \"Code\", \"label\": \"编码\", \"width\": 180}, {\"field\": \"Name\", \"label\": \"名称\", \"width\": 220}, {\"field\": \"IsActive\", \"label\": \"启用\", \"width\": 100, \"type\": \"tag\"}, {\"field\": \"CreateTime\", \"label\": \"创建时间\", \"width\": 190}], \"formFields\": [{\"field\": \"Code\", \"label\": \"编码\", \"type\": \"input\", \"required\": true}, {\"field\": \"Name\", \"label\": \"名称\", \"type\": \"input\", \"required\": true}, {\"field\": \"IsActive\", \"label\": \"启用\", \"type\": \"switch\"}], \"filterFields\": [{\"field\": \"Keyword\", \"label\": \"关键字\", \"type\": \"input\", \"placeholder\": \"名称/编码模糊搜索\"}, {\"field\": \"IsActive\", \"label\": \"启用\", \"type\": \"select\", \"options\": [{\"value\": \"\", \"label\": \"全部\"}, {\"value\": \"1\", \"label\": \"启用\"}, {\"value\": \"0\", \"label\": \"停用\"}]}], \"buttons\": [\"新增\", \"查询\", \"重置\"]}', '{\"type\": \"form\", \"mPassThrough\": {\"comoptions\": {\"labelWidth\": \"140px\", \"labelPosition\": \"right\"}}, \"childrenctrls\": [{\"field\": \"TableName\", \"type\": \"input\", \"labeloptions\": {\"label\": \"数据表名\", \"show\": true, \"required\": true}, \"comoptions\": {\"placeholder\": \"填写后自动生成dyndata的List/Save/Delete地址\"}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"ListUrl\", \"type\": \"input\", \"labeloptions\": {\"label\": \"列表接口Url\", \"show\": true, \"required\": false}, \"comoptions\": {\"placeholder\": \"为空则根据TableName自动生成\"}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"AddUrl\", \"type\": \"input\", \"labeloptions\": {\"label\": \"新增保存Url\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"EditUrl\", \"type\": \"input\", \"labeloptions\": {\"label\": \"编辑保存Url\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"DeleteUrl\", \"type\": \"input\", \"labeloptions\": {\"label\": \"删除Url\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"FilterPageSettingId\", \"type\": \"settingSelect\", \"labeloptions\": {\"label\": \"筛选配置Id\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"ListPageSettingId\", \"type\": \"settingSelect\", \"labeloptions\": {\"label\": \"列表配置Id\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}, {\"field\": \"DetailPageSettingId\", \"type\": \"settingSelect\", \"labeloptions\": {\"label\": \"详情/编辑配置Id\", \"show\": true, \"required\": false}, \"itemoptions\": {\"style\": {\"marginBottom\": \"14px\"}}}]}', '免Model CRUD外壳：TableName 自动推导 dyndata 接口；可引用 Filter/List/Detail PageSetting 三屏配置', 1, 1);";
         cmd.ExecuteNonQuery();
         _logger.LogInformation("[Init] DynTemplate 种子 crud-basic 插入完成");
     }

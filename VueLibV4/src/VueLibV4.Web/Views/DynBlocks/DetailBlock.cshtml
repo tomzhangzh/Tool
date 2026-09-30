@@ -24,12 +24,13 @@
     var blkAddUrl = (ViewData["BlkAddUrl"] as string) ?? "";
     var blkEditUrl = (ViewData["BlkEditUrl"] as string) ?? "";
     var blkProject = (ViewData["BlkProject"] as string) ?? "";
+    var blkDeleteUrl = (ViewData["BlkDeleteUrl"] as string) ?? "";
     var blkModal = (ViewData["BlkModal"] as string) ?? "";
 }
 <div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-default="@blkDefault" data-blk-table="@blkTable"
-     data-blk-addurl="@blkAddUrl" data-blk-editurl="@blkEditUrl"
+     data-blk-addurl="@blkAddUrl" data-blk-editurl="@blkEditUrl" data-blk-deleteurl="@blkDeleteUrl"
      data-blk-project="@blkProject" data-blk-modal="@blkModal" class="db">
     <div class="db-errbar" v-if="formError">{{ formError }}</div>
     <div class="db-body">
@@ -40,6 +41,7 @@
            注意：el-button 会拦截冒泡阻断 dyn 委托，故用【原生 button + el-button 样式类】保持视觉一致；
            保存按钮用 :disabled 代替 loading（原生 button 无 loading 态）。 *@
         <button type="button" class="el-button el-button--small" data-dyn-click-DetailCancel>取消</button>
+        <button type="button" class="el-button el-button--danger el-button--small" :disabled="loading || !form[keyField]" data-dyn-click-DetailDelete>删除</button>
         <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" data-dyn-click-DetailSave>保存</button>
     </div>
     <script type="text/plain" tag="dynconfig">
@@ -69,6 +71,7 @@
             table: element.getAttribute('data-blk-table') || '',
             addUrl: element.getAttribute('data-blk-addurl') || '',
             editUrl: element.getAttribute('data-blk-editurl') || '',
+            deleteUrl: element.getAttribute('data-blk-deleteurl') || '',
             project: element.getAttribute('data-blk-project') || '',
             msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
         };
@@ -86,6 +89,8 @@
                 table: __ctx.table || '',
                 addUrl: __ctx.addUrl || '',
                 editUrl: __ctx.editUrl || '',
+                deleteUrl: __ctx.deleteUrl || '',
+                keyField: __ctx.keyField || 'Id',
                 project: __ctx.project || '',
                 modal: __ctx.modal === true,
                 __initForm: initForm
@@ -150,7 +155,10 @@
                 }
                 this.loading = true;
                 var isEdit = this.form && this.form.Id !== null && this.form.Id !== undefined && this.form.Id !== '';
-                DynCall.post(isEdit ? this.editUrl : this.addUrl, { table: this.table, data: this.form, project: this.project }, { scopeEl: element })
+                // 接口风格适配：/api/platform/* 为平台直连（save?table= 直接发行数据）；否则业务 dyndata（insert/update，body {table,data}）
+                var isPlat = (this.addUrl || '').indexOf('/api/platform/') === 0;
+                var body = isPlat ? this.form : { table: this.table, data: this.form, project: this.project };
+                DynCall.post(isEdit ? this.editUrl : this.addUrl, body, { scopeEl: element })
                     .then(function () {
                         self.loading = false;
                         self.formError = '';
@@ -177,7 +185,46 @@
                 this.form = JSON.parse(JSON.stringify(this.__initForm));
                 this.formError = '';
             },
-            // 注册本 Block 的保存/取消动作（dyn-click 委托在 document 捕获层触发，ctx.vm 即本 Block proxy）
+            // 删除：仅编辑态（有主键）可用。确认后 POST deleteUrl {table, keys:{Id}, project}，成功后发 detail.saved{action:'delete'}。
+            // 统一走 DynCall（信封解包 + 统一 toast）；blockId 判断用注册时的 'detail' 别名，宿主据此刷新（树/列表）。
+            onDelete: function () {
+                var self = this;
+                var id = this.form[this.keyField];
+                if (id === null || id === undefined || id === '' || id === 0) { dyn.showMessage('请先选择要删除的记录', 'warning'); return; }
+                if (!this.deleteUrl) { dyn.showMessage('未配置删除接口 deleteUrl', 'warning'); return; }
+                var doDelete = function () {
+                    self.loading = true;
+                    // 接口风格适配：平台直连 delete 用 query 传 table/id；业务 dyndata delete 用 body {table, keys}
+                    var isPlat = (self.deleteUrl || '').indexOf('/api/platform/') === 0;
+                    var dUrl = isPlat ? (self.deleteUrl + '?table=' + encodeURIComponent(self.table) + '&id=' + encodeURIComponent(id)) : self.deleteUrl;
+                    var dBody = isPlat ? {} : { table: self.table, keys: { Id: id }, project: self.project };
+                    DynCall.post(dUrl, dBody, { scopeEl: element })
+                        .then(function () {
+                            self.loading = false;
+                            dyn.showMessage('删除成功', 'success');
+                            self.form = JSON.parse(JSON.stringify(self.__initForm));
+                            self.formError = '';
+                            var msg = __ctx.msgCenter;
+                            if (msg) msg.emitEvent('detail.saved', { action: 'delete', row: { Id: id } });
+                            if (self.modal) {
+                                try {
+                                    window.dispatchEvent(new CustomEvent('dyndata.saved', { detail: { table: self.table, project: self.project } }));
+                                } catch (e) { }
+                                var layero = element.closest ? element.closest('.layui-layer') : null;
+                                if (window.layui && window.layui.layer) {
+                                    var times = layero ? layero.getAttribute('times') : null;
+                                    if (times && times !== '') window.layui.layer.close(times);
+                                    else window.layui.layer.closeAll();
+                                }
+                            }
+                        })
+                        .catch(function (e) { self.loading = false; /* DynCall 已统一 toast */ });
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else { doDelete(); }
+            },
+            // 注册本 Block 的保存/取消/删除动作（dyn-click 委托在 document 捕获层触发，ctx.vm 即本 Block proxy）
             registerActions: function () {
                 if (!dyn || typeof dyn.defineAction !== 'function') return;
                 dyn.defineAction('DetailSave', function (ctx) {
@@ -187,6 +234,10 @@
                 dyn.defineAction('DetailCancel', function (ctx) {
                     var vm = ctx && ctx.vm;
                     if (vm && typeof vm.onCancel === 'function') return vm.onCancel();
+                });
+                dyn.defineAction('DetailDelete', function (ctx) {
+                    var vm = ctx && ctx.vm;
+                    if (vm && typeof vm.onDelete === 'function') return vm.onDelete();
                 });
                 // 注意：无需 dyn.rebindActions —— generateSelector 每次点击动态生成，动作注册即生效；
                 // 多次 rebind 会导致 document 监听叠加（一次点击触发多次动作）。

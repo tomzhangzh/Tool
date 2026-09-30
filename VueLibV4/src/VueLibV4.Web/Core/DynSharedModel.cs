@@ -10,7 +10,7 @@ namespace VueLibV4.Web.Core;
 ///  - RawParams：用户在 DynWebPage.ConfigJson 保存的原始实例参数
 ///  - EffectiveParams：TableName 自动补齐 dyndata Url 之后最终生效的参数
 ///  - PassThrough：模板 ConfigJson 顶层 mPassThrough（透传属性）
-///  - TemplateConfig：模板 TemplateJson（可实例化的页面配置树，外壳可选使用）
+///  - TemplateConfig：模板 DefaultJson（模板默认配置，外壳可选使用）
 ///  - FilterConfig / ListConfig / DetailConfig：引用 PageSetting 的三屏配置树
 /// </summary>
 public class DynSharedModel

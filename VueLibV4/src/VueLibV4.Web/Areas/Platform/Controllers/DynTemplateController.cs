@@ -8,7 +8,7 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
 /// 页面模板：预定义模板（学生管理CRUD / 左树右列表 / 主页 / 空白页等）（强类型 Model + 强类型服务）。
-/// TemplateJson 为可实例化的 DynCom 配置树，ConfigJson 为模板参数 schema。
+/// DefaultJson 为模板默认配置/默认值，ConfigJson 为模板参数 schema。
 /// </summary>
 [Area("Platform")]
 [Route("api/platform/dyntemplate")]
@@ -40,7 +40,7 @@ public class DynTemplateController : ControllerBase
     {
         var row = FirstByIdOrCode(id);
         if (row == null) return ApiResult.Fail("模板不存在");
-        try { return ApiResult.Ok(JObject.Parse(row.TemplateJson ?? "{}")); }
+        try { return ApiResult.Ok(JObject.Parse(row.DefaultJson ?? "{}")); }
         catch { return ApiResult.Fail("模板JSON格式错误"); }
     }
 
