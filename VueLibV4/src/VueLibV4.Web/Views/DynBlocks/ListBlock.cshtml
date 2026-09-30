@@ -2,16 +2,17 @@
     // =====================================================================================
     // List 积木（平台规范·双模式版）：壳 + 动态列渲染，行为定义在 dynconfig。
     //   组合模式：容器带 data-root-ext-id + data-model-key + data-msg-center-key。
-    //             dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，再按 data-model-key
-    //             动态读取根 model 中【模板自定义】的配置对象（含 columns/table/loadUrl/deleteUrl），
-    //             按 data-msg-center-key 读取消息中心。Block 不预设根 model 的任何固定 key。
-    //   独立模式：未传 RootExtId 时，从自身 data-blk-config / data-blk-table / data-blk-loadurl /
-    //             data-blk-deleteurl 读取配置，自建消息中心
+    //             dynconfig 用 DynBlocks 公共能力找根 app 并动态读取根 model 中【模板自定义】的
+    //             配置对象（含 columns/table/loadUrl/deleteUrl/keyField）与消息中心；根 app 未就绪
+    //             时有限重试，始终拿不到则渲染显式错误，绝不静默自建消息中心降级成孤岛 Block。
+    //   独立模式：未传 RootExtId 时，从自身 data-blk-* 属性读取配置，自建消息中心
     //   - 列定义：PageSetting.ConfigJson 的 { columns:[...] }，el-table-column v-for 渲染
+    //     列能力：width/minWidth/align/fixed；cellType:'tag' 标签；options:[{value,label,type}]
+    //     字典映射；emptyText 空值占位
     //   - 自身 model：<script tag="dynmodel"> 初始骨架 { rows, page, size, total, loading, filter }
     //   - 消息（事件）：list.add / list.edit{row} / list.addChild{row}（经 msgCenter 发出）
     //   - 命令（接收）：loadData{filter} / reload —— 根 app 经消息中心 sendCommand 下发
-    //   - 网络：统一走 DynCall（信封解包 + 统一错误处理），不再手写 axios/fetch
+    //   - 网络：统一走 DynBlocks/DynCall（信封解包 + 平台/业务两种接口契约，统一错误处理）
     // =====================================================================================
     var extId = (ViewData["ExtId"] as string) ?? ("Lb" + Guid.NewGuid().ToString("N"));
     var rootExtId = (ViewData["RootExtId"] as string) ?? "";
@@ -29,14 +30,25 @@
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-table="@blkTable"
      data-blk-loadurl="@blkLoadUrl" data-blk-deleteurl="@blkDeleteUrl"
-     data-blk-project="@blkProject" data-blk-keyfield="@blkKeyField" class="lb">
-    <div class="lb-toolbar">
+     data-blk-project="@blkProject" data-blk-keyfield="@blkKeyField" class="dyn-blk-list">
+    <div class="dyn-blk-list__error" v-if="ctxState==='error'">{{ ctxError }}</div>
+    <div class="dyn-blk-list__toolbar">
         @* 按钮统一走 dyn-click 动作体系；操作列按钮通过 data-row-id 把当前行主键传给动作（ctx.params['row-id']）。
            注意：el-button 会拦截冒泡阻断 dyn 委托，故用【原生 button + el-button 样式类】保持视觉一致。 *@
         <button type="button" class="el-button el-button--primary el-button--small" data-dyn-click-ListAdd>+ 新增</button>
     </div>
     <el-table :data="model.rows" v-loading="model.loading" size="small" border>
-        <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label" :width="col.width || undefined"></el-table-column>
+        <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label"
+            :width="col.width || undefined" :min-width="col.minWidth || undefined"
+            :align="col.align || undefined" :fixed="col.fixed || undefined"
+            :show-overflow-tooltip="col.cellType !== 'tag'">
+            <template #default="scope">
+                <el-tag v-if="col.cellType === 'tag'" :type="cellTagType(col, scope.row)" size="small" effect="light">
+                    {{ formatCell(col, scope.row) }}
+                </el-tag>
+                <span v-else>{{ formatCell(col, scope.row) }}</span>
+            </template>
+        </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
                 <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListEdit :data-row-id="scope.row[keyField]">编辑</button>
@@ -45,66 +57,112 @@
             </template>
         </el-table-column>
     </el-table>
-    <div class="lb-page">
+    <div class="dyn-blk-list__page">
         <el-pagination background layout="total, prev, pager, next, sizes"
             :total="model.total" :current-page="model.page" :page-size="model.size"
             :page-sizes="[10, 20, 50, 100]" @@current-change="onPage" @@size-change="onSize"></el-pagination>
     </div>
     <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
     <script type="text/plain" tag="dynconfig">
-    // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
-    var __rid = element.getAttribute('data-root-ext-id');
-    var __rootApp = null;
-    if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }
-    var __ctx = {};
-    if (__rootApp) {
-        // 组合模式：配置对象由模板通过 data-model-key 指定，消息中心由 data-msg-center-key 指定（缺省 'msgCenter'）。
-        // 模板根 model 用什么 key 完全由模板决定，Block 不预设任何固定字段，只按传入 key 动态读取。
-        var __modelKey = element.getAttribute('data-model-key');
-        var __msgKey = element.getAttribute('data-msg-center-key') || 'msgCenter';
-        var __cfg = __modelKey ? __rootApp.model[__modelKey] : null;
-        if (__cfg && typeof __cfg === 'object') {
-            __ctx = __cfg;
-        } else if (__rid) {
-            console.error('[ListBlock] 根 model 不存在 key【' + __modelKey + '】或值非对象，请检查模板 Partial 传参 ModelKey');
+    // ========== 双模式上下文：组合（必须找到根 app，失败显式报错不降级）/ 独立（无 rootExtId，读 data-blk-*） ==========
+    var __ctx = {
+        columns: [], keyField: 'Id', table: '', loadUrl: '', deleteUrl: '', project: '',
+        msgCenter: null, state: 'loading', error: ''
+    };
+    var __hydrateCb = null;
+    var __unreg = null;
+    function __finishCtx() { if (__hydrateCb) __hydrateCb(); }
+    function __applyCombined(app) {
+        var r = DynBlocks.combinedCtx(element, app);
+        if (r.error) {
+            __ctx.state = 'error'; __ctx.error = r.error;
+            console.error('[ListBlock]', r.error);
+            return;
         }
-        __ctx.msgCenter = __rootApp.model[__msgKey] || null;
+        __ctx.columns = r.cfg.columns || [];
+        __ctx.keyField = r.cfg.keyField || 'Id';
+        __ctx.table = r.cfg.table || '';
+        __ctx.loadUrl = r.cfg.loadUrl || '';
+        __ctx.deleteUrl = r.cfg.deleteUrl || '';
+        __ctx.project = r.cfg.project || '';
+        __ctx.msgCenter = r.msg;
+        __ctx.state = 'ready';
+    }
+    function __applyStandalone() {
+        var indCfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
+        __ctx.columns = indCfg.columns || [];
+        __ctx.table = element.getAttribute('data-blk-table') || '';
+        __ctx.loadUrl = element.getAttribute('data-blk-loadurl') || '';
+        __ctx.deleteUrl = element.getAttribute('data-blk-deleteurl') || '';
+        __ctx.project = element.getAttribute('data-blk-project') || '';
+        __ctx.keyField = element.getAttribute('data-blk-keyfield') || indCfg.keyField || 'Id';
+        if (typeof createMessageCenter !== 'function') {
+            __ctx.state = 'error'; __ctx.error = '独立模式缺少 message-center.js，无法创建消息中心';
+            return;
+        }
+        __ctx.msgCenter = createMessageCenter();
+        __ctx.state = 'ready';
+    }
+    var __root = DynBlocks.getRoot(element);
+    if (!__root) {
+        __applyStandalone();
+    } else if (__root.app) {
+        __applyCombined(__root.app);
     } else {
-        // 独立模式：外部未注入根上下文 → 从自身 data-blk-config / data-blk-table / data-blk-loadurl / data-blk-deleteurl 读取，并自建消息中心。
-        // 约定：独立使用时，页面/容器需自行引入 message-center.js 并提供上述属性。
-        var __P = function (s) { try { return JSON.parse(s || 'null') || null; } catch (e) { return null; } };
-        var __indCfg = __P(element.getAttribute('data-blk-config')) || {};
-        __ctx = {
-            columns: __indCfg.columns || [],
-            table: element.getAttribute('data-blk-table') || '',
-            loadUrl: element.getAttribute('data-blk-loadurl') || '',
-            deleteUrl: element.getAttribute('data-blk-deleteurl') || '',
-            project: element.getAttribute('data-blk-project') || '',
-            keyField: element.getAttribute('data-blk-keyfield') || __indCfg.keyField || 'Id',
-            msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
-        };
+        // 声明了组合模式但根 app 未就绪：有限重试；超时显式报错，绝不静默自建消息中心
+        DynBlocks.whenRootReady(element, function (app, err) {
+            if (app) __applyCombined(app);
+            else { __ctx.state = 'error'; __ctx.error = err; console.error('[ListBlock]', err); }
+            __finishCtx();
+        });
     }
     var dynConfig = {
         data: function () {
             return {
+                ctxState: __ctx.state, ctxError: __ctx.error || '',
                 columns: __ctx.columns || [],
                 keyField: __ctx.keyField || 'Id',
                 table: __ctx.table || '',
                 loadUrl: __ctx.loadUrl || '',
                 deleteUrl: __ctx.deleteUrl || '',
-                project: __ctx.project || ''
+                project: __ctx.project || '',
+                ctxBound: false
             };
         },
         methods: {
-            // 加载列表：body {table,page,size,filter}；统一走 DynCall（信封解包，成功返回 data，失败已统一 toast）
+            // 上下文就绪后的统一水合：同步就绪时 mounted 直接调；异步就绪时回调调
+            __hydrate: function () {
+                this.ctxState = __ctx.state;
+                this.ctxError = __ctx.error || '';
+                if (__ctx.state !== 'ready') return;
+                this.columns = __ctx.columns || [];
+                this.keyField = __ctx.keyField || 'Id';
+                this.table = __ctx.table || '';
+                this.loadUrl = __ctx.loadUrl || '';
+                this.deleteUrl = __ctx.deleteUrl || '';
+                this.project = __ctx.project || '';
+                this.__bind();
+            },
+            // 注册命令接收 + 首次加载（仅一次；registerBlock 同名多接收者由消息中心支持）
+            __bind: function () {
+                if (this.ctxBound) return;
+                this.ctxBound = true;
+                var self = this, msg = __ctx.msgCenter;
+                if (msg && typeof msg.registerBlock === 'function') {
+                    __unreg = msg.registerBlock('list', function (cmd, payload) { return self.handleCommand(cmd, payload); });
+                }
+                this.loadData();
+            },
+            // 加载列表：两种接口风格 POST body 同构 {table,page,size,filter,project}；
+            // 统一走 DynBlocks.search（DynCall 信封解包，失败统一 toast）
             loadData: function () {
                 var self = this;
-                if (!this.table) return Promise.resolve(null);
+                if (!this.table || !this.loadUrl) return Promise.resolve(null);
                 this.model.loading = true;
-                return DynCall.post(this.loadUrl, {
+                return DynBlocks.search(this.loadUrl, {
                     table: this.table, page: this.model.page, size: this.model.size,
                     filter: this.model.filter || {}, project: this.project
-                }, { scopeEl: element })
+                }, element)
                     .then(function (data) {
                         self.model.loading = false;
                         self.model.rows = (data && data.rows) || [];
@@ -125,25 +183,48 @@
             },
             onPage: function (p) { this.model.page = p; this.loadData(); },
             onSize: function (s) { this.model.size = s; this.model.page = 1; this.loadData(); },
-            // 事件：+新增 / 行编辑 / +子（主子预填由根 app 处理）—— 经根 app model.msgCenter 发出
+            // ---------------- 列值呈现（cellType=tag / options 字典映射 / 空值占位） ----------------
+            // 命中列 options 项：options:[{value:1,label:'启用',type:'success'}]，值按字符串宽松比较
+            cellOption: function (col, row) {
+                var v = row ? row[col.field] : null;
+                if (col.options && col.options.length) {
+                    for (var i = 0; i < col.options.length; i++) {
+                        if (String(col.options[i].value) === String(v)) return col.options[i];
+                    }
+                }
+                return null;
+            },
+            // 显示文本：options.label 优先，其次原值；空值显示 col.emptyText（默认 '-'）
+            formatCell: function (col, row) {
+                var v = row ? row[col.field] : null;
+                if (v === null || v === undefined || v === '') return col.emptyText || '-';
+                var o = this.cellOption(col, row);
+                if (o && o.label !== undefined && o.label !== null) return o.label;
+                return v;
+            },
+            // tag 类型：options 项的 type 优先；无映射时按值真假给 success/info
+            cellTagType: function (col, row) {
+                var v = row ? row[col.field] : null;
+                var o = this.cellOption(col, row);
+                if (o && o.type) return o.type;
+                if (col.tagType) return col.tagType;
+                return v ? 'success' : 'info';
+            },
+            // 事件：+新增 / 行编辑 / +子（主子预填由根 app 处理）—— 经消息中心发出
             onAdd: function () { var msg = __ctx.msgCenter; if (msg) msg.emitEvent('list.add', {}); },
             onEdit: function (row) { var msg = __ctx.msgCenter; if (msg) msg.emitEvent('list.edit', { row: row }); },
             onAddChild: function (row) { var msg = __ctx.msgCenter; if (msg) msg.emitEvent('list.addChild', { row: row }); },
-            // 删除：平台直连 delete 用 query 传 table/id；业务 dyndata delete 用 body {table, keys:{主键}}。
-            // 删除前用平台原生 dyn.confirmAsync 确认；确认通过后删除，成功后本地刷新（DynCall 统一 toast）。
+            // 删除：契约统一收口在 DynBlocks.deleteRequest——
+            // 平台直连 delete 用 query 传 table/id（空 body）；业务 dyndata delete 用 body {table, keys:{主键}, project}。
+            // 删除前用 dyn.confirmAsync 确认；成功后本地刷新（DynCall 统一 toast）。
             onDelete: function (row) {
                 var self = this;
                 var kf = this.keyField || 'Id';
                 var id = row && row[kf];
                 if (id === null || id === undefined) return;
                 var doDelete = function () {
-                    var isPlat = (self.deleteUrl || '').indexOf('/api/platform/') === 0;
-                    var dUrl = isPlat
-                        ? (self.deleteUrl + '?table=' + encodeURIComponent(self.table) + '&id=' + encodeURIComponent(id))
-                        : self.deleteUrl;
-                    var keys = {}; keys[kf] = id;
-                    var dBody = isPlat ? {} : { table: self.table, keys: keys, project: self.project };
-                    DynCall.post(dUrl, dBody, { scopeEl: element })
+                    var req = DynBlocks.deleteRequest(self.deleteUrl, self.table, id, kf, self.project);
+                    DynCall.post(req.url, req.body, { scopeEl: element })
                         .then(function () {
                             dyn.showMessage('删除成功', 'success');
                             self.loadData();
@@ -164,42 +245,46 @@
                 var kf = vm.keyField || 'Id';
                 return (vm.model.rows || []).find(function (r) { return String(r[kf]) === String(id); }) || null;
             },
-            // 注册本 Block 的操作动作（ctx.vm 即本 Block proxy）
+            // 注册本 Block 的操作动作（全部以 ctx.vm 为准——同页多个 ListBlock 时各点各的，不依赖闭包 self）
             registerActions: function () {
                 if (!dyn || typeof dyn.defineAction !== 'function') return;
-                var self = this;
                 dyn.defineAction('ListAdd', function (ctx) { var vm = ctx && ctx.vm; if (vm) vm.onAdd(); });
                 dyn.defineAction('ListEdit', function (ctx) {
-                    var vm = ctx && ctx.vm, row = self.findRow(ctx);
+                    var vm = ctx && ctx.vm, row = vm ? vm.findRow(ctx) : null;
                     if (vm && row) vm.onEdit(row);
                 });
                 dyn.defineAction('ListAddChild', function (ctx) {
-                    var vm = ctx && ctx.vm, row = self.findRow(ctx);
+                    var vm = ctx && ctx.vm, row = vm ? vm.findRow(ctx) : null;
                     if (vm && row) vm.onAddChild(row);
                 });
                 dyn.defineAction('ListDelete', function (ctx) {
-                    var vm = ctx && ctx.vm, row = self.findRow(ctx);
+                    var vm = ctx && ctx.vm, row = vm ? vm.findRow(ctx) : null;
                     if (vm && row) vm.onDelete(row);
                 });
                 // 注意：无需调用 dyn.rebindActions —— generateSelector 在每次点击时动态生成，
                 // 动作注册后即生效；多次 rebind 反而导致 document 监听叠加（一次点击触发多次动作）。
             }
         },
-        // 挂载完成：加载列表 + 注册动作 + 向根 app 消息中心注册本积木（接收 loadData/reload 命令）
+        // 挂载完成：注册动作 + 水合（水合内注册命令并首次加载）
         mounted: function () {
-            this.loadData(); this.registerActions();
-            var self = this, msg = __ctx.msgCenter;
-            if (msg && typeof msg.registerBlock === 'function') {
-                msg.registerBlock('list', function (cmd, payload) { return self.handleCommand(cmd, payload); });
-            }
+            this.registerActions();
+            var self = this;
+            __hydrateCb = function () { self.__hydrate(); };
+            if (__ctx.state !== 'loading') this.__hydrate();
+        },
+        // 卸载：从消息中心摘除本接收者（同名多接收者支持），避免失效实例残留
+        beforeUnmount: function () {
+            if (__unreg) { try { __unreg(); } catch (e) { } __unreg = null; }
         }
     };
     </script>
 </div>
 
 <style>
-    .lb { display: flex; flex-direction: column; }
-    .lb-toolbar { margin-bottom: 12px; }
-    .lb .el-table { width: 100%; }
-    .lb-page { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .dyn-blk-list { display: flex; flex-direction: column; }
+    .dyn-blk-list__error { margin-bottom: 12px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
+        border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .dyn-blk-list__toolbar { margin-bottom: 12px; }
+    .dyn-blk-list .el-table { width: 100%; }
+    .dyn-blk-list__page { display: flex; justify-content: flex-end; margin-top: 14px; }
 </style>

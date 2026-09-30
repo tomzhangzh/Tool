@@ -1,6 +1,7 @@
 @model VueLibV4.Platform.Models.DynWebPage
 @using VueLibV4.Platform.Services
 @using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
 @using Newtonsoft.Json.Linq
 @inject IPageSettingService PageSettingService
 @{
@@ -19,8 +20,8 @@
 
     dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
     var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
-    var loadUrl = ClayHelper.GetString(runTimeModel, "ListUrl") ?? "/api/business/dyndata/search";
-    var deleteUrl = ClayHelper.GetString(runTimeModel, "DeleteUrl") ?? "/api/business/dyndata/delete";
+    var loadUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "ListUrl"), DynPageViewHelper.BizSearch);
+    var deleteUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "DeleteUrl"), DynPageViewHelper.BizDelete);
     var project = Model.ProjectId?.ToString() ?? "";
     var modalPageId = ClayHelper.GetString(runTimeModel, "ModalPageId") ?? "";
     var childFkField = ClayHelper.GetString(runTimeModel, "ChildFkField") ?? "";
@@ -28,22 +29,11 @@
     var filterPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "FilterPageSettingId") ?? "", out int fv) ? fv : (int?)null;
     var listPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "ListPageSettingId") ?? "", out int lv) ? lv : (int?)null;
 
-    var filterPs = filterPsId != null ? PageSettingService.GetById(filterPsId.Value) : null;
-    var listPs = listPsId != null ? PageSettingService.GetById(listPsId.Value) : null;
-
+    // PageSetting 读取/拼装重复逻辑收口在 DynPageViewHelper（#9）
     var filterCfg = new JObject();
-    if (filterPs != null)
-    {
-        filterCfg["filterConfig"] = string.IsNullOrWhiteSpace(filterPs.ConfigJson) ? new JObject() : JObject.Parse(filterPs.ConfigJson);
-        filterCfg["filterDefault"] = string.IsNullOrWhiteSpace(filterPs.DefaultJson) ? new JObject() : JObject.Parse(filterPs.DefaultJson);
-    }
+    DynPageViewHelper.ApplyFrontSetting(filterCfg, PageSettingService, filterPsId, "filterConfig", "filterDefault");
     var listCfg = new JObject();
-    if (listPs != null && !string.IsNullOrWhiteSpace(listPs.ConfigJson))
-    {
-        var lc = JObject.Parse(listPs.ConfigJson);
-        listCfg["columns"] = lc["columns"] ?? new JArray();
-    }
-    else { listCfg["columns"] = new JArray(); }
+    DynPageViewHelper.ApplyListSetting(listCfg, PageSettingService, listPsId, "columns");
     listCfg["table"] = tableName;
     listCfg["keyField"] = keyField;
     listCfg["project"] = project;
@@ -57,7 +47,7 @@
         ["listCfg"] = listCfg,
         ["childFkField"] = childFkField
     };
-    var rootModelForScript = rootModel.ToString(Newtonsoft.Json.Formatting.None).Replace("</", "<\\/");
+    var rootModelForScript = DynPageViewHelper.SafeJson(rootModel);
 
     var extId = "Tfl" + Guid.NewGuid().ToString("N");
     var extIdRoot = extId + "-root";
@@ -177,14 +167,16 @@
 </div>
 
 <style>
-    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .flc-root { padding: 0 0 20px; }
+    /* 样式作用域收敛在模板根节点（不写 body 全局样式）；全局 preflight 已重置 body margin，根节点满屏 */
+    .flc-root { min-height: 100vh; box-sizing: border-box; padding: 0 0 20px;
+        background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .flc-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
     .flc-rootapp { display: none; }
 </style>
 
 @section Scripts {
-    <script src="~/dyn/blocks/message-center.js?v=3"></script>
+    <script src="~/dyn/blocks/message-center.js?v=4"></script>
+    <script src="~/dyn/blocks/dyn-blocks-common.js?v=1"></script>
     <script>
         DynLib.ready(function () {
             var rootEl = document.getElementById('@extIdRoot');

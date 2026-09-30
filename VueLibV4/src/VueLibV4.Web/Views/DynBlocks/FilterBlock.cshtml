@@ -2,9 +2,9 @@
     // =====================================================================================
     // Filter 积木（平台规范·双模式版）：壳 + 动态配置渲染，行为定义在 dynconfig。
     //   组合模式：容器带 data-root-ext-id + data-model-key + data-msg-center-key。
-    //             dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，再按 data-model-key
-    //             动态读取根 model 中【模板自定义】的配置对象（含 filterConfig/filterDefault），
-    //             按 data-msg-center-key 读取消息中心。Block 不预设根 model 的任何固定 key。
+    //             dynconfig 用 DynBlocks 公共能力找根 app 并动态读取根 model 中【模板自定义】的
+    //             配置对象（含 filterConfig/filterDefault）与消息中心；根 app 未就绪时有限重试，
+    //             始终拿不到则渲染显式错误，绝不静默自建消息中心降级成孤岛 Block。
     //   独立模式：未传 RootExtId 时，从自身 data-blk-config / data-blk-default 读取配置，自建消息中心
     //   - model：字段值结构 {字段:值}，DynElInput 正常显示；操作符 op 从 DefaultJson 提取
     //   - 消息：查询/重置 → 发事件 filter.changed{params:{字段:{op,value}}}，根 app 收到后命令 List 加载
@@ -19,13 +19,14 @@
 }
 <div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
-     data-blk-config="@blkConfig" data-blk-default="@blkDefault" class="fb">
-    <div class="fb-body">
+     data-blk-config="@blkConfig" data-blk-default="@blkDefault" class="dyn-blk-filter">
+    <div class="dyn-blk-filter__error" v-if="ctxState==='error'">{{ ctxError }}</div>
+    <div class="dyn-blk-filter__body">
         @* 注意：不能用键名 model —— mountCore 的 setup() 会暴露同名的 model 并覆盖 data，
             导致 DynElInput 输入写不进我们的数据；故用 filterModel 避开重名（Detail 用 form、List 用自身 model 均不冲突）*@
         <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
     </div>
-    <div class="fb-btns">
+    <div class="dyn-blk-filter__btns">
         @* 按钮用 dyn-click 动作体系（平台规范，对齐 DetailTemplate）：动作经 defineAction 注册，
            委托在 document 捕获层触发，ctx.vm 自动指向本 Block 的 proxy。
            注意：Element Plus 的 el-button 会拦截事件冒泡、阻断 dyn 的 document 委托捕获，
@@ -35,32 +36,44 @@
     </div>
     <script type="text/plain" tag="dynconfig">
     // 注意：由 mount 以 new Function('element','dyn',...) 执行，必须顶层定义 var dynConfig（勿包 IIFE）
-    // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
-    var __rid = element.getAttribute('data-root-ext-id');
-    var __rootApp = null;
-    if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }
-    var __ctx = {};
-    if (__rootApp) {
-        // 组合模式：配置对象由模板通过 data-model-key 指定，消息中心由 data-msg-center-key 指定（缺省 'msgCenter'）。
-        // 模板根 model 用什么 key 完全由模板决定，Block 不预设任何固定字段，只按传入 key 动态读取。
-        var __modelKey = element.getAttribute('data-model-key');
-        var __msgKey = element.getAttribute('data-msg-center-key') || 'msgCenter';
-        var __cfg = __modelKey ? __rootApp.model[__modelKey] : null;
-        if (__cfg && typeof __cfg === 'object') {
-            __ctx = __cfg;
-        } else if (__rid) {
-            console.error('[FilterBlock] 根 model 不存在 key【' + __modelKey + '】或值非对象，请检查模板 Partial 传参 ModelKey');
+    // ========== 双模式上下文：组合（必须找到根 app，失败显式报错不降级）/ 独立（无 rootExtId，读 data-blk-*） ==========
+    var __ctx = { filterConfig: null, filterDefault: {}, msgCenter: null, state: 'loading', error: '' };
+    var __hydrateCb = null;
+    function __finishCtx() { if (__hydrateCb) __hydrateCb(); }
+    function __applyCombined(app) {
+        var r = DynBlocks.combinedCtx(element, app);
+        if (r.error) {
+            __ctx.state = 'error'; __ctx.error = r.error;
+            console.error('[FilterBlock]', r.error);
+            return;
         }
-        __ctx.msgCenter = __rootApp.model[__msgKey] || null;
+        __ctx.filterConfig = r.cfg.filterConfig || null;
+        __ctx.filterDefault = r.cfg.filterDefault || {};
+        __ctx.msgCenter = r.msg;
+        __ctx.state = 'ready';
+    }
+    function __applyStandalone() {
+        __ctx.filterConfig = DynBlocks.parseAttr(element, 'data-blk-config');
+        __ctx.filterDefault = DynBlocks.parseAttr(element, 'data-blk-default') || {};
+        if (typeof createMessageCenter !== 'function') {
+            __ctx.state = 'error'; __ctx.error = '独立模式缺少 message-center.js，无法创建消息中心';
+            return;
+        }
+        __ctx.msgCenter = createMessageCenter();
+        __ctx.state = 'ready';
+    }
+    var __root = DynBlocks.getRoot(element);
+    if (!__root) {
+        __applyStandalone();
+    } else if (__root.app) {
+        __applyCombined(__root.app);
     } else {
-        // 独立模式：外部未注入根上下文（未传 rootExtId）→ 从自身 data-blk-config / data-blk-default 读取，并自建消息中心。
-        // 约定：独立使用时，页面/容器需自行引入 message-center.js 并提供这两个属性。
-        var __P = function (s) { try { return JSON.parse(s || 'null') || null; } catch (e) { return null; } };
-        __ctx = {
-            filterConfig: __P(element.getAttribute('data-blk-config')),
-            filterDefault: __P(element.getAttribute('data-blk-default')) || {},
-            msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
-        };
+        // 声明了组合模式但根 app 尚未就绪：有限重试；超时显式报错，绝不静默自建消息中心
+        DynBlocks.whenRootReady(element, function (app, err) {
+            if (app) __applyCombined(app);
+            else { __ctx.state = 'error'; __ctx.error = err; console.error('[FilterBlock]', err); }
+            __finishCtx();
+        });
     }
     var dynConfig = {
         data: function () {
@@ -72,9 +85,30 @@
                 if (v && typeof v === 'object' && v.op) { opMap[k] = v.op; initModel[k] = null; }
                 else { opMap[k] = 'eq'; initModel[k] = (v === null || v === undefined) ? null : v; }
             });
-            return { pageCfg: __ctx.filterConfig || null, filterModel: JSON.parse(JSON.stringify(initModel)), __opMap: opMap, __initModel: initModel };
+            return {
+                ctxState: __ctx.state, ctxError: __ctx.error || '',
+                pageCfg: __ctx.filterConfig || null,
+                filterModel: JSON.parse(JSON.stringify(initModel)),
+                __opMap: opMap, __initModel: initModel
+            };
         },
         methods: {
+            // 根上下文就绪/失败后的统一水合（同步就绪时 mounted 直接调；异步就绪时回调调）
+            __hydrate: function () {
+                this.ctxState = __ctx.state;
+                this.ctxError = __ctx.error || '';
+                if (__ctx.state !== 'ready') return;
+                var fd = __ctx.filterDefault || {}, opMap = {}, initModel = {};
+                Object.keys(fd).forEach(function (k) {
+                    var v = fd[k];
+                    if (v && typeof v === 'object' && v.op) { opMap[k] = v.op; initModel[k] = null; }
+                    else { opMap[k] = 'eq'; initModel[k] = (v === null || v === undefined) ? null : v; }
+                });
+                this.__opMap = opMap;
+                this.__initModel = initModel;
+                this.pageCfg = __ctx.filterConfig || null;
+                this.filterModel = JSON.parse(JSON.stringify(initModel));
+            },
             // 组装 {字段:{op,value}} 提交结构；剔除空值字段
             buildSubmit: function () {
                 var f = {}, self = this;
@@ -110,13 +144,20 @@
                 // 多次 rebind 会导致 document 监听叠加（一次点击触发多次动作）。
             }
         },
-        mounted: function () { this.registerActions(); }
+        mounted: function () {
+            this.registerActions();
+            var self = this;
+            __hydrateCb = function () { self.__hydrate(); };
+            if (__ctx.state !== 'loading') this.__hydrate();
+        }
     };
     </script>
 </div>
 
 <style>
-    .fb { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-    .fb-body { flex: 1; min-width: 200px; }
-    .fb-btns { flex-shrink: 0; }
+    .dyn-blk-filter { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .dyn-blk-filter__error { flex-basis: 100%; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
+        border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .dyn-blk-filter__body { flex: 1; min-width: 200px; }
+    .dyn-blk-filter__btns { flex-shrink: 0; }
 </style>

@@ -1,6 +1,7 @@
 @model VueLibV4.Platform.Models.DynWebPage
 @using VueLibV4.Platform.Services
 @using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
 @using Newtonsoft.Json.Linq
 @inject IPageSettingService PageSettingService
 @{
@@ -42,14 +43,9 @@
     var enableDrag = ParseBool(ClayHelper.GetString(runTimeModel, "EnableDrag"));
     var dragSameLevelOnly = ParseBool(ClayHelper.GetString(runTimeModel, "DragSameLevelOnly"));
     var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
-    var detailPs = detailPsId != null ? PageSettingService.GetById(detailPsId.Value) : null;
 
     var detailCfg = new JObject();
-    if (detailPs != null)
-    {
-        detailCfg["detailConfig"] = string.IsNullOrWhiteSpace(detailPs.ConfigJson) ? new JObject() : JObject.Parse(detailPs.ConfigJson);
-        detailCfg["detailDefault"] = string.IsNullOrWhiteSpace(detailPs.DefaultJson) ? new JObject() : JObject.Parse(detailPs.DefaultJson);
-    }
+    DynPageViewHelper.ApplyFrontSetting(detailCfg, PageSettingService, detailPsId, "detailConfig", "detailDefault");
     detailCfg["table"] = tableName;
     detailCfg["project"] = project;
     detailCfg["addUrl"] = addUrl;
@@ -69,7 +65,7 @@
             ["enableDrag"] = enableDrag, ["dragSameLevelOnly"] = dragSameLevelOnly
         }
     };
-    var rootModelForScript = rootModel.ToString(Newtonsoft.Json.Formatting.None).Replace("</", "<\\/");
+    var rootModelForScript = DynPageViewHelper.SafeJson(rootModel);
 
     var extId = "Ttr" + Guid.NewGuid().ToString("N");
     var extIdRoot = extId + "-root";
@@ -157,10 +153,10 @@
                     loadTree: function () {
                         var self = this;
                         this.treeLoading = true;
-                        DynCall.post(this.loadUrl, {
+                        DynBlocks.search(this.loadUrl, {
                             table: this.tableName, page: 1, size: 100000,
                             sort: { field: this.sortField, order: 'asc' }, project: this.project
-                        }, { scopeEl: element }).then(function (res) {
+                        }, element).then(function (res) {
                             var rows = (res && res.rows) || (res && res.data && res.data.rows) || [];
                             self.treeData = self.buildTree(rows);
                             self.treeKey = self.treeKey + 1; // 强制 el-tree 重挂载，保证删除/新增后视图同步
@@ -327,10 +323,11 @@
                         // ParentId 是否真的变化，必须与【拖前】真实父级比对（不能凭 DOM 采集先后猜），
                         // 没变化就不带父级字段，避免误改；只有跨层移动的节点才写 ParentId。
                         var currentParent = this.buildParentMap();
-                        // 关键契约差异：
-                        //  - /api/platform/dyndata/save?table=xxx ：body 为【扁平实体字段】（主键+要改的列），table 走 URL query
-                        //  - /api/business/dyndata/update      ：body 为 {table, project, data:{主键,...}}
-                        var isPlatformSave = self.editUrl.indexOf('dyndata/save') !== -1;
+                        // 接口契约统一收口在 DynBlocks：
+                        //  - /api/platform/ 前缀 → save 端点扁平实体（自动补 query table）
+                        //  - 其余（业务库）→ update body {table, project, data:{主键,...}}
+                        var saveStyle = DynBlocks.apiStyle(self.editUrl);
+                        var saveUrl = DynBlocks.saveUrl(saveStyle, self.editUrl, self.tableName, true);
                         var tasks = keys.map(function (k) {
                             var u = updates[k];
                             var oldParent = currentParent[k] != null ? currentParent[k] : '';
@@ -339,13 +336,16 @@
                             flat[self.keyField] = u.key;
                             flat[self.sortField] = Number(u.sortNo);
                             if (parentChanged) flat[self.parentField] = u.parent || null;
-                            return isPlatformSave ? flat : { table: self.tableName, project: self.project, data: flat };
+                            return {
+                                url: saveUrl,
+                                body: DynBlocks.savePayload(saveStyle, self.tableName, flat, self.project)
+                            };
                         });
                         // 串行提交：SQLite 并发写会 database is locked，Promise.all 曾导致部分行保存丢失
                         var chain = Promise.resolve();
-                        tasks.forEach(function (payload) {
+                        tasks.forEach(function (t) {
                             chain = chain.then(function () {
-                                return DynCall.post(self.editUrl, payload, { scopeEl: element, silent: true });
+                                return DynCall.post(t.url, t.body, { scopeEl: element, silent: true });
                             });
                         });
                         chain.then(function () {
@@ -431,8 +431,9 @@
 </div>
 
 <style>
-    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .tr-root { display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+    /* 样式作用域收敛在模板根节点（不写 body 全局样式）；全局 preflight 已重置 body margin，根节点满屏 */
+    .tr-root { height: 100vh; box-sizing: border-box; display: flex; flex-direction: column;
+        background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .tr-split { flex: 1; min-height: 0; display: flex; margin: 14px; box-sizing: border-box; background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; overflow: hidden; }
     .tr-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
     .tr-pane-left { flex-shrink: 0; padding: 12px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
@@ -472,7 +473,8 @@
 </style>
 
 @section Scripts {
-    <script src="~/dyn/blocks/message-center.js?v=3"></script>
+    <script src="~/dyn/blocks/message-center.js?v=4"></script>
+    <script src="~/dyn/blocks/dyn-blocks-common.js?v=1"></script>
     <script>
         DynLib.ready(function () {
             var rootEl = document.getElementById('@extIdRoot');

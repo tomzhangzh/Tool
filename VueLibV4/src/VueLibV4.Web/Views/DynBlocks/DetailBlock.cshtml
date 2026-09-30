@@ -2,16 +2,16 @@
     // =====================================================================================
     // Detail 积木（平台规范·双模式版）：壳 + 动态表单渲染，行为定义在 dynconfig。
     //   组合模式：容器带 data-root-ext-id + data-model-key + data-msg-center-key。
-    //             dynconfig 按 data-root-ext-id 用 dyn.getApp(根元素) 找到根 app，再按 data-model-key
-    //             动态读取根 model 中【模板自定义】的配置对象（含 detailConfig/detailDefault/table/addUrl/editUrl），
-    //             按 data-msg-center-key 读取消息中心。Block 不预设根 model 的任何固定 key。
-    //   独立模式：未传 RootExtId 时，从自身 data-blk-config / data-blk-default / data-blk-table /
-    //             data-blk-addurl / data-blk-editurl 读取配置，自建消息中心
+    //             dynconfig 用 DynBlocks 公共能力找根 app 并动态读取根 model 中【模板自定义】的
+    //             配置对象（含 detailConfig/detailDefault/table/addUrl/editUrl/keyField）与消息中心；
+    //             根 app 未就绪时有限重试，始终拿不到则渲染显式错误，绝不静默自建消息中心降级成孤岛。
+    //   独立模式：未传 RootExtId 时，从自身 data-blk-* 属性读取配置，自建消息中心
     //   - 表单渲染：<dyn-dynamic-com :jsonconfig>（PageSetting.ConfigJson 表单组件树），
     //     :parentmodelinfo="form"（DefaultJson 骨架 + 命令预填/回填合并结果）
     //   - 命令（接收）：newForm{preFill} 新增（静态 default + preFill 浅合并）/ editForm{row} 编辑回填
     //   - 事件（发出）：detail.saved{action,row} —— 根 app 收到后命令 List 刷新
-    //   - 网络：统一走 DynCall（信封解包 + 统一错误处理），不再手写 axios/fetch
+    //   - 网络：统一走 DynBlocks/DynCall（平台 save 扁平实体 / 业务 insert/update body{table,data}，
+    //     删除 query/body 双契约均收口在 DynBlocks）
     // =====================================================================================
     var extId = (ViewData["ExtId"] as string) ?? ("Db" + Guid.NewGuid().ToString("N"));
     var rootExtId = (ViewData["RootExtId"] as string) ?? "";
@@ -32,12 +32,13 @@
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-default="@blkDefault" data-blk-table="@blkTable"
      data-blk-addurl="@blkAddUrl" data-blk-editurl="@blkEditUrl" data-blk-deleteurl="@blkDeleteUrl"
-     data-blk-project="@blkProject" data-blk-modal="@blkModal" data-blk-keyfield="@blkKeyField" class="db">
-    <div class="db-errbar" v-if="formError">{{ formError }}</div>
-    <div class="db-body">
+     data-blk-project="@blkProject" data-blk-modal="@blkModal" data-blk-keyfield="@blkKeyField" class="dyn-blk-detail">
+    <div class="dyn-blk-detail__ctxerror" v-if="ctxState==='error'">{{ ctxError }}</div>
+    <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
+    <div class="dyn-blk-detail__body">
         <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
     </div>
-    <div class="db-btns">
+    <div class="dyn-blk-detail__btns">
         @* 按钮用 dyn-click 动作体系（平台规范，对齐 DetailTemplate），ctx.vm 即本 Block proxy。
            注意：el-button 会拦截冒泡阻断 dyn 委托，故用【原生 button + el-button 样式类】保持视觉一致；
            保存按钮用 :disabled 代替 loading（原生 button 无 loading 态）。 *@
@@ -46,46 +47,70 @@
         <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" data-dyn-click-DetailSave>保存</button>
     </div>
     <script type="text/plain" tag="dynconfig">
-    // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
+    // ========== 双模式上下文：组合（必须找到根 app，失败显式报错不降级）/ 独立（无 rootExtId，读 data-blk-*） ==========
     // 注意：必须保留 type="text/plain"，否则浏览器会把本脚本当普通 JS 在解析期直接执行，
     // 那时框架的 element 形参尚未注入，会报 "element is not defined"。
-    var __rid = element.getAttribute('data-root-ext-id');
-    var __rootApp = null;
-    if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }
-    var __ctx = {};
-    if (__rootApp) {
-        // 组合模式：配置对象由模板通过 data-model-key 指定，消息中心由 data-msg-center-key 指定（缺省 'msgCenter'）。
-        // 模板根 model 用什么 key 完全由模板决定，Block 不预设任何固定字段，只按传入 key 动态读取。
-        var __modelKey = element.getAttribute('data-model-key');
-        var __msgKey = element.getAttribute('data-msg-center-key') || 'msgCenter';
-        var __cfg = __modelKey ? __rootApp.model[__modelKey] : null;
-        if (__cfg && typeof __cfg === 'object') {
-            __ctx = __cfg;
-        } else if (__rid) {
-            console.error('[DetailBlock] 根 model 不存在 key【' + __modelKey + '】或值非对象，请检查模板 Partial 传参 ModelKey');
+    var __ctx = {
+        detailConfig: null, detailDefault: {}, table: '', addUrl: '', editUrl: '', deleteUrl: '',
+        project: '', keyField: 'Id', modal: false, msgCenter: null, state: 'loading', error: ''
+    };
+    var __hydrateCb = null;
+    var __unreg = null;
+    function __finishCtx() { if (__hydrateCb) __hydrateCb(); }
+    function __applyCombined(app) {
+        var r = DynBlocks.combinedCtx(element, app);
+        if (r.error) {
+            __ctx.state = 'error'; __ctx.error = r.error;
+            console.error('[DetailBlock]', r.error);
+            return;
         }
-        __ctx.msgCenter = __rootApp.model[__msgKey] || null;
-    } else {        // 独立模式：外部未注入根上下文 → 从自身 data-blk-config / data-blk-default / data-blk-table / data-blk-addurl / data-blk-editurl 读取，并自建消息中心。
-        // 约定：独立使用时，页面/容器需自行引入 message-center.js 并提供上述属性。
-        var __P = function (s) { try { return JSON.parse(s || 'null') || null; } catch (e) { return null; } };
-        __ctx = {
-            detailConfig: __P(element.getAttribute('data-blk-config')),
-            detailDefault: __P(element.getAttribute('data-blk-default')) || {},
-            table: element.getAttribute('data-blk-table') || '',
-            addUrl: element.getAttribute('data-blk-addurl') || '',
-            editUrl: element.getAttribute('data-blk-editurl') || '',
-            deleteUrl: element.getAttribute('data-blk-deleteurl') || '',
-            project: element.getAttribute('data-blk-project') || '',
-            keyField: element.getAttribute('data-blk-keyfield') || 'Id',
-            msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
-        };
+        __ctx.detailConfig = r.cfg.detailConfig || null;
+        __ctx.detailDefault = r.cfg.detailDefault || {};
+        __ctx.table = r.cfg.table || '';
+        __ctx.addUrl = r.cfg.addUrl || '';
+        __ctx.editUrl = r.cfg.editUrl || '';
+        __ctx.deleteUrl = r.cfg.deleteUrl || '';
+        __ctx.project = r.cfg.project || '';
+        __ctx.keyField = r.cfg.keyField || 'Id';
+        __ctx.modal = r.cfg.modal === true;
+        __ctx.msgCenter = r.msg;
+        __ctx.state = 'ready';
     }
-    // 弹窗模式：data-blk-modal="true" 时，保存成功后发全局 dyndata.saved 事件并关闭弹窗（宿主页面据此刷新列表）
-    __ctx.modal = element.getAttribute('data-blk-modal') === 'true';
+    function __applyStandalone() {
+        __ctx.detailConfig = DynBlocks.parseAttr(element, 'data-blk-config');
+        __ctx.detailDefault = DynBlocks.parseAttr(element, 'data-blk-default') || {};
+        __ctx.table = element.getAttribute('data-blk-table') || '';
+        __ctx.addUrl = element.getAttribute('data-blk-addurl') || '';
+        __ctx.editUrl = element.getAttribute('data-blk-editurl') || '';
+        __ctx.deleteUrl = element.getAttribute('data-blk-deleteurl') || '';
+        __ctx.project = element.getAttribute('data-blk-project') || '';
+        __ctx.keyField = element.getAttribute('data-blk-keyfield') || 'Id';
+        __ctx.modal = element.getAttribute('data-blk-modal') === 'true';
+        if (typeof createMessageCenter !== 'function') {
+            __ctx.state = 'error'; __ctx.error = '独立模式缺少 message-center.js，无法创建消息中心';
+            return;
+        }
+        __ctx.msgCenter = createMessageCenter();
+        __ctx.state = 'ready';
+    }
+    var __root = DynBlocks.getRoot(element);
+    if (!__root) {
+        __applyStandalone();
+    } else if (__root.app) {
+        __applyCombined(__root.app);
+    } else {
+        // 声明了组合模式但根 app 未就绪：有限重试；超时显式报错，绝不静默自建消息中心
+        DynBlocks.whenRootReady(element, function (app, err) {
+            if (app) __applyCombined(app);
+            else { __ctx.state = 'error'; __ctx.error = err; console.error('[DetailBlock]', err); }
+            __finishCtx();
+        });
+    }
     var dynConfig = {
         data: function () {
             var initForm = __ctx.detailDefault || {};
             return {
+                ctxState: __ctx.state, ctxError: __ctx.error || '',
                 detailCfg: __ctx.detailConfig || null,
                 form: JSON.parse(JSON.stringify(initForm)),
                 formError: '',
@@ -97,10 +122,35 @@
                 keyField: __ctx.keyField || 'Id',
                 project: __ctx.project || '',
                 modal: __ctx.modal === true,
+                ctxBound: false,
                 __initForm: initForm
             };
         },
         methods: {
+            // 上下文就绪后的统一水合：同步就绪时 mounted 直接调；异步就绪时回调调
+            __hydrate: function () {
+                this.ctxState = __ctx.state;
+                this.ctxError = __ctx.error || '';
+                if (__ctx.state !== 'ready') return;
+                this.detailCfg = __ctx.detailConfig || null;
+                this.table = __ctx.table || '';
+                this.addUrl = __ctx.addUrl || '';
+                this.editUrl = __ctx.editUrl || '';
+                this.deleteUrl = __ctx.deleteUrl || '';
+                this.keyField = __ctx.keyField || 'Id';
+                this.project = __ctx.project || '';
+                this.modal = __ctx.modal === true;
+                this.__bind();
+            },
+            // 注册命令接收（仅一次；registerBlock 同名多接收者由消息中心支持）
+            __bind: function () {
+                if (this.ctxBound) return;
+                this.ctxBound = true;
+                var self = this, msg = __ctx.msgCenter;
+                if (msg && typeof msg.registerBlock === 'function') {
+                    __unreg = msg.registerBlock('detail', function (cmd, payload) { return self.handleCommand(cmd, payload); });
+                }
+            },
             // 表单校验：扫描容器内动态组件节点的 __dynValidate 钩子
             validateForm: function () {
                 var errs = [];
@@ -148,7 +198,21 @@
                 }
                 return Promise.resolve(null);
             },
-            // 保存：校验 → 业务库 insert/update（body {table,data}，统一走 DynCall）→ 发 detail.saved 事件
+            // 弹窗模式保存/删除成功后的公共收尾：发事件 + 通知宿主 + 关弹窗
+            __afterModalSuccess: function () {
+                if (!this.modal) return;
+                try {
+                    window.dispatchEvent(new CustomEvent('dyndata.saved', { detail: { table: this.table, project: this.project } }));
+                } catch (e) { }
+                var layero = element.closest ? element.closest('.layui-layer') : null;
+                if (window.layui && window.layui.layer) {
+                    var times = layero ? layero.getAttribute('times') : null;
+                    if (times && times !== '') window.layui.layer.close(times);
+                    else window.layui.layer.closeAll();
+                }
+            },
+            // 保存：校验 → 平台 save（扁平实体）/ 业务 insert/update（body {table,data,project}）→ 发 detail.saved 事件。
+            // 风格判别、URL 与 body 构造统一收口在 DynBlocks。
             onSave: function () {
                 var self = this;
                 var errs = this.validateForm();
@@ -158,29 +222,20 @@
                     return;
                 }
                 this.loading = true;
-                var isEdit = this.form && this.form[this.keyField] !== null && this.form[this.keyField] !== undefined && this.form[this.keyField] !== '';
-                // 接口风格适配：/api/platform/* 为平台直连（save?table= 直接发行数据）；否则业务 dyndata（insert/update，body {table,data}）
-                var isPlat = (this.addUrl || '').indexOf('/api/platform/') === 0;
-                var body = isPlat ? this.form : { table: this.table, data: this.form, project: this.project };
-                DynCall.post(isEdit ? this.editUrl : this.addUrl, body, { scopeEl: element })
+                var kf = this.keyField || 'Id';
+                var isEdit = this.form[kf] !== null && this.form[kf] !== undefined && this.form[kf] !== '';
+                var configured = isEdit ? this.editUrl : this.addUrl;
+                var style = DynBlocks.apiStyle(configured);
+                var saveUrl = DynBlocks.saveUrl(style, configured, this.table, isEdit);
+                var body = DynBlocks.savePayload(style, this.table, this.form, this.project);
+                DynCall.post(saveUrl, body, { scopeEl: element })
                     .then(function () {
                         self.loading = false;
                         self.formError = '';
                         dyn.showMessage('保存成功', 'success');
                         var msg = __ctx.msgCenter;
                         if (msg) msg.emitEvent('detail.saved', { action: isEdit ? 'edit' : 'add', row: self.form });
-                        // 弹窗模式：通知宿主页面刷新 + 关闭弹窗（宿主据此重新加载列表）
-                        if (self.modal) {
-                            try {
-                                window.dispatchEvent(new CustomEvent('dyndata.saved', { detail: { table: self.table, project: self.project } }));
-                            } catch (e) { }
-                            var layero = element.closest ? element.closest('.layui-layer') : null;
-                            if (window.layui && window.layui.layer) {
-                                var times = layero ? layero.getAttribute('times') : null;
-                                if (times && times !== '') window.layui.layer.close(times);
-                                else window.layui.layer.closeAll();
-                            }
-                        }
+                        self.__afterModalSuccess();
                     })
                     .catch(function (e) { self.loading = false; /* DynCall 已统一 toast */ });
             },
@@ -189,38 +244,29 @@
                 this.form = JSON.parse(JSON.stringify(this.__initForm));
                 this.formError = '';
             },
-            // 删除：仅编辑态（有主键）可用。确认后 POST deleteUrl {table, keys:{Id}, project}，成功后发 detail.saved{action:'delete'}。
-            // 统一走 DynCall（信封解包 + 统一 toast）；blockId 判断用注册时的 'detail' 别名，宿主据此刷新（树/列表）。
+            // 删除：仅编辑态（有主键）可用。确认后按 DynBlocks.deleteRequest 构造请求——
+            // 平台直连 delete 用 query table/id（空 body）；业务 delete 用 body {table,keys:{主键},project}。
             onDelete: function () {
                 var self = this;
-                var id = this.form[this.keyField];
+                var kf = this.keyField || 'Id';
+                var id = this.form[kf];
                 if (id === null || id === undefined || id === '' || id === 0) { dyn.showMessage('请先选择要删除的记录', 'warning'); return; }
                 if (!this.deleteUrl) { dyn.showMessage('未配置删除接口 deleteUrl', 'warning'); return; }
                 var doDelete = function () {
                     self.loading = true;
-                    // 接口风格适配：平台直连 delete 用 query 传 table/id；业务 dyndata delete 用 body {table, keys}
-                    var isPlat = (self.deleteUrl || '').indexOf('/api/platform/') === 0;
-                    var dUrl = isPlat ? (self.deleteUrl + '?table=' + encodeURIComponent(self.table) + '&id=' + encodeURIComponent(id)) : self.deleteUrl;
-                    var dBody = isPlat ? {} : { table: self.table, keys: { Id: id }, project: self.project };
-                    DynCall.post(dUrl, dBody, { scopeEl: element })
+                    var req = DynBlocks.deleteRequest(self.deleteUrl, self.table, id, kf, self.project);
+                    DynCall.post(req.url, req.body, { scopeEl: element })
                         .then(function () {
                             self.loading = false;
                             dyn.showMessage('删除成功', 'success');
                             self.form = JSON.parse(JSON.stringify(self.__initForm));
                             self.formError = '';
                             var msg = __ctx.msgCenter;
-                            if (msg) msg.emitEvent('detail.saved', { action: 'delete', row: { Id: id } });
-                            if (self.modal) {
-                                try {
-                                    window.dispatchEvent(new CustomEvent('dyndata.saved', { detail: { table: self.table, project: self.project } }));
-                                } catch (e) { }
-                                var layero = element.closest ? element.closest('.layui-layer') : null;
-                                if (window.layui && window.layui.layer) {
-                                    var times = layero ? layero.getAttribute('times') : null;
-                                    if (times && times !== '') window.layui.layer.close(times);
-                                    else window.layui.layer.closeAll();
-                                }
+                            if (msg) {
+                                var rowKey = {}; rowKey[kf] = id;
+                                msg.emitEvent('detail.saved', { action: 'delete', row: rowKey });
                             }
+                            self.__afterModalSuccess();
                         })
                         .catch(function (e) { self.loading = false; /* DynCall 已统一 toast */ });
                 };
@@ -249,21 +295,25 @@
         },
         mounted: function () {
             this.registerActions();
-            // 向根 app 消息中心注册本积木（接收 newForm/editForm 命令）
-            var self = this, msg = __ctx.msgCenter;
-            if (msg && typeof msg.registerBlock === 'function') {
-                msg.registerBlock('detail', function (cmd, payload) { return self.handleCommand(cmd, payload); });
-            }
+            var self = this;
+            __hydrateCb = function () { self.__hydrate(); };
+            if (__ctx.state !== 'loading') this.__hydrate();
+        },
+        // 卸载：从消息中心摘除本接收者，避免失效实例残留
+        beforeUnmount: function () {
+            if (__unreg) { try { __unreg(); } catch (e) { } __unreg = null; }
         }
     };
     </script>
 </div>
 
 <style>
-    .db { display: flex; flex-direction: column; }
-    .db-errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
+    .dyn-blk-detail { display: flex; flex-direction: column; }
+    .dyn-blk-detail__ctxerror { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
         border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
-    .db-body { flex: 1; }
-    .db-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
+    .dyn-blk-detail__errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
+        border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .dyn-blk-detail__body { flex: 1; }
+    .dyn-blk-detail__btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
         padding-top: 12px; border-top: 1px solid #e4e7ed; }
 </style>

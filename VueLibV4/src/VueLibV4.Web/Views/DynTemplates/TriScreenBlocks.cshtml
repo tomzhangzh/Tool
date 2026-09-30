@@ -2,6 +2,7 @@
 @using VueLibV4.Platform.Models
 @using VueLibV4.Platform.Services
 @using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
 @using Newtonsoft.Json.Linq
 @inject IPageSettingService PageSettingService
 @{
@@ -25,12 +26,14 @@
     ViewData["Title"] = Model.Name + " - VueLibV4";
 
     // ===== ① ClayHelper 安全读取实例 ConfigJson（不存在/空/不可解析均不抛异常）=====
+    // 默认数据端点统一为业务库 dyndata（平台表页面在 ConfigJson 显式配置 /api/platform/ 地址）；
+    // 风格判别与请求构造前端统一收口在 DynBlocks（#8）。
     dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
     var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
-    var loadUrl = ClayHelper.GetString(runTimeModel, "ListUrl") ?? "/api/platform/dyndata/search";
-    var addUrl = ClayHelper.GetString(runTimeModel, "AddUrl") ?? ("/api/platform/dyndata/save?table=" + tableName);
-    var editUrl = ClayHelper.GetString(runTimeModel, "EditUrl") ?? ("/api/platform/dyndata/save?table=" + tableName);
-    var deleteUrl = ClayHelper.GetString(runTimeModel, "DeleteUrl") ?? ("/api/platform/dyndata/delete?table=" + tableName);
+    var loadUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "ListUrl"), DynPageViewHelper.BizSearch);
+    var addUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "AddUrl"), DynPageViewHelper.BizInsert);
+    var editUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "EditUrl"), DynPageViewHelper.BizUpdate);
+    var deleteUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "DeleteUrl"), DynPageViewHelper.BizDelete);
     var childFkField = ClayHelper.GetString(runTimeModel, "ChildFkField") ?? "";
     var keyField = ClayHelper.GetString(runTimeModel, "KeyField") ?? "Id";
     // 项目维度：dyndata 接口通过请求体 project 字段定位项目库（ProjectDbResolver 支持项目 Id 或 Code）。
@@ -40,41 +43,24 @@
     var listPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "ListPageSettingId") ?? "", out int lv) ? lv : (int?)null;
     var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
 
-    // ===== ② 读取三个 PageSetting =====
-    var filterPs = filterPsId != null ? PageSettingService.GetById(filterPsId.Value) : null;
-    var listPs = listPsId != null ? PageSettingService.GetById(listPsId.Value) : null;
-    var detailPs = detailPsId != null ? PageSettingService.GetById(detailPsId.Value) : null;
-
-    // ===== ③ 拼装根 model（JObject 保证序列化正确；业务 key 由本模板决定）=====
+    // ===== ②③ 读取 PageSetting 并拼装根 model（重复逻辑收口在 DynPageViewHelper）=====
     var filterCfg = new JObject();
-    if (filterPs != null)
-    {
-        filterCfg["filterConfig"] = string.IsNullOrWhiteSpace(filterPs.ConfigJson) ? new JObject() : JObject.Parse(filterPs.ConfigJson);
-        filterCfg["filterDefault"] = string.IsNullOrWhiteSpace(filterPs.DefaultJson) ? new JObject() : JObject.Parse(filterPs.DefaultJson);
-    }
+    DynPageViewHelper.ApplyFrontSetting(filterCfg, PageSettingService, filterPsId, "filterConfig", "filterDefault");
     var listCfg = new JObject();
-    if (listPs != null && !string.IsNullOrWhiteSpace(listPs.ConfigJson))
-    {
-        var lc = JObject.Parse(listPs.ConfigJson);
-        listCfg["columns"] = lc["columns"] ?? new JArray();
-    }
-    else { listCfg["columns"] = new JArray(); }
+    DynPageViewHelper.ApplyListSetting(listCfg, PageSettingService, listPsId, "columns");
     listCfg["table"] = tableName;
     listCfg["keyField"] = keyField;
     listCfg["project"] = project;
     listCfg["loadUrl"] = loadUrl;
     listCfg["deleteUrl"] = deleteUrl;
     var detailCfg = new JObject();
-    if (detailPs != null)
-    {
-        detailCfg["detailConfig"] = string.IsNullOrWhiteSpace(detailPs.ConfigJson) ? new JObject() : JObject.Parse(detailPs.ConfigJson);
-        detailCfg["detailDefault"] = string.IsNullOrWhiteSpace(detailPs.DefaultJson) ? new JObject() : JObject.Parse(detailPs.DefaultJson);
-    }
+    DynPageViewHelper.ApplyFrontSetting(detailCfg, PageSettingService, detailPsId, "detailConfig", "detailDefault");
     detailCfg["table"] = tableName;
     detailCfg["keyField"] = keyField;
     detailCfg["project"] = project;
     detailCfg["addUrl"] = addUrl;
     detailCfg["editUrl"] = editUrl;
+    detailCfg["deleteUrl"] = deleteUrl;
 
     var rootModel = new JObject
     {
@@ -84,8 +70,7 @@
         ["listCfg"] = listCfg,
         ["detailCfg"] = detailCfg
     };
-    // 转义 "</" → "<\/"（合法 JSON，防止内联 script 提前闭合）
-    var rootModelForScript = rootModel.ToString(Newtonsoft.Json.Formatting.None).Replace("</", "<\\/");
+    var rootModelForScript = DynPageViewHelper.SafeJson(rootModel);
 
     var extId = "Tsb" + Guid.NewGuid().ToString("N");
     var extIdRoot = extId + "-root";
@@ -112,11 +97,12 @@
         var dynConfig = {
             data: function () { return {}; },
             methods: {
-                // 主从预填：若实例参数配置了 ChildFkField，把当前行主键预填到表单该字段
+                // 主从预填：若实例参数配置了 ChildFkField，把当前行主键（取 listCfg.keyField）预填到表单该字段
                 childPreFill: function (row) {
                     var fk = this.model.childFkField;
                     if (!fk) return {};
-                    var pf = {}; pf[fk] = row ? row.Id : null; return pf;
+                    var kf = (this.model.listCfg && this.model.listCfg.keyField) || 'Id';
+                    var pf = {}; pf[fk] = row ? row[kf] : null; return pf;
                 }
             },
             mounted: function () {
@@ -166,14 +152,16 @@
 </div>
 
 <style>
-    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .tsb-root { padding: 0 0 20px; }
+    /* 样式作用域收敛在模板根节点（不写 body 全局样式）；全局 preflight 已重置 body margin，根节点满屏 */
+    .tsb-root { min-height: 100vh; box-sizing: border-box; padding: 0 0 20px;
+        background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .tsb-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
     .tsb-rootapp { display: none; } /* 根 app 仅作共享上下文宿主，不渲染可见 UI */
 </style>
 
 @section Scripts {
-    <script src="~/dyn/blocks/message-center.js?v=3"></script>
+    <script src="~/dyn/blocks/message-center.js?v=4"></script>
+    <script src="~/dyn/blocks/dyn-blocks-common.js?v=1"></script>
     <script>
         DynLib.ready(function () {
             // ========== 挂载根 app（写入模板拼装的根 model + 消息中心）→ 再挂载三个积木 ==========
