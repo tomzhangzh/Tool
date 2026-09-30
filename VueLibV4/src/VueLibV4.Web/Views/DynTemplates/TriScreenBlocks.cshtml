@@ -32,6 +32,7 @@
     var editUrl = ClayHelper.GetString(runTimeModel, "EditUrl") ?? ("/api/platform/dyndata/save?table=" + tableName);
     var deleteUrl = ClayHelper.GetString(runTimeModel, "DeleteUrl") ?? ("/api/platform/dyndata/delete?table=" + tableName);
     var childFkField = ClayHelper.GetString(runTimeModel, "ChildFkField") ?? "";
+    var keyField = ClayHelper.GetString(runTimeModel, "KeyField") ?? "Id";
     // 项目维度：dyndata 接口通过请求体 project 字段定位项目库（ProjectDbResolver 支持项目 Id 或 Code）。
     // 从页面实例的 ProjectId 读取（int?），注入各 Block 配置，请求时随 body 一并下发；为空则由接口缺省 BusinessDb。
     var project = Model.ProjectId?.ToString() ?? "";
@@ -59,6 +60,7 @@
     }
     else { listCfg["columns"] = new JArray(); }
     listCfg["table"] = tableName;
+    listCfg["keyField"] = keyField;
     listCfg["project"] = project;
     listCfg["loadUrl"] = loadUrl;
     listCfg["deleteUrl"] = deleteUrl;
@@ -69,6 +71,7 @@
         detailCfg["detailDefault"] = string.IsNullOrWhiteSpace(detailPs.DefaultJson) ? new JObject() : JObject.Parse(detailPs.DefaultJson);
     }
     detailCfg["table"] = tableName;
+    detailCfg["keyField"] = keyField;
     detailCfg["project"] = project;
     detailCfg["addUrl"] = addUrl;
     detailCfg["editUrl"] = editUrl;
@@ -92,11 +95,10 @@
     var title = Model.Name;
 }
 <div class="tsb-root">
-    <div class="tsb-head">
-        <span class="tsb-title">@title</span>
-        <el-tag size="small" type="info" effect="plain">@Model.Code</el-tag>
-        <el-tag size="small" type="warning" effect="plain">@tableName</el-tag>
-    </div>
+    @* 头部（位于 Vue app 容器之外，统一用原生元素页头） *@
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
+    })
 
     @* 根 app：共享上下文宿主（承载模板拼装的根 model + 消息中心 + 手写订阅转发），本身无可见 UI *@
     <div id="@extIdRoot" data-dyn-mode="createApp" class="tsb-rootapp">
@@ -166,8 +168,6 @@
 <style>
     body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .tsb-root { padding: 0 0 20px; }
-    .tsb-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e4e7ed; }
-    .tsb-title { font-size: 16px; font-weight: 600; color: #303133; }
     .tsb-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
     .tsb-rootapp { display: none; } /* 根 app 仅作共享上下文宿主，不渲染可见 UI */
 </style>

@@ -1,0 +1,60 @@
+@{
+    // =====================================================================================
+    // 通用页头（DynPageHeader）：标题 + Code/表名/模式 标签 + 右侧跳转按钮。
+    // 刻意使用【原生标签 + el-* 样式类】而非 el-tag/el-button 组件：
+    // 页头位于各模板根 Vue app 容器之外，自定义元素不会被 Vue 编译，
+    // 此前 el-button 的 @click 只是一个普通属性、点击无反应。
+    // 参数（ViewData）：
+    //   Title(必填) / Code(可选) / TableName(可选)
+    //   ModeTag(可选，右侧额外标签，如 编辑#1/新增) / ModeTagType(info|success|warning，默认 success)
+    //   ShowBack(bool 显示返回桌面) / ShowDesign+PageId(bool 显示进入设计器)
+    // =====================================================================================
+    var phTitle = ViewData["Title"] as string ?? "";
+    var phCode = ViewData["Code"] as string ?? "";
+    var phTable = ViewData["TableName"] as string ?? "";
+    var phModeTag = ViewData["ModeTag"] as string ?? "";
+    var phModeType = ViewData["ModeTagType"] as string ?? "success";
+    var phPageId = ViewData["PageId"]?.ToString() ?? "";
+    var phShowBack = Convert.ToBoolean(ViewData["ShowBack"] ?? false);
+    var phShowDesign = Convert.ToBoolean(ViewData["ShowDesign"] ?? false);
+}
+<div class="dyn-page-head">
+    <div class="dyn-page-head__title">
+        <span class="dyn-page-head__name">@phTitle</span>
+        @if (!string.IsNullOrEmpty(phCode))
+        {
+            <span class="el-tag el-tag--small el-tag--info el-tag--plain">@phCode</span>
+        }
+        @if (!string.IsNullOrEmpty(phTable))
+        {
+            <span class="el-tag el-tag--small el-tag--warning el-tag--plain">@phTable</span>
+        }
+        @if (!string.IsNullOrEmpty(phModeTag))
+        {
+            <span class="el-tag el-tag--small el-tag--@phModeType el-tag--plain">@phModeTag</span>
+        }
+    </div>
+    @if (phShowDesign || phShowBack)
+    {
+        <div class="dyn-page-head__actions">
+            @if (phShowDesign)
+            {
+                <button type="button" class="el-button el-button--warning el-button--small is-link"
+                        onclick="window.location.href='/Platform/Mgmt/DynWebPageMgmt?id=@phPageId'">✎ 进入设计器</button>
+            }
+            @if (phShowBack)
+            {
+                <button type="button" class="el-button el-button--primary el-button--small is-link"
+                        onclick="window.location.href='/Platform/Page/Desktop'">← 返回桌面</button>
+            }
+        </div>
+    }
+</div>
+<style>
+    .dyn-page-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px;
+        background: #fff; border-bottom: 1px solid #e4e7ed; flex-shrink: 0; }
+    .dyn-page-head__title { display: flex; align-items: center; gap: 10px; margin-right: auto;
+        min-width: 0; }
+    .dyn-page-head__name { font-size: 16px; font-weight: 600; color: #303133; }
+    .dyn-page-head__actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+</style>

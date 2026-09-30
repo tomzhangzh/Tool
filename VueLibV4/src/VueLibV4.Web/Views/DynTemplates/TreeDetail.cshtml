@@ -81,21 +81,11 @@
     var showDesignEntry = Convert.ToBoolean(ViewData["ShowDesignEntry"] ?? false);
 }
 <div class="tr-root">
-    @* ===== 头部 ===== *@
-    <div class="tr-head">
-        <div class="tr-title">
-            <span class="tr-name">@title</span>
-            <el-tag size="small" type="info" effect="plain">tree-detail</el-tag>
-            <el-tag size="small" type="warning" effect="plain">@tableName</el-tag>
-        </div>
-        <div class="tr-actions">
-            @if (showDesignEntry)
-            {
-                <el-button size="small" type="warning" text @@click="go('/Platform/Mgmt/DynWebPageMgmt?id=@Model.Id')">✎ 进入设计器</el-button>
-            }
-            <el-button type="primary" size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
-        </div>
-    </div>
+    @* ===== 头部（位于 Vue app 容器之外，统一用原生元素页头，el-* 自定义元素不会被编译） ===== *@
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = title, ["Code"] = "tree-detail", ["TableName"] = tableName,
+        ["ShowBack"] = true, ["ShowDesign"] = showDesignEntry, ["PageId"] = Model.Id.ToString()
+    })
 
     <div class="tr-split" id="@extIdSplit">
         @* ===== 左树（根 App，自身宽度由拖拽 JS 控制） ===== *@
@@ -147,7 +137,6 @@
                     treeKey: function () { var self = this; this.$nextTick(function () { if (self.enableDrag) self.initSortable(); }); }
                 },
                 methods: {
-                    go: function (u) { window.location.href = u; },
                     // 组树：父级字段匹配 + 同级排序
                     buildTree: function (rows) {
                         var p = { keyField: this.keyField, parentField: this.parentField, sortField: this.sortField };
@@ -444,8 +433,6 @@
 <style>
     body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .tr-root { display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
-    .tr-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e4e7ed; flex-shrink: 0; }
-    .tr-head .tr-title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: #303133; margin-right: auto; }
     .tr-split { flex: 1; min-height: 0; display: flex; margin: 14px; box-sizing: border-box; background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; overflow: hidden; }
     .tr-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
     .tr-pane-left { flex-shrink: 0; padding: 12px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }

@@ -271,13 +271,15 @@ public class PageController : Controller
     /// <summary>Detail 弹窗片段：供宿主页面 fetchPartial 拉取并注入弹窗。
     /// 读取 DynWebPage（detail-modal 模板实例），透传 rowId/project 入参，返回无 Layout 片段。</summary>
     [HttpGet("/Platform/Page/DetailModal")]
-    public IActionResult DetailModal(long id, long? rowId = null, string project = null)
+    public IActionResult DetailModal(long id, long? rowId = null, string project = null, string prefill = null)
     {
         var page = _webPages.GetById((int)id);
         if (page == null) return Content("弹窗页面实例不存在：" + id);
         // project 优先取请求参数，缺省用页面实例自身的 ProjectId
         ViewBag.RowId = rowId?.ToString() ?? "";
         ViewBag.ProjectId = string.IsNullOrEmpty(project) ? (page.ProjectId?.ToString() ?? "") : project;
+        // 主子表"+子"预填：query 传入的 JSON 字符串（如 {"ParentId":12}），原样透传给片段解析
+        ViewBag.Prefill = prefill ?? "";
         var template = page.TemplateId != null ? _templates.GetById(page.TemplateId.Value) : null;
         var viewPath = string.IsNullOrWhiteSpace(template?.ViewPath)
             ? "~/Views/DynTemplates/DetailModal.cshtml"

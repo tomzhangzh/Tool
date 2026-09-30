@@ -23,6 +23,14 @@
     var editUrl = ClayHelper.GetString(runTimeModel, "EditUrl") ?? ("/api/business/dyndata/update");
     var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
     var detailPs = detailPsId != null ? PageSettingService.GetById(detailPsId.Value) : null;
+    var keyField = ClayHelper.GetString(runTimeModel, "KeyField") ?? "Id";
+    // 主子表"+子"预填：宿主把 {外键字段:父行主键} JSON 放在 query 透传进来
+    var preFill = new JObject();
+    var prefillRaw = (ViewBag.Prefill as string) ?? "";
+    if (!string.IsNullOrWhiteSpace(prefillRaw))
+    {
+        try { if (JObject.Parse(prefillRaw) is JObject po) preFill = po; } catch { /* 非法预填忽略 */ }
+    }
 
     var detailCfg = new JObject();
     if (detailPs != null)
@@ -34,6 +42,8 @@
     detailCfg["project"] = project;
     detailCfg["addUrl"] = addUrl;
     detailCfg["editUrl"] = editUrl;
+    detailCfg["keyField"] = keyField;
+    detailCfg["preFill"] = preFill;
     detailCfg["rowId"] = rowId;
 
     var rootModel = new JObject
@@ -50,10 +60,11 @@
 }
 <div class="tsb-modal" style="padding:4px 2px;">
     <div class="tsb-mhead" style="display:flex;align-items:center;gap:8px;padding-bottom:10px;">
+        @* 弹窗片段位于 Vue app 容器之外，el-tag 不会被编译，这里用原生 span + el-tag 样式类 *@
         <span style="font-size:14px;font-weight:600;color:#303133;">@title</span>
-        <el-tag size="small" type="info" effect="plain">@tableName</el-tag>
-        @if (!string.IsNullOrEmpty(rowId)) { <el-tag size="small" type="warning" effect="plain">编辑 #@rowId</el-tag> }
-        else { <el-tag size="small" type="success" effect="plain">新增</el-tag> }
+        <span class="el-tag el-tag--small el-tag--info el-tag--plain">@tableName</span>
+        @if (!string.IsNullOrEmpty(rowId)) { <span class="el-tag el-tag--small el-tag--warning el-tag--plain">编辑 #@rowId</span> }
+        else { <span class="el-tag el-tag--small el-tag--success el-tag--plain">新增</span> }
     </div>
 
     @* 根 app：承载 detailCfg + 消息中心；mounted 时若 rowId 有值则拉行数据回填 DetailBlock *@
@@ -69,23 +80,36 @@
                 this.__unsubs = [];
                 // 编辑模式：按 rowId 拉单行数据回填 DetailBlock
                 var dc = m.detailCfg;
+                // sendCommand 时 DetailBlock 可能尚未挂载（片段内根 app 在前、Block 在后串行 mount），
+                // reject 表示"积木未注册"，按 50ms 重试，最多约 1.5s
+                var sendDetail = function (payload) {
+                    var tries = 0;
+                    (function send() {
+                        self.model.msgCenter.sendCommand('detail', payload).catch(function () {
+                            if (++tries < 30) setTimeout(send, 50);
+                        });
+                    })();
+                };
                 if (dc && dc.rowId && dc.rowId !== '') {
                     var q = '/api/business/dyndata/get';
                     if (window.axios) {
                         axios.get(q, { params: { table: dc.table || '', id: dc.rowId, project: dc.project || undefined } })
                             .then(function (r) {
                                 var row = r && r.data && r.data.data;
-                                if (row) { self.model.msgCenter.sendCommand('detail', { cmd: 'editForm', row: row }); }
+                                if (row) { sendDetail({ cmd: 'editForm', row: row }); }
                             })
                             .catch(function (e) { console.error('[DetailModal] 加载行数据失败', e); });
                     } else if (window.dyn && window.dyn.fetchPartial) {
                         dyn.fetchPartial(q, { table: dc.table || '', id: dc.rowId, project: dc.project || undefined }, 'GET', 'json')
                             .then(function (r) {
                                 var row = r && r.data && r.data.data;
-                                if (row) { self.model.msgCenter.sendCommand('detail', { cmd: 'editForm', row: row }); }
+                                if (row) { sendDetail({ cmd: 'editForm', row: row }); }
                             })
                             .catch(function (e) { console.error('[DetailModal] 加载行数据失败', e); });
                     }
+                } else if (dc && dc.preFill && Object.keys(dc.preFill).length) {
+                    // 新增态 + 主子预填（如"+子"）：直接命令 DetailBlock 用预填外键建表单
+                    sendDetail({ cmd: 'newForm', preFill: dc.preFill });
                 }
             },
             beforeUnmount: function () {

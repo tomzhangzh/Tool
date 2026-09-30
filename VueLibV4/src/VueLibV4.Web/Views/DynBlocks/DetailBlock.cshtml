@@ -26,12 +26,13 @@
     var blkProject = (ViewData["BlkProject"] as string) ?? "";
     var blkDeleteUrl = (ViewData["BlkDeleteUrl"] as string) ?? "";
     var blkModal = (ViewData["BlkModal"] as string) ?? "";
+    var blkKeyField = (ViewData["BlkKeyField"] as string) ?? "";
 }
 <div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-default="@blkDefault" data-blk-table="@blkTable"
      data-blk-addurl="@blkAddUrl" data-blk-editurl="@blkEditUrl" data-blk-deleteurl="@blkDeleteUrl"
-     data-blk-project="@blkProject" data-blk-modal="@blkModal" class="db">
+     data-blk-project="@blkProject" data-blk-modal="@blkModal" data-blk-keyfield="@blkKeyField" class="db">
     <div class="db-errbar" v-if="formError">{{ formError }}</div>
     <div class="db-body">
         <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
@@ -75,6 +76,7 @@
             editUrl: element.getAttribute('data-blk-editurl') || '',
             deleteUrl: element.getAttribute('data-blk-deleteurl') || '',
             project: element.getAttribute('data-blk-project') || '',
+            keyField: element.getAttribute('data-blk-keyfield') || 'Id',
             msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
         };
     }
@@ -156,7 +158,7 @@
                     return;
                 }
                 this.loading = true;
-                var isEdit = this.form && this.form.Id !== null && this.form.Id !== undefined && this.form.Id !== '';
+                var isEdit = this.form && this.form[this.keyField] !== null && this.form[this.keyField] !== undefined && this.form[this.keyField] !== '';
                 // 接口风格适配：/api/platform/* 为平台直连（save?table= 直接发行数据）；否则业务 dyndata（insert/update，body {table,data}）
                 var isPlat = (this.addUrl || '').indexOf('/api/platform/') === 0;
                 var body = isPlat ? this.form : { table: this.table, data: this.form, project: this.project };

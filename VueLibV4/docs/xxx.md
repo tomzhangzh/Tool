@@ -88,3 +88,54 @@ HTML
 
 ## 8. 设计器的"悬浮选中层不包 DOM"
 选中态没有用包一层`<div class="selected-wrapper">` 的做法（那会破坏组件布局和事件），而是用一个 独立的绝对定位 overlay 层 （`pointer-events:none` ），只在顶部工具条处开放交互。组件本身的 DOM 结构完全不受选中态影响——这个细节在拖拽型设计器里很关键，少走了很多弯路。
+
+
+
+
+### 模板不能"一刀切"——有三个还在挂线上功能
+A. 可立即清理（无任何页面引用，删文件 + 停用 DB 模板行即可）：
+
+- TreeBasic.cshtml （DynTemplate Id=3）
+- MasterDetailBasic.cshtml （Id=4）
+- EChartDemo.cshtml （Id=5）
+- ViewSwitcherDemo.cshtml （Id=6）
+- CarDashboardDemo.cshtml （Id=7）
+- 清理前只需核对一下"示例 Demo"菜单（SysMenu Id=34/35/37 等）和桌面快捷方式的 Url 是否还指向它们的演示路由。
+B. 有硬依赖，必须先迁移再删：
+
+- CrudBasic.cshtml （Id=2）—— 平台自己的 5 个管理页正在用 （PageSetting 管理、DynTemplate 管理、DynWebPage 列表等），且是 PageController.cs#L258 的兜底 ViewPath， Seeder.cs#L245 也在种它。需要先把这 5 个页迁到 filterlist-crud，再改种子和兜底路径。
+- DetailTemplate.cshtml ——没有模板行，但`/Platform/Page/DynDetail` 片段端点（ PageController.cs#L370 ）硬编码渲染它，需先确认有没有列表 open 动作在调这个地址。
+- MacDesktopDemo.cshtml ——有独立硬编码路由 PageController.cs#L164-L169 。
+- Partials/ListBack.cshtml ——还被 PageSetting 种子`setting-list-basic` （RenderMode=Back）引用，保留。
+## 二、建议新增的 DynBlocks（按优先级）
+P0 — 先把现有大模板拆出积木，复用度最高：
+
+1. TreeBlock ：把 TreeDetail 里的树（加载/增删改/拖拽/搜索过滤）抽成独立积木。抽完后 TreeDetail 退化为"TreeBlock + DetailBlock 的组合壳"，并能解锁树+列表、树+图表等形态。
+2. ChildTableBlock（子表/明细表格） ：可编辑表格（行内新增/删除），主子表保存，主从页面必备。
+3. ToolbarBlock（操作工具栏） ：新增/批量删除/导出/导入/列设置按钮位，被各模板复用。
+P1 — 仪表盘与展示类：
+
+4. StatCardBlock（KPI 指标卡） ：数字 + 同比 + 图标，支持从接口取值。
+5. ChartBlock（ECharts 图表） ：配置驱动（柱/折/饼/漏斗），经消息中心接收筛选条件，替代 EChartDemo 那种整页 Demo。
+6. CardListBlock（卡片网格） ：图片/标题/标签/操作，替代 ViewSwitcherDemo。
+7. DescriptionBlock（只读详情） ：el-descriptions 只读展示。
+P2 — 容器与高级场景：
+
+8. TabsBlock（标签页容器） ：每页签内挂子积木（多列表/列表+图表混排）。
+9. SplitLayoutBlock（分栏容器） ：可拖拽分割线，组合任意左右积木。
+10. WizardBlock（分步表单） 、 ImportBlock（Excel 导入/导出） 、 AttachmentBlock（附件上传） 、 KanbanBlock / CalendarBlock（看板/日历） 。
+## 三、建议新增的 Templates（全部用积木拼装，不再写整页逻辑）
+P0 常用后台形态：
+
+1. tree-list（左树+右列表） ——分类树导航 + 右列表弹窗 CRUD（组织机构-员工、商品分类-商品、菜单-权限），使用频率最高，抽完 TreeBlock 即可拼。
+2. master-detail（主从表） ——上主表下子表（订单+明细、单据+分录），替代旧的 MasterDetailBasic。
+3. tree-table（树形表格） ——el-tree-v2 同体树表，自引用表内联展开编辑，是 tree-detail 的"表格版"补充。
+P1：
+
+4. dashboard（数据仪表盘） ——StatCard + Chart + Filter 组合。
+5. list-drawer（列表+右侧抽屉详情） ——比弹窗更适合宽表单/长时间停留编辑，是 filterlist-crud 的抽屉版。
+6. permission-allot（权限分配） ——穿梭框/树勾选（角色→菜单授权、用户→角色），后台系统几乎必做。
+P2：
+
+7. tab-multi（多标签多列表） 、8. wizard-form（分步表单页） 、9. kanban / calendar（任务看板、日程） 、10. workbench（工作台门户：快捷入口+待办+图表） 。
+建议落地顺序： 先清理 A 组旧模板 → 抽 TreeBlock（顺带给 TreeDetail 瘦身）→ 出 tree-list 和 master-detail 两个模板 ，这三步收益最大、风险最小。

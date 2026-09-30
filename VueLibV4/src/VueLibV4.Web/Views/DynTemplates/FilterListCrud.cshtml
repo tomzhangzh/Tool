@@ -24,6 +24,7 @@
     var project = Model.ProjectId?.ToString() ?? "";
     var modalPageId = ClayHelper.GetString(runTimeModel, "ModalPageId") ?? "";
     var childFkField = ClayHelper.GetString(runTimeModel, "ChildFkField") ?? "";
+    var keyField = ClayHelper.GetString(runTimeModel, "KeyField") ?? "Id";
     var filterPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "FilterPageSettingId") ?? "", out int fv) ? fv : (int?)null;
     var listPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "ListPageSettingId") ?? "", out int lv) ? lv : (int?)null;
 
@@ -44,6 +45,7 @@
     }
     else { listCfg["columns"] = new JArray(); }
     listCfg["table"] = tableName;
+    listCfg["keyField"] = keyField;
     listCfg["project"] = project;
     listCfg["loadUrl"] = loadUrl;
     listCfg["deleteUrl"] = deleteUrl;
@@ -64,11 +66,10 @@
     var title = Model.Name;
 }
 <div class="flc-root">
-    <div class="flc-head">
-        <span class="flc-title">@title</span>
-        <el-tag size="small" type="info" effect="plain">@Model.Code</el-tag>
-        <el-tag size="small" type="warning" effect="plain">@tableName</el-tag>
-    </div>
+    @* 头部（位于 Vue app 容器之外，统一用原生元素页头） *@
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
+    })
 
     @* 根 app：共享上下文宿主（filterCfg/listCfg + msgCenter），处理弹窗打开与保存后刷新 *@
     <div id="@extIdRoot" data-dyn-mode="createApp" class="flc-rootapp">
@@ -81,13 +82,18 @@
                 childPreFill: function (row) {
                     var fk = this.model.childFkField;
                     if (!fk) return {};
-                    var pf = {}; pf[fk] = row ? row.Id : null; return pf;
+                    var kf = (this.model.listCfg && this.model.listCfg.keyField) || 'Id';
+                    var pf = {}; pf[fk] = row ? row[kf] : null; return pf;
                 },
-                // 打开 Detail 弹窗：拉取 DetailModal 片段（?id=ModalPageId），注入 layui layer 并 mount
-                openDetailModal: function (rowId) {
+                // 打开 Detail 弹窗：拉取 DetailModal 片段（?id=ModalPageId），注入 layui layer 并 mount。
+                // preFill：主子表"+子"时把父行主键预填到表单外键字段，经 query 透传给 DetailModal。
+                openDetailModal: function (rowId, preFill) {
                     var self = this;
                     var q = '/Platform/Page/DetailModal?id=' + (self.modalPageId || '') +
                         '&rowId=' + (rowId || '') + '&project=' + (self.project || '');
+                    if (preFill && Object.keys(preFill).length) {
+                        q += '&prefill=' + encodeURIComponent(JSON.stringify(preFill));
+                    }
                     if (!self.modalPageId) { dyn.showMessage('实例未配置 ModalPageId（Detail 弹窗页面 Id）', 'warning'); return; }
                     window.dyn.getLayer().then(function (layer) {
                         var holder = document.createElement('div');
@@ -138,9 +144,13 @@
                 this.project = '@project';
                 // 订阅 List 事件 → 打开弹窗
                 this.__unsubs.push(m.msgCenter.subscribeEvent('list.add', function () { self.openDetailModal(null); }));
-                this.__unsubs.push(m.msgCenter.subscribeEvent('list.edit', function (p) { self.openDetailModal(p.row ? p.row.Id : null); }));
+                this.__unsubs.push(m.msgCenter.subscribeEvent('list.edit', function (p) {
+                    var kf = (m.listCfg && m.listCfg.keyField) || 'Id';
+                    self.openDetailModal(p.row ? p.row[kf] : null);
+                }));
                 this.__unsubs.push(m.msgCenter.subscribeEvent('list.addChild', function (p) {
-                    self.openDetailModal(null);
+                    // 主子预填：把父行主键写入表单 ChildFkField 字段（DetailModal 经 prefill query 接收）
+                    self.openDetailModal(null, self.childPreFill(p && p.row));
                 }));
                 // 监听弹窗保存成功全局事件 → 刷新列表
                 this.__onDataSaved = function (ev) { self.onDataSaved(ev); };
@@ -169,8 +179,6 @@
 <style>
     body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .flc-root { padding: 0 0 20px; }
-    .flc-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e4e7ed; }
-    .flc-title { font-size: 16px; font-weight: 600; color: #303133; }
     .flc-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
     .flc-rootapp { display: none; }
 </style>

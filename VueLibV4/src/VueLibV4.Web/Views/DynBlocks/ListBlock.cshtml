@@ -23,12 +23,13 @@
     var blkLoadUrl = (ViewData["BlkLoadUrl"] as string) ?? "";
     var blkDeleteUrl = (ViewData["BlkDeleteUrl"] as string) ?? "";
     var blkProject = (ViewData["BlkProject"] as string) ?? "";
+    var blkKeyField = (ViewData["BlkKeyField"] as string) ?? "";
 }
 <div id="@extId" data-dyn-mode="createApp" data-root-ext-id="@rootExtId"
      data-model-key="@modelKey" data-msg-center-key="@msgCenterKey"
      data-blk-config="@blkConfig" data-blk-table="@blkTable"
      data-blk-loadurl="@blkLoadUrl" data-blk-deleteurl="@blkDeleteUrl"
-     data-blk-project="@blkProject" class="lb">
+     data-blk-project="@blkProject" data-blk-keyfield="@blkKeyField" class="lb">
     <div class="lb-toolbar">
         @* 按钮统一走 dyn-click 动作体系；操作列按钮通过 data-row-id 把当前行主键传给动作（ctx.params['row-id']）。
            注意：el-button 会拦截冒泡阻断 dyn 委托，故用【原生 button + el-button 样式类】保持视觉一致。 *@
@@ -38,9 +39,9 @@
         <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label" :width="col.width || undefined"></el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
-                <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListEdit :data-row-id="scope.row.Id">编辑</button>
-                <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListAddChild :data-row-id="scope.row.Id">+子</button>
-                <button type="button" class="el-button el-button--small is-link is-text" data-dyn-click-ListDelete :data-row-id="scope.row.Id">删除</button>
+                <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListEdit :data-row-id="scope.row[keyField]">编辑</button>
+                <button type="button" class="el-button el-button--small is-link" data-dyn-click-ListAddChild :data-row-id="scope.row[keyField]">+子</button>
+                <button type="button" class="el-button el-button--small is-link is-text" data-dyn-click-ListDelete :data-row-id="scope.row[keyField]">删除</button>
             </template>
         </el-table-column>
     </el-table>
@@ -50,7 +51,7 @@
             :page-sizes="[10, 20, 50, 100]" @@current-change="onPage" @@size-change="onSize"></el-pagination>
     </div>
     <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
-    <script  tag="dynconfig">
+    <script type="text/plain" tag="dynconfig">
     // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
     var __rid = element.getAttribute('data-root-ext-id');
     var __rootApp = null;
@@ -79,6 +80,7 @@
             loadUrl: element.getAttribute('data-blk-loadurl') || '',
             deleteUrl: element.getAttribute('data-blk-deleteurl') || '',
             project: element.getAttribute('data-blk-project') || '',
+            keyField: element.getAttribute('data-blk-keyfield') || __indCfg.keyField || 'Id',
             msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
         };
     }
@@ -86,6 +88,7 @@
         data: function () {
             return {
                 columns: __ctx.columns || [],
+                keyField: __ctx.keyField || 'Id',
                 table: __ctx.table || '',
                 loadUrl: __ctx.loadUrl || '',
                 deleteUrl: __ctx.deleteUrl || '',
@@ -126,14 +129,21 @@
             onAdd: function () { var msg = __ctx.msgCenter; if (msg) msg.emitEvent('list.add', {}); },
             onEdit: function (row) { var msg = __ctx.msgCenter; if (msg) msg.emitEvent('list.edit', { row: row }); },
             onAddChild: function (row) { var msg = __ctx.msgCenter; if (msg) msg.emitEvent('list.addChild', { row: row }); },
-            // 删除：POST deleteUrl {table, keys:{Id}}，删除前用平台原生 dyn.confirmAsync 确认；
-            // 确认通过后删除，成功后本地刷新。统一走 DynCall（信封解包 + 统一 toast）。
+            // 删除：平台直连 delete 用 query 传 table/id；业务 dyndata delete 用 body {table, keys:{主键}}。
+            // 删除前用平台原生 dyn.confirmAsync 确认；确认通过后删除，成功后本地刷新（DynCall 统一 toast）。
             onDelete: function (row) {
                 var self = this;
-                var id = row && row.Id;
+                var kf = this.keyField || 'Id';
+                var id = row && row[kf];
                 if (id === null || id === undefined) return;
                 var doDelete = function () {
-                    DynCall.post(self.deleteUrl, { table: self.table, keys: { Id: id }, project: self.project }, { scopeEl: element })
+                    var isPlat = (self.deleteUrl || '').indexOf('/api/platform/') === 0;
+                    var dUrl = isPlat
+                        ? (self.deleteUrl + '?table=' + encodeURIComponent(self.table) + '&id=' + encodeURIComponent(id))
+                        : self.deleteUrl;
+                    var keys = {}; keys[kf] = id;
+                    var dBody = isPlat ? {} : { table: self.table, keys: keys, project: self.project };
+                    DynCall.post(dUrl, dBody, { scopeEl: element })
                         .then(function () {
                             dyn.showMessage('删除成功', 'success');
                             self.loadData();
@@ -151,7 +161,8 @@
                 var vm = ctx && ctx.vm;
                 var id = ctx && ctx.params && ctx.params['row-id'];
                 if (!vm || id === null || id === undefined) return null;
-                return (vm.model.rows || []).find(function (r) { return String(r.Id) === String(id); }) || null;
+                var kf = vm.keyField || 'Id';
+                return (vm.model.rows || []).find(function (r) { return String(r[kf]) === String(id); }) || null;
             },
             // 注册本 Block 的操作动作（ctx.vm 即本 Block proxy）
             registerActions: function () {
