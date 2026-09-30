@@ -85,6 +85,9 @@
                         q += '&prefill=' + encodeURIComponent(JSON.stringify(preFill));
                     }
                     if (!self.modalPageId) { dyn.showMessage('实例未配置 ModalPageId（Detail 弹窗页面 Id）', 'warning'); return; }
+                    // 记录打开前的保存计数：弹窗 end 时若计数未变（X/取消关闭），补一次列表刷新；
+                    // 保存成功的刷新已由 dyndata.saved 处理，计数变化则 end 不再重复刷。
+                    var savedTickOpen = self.__savedTick || 0;
                     window.dyn.getLayer().then(function (layer) {
                         var holder = document.createElement('div');
                         holder.className = 'dyn-modal-host dyn-layer-fragment';
@@ -112,15 +115,22 @@
                                 [].forEach.call(apps, function (ae) { try { window.dyn.unmount(ae); } catch (e) { } });
                                 try { window.dyn.unmount(holder); } catch (e) { }
                                 try { holder.remove(); } catch (e) { }
+                                // 关闭弹窗时：本次打开期间没有保存成功（X/取消）→ 补刷一次列表；
+                                // 已保存的刷新由 dyndata.saved 完成，避免重复请求。
+                                if ((self.__savedTick || 0) === savedTickOpen) {
+                                    var msg = self.model && self.model.msgCenter;
+                                    if (msg) msg.sendCommand('list', { cmd: 'reload' });
+                                }
                             }
                         });
                     });
                 },
-                // 弹窗保存成功回调：命令 List 重新加载
+                // 弹窗保存成功回调：命令 List 重新加载（计数供弹窗 end 去重）
                 onDataSaved: function (ev) {
                     var det = (ev && ev.detail) || {};
                     // 表名一致才刷新（多列表页面防误刷）
                     if (det.table && det.table !== this.model.listCfg.table) return;
+                    this.__savedTick = (this.__savedTick || 0) + 1;
                     var msg = this.model.msgCenter;
                     if (msg) msg.sendCommand('list', { cmd: 'reload' });
                 }
@@ -132,6 +142,11 @@
                 this.__unsubs = [];
                 this.modalPageId = '@modalPageId';
                 this.project = '@project';
+                this.__savedTick = 0;
+                // 订阅筛选查询：FilterBlock 发 filter.changed → 命令 List 带筛选条件加载
+                this.__unsubs.push(m.msgCenter.subscribeEvent('filter.changed', function (p) {
+                    m.msgCenter.sendCommand('list', { cmd: 'loadData', filter: (p && p.params) || {} });
+                }));
                 // 订阅 List 事件 → 打开弹窗
                 this.__unsubs.push(m.msgCenter.subscribeEvent('list.add', function () { self.openDetailModal(null); }));
                 this.__unsubs.push(m.msgCenter.subscribeEvent('list.edit', function (p) {

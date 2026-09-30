@@ -72,7 +72,8 @@
         __ctx.deleteUrl = r.cfg.deleteUrl || '';
         __ctx.project = r.cfg.project || '';
         __ctx.keyField = r.cfg.keyField || 'Id';
-        __ctx.modal = r.cfg.modal === true;
+        // 弹窗形态：cfg.modal 显式声明，或宿主在容器上标 data-blk-modal="true"（DetailModal 弹窗片段）
+        __ctx.modal = r.cfg.modal === true || element.getAttribute('data-blk-modal') === 'true';
         __ctx.msgCenter = r.msg;
         __ctx.state = 'ready';
     }
