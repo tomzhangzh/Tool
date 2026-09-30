@@ -6,16 +6,16 @@
 @inject IPageSettingService PageSettingService
 @{
     // =====================================================================================
-    // 通用树形管理模板（tree-detail）：左侧树 + 可拖拽分隔条 + 右侧 Detail 表单（复用 DetailBlock）。
-    //   取代旧的 TreeBasic（DynSharedModel 预组装），改用现行积木化体系：
-    //   - 根 App（左树 pane）：承载 tree 逻辑 + 消息中心 + detailCfg（模板从 ConfigJson 读实例参数 + PageSettingService 拼装）
-    //   - 左树：根 App 内聚渲染（el-tree 组树，按 ParentField 层级 + SortField 排序）
-    //   - 右表单：DetailBlock 组合模式（data-model-key=detailCfg）【位于根 App 容器之外，避免根 App mount 时
-    //     其 script 标签被 mountCore 统一移除导致积木丢失配置】
-    //   - 分隔条拖拽：根 App mounted 中用 JS 绑定 gutter/split 事件，直接操作根 App 元素宽度（18%~60%）
-    //   - 实例参数（ConfigJson）：TableName(必填)/KeyField(默认Id)/ParentField(默认ParentId)/
-    //       TitleField(默认Name)/IconField(默认Icon)/SortField(默认SortNo)/DetailPageSettingId(必填)/
-    //       AddUrl/EditUrl/DeleteUrl(默认)/ListUrl(默认 dyndata/search)/LeftWidth(默认30)
+    // 通用树形管理模板（tree-detail）：左树 + 可拖拽分隔条 + 右侧明细表单。
+    //   本模板【自身是一个 VueApp】（左树有真实动态 UI），但它与右侧 DetailApp 是【平级协作】：
+    //     - 左树 app（data-blk-role=tree）：内聚组树/搜索/拖拽排序/分隔条；对外只发
+    //         事件 nodeClick{row} / addRoot{} / addChild{preFill}，并接受命令 reload。
+    //     - 右表单 DetailApp（独立 BlockApp）：保存/删除成功只 emit saved。
+    //     - 两个 app 的 DOM 子树不相交（.tr-pane-left 与 .tr-pane-right 是纯布局兄弟节点，
+    //       gutter 也是布局元素）；关系由本模板 Scripts 段的句柄接线显式表达：
+    //         tree.nodeClick/addRoot/addChild → detail.editForm/newForm；detail.saved → tree.reload
+    //   实例参数（ConfigJson）：TableName/KeyField/ParentField/TitleField/IconField/SortField/
+    //     DetailPageSettingId/AddUrl/EditUrl/DeleteUrl/ListUrl/LeftWidth/EnableDrag/DragSameLevelOnly
     // =====================================================================================
     Layout = "_Layout";
     ViewData["Title"] = Model.Name + " - VueLibV4";
@@ -28,12 +28,11 @@
     var iconField = ClayHelper.GetString(runTimeModel, "IconField") ?? "Icon";
     var sortField = ClayHelper.GetString(runTimeModel, "SortField") ?? "SortNo";
     var project = Model.ProjectId?.ToString() ?? "";
-    var loadUrl = ClayHelper.GetString(runTimeModel, "ListUrl") ?? "/api/business/dyndata/search";
-    var addUrl = ClayHelper.GetString(runTimeModel, "AddUrl") ?? "/api/business/dyndata/insert";
-    var editUrl = ClayHelper.GetString(runTimeModel, "EditUrl") ?? "/api/business/dyndata/update";
-    var deleteUrl = ClayHelper.GetString(runTimeModel, "DeleteUrl") ?? "/api/business/dyndata/delete";
+    var loadUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "ListUrl"), DynPageViewHelper.BizSearch);
+    var addUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "AddUrl"), DynPageViewHelper.BizInsert);
+    var editUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "EditUrl"), DynPageViewHelper.BizUpdate);
+    var deleteUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "DeleteUrl"), DynPageViewHelper.BizDelete);
     var leftWidth = int.TryParse(ClayHelper.GetString(runTimeModel, "LeftWidth") ?? "30", out int lw) ? lw : 30;
-    // 布尔解析：兼容 true/True/false/False/1/0
     static bool ParseBool(string v)
     {
         if (string.IsNullOrWhiteSpace(v)) return false;
@@ -44,6 +43,17 @@
     var dragSameLevelOnly = ParseBool(ClayHelper.GetString(runTimeModel, "DragSameLevelOnly"));
     var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
 
+    // 左树 app 自读配置（dynmodel 承载）
+    var treeParams = new JObject
+    {
+        ["table"] = tableName, ["keyField"] = keyField, ["parentField"] = parentField,
+        ["titleField"] = titleField, ["iconField"] = iconField, ["sortField"] = sortField,
+        ["loadUrl"] = loadUrl, ["editUrl"] = editUrl, ["project"] = project,
+        ["enableDrag"] = enableDrag, ["dragSameLevelOnly"] = dragSameLevelOnly
+    };
+    var treeModelForScript = DynPageViewHelper.SafeJson(new JObject { ["treeParams"] = treeParams });
+
+    // 右侧 DetailApp 的唯一输入
     var detailCfg = new JObject();
     DynPageViewHelper.ApplyFrontSetting(detailCfg, PageSettingService, detailPsId, "detailConfig", "detailDefault");
     detailCfg["table"] = tableName;
@@ -53,40 +63,24 @@
     detailCfg["deleteUrl"] = deleteUrl;
     detailCfg["keyField"] = keyField;
 
-    var rootModel = new JObject
-    {
-        ["msgCenter"] = null,
-        ["detailCfg"] = detailCfg,
-        ["treeParams"] = new JObject
-        {
-            ["table"] = tableName, ["keyField"] = keyField, ["parentField"] = parentField,
-            ["titleField"] = titleField, ["iconField"] = iconField, ["sortField"] = sortField,
-            ["loadUrl"] = loadUrl, ["editUrl"] = editUrl, ["project"] = project,
-            ["enableDrag"] = enableDrag, ["dragSameLevelOnly"] = dragSameLevelOnly
-        }
-    };
-    var rootModelForScript = DynPageViewHelper.SafeJson(rootModel);
-
     var extId = "Ttr" + Guid.NewGuid().ToString("N");
-    var extIdRoot = extId + "-root";
+    var extIdTree = extId + "-tree";
     var extIdSplit = extId + "-split";
     var extIdGutter = extId + "-gutter";
     var extIdDetail = extId + "-detail";
     var title = Model.Name;
-    // 运行时右上角「进入设计器」：由 Dyn:ShowRuntimeDesignEntry 控制显隐（无认证时以此充当"管理员可见"开关）
     var showDesignEntry = Convert.ToBoolean(ViewData["ShowDesignEntry"] ?? false);
 }
 <div class="tr-root">
-    @* ===== 头部（位于 Vue app 容器之外，统一用原生元素页头，el-* 自定义元素不会被编译） ===== *@
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
         ["Title"] = title, ["Code"] = "tree-detail", ["TableName"] = tableName,
         ["ShowBack"] = true, ["ShowDesign"] = showDesignEntry, ["PageId"] = Model.Id.ToString()
     })
 
     <div class="tr-split" id="@extIdSplit">
-        @* ===== 左树（根 App，自身宽度由拖拽 JS 控制） ===== *@
-        <div id="@extIdRoot" data-dyn-mode="createApp" class="tr-pane-left" style="width:@(leftWidth)%">
-            <script type="application/json" tag="dynmodel">@Html.Raw(rootModelForScript)</script>
+        @* ===== 左树：模板自身的 app（有真实 UI），与右侧 DetailApp 平级、DOM 子树不相交 ===== *@
+        <div id="@extIdTree" data-dyn-mode="createApp" data-blk-role="tree" class="tr-pane-left" style="width:@(leftWidth)%">
+            <script type="application/json" tag="dynmodel">@Html.Raw(treeModelForScript)</script>
             <script type="text/plain" tag="dynconfig">
             var dynConfig = {
                 data: function () {
@@ -111,7 +105,6 @@
                     };
                 },
                 computed: {
-                    // 搜索节点：按标题字段递归过滤，命中节点及其祖先保留；关键词为空显示全部
                     filteredTreeData: function () {
                         var val = this.filterText || '';
                         if (!val) return this.treeData;
@@ -129,11 +122,10 @@
                     }
                 },
                 watch: {
-                    // el-tree 用 :key 强制重建（新增/删除/排序后 treeKey+1），重建后重新绑定拖拽
                     treeKey: function () { var self = this; this.$nextTick(function () { if (self.enableDrag) self.initSortable(); }); }
                 },
                 methods: {
-                    // 组树：父级字段匹配 + 同级排序
+                    // ---------------- 树数据：组树 + 加载 ----------------
                     buildTree: function (rows) {
                         var p = { keyField: this.keyField, parentField: this.parentField, sortField: this.sortField };
                         var map = {}, roots = [];
@@ -159,34 +151,27 @@
                         }, element).then(function (res) {
                             var rows = (res && res.rows) || (res && res.data && res.data.rows) || [];
                             self.treeData = self.buildTree(rows);
-                            self.treeKey = self.treeKey + 1; // 强制 el-tree 重挂载，保证删除/新增后视图同步
-                            self.scheduleInitSortable();    // 树渲染稳定后兜底绑定拖拽（防止 watch.treeKey 时序过早导致未绑定）
+                            self.treeKey = self.treeKey + 1;
+                            self.scheduleInitSortable();
                         }).catch(function () { dyn.showMessage('加载树失败', 'error'); })
                           .finally(function () { self.treeLoading = false; });
                     },
-                    // 树节点点击 → 命令 Detail 回填
-                    onNodeClick: function (data) {
-                        this.current = data;
-                        var msg = this.model.msgCenter;
-                        if (msg) msg.sendCommand('detail', { cmd: 'editForm', row: data });
-                    },
-                    // 新增根节点（空表单）
-                    onAddRoot: function () {
-                        this.current = null;
-                        var msg = this.model.msgCenter;
-                        if (msg) msg.sendCommand('detail', { cmd: 'newForm', preFill: {} });
-                    },
-                    // 新增子节点（预填父级字段）
+                    // ---------------- 对外事件（只报告"发生了什么"，如何响应由模板接线） ----------------
+                    onNodeClick: function (data) { this.current = data; this.__handle.emit('nodeClick', { row: data }); },
+                    onAddRoot: function () { this.current = null; this.__handle.emit('addRoot', {}); },
                     onAddChild: function () {
                         var c = this.current;
                         if (!c || c[this.keyField] === null || c[this.keyField] === undefined || c[this.keyField] === '') {
                             dyn.showMessage('请先选择一个父节点', 'warning'); return;
                         }
                         var pre = {}; pre[this.parentField] = c[this.keyField];
-                        var msg = this.model.msgCenter;
-                        if (msg) msg.sendCommand('detail', { cmd: 'newForm', preFill: pre });
+                        this.__handle.emit('addChild', { preFill: pre });
                     },
-                    // 分隔条拖拽：直接操作根 App 元素宽度（18%~60%）
+                    resetSplit: function () {
+                        this.split = @leftWidth;
+                        element.style.width = '@(leftWidth)%';
+                    },
+                    // ---------------- 分隔条拖拽 ----------------
                     _dragStart: null,
                     onDragStart: function (e) {
                         e.preventDefault();
@@ -205,9 +190,7 @@
                         this._dragStart = null;
                         document.body.style.userSelect = '';
                     },
-                    // 表单保存/删除成功后刷新树
-                    onDetailSaved: function () { this.loadTree(); },
-                    // ---------- 拖拽排序（Sortable） ----------
+                    // ---------------- 拖拽排序（Sortable） ----------------
                     initSortable: function () {
                         if (!this.enableDrag) return;
                         var self = this;
@@ -216,9 +199,6 @@
                         if (!treeRef || !treeRef.$el) return;
                         if (typeof Sortable === 'undefined') { dyn.showMessage('拖拽组件未加载', 'error'); return; }
                         var rootEl = treeRef.$el;
-                        // 关键：Element Plus 树的节点列表容器是 .el-tree-node__children（每层），
-                        // 根级节点直接挂在 .el-tree 本身上、没有额外 children 容器。
-                        // 此前用 .el-tree__children 匹配不到任何元素 → lists 为空 → Sortable 从未创建 → 拖拽无效。
                         var lists = [rootEl];
                         rootEl.querySelectorAll('.el-tree-node__children').forEach(function (l) { lists.push(l); });
                         this._sortables = [];
@@ -228,32 +208,29 @@
                                 group: 'dyn-tree-sort',
                                 animation: 150,
                                 handle: '.tr-node',
-                                forceFallback: true,        // 强制 Sortable 自绘 ghost：el-tree 节点会被浏览器原生 drag 预览吞掉，导致拖拽无占位指示
+                                forceFallback: true,
                                 fallbackOnBody: true,
                                 fallbackTolerance: 2,
-                                ghostClass: 'dyn-tree-ghost',   // 拖拽幽灵（跟随鼠标的插入指示）
+                                ghostClass: 'dyn-tree-ghost',
                                 chosenClass: 'dyn-tree-chosen',
                                 dragClass: 'dyn-tree-drag',
                                 onMove: function (evt) {
-                                    // 过滤中只显示子集，此时采集序号会污染未显示节点，禁止拖拽
                                     if (self.filterText) return false;
                                     if (self.dragSameLevelOnly && evt.from !== evt.to) return false;
-                                    // 防环：禁止把节点拖进它自己的子树（目标列表位于被拖节点内部），
-                                    // 否则 ParentId 形成环，刷新后整支子树挂不上根而消失。
                                     var dragged = evt.dragged;
                                     if (dragged && evt.to && (evt.to === dragged || dragged.contains(evt.to))) return false;
                                     return true;
                                 },
-                                onStart: function () { // 拖拽时禁用文本选择，避免出现蓝色选中底
+                                onStart: function () {
                                     document.body.style.userSelect = 'none';
                                     document.body.style.webkitUserSelect = 'none';
                                     document.body.style.mozUserSelect = 'none';
                                 },
-                                onEnd: function (evt) { // 结束时恢复文本选择并保存新顺序
+                                onEnd: function () {
                                     document.body.style.userSelect = '';
                                     document.body.style.webkitUserSelect = '';
                                     document.body.style.mozUserSelect = '';
-                                    self.saveOrder(evt);
+                                    self.saveOrder(arguments[0]);
                                 }
                             });
                             self._sortables.push(s);
@@ -262,7 +239,6 @@
                     destroySortable: function () {
                         if (this._sortables) { this._sortables.forEach(function (s) { try { s.destroy(); } catch (e) { } }); this._sortables = []; }
                     },
-                    // el-tree 用 :key 强制重建，重建是异步的；轮询等 DOM 就绪后再绑定拖拽，避免过早绑定到空容器
                     scheduleInitSortable: function () {
                         var self = this;
                         if (!this.enableDrag) return;
@@ -272,15 +248,9 @@
                             var treeRef = self.$refs.treeEl;
                             var ready = treeRef && treeRef.$el && treeRef.$el.querySelectorAll('.el-tree-node__children').length > 0;
                             if (ready) { self.initSortable(); return; }
-                            if (tries <= 10) setTimeout(tryInit, 120); // 最多重试约 1.2s 等树渲染完成
+                            if (tries <= 10) setTimeout(tryInit, 120);
                         })();
                     },
-                    // 由列表容器反查所属父节点 key：
-                    //  - 根级列表就是 .el-tree 自身（根节点直接挂在它下面）→ ''（根级 ParentId 写 null）
-                    //  - 子级列表 .el-tree-node__children → 其所在 .el-tree-node 的 content 内 [data-key]
-                    // 旧实现用 listEl.parentElement.querySelector('[data-key]')：根列表的父容器是
-                    // .tr-tree-wrap，querySelector 命中的是整棵树第一个节点，导致根级拖拽时所有根节点
-                    // 的 ParentId 被错写成第一个根节点的 Id。
                     parentKeyOfList: function (listEl) {
                         if (!listEl) return '';
                         if (listEl.classList && listEl.classList.contains('el-tree')) return '';
@@ -290,7 +260,6 @@
                                   || nodeEl.querySelector('[data-key]');
                         return keyEl ? keyEl.getAttribute('data-key') : '';
                     },
-                    // 拖前树数据（treeData）的 key → 父 key 映射，根节点父为 ''；用于判定 ParentId 是否真的变化
                     buildParentMap: function () {
                         var map = {};
                         (function walk(list, parentKey) {
@@ -320,12 +289,7 @@
                         if (evt.to && evt.to !== evt.from) this.collectOrder(evt.to, updates);
                         var keys = Object.keys(updates);
                         if (!keys.length) { this.loadTree(); return; }
-                        // ParentId 是否真的变化，必须与【拖前】真实父级比对（不能凭 DOM 采集先后猜），
-                        // 没变化就不带父级字段，避免误改；只有跨层移动的节点才写 ParentId。
                         var currentParent = this.buildParentMap();
-                        // 接口契约统一收口在 DynBlocks：
-                        //  - /api/platform/ 前缀 → save 端点扁平实体（自动补 query table）
-                        //  - 其余（业务库）→ update body {table, project, data:{主键,...}}
                         var saveStyle = DynBlocks.apiStyle(self.editUrl);
                         var saveUrl = DynBlocks.saveUrl(saveStyle, self.editUrl, self.tableName, true);
                         var tasks = keys.map(function (k) {
@@ -341,7 +305,7 @@
                                 body: DynBlocks.savePayload(saveStyle, self.tableName, flat, self.project)
                             };
                         });
-                        // 串行提交：SQLite 并发写会 database is locked，Promise.all 曾导致部分行保存丢失
+                        // 串行提交：SQLite 并发写会 database is locked
                         var chain = Promise.resolve();
                         tasks.forEach(function (t) {
                             chain = chain.then(function () {
@@ -352,7 +316,6 @@
                             dyn.showMessage('排序已保存', 'success');
                             self.loadTree();
                         }).catch(function (e) {
-                            // 失败必须回滚 DOM（Sortable 已移动了节点），重新从库加载，避免界面与数据不一致
                             dyn.showMessage('排序保存失败，已还原：' + ((e && e.message) || e), 'error');
                             self.loadTree();
                         });
@@ -360,29 +323,35 @@
                 },
                 mounted: function () {
                     var self = this;
-                    this.model.msgCenter = createMessageCenter();
-                    this.__unsubs = [];
-                    this.__unsubs.push(this.model.msgCenter.subscribeEvent('detail.saved', function () { self.onDetailSaved(); }));
-                    // 拖拽事件：JS 绑定到分隔条/外层（绕过 Vue 作用域，gutter 在根 App 外）
+                    // 实例句柄：对外 nodeClick/addRoot/addChild 事件 + reload 命令；不持有任何其他 app 的引用
+                    this.__handle = DynBlocks.createBlockHandle(element);
+                    this.__handle.reg('reload', function () { return self.loadTree(); });
+
+                    // 分隔条拖拽（gutter 是树 app 之外的纯布局元素，用 id 绑定）
                     var gutterEl = document.getElementById('@extIdGutter');
                     var splitEl = document.getElementById('@extIdSplit');
                     self.__onGutterDown = function (e) { self.onDragStart(e); };
+                    self.__onGutterDblClick = function () { self.resetSplit(); };
                     self.__onSplitMove = function (e) { self.onDragMove(e); };
-                    self.__onWindowUp = function (e) { self.onDragEnd(); };
-                    if (gutterEl) gutterEl.addEventListener('mousedown', self.__onGutterDown);
+                    self.__onWindowUp = function () { self.onDragEnd(); };
+                    if (gutterEl) {
+                        gutterEl.addEventListener('mousedown', self.__onGutterDown);
+                        gutterEl.addEventListener('dblclick', self.__onGutterDblClick);
+                    }
                     if (splitEl) splitEl.addEventListener('mousemove', self.__onSplitMove);
                     window.addEventListener('mouseup', self.__onWindowUp);
+                    // mounted 只做自身首屏加载，不发对外事件
                     this.loadTree();
                 },
                 beforeUnmount: function () {
                     this.destroySortable();
-                    if (this.__unsubs) { this.__unsubs.forEach(function (f) { try { f(); } catch (e) { } }); this.__unsubs = []; }
                     var gutterEl = document.getElementById('@extIdGutter');
                     var splitEl = document.getElementById('@extIdSplit');
                     if (gutterEl && this.__onGutterDown) gutterEl.removeEventListener('mousedown', this.__onGutterDown);
+                    if (gutterEl && this.__onGutterDblClick) gutterEl.removeEventListener('dblclick', this.__onGutterDblClick);
                     if (splitEl && this.__onSplitMove) splitEl.removeEventListener('mousemove', this.__onSplitMove);
                     if (this.__onWindowUp) window.removeEventListener('mouseup', this.__onWindowUp);
-                    if (this.model && this.model.msgCenter) { try { this.model.msgCenter.destroy(); } catch (e) { } this.model.msgCenter = null; }
+                    if (this.__handle) { this.__handle.destroy(); this.__handle = null; }
                 }
             };
             </script>
@@ -418,26 +387,26 @@
             </div>
         </div>
 
-        <div class="tr-gutter" id="@extIdGutter" title="拖拽调整，双击复位" @@dblclick="split=30">
+        @* gutter：纯布局元素，不属于任何 app 的受管模板（双击复位由树 app mounted 原生绑定） *@
+        <div class="tr-gutter" id="@extIdGutter" title="拖拽调整，双击复位">
             <span class="tr-gutter-bar"></span>
         </div>
 
-        @* ===== 右表单（DetailBlock 组合模式，位于根 App 之外） ===== *@
+        @* ===== 右表单：独立 DetailApp，与左树平级 ===== *@
         <div class="tr-pane-right">
-            @await Html.PartialAsync("~/Views/DynBlocks/DetailBlock.cshtml", new ViewDataDictionary(ViewData) {
-                { "ExtId", extIdDetail }, { "RootExtId", extIdRoot }, { "ModelKey", "detailCfg" }, { "MsgCenterKey", "msgCenter" } })
+            @await Html.PartialAsync("~/Views/DynBlocks/Apps/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
+                ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg)
+            })
         </div>
     </div>
 </div>
 
 <style>
-    /* 样式作用域收敛在模板根节点（不写 body 全局样式）；全局 preflight 已重置 body margin，根节点满屏 */
     .tr-root { height: 100vh; box-sizing: border-box; display: flex; flex-direction: column;
         background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .tr-split { flex: 1; min-height: 0; display: flex; margin: 14px; box-sizing: border-box; background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; overflow: hidden; }
-    .tr-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
     .tr-pane-left { flex-shrink: 0; padding: 12px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
-    .tr-pane-right { flex: 1; padding: 12px 16px; box-sizing: border-box; overflow: auto; }
+    .tr-pane-right { flex: 1; padding: 12px 16px; box-sizing: border-box; overflow: auto; min-width: 0; }
     .tr-pane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .tr-pane-tools { display: flex; align-items: center; gap: 4px; }
     .tr-pane-title { font-size: 13px; font-weight: 600; color: #303133; }
@@ -460,7 +429,6 @@
     }
     .dyn-tree-chosen { background: #ecf5ff; }
     .dyn-tree-drag { opacity: 0.9; }
-    /* 插入位置的占位空槽（Sortable placeholder），固定高度让用户看到"会插到哪" */
     .tr-tree-wrap .sortable-placeholder,
     .tr-tree-wrap .sortable-ghost {
         height: 28px !important;
@@ -473,17 +441,24 @@
 </style>
 
 @section Scripts {
-    <script src="~/dyn/blocks/message-center.js?v=4"></script>
-    <script src="~/dyn/blocks/dyn-blocks-common.js?v=1"></script>
+    <script src="~/dyn/blocks/dyn-blocks-common.js?v=2"></script>
     <script>
         DynLib.ready(function () {
-            var rootEl = document.getElementById('@extIdRoot');
-            var detailEl = document.getElementById('@extIdDetail');
-            // 先挂载根 App（树逻辑 + model），再挂载根 App 外的 DetailBlock（组合模式读根 model）
-            window.dyn.mount(rootEl).then(function () {
-                return window.dyn.mount(detailEl);
-            }).then(function () {
-                console.log('[TreeDetail] 就绪（左树根App + 右DetailBlock，分隔条可拖拽）');
+            var tEl = document.getElementById('@extIdTree');
+            var dEl = document.getElementById('@extIdDetail');
+
+            // ===== 显式接线：左树 app 与右 DetailApp 平级，关系集中写在这里 =====
+            window.Promise.all([window.dyn.mount(tEl), window.dyn.mount(dEl)]).then(function () {
+                var tree = tEl.__dynBlock;
+                var detail = dEl.__dynBlock;
+
+                tree.on('nodeClick', function (p) { detail.send('editForm', { row: p.row }); });
+                tree.on('addRoot', function () { detail.send('newForm', { preFill: {} }); });
+                tree.on('addChild', function (p) { detail.send('newForm', { preFill: (p && p.preFill) || {} }); });
+                // 表单保存/删除成功 → 刷新左树
+                detail.on('saved', function () { tree.send('reload'); });
+
+                console.log('[TreeDetail] 就绪（左树 app 与 DetailApp 平级 + 句柄接线）');
             });
         });
     </script>

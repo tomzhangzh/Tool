@@ -1,0 +1,186 @@
+@{
+    // =====================================================================================
+    // DetailApp —— 明细表单 Block（独立 VueApp 版，自包含、可放置于任何宿主）
+    //
+    // 契约：
+    //   输入：容器 data-blk-config 单个 JSON ——
+    //         { detailConfig: <PageSetting.ConfigJson 表单UI树>,
+    //           detailDefault: <PageSetting.DefaultJson 表单骨架>,
+    //           table, keyField='Id', project, addUrl, editUrl, deleteUrl,
+    //           rowId: 编辑态主键（有值时 mounted 自拉单行回填；片段弹窗用）,
+    //           preFill: {字段:值} 新增态预填（主子表"+子"用） }
+    //   命令（编排方 handle.send）：
+    //         newForm   payload={preFill:{...}}  回到新增态（骨架 + 预填浅合并）
+    //         editForm  payload={row:{...}}      用给定行回填
+    //   事件（handle.emit → 编排方 handle.on）：
+    //         saved   payload={action:'add'|'edit'|'delete', row}
+    //         cancel  payload={}
+    //   边界：本 Block 不知道自己是不是弹窗——不发 window 事件、不调 layer.close。
+    //         保存/删除成功只 emit saved；是否关窗、刷新谁，一律由模板编排决定。
+    // =====================================================================================
+    var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
+    var extId = (ViewData["ExtId"] as string) ?? ("db" + Guid.NewGuid().ToString("N"));
+}
+<div id="@extId" data-dyn-mode="createApp" data-blk-role="detail" class="dyn-blk-detail" data-blk-config="@blkConfig">
+    <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
+    <div class="dyn-blk-detail__body">
+        <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+    </div>
+    <div class="dyn-blk-detail__btns">
+        <button type="button" class="el-button el-button--small" @@click="onCancel()">取消</button>
+        <button type="button" class="el-button el-button--danger el-button--small" :disabled="loading || !canDelete" @@click="onDelete()">删除</button>
+        <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" @@click="onSave()">保存</button>
+    </div>
+    <script type="text/plain" tag="dynconfig">
+    // ===== 自读配置（独立 app，无任何根依赖） =====
+    var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
+    var __handle = null;
+
+    var dynConfig = {
+        data: function () {
+            var initForm = __cfg.detailDefault || {};
+            return {
+                detailCfg: __cfg.detailConfig || null,
+                form: JSON.parse(JSON.stringify(initForm)),
+                formError: '',
+                loading: false,
+                table: __cfg.table || '',
+                addUrl: __cfg.addUrl || '',
+                editUrl: __cfg.editUrl || '',
+                deleteUrl: __cfg.deleteUrl || '',
+                keyField: __cfg.keyField || 'Id',
+                project: __cfg.project || '',
+                initForm: initForm
+            };
+        },
+        computed: {
+            canDelete: function () {
+                var id = this.form[this.keyField];
+                return id !== null && id !== undefined && id !== '' && id !== 0;
+            }
+        },
+        methods: {
+            // 表单校验：扫描容器内动态组件节点的 __dynValidate 钩子
+            validateForm: function () {
+                var errs = [];
+                var nodes = element.querySelectorAll('*');
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    if (typeof n.__dynValidate === 'function') {
+                        try {
+                            if (n.__dynValidate() !== true) {
+                                var msg = null;
+                                if (n.__dynErrors && n.__dynErrors.length) {
+                                    msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
+                                }
+                                if (!msg) msg = '存在未通过校验的字段';
+                                if (errs.indexOf(msg) < 0) errs.push(msg);
+                            }
+                        } catch (e) { console.warn('[detail validate]', e); }
+                    }
+                }
+                return errs;
+            },
+            // 命令：新增态（骨架 + preFill 浅合并）/ 行回填
+            newForm: function (preFill) {
+                this.form = Object.assign({}, JSON.parse(JSON.stringify(this.initForm)), preFill || {});
+                this.formError = '';
+            },
+            editForm: function (row) {
+                this.form = Object.assign({}, JSON.parse(JSON.stringify(this.initForm)), row || {});
+                this.formError = '';
+            },
+            // 保存：平台 save（扁平实体）/ 业务 insert/update（{table,data,project}），契约收口在 DynBlocks
+            onSave: function () {
+                var self = this;
+                var errs = this.validateForm();
+                if (errs.length) {
+                    this.formError = errs.join('；');
+                    dyn.showMessage(errs.join('；'), 'warning');
+                    return;
+                }
+                this.loading = true;
+                var kf = this.keyField;
+                var isEdit = this.form[kf] !== null && this.form[kf] !== undefined && this.form[kf] !== '';
+                var configured = isEdit ? this.editUrl : this.addUrl;
+                var style = DynBlocks.apiStyle(configured);
+                var saveUrl = DynBlocks.saveUrl(style, configured, this.table, isEdit);
+                var body = DynBlocks.savePayload(style, this.table, this.form, this.project);
+                DynCall.post(saveUrl, body, { scopeEl: element })
+                    .then(function () {
+                        self.loading = false;
+                        self.formError = '';
+                        dyn.showMessage('保存成功', 'success');
+                        // 只报告"发生了什么"；关窗/刷新由模板订阅后决定
+                        __handle.emit('saved', { action: isEdit ? 'edit' : 'add', row: self.form });
+                    })
+                    .catch(function () { self.loading = false; /* DynCall 已统一 toast */ });
+            },
+            // 取消：自身回到新增骨架，并通知模板（弹窗模板可据此关窗，三屏模板可忽略）
+            onCancel: function () {
+                this.form = JSON.parse(JSON.stringify(this.initForm));
+                this.formError = '';
+                __handle.emit('cancel', {});
+            },
+            // 删除：确认后请求；成功仅 emit saved(action=delete)，不关窗
+            onDelete: function () {
+                var self = this;
+                var kf = this.keyField;
+                var id = this.form[kf];
+                if (id === null || id === undefined || id === '' || id === 0) {
+                    dyn.showMessage('请先选择要删除的记录', 'warning'); return;
+                }
+                if (!this.deleteUrl) { dyn.showMessage('未配置删除接口 deleteUrl', 'warning'); return; }
+                var doDelete = function () {
+                    self.loading = true;
+                    var req = DynBlocks.deleteRequest(self.deleteUrl, self.table, id, kf, self.project);
+                    DynCall.post(req.url, req.body, { scopeEl: element })
+                        .then(function () {
+                            self.loading = false;
+                            dyn.showMessage('删除成功', 'success');
+                            var rowKey = {}; rowKey[kf] = id;
+                            self.form = JSON.parse(JSON.stringify(self.initForm));
+                            self.formError = '';
+                            __handle.emit('saved', { action: 'delete', row: rowKey });
+                        })
+                        .catch(function () { self.loading = false; /* DynCall 已统一 toast */ });
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该条记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else { doDelete(); }
+            }
+        },
+        mounted: function () {
+            var self = this;
+            __handle = DynBlocks.createBlockHandle(element);
+            __handle
+                .reg('newForm', function (p) { self.newForm((p && p.preFill) || {}); return null; })
+                .reg('editForm', function (p) { self.editForm((p && p.row) || {}); return null; });
+
+            // 编辑态：片段弹窗由模板把 rowId 放进配置，Block 自拉回填（mounted 内部行为，不外发事件）
+            var rowId = __cfg.rowId;
+            var preFill = __cfg.preFill || {};
+            if (rowId !== null && rowId !== undefined && rowId !== '') {
+                var getUrl = DynBlocks.getUrl(this.addUrl, this.table, rowId, this.project);
+                DynCall.get(getUrl, {}, { silent: true })
+                    .then(function (row) { if (row) self.editForm(row); })
+                    .catch(function (e) { console.error('[DetailApp] 加载行数据失败', e); });
+            } else if (Object.keys(preFill).length) {
+                this.newForm(preFill);
+            }
+        },
+        beforeUnmount: function () {
+            if (__handle) { __handle.destroy(); __handle = null; }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-detail { display: flex; flex-direction: column; }
+    .dyn-blk-detail__errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
+        border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .dyn-blk-detail__body { flex: 1; }
+    .dyn-blk-detail__btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
+        padding-top: 12px; border-top: 1px solid #e4e7ed; }
+</style>

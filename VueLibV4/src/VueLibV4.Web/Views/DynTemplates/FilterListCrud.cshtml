@@ -6,14 +6,14 @@
 @inject IPageSettingService PageSettingService
 @{
     // =====================================================================================
-    // 筛选+列表模板（filterlist-crud）：顶部 FilterBlock + 下方 ListBlock，共用一个根 App（消息中心）。
-    //   新增 / 编辑走弹窗：List 按钮发 list.add / list.edit 事件，本模板根 app 订阅后打开 Detail 弹窗
-    //   （弹窗内容是独立页面 DetailModal，经 /Platform/Page/DetailModal?id={ModalPageId} 拉取片段）。
-    //   弹窗保存成功后 DetailBlock 发全局 dyndata.saved 事件，本根 app 监听后命令 List 刷新。
-    //   - Model 即 DynWebPage 实例（渲染入口对 filterlist-crud 透传，不做预组装）
-    //   - 实例参数：TableName / ListUrl / DeleteUrl / FilterPageSettingId / ListPageSettingId /
-    //               ModalPageId（Detail 弹窗页面实例 Id）/（可选 ChildFkField 主子预填）
-    //   - 唯一固定 key：msgCenter（通信基础设施）
+    // 筛选+列表模板（filterlist-crud）：纯布局 + 薄编排，本身【不是】 VueApp。
+    //   - 两个 Block 各自是独立 VueApp（FilterApp / ListApp），自读 data-blk-config，互不依赖。
+    //   - 本模板只做两件事：摆放 Block（UI）+ 在 ready 里用实例句柄把它们的关系显式接起来。
+    //   - 新增/编辑/+子 → 拉 DetailModal 片段（内含 DetailApp）注入 layer；
+    //     DetailApp 保存/删除成功只 emit saved，本模板订阅后关窗；弹窗 end 是唯一刷新通道
+    //     （保存自动关窗 / X / 取消都走 end → list reload），无 window 事件、无 tick 去重。
+    //   - 实例参数（ConfigJson）：TableName / ListUrl / DeleteUrl / FilterPageSettingId /
+    //     ListPageSettingId / ModalPageId / ChildFkField（可选）/ KeyField（可选）
     // =====================================================================================
     Layout = "_Layout";
     ViewData["Title"] = Model.Name + " - VueLibV4";
@@ -29,9 +29,10 @@
     var filterPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "FilterPageSettingId") ?? "", out int fv) ? fv : (int?)null;
     var listPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "ListPageSettingId") ?? "", out int lv) ? lv : (int?)null;
 
-    // PageSetting 读取/拼装重复逻辑收口在 DynPageViewHelper（#9）
+    // Filter Block 配置：{filterConfig:UI树, filterDefault:骨架}
     var filterCfg = new JObject();
     DynPageViewHelper.ApplyFrontSetting(filterCfg, PageSettingService, filterPsId, "filterConfig", "filterDefault");
+    // List Block 配置：{columns,table,keyField,project,loadUrl,deleteUrl}
     var listCfg = new JObject();
     DynPageViewHelper.ApplyListSetting(listCfg, PageSettingService, listPsId, "columns");
     listCfg["table"] = tableName;
@@ -40,167 +41,124 @@
     listCfg["loadUrl"] = loadUrl;
     listCfg["deleteUrl"] = deleteUrl;
 
-    var rootModel = new JObject
-    {
-        ["msgCenter"] = null,
-        ["filterCfg"] = filterCfg,
-        ["listCfg"] = listCfg,
-        ["childFkField"] = childFkField
-    };
-    var rootModelForScript = DynPageViewHelper.SafeJson(rootModel);
-
     var extId = "Tfl" + Guid.NewGuid().ToString("N");
-    var extIdRoot = extId + "-root";
     var extIdFilter = extId + "-filter";
     var extIdList = extId + "-list";
     var title = Model.Name;
 }
 <div class="flc-root">
-    @* 头部（位于 Vue app 容器之外，统一用原生元素页头） *@
+    @* 头部在任何 app 之外，纯原生元素 *@
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
         ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
     })
 
-    @* 根 app：共享上下文宿主（filterCfg/listCfg + msgCenter），处理弹窗打开与保存后刷新 *@
-    <div id="@extIdRoot" data-dyn-mode="createApp" class="flc-rootapp">
-        <script type="application/json" tag="dynmodel">@Html.Raw(rootModelForScript)</script>
-        <script type="text/plain" tag="dynconfig">
-        var dynConfig = {
-            data: function () { return {}; },
-            methods: {
-                // 主子预填：实例配置了 ChildFkField 时，把当前行主键预填到表单该字段
-                childPreFill: function (row) {
-                    var fk = this.model.childFkField;
-                    if (!fk) return {};
-                    var kf = (this.model.listCfg && this.model.listCfg.keyField) || 'Id';
-                    var pf = {}; pf[fk] = row ? row[kf] : null; return pf;
-                },
-                // 打开 Detail 弹窗：拉取 DetailModal 片段（?id=ModalPageId），注入 layui layer 并 mount。
-                // preFill：主子表"+子"时把父行主键预填到表单外键字段，经 query 透传给 DetailModal。
-                openDetailModal: function (rowId, preFill) {
-                    var self = this;
-                    var q = '/Platform/Page/DetailModal?id=' + (self.modalPageId || '') +
-                        '&rowId=' + (rowId || '') + '&project=' + (self.project || '');
-                    if (preFill && Object.keys(preFill).length) {
-                        q += '&prefill=' + encodeURIComponent(JSON.stringify(preFill));
-                    }
-                    if (!self.modalPageId) { dyn.showMessage('实例未配置 ModalPageId（Detail 弹窗页面 Id）', 'warning'); return; }
-                    // 记录打开前的保存计数：弹窗 end 时若计数未变（X/取消关闭），补一次列表刷新；
-                    // 保存成功的刷新已由 dyndata.saved 处理，计数变化则 end 不再重复刷。
-                    var savedTickOpen = self.__savedTick || 0;
-                    window.dyn.getLayer().then(function (layer) {
-                        var holder = document.createElement('div');
-                        holder.className = 'dyn-modal-host dyn-layer-fragment';
-                        holder.style.padding = '0px';
-                        holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
-                        document.body.appendChild(holder);
-                        layer.open({
-                            type: 1, title: rowId ? ('编辑记录 #' + rowId) : '新增记录',
-                            area: ['60%', '80%'], shadeClose: false, maxmin: true,
-                            content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
-                            success: function () {
-                                window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
-                                    holder.innerHTML = html;
-                                    // 片段内含根 app + detail 块多个 createApp：按文档顺序串行挂载（根在前保证 model 就绪）
-                                    var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
-                                    var chain = window.Promise.resolve();
-                                    [].forEach.call(apps, function (ae) { chain = chain.then(function () { return window.dyn.mount(ae); }); });
-                                    chain.catch(function (e) { console.error('[FilterListCrud] 弹窗mount失败', e); });
-                                }).catch(function (e) {
-                                    holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
-                                });
-                            },
-                            end: function () {
-                                var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
-                                [].forEach.call(apps, function (ae) { try { window.dyn.unmount(ae); } catch (e) { } });
-                                try { window.dyn.unmount(holder); } catch (e) { }
-                                try { holder.remove(); } catch (e) { }
-                                // 关闭弹窗时：本次打开期间没有保存成功（X/取消）→ 补刷一次列表；
-                                // 已保存的刷新由 dyndata.saved 完成，避免重复请求。
-                                if ((self.__savedTick || 0) === savedTickOpen) {
-                                    var msg = self.model && self.model.msgCenter;
-                                    if (msg) msg.sendCommand('list', { cmd: 'reload' });
-                                }
-                            }
-                        });
-                    });
-                },
-                // 弹窗保存成功回调：命令 List 重新加载（计数供弹窗 end 去重）
-                onDataSaved: function (ev) {
-                    var det = (ev && ev.detail) || {};
-                    // 表名一致才刷新（多列表页面防误刷）
-                    if (det.table && det.table !== this.model.listCfg.table) return;
-                    this.__savedTick = (this.__savedTick || 0) + 1;
-                    var msg = this.model.msgCenter;
-                    if (msg) msg.sendCommand('list', { cmd: 'reload' });
-                }
-            },
-            mounted: function () {
-                var m = this.model;
-                m.msgCenter = createMessageCenter();
-                var self = this;
-                this.__unsubs = [];
-                this.modalPageId = '@modalPageId';
-                this.project = '@project';
-                this.__savedTick = 0;
-                // 订阅筛选查询：FilterBlock 发 filter.changed → 命令 List 带筛选条件加载
-                this.__unsubs.push(m.msgCenter.subscribeEvent('filter.changed', function (p) {
-                    m.msgCenter.sendCommand('list', { cmd: 'loadData', filter: (p && p.params) || {} });
-                }));
-                // 订阅 List 事件 → 打开弹窗
-                this.__unsubs.push(m.msgCenter.subscribeEvent('list.add', function () { self.openDetailModal(null); }));
-                this.__unsubs.push(m.msgCenter.subscribeEvent('list.edit', function (p) {
-                    var kf = (m.listCfg && m.listCfg.keyField) || 'Id';
-                    self.openDetailModal(p.row ? p.row[kf] : null);
-                }));
-                this.__unsubs.push(m.msgCenter.subscribeEvent('list.addChild', function (p) {
-                    // 主子预填：把父行主键写入表单 ChildFkField 字段（DetailModal 经 prefill query 接收）
-                    self.openDetailModal(null, self.childPreFill(p && p.row));
-                }));
-                // 监听弹窗保存成功全局事件 → 刷新列表
-                this.__onDataSaved = function (ev) { self.onDataSaved(ev); };
-                window.addEventListener('dyndata.saved', this.__onDataSaved);
-                console.log('[FilterListCrud] 已就绪');
-            },
-            beforeUnmount: function () {
-                if (this.__unsubs) { this.__unsubs.forEach(function (f) { try { f(); } catch (e) { } }); this.__unsubs = []; }
-                if (this.__onDataSaved) { window.removeEventListener('dyndata.saved', this.__onDataSaved); this.__onDataSaved = null; }
-                if (this.model && this.model.msgCenter) { try { this.model.msgCenter.destroy(); } catch (e) { } this.model.msgCenter = null; }
-            }
-        };
-        </script>
-    </div>
-
+    @* 布局卡片是纯 HTML 容器（不是任何 app 的受管模板，避免外层 app 编译 Block 内部指令） *@
     <div class="flc-card">
-        @await Html.PartialAsync("~/Views/DynBlocks/FilterBlock.cshtml", new ViewDataDictionary(ViewData) {
-            { "ExtId", extIdFilter }, { "RootExtId", extIdRoot }, { "ModelKey", "filterCfg" }, { "MsgCenterKey", "msgCenter" } })
+        @await Html.PartialAsync("~/Views/DynBlocks/Apps/FilterApp.cshtml", new ViewDataDictionary(ViewData) {
+            ["ExtId"] = extIdFilter, ["BlkConfig"] = DynPageViewHelper.SafeJson(filterCfg)
+        })
     </div>
     <div class="flc-card">
-        @await Html.PartialAsync("~/Views/DynBlocks/ListBlock.cshtml", new ViewDataDictionary(ViewData) {
-            { "ExtId", extIdList }, { "RootExtId", extIdRoot }, { "ModelKey", "listCfg" }, { "MsgCenterKey", "msgCenter" } })
+        @await Html.PartialAsync("~/Views/DynBlocks/Apps/ListApp.cshtml", new ViewDataDictionary(ViewData) {
+            ["ExtId"] = extIdList, ["BlkConfig"] = DynPageViewHelper.SafeJson(listCfg)
+        })
     </div>
 </div>
 
 <style>
-    /* 样式作用域收敛在模板根节点（不写 body 全局样式）；全局 preflight 已重置 body margin，根节点满屏 */
     .flc-root { min-height: 100vh; box-sizing: border-box; padding: 0 0 20px;
         background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .flc-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
-    .flc-rootapp { display: none; }
 </style>
 
 @section Scripts {
-    <script src="~/dyn/blocks/message-center.js?v=4"></script>
-    <script src="~/dyn/blocks/dyn-blocks-common.js?v=1"></script>
+    <script src="~/dyn/blocks/dyn-blocks-common.js?v=2"></script>
     <script>
         DynLib.ready(function () {
-            var rootEl = document.getElementById('@extIdRoot');
             var fEl = document.getElementById('@extIdFilter');
             var lEl = document.getElementById('@extIdList');
-            window.dyn.mount(rootEl).then(function () {
-                return Promise.all([window.dyn.mount(fEl), window.dyn.mount(lEl)]);
-            }).then(function () {
-                console.log('[FilterListCrud] 就绪（filter+list，detail走弹窗）');
+
+            // 模板编排常量（来自 WebPage 实例参数）
+            var MODAL_PAGE_ID = '@modalPageId';
+            var PROJECT = '@project';
+            var KEY_FIELD = '@keyField';
+            var CHILD_FK_FIELD = '@childFkField';
+
+            // 主子"+子"预填：父行主键 → 表单外键字段
+            function childPreFill(row) {
+                if (!CHILD_FK_FIELD || !row) return {};
+                var pf = {}; pf[CHILD_FK_FIELD] = row[KEY_FIELD] || null; return pf;
+            }
+
+            // 打开 Detail 弹窗：拉片段 → 注入 layer → 挂载 DetailApp → 用句柄接线。
+            // 唯一刷新通道是 layer.end：保存成功 DetailApp emit saved → 关窗 → end 刷新；
+            // X / 取消同样走 end → 刷新。不需要 window 事件与计数去重。
+            function openDetailModal(rowId, preFill) {
+                if (!MODAL_PAGE_ID) { dyn.showMessage('实例未配置 ModalPageId（Detail 弹窗页面 Id）', 'warning'); return; }
+                var q = '/Platform/Page/DetailModal?id=' + MODAL_PAGE_ID +
+                    '&rowId=' + (rowId || '') + '&project=' + encodeURIComponent(PROJECT || '');
+                if (preFill && Object.keys(preFill).length) {
+                    q += '&prefill=' + encodeURIComponent(JSON.stringify(preFill));
+                }
+                var holder = document.createElement('div');
+                holder.className = 'dyn-modal-host dyn-layer-fragment';
+                holder.style.padding = '0px';
+                holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
+                document.body.appendChild(holder);
+
+                window.dyn.getLayer().then(function (layer) {
+                    var idx = layer.open({
+                        type: 1,
+                        title: rowId ? ('编辑记录 #' + rowId) : '新增记录',
+                        area: ['60%', '80%'], shadeClose: false, maxmin: true,
+                        content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
+                        success: function () {
+                            window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
+                                holder.innerHTML = html;
+                                var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
+                                var chain = window.Promise.resolve();
+                                [].forEach.call(apps, function (ae) {
+                                    chain = chain.then(function () { return window.dyn.mount(ae); });
+                                });
+                                chain.then(function () {
+                                    var blocks = DynBlocks.scan(holder);
+                                    var detail = blocks.detail;
+                                    if (detail) {
+                                        // 关窗权在模板：取消 / 保存删除成功 → 关窗（end 内统一刷新列表）
+                                        detail.on('cancel', function () { layer.close(idx); });
+                                        detail.on('saved', function () { layer.close(idx); });
+                                    }
+                                }).catch(function (e) { console.error('[FilterListCrud] 弹窗挂载失败', e); });
+                            }).catch(function (e) {
+                                holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+                            });
+                        },
+                        end: function () {
+                            var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
+                            [].forEach.call(apps, function (ae) { try { window.dyn.unmount(ae); } catch (e) { } });
+                            try { holder.remove(); } catch (e) { }
+                            // 弹窗生命周期结束 → 刷新列表（单通道）
+                            if (lEl.__dynBlock) lEl.__dynBlock.send('reload').catch(function () { });
+                        }
+                    });
+                });
+            }
+
+            // ===== 显式接线：关系只写在这里，肉眼可见；Block 之间互不认识 =====
+            window.Promise.all([window.dyn.mount(fEl), window.dyn.mount(lEl)]).then(function () {
+                var filter = fEl.__dynBlock;
+                var list = lEl.__dynBlock;
+                filter.on('changed', function (params) {
+                    list.send('loadData', { filter: params || {} });
+                });
+                list.on('add', function () { openDetailModal(null); });
+                list.on('edit', function (p) {
+                    openDetailModal(p.row ? p.row[KEY_FIELD] : null);
+                });
+                list.on('addChild', function (p) {
+                    openDetailModal(null, childPreFill(p && p.row));
+                });
+                console.log('[FilterListCrud] 就绪（独立 BlockApp + 句柄接线）');
             });
         });
     </script>

@@ -1,0 +1,85 @@
+@{
+    // =====================================================================================
+    // FilterApp —— 筛选 Block（独立 VueApp 版，自包含、可放置于任何宿主：模板/弹窗/updateEl 片段）
+    //
+    // 契约：
+    //   输入：容器 data-blk-config 单个 JSON ——
+    //         { filterConfig: <PageSetting.ConfigJson 组件UI树>,
+    //           filterDefault: { 字段: 初始值 } 或 { 字段: {op:'like', value:xx} } }
+    //   事件（handle.emit → 编排方 handle.on）：
+    //         changed  payload = { 字段: {op, value} }（空对象表示无条件/重置）
+    //   命令：无
+    //   内部：查询/重置是自身 UI 操作，只负责把提交结构作为事件抛出，不关心谁加载数据。
+    // =====================================================================================
+    var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
+    var extId = (ViewData["ExtId"] as string) ?? ("fb" + Guid.NewGuid().ToString("N"));
+}
+<div id="@extId" data-dyn-mode="createApp" data-blk-role="filter" class="dyn-blk-filter" data-blk-config="@blkConfig">
+    <div class="dyn-blk-filter__body">
+        @* model 键名不能用 model（mountCore 的 setup 会暴露同名 model 覆盖 data），用 filterModel *@
+        <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
+    </div>
+    <div class="dyn-blk-filter__btns">
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="query()">查询</button>
+        <button type="button" class="el-button el-button--small" @@click="reset()">重置</button>
+    </div>
+    <script type="text/plain" tag="dynconfig">
+    // ===== 自读配置（独立 app，无任何根依赖；同步就绪，无水合/轮询） =====
+    var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
+    var __uiCfg = __cfg.filterConfig || null;
+    var __def = __cfg.filterDefault || {};
+    var __handle = null;
+
+    // 由 default 推导初始值与操作符表：{字段:{op}} → 值置 null；裸值 → op='eq'
+    function __buildInit(fd) {
+        var opMap = {}, initModel = {};
+        Object.keys(fd || {}).forEach(function (k) {
+            var v = fd[k];
+            if (v && typeof v === 'object' && v.op) { opMap[k] = v.op; initModel[k] = null; }
+            else { opMap[k] = 'eq'; initModel[k] = (v === null || v === undefined) ? null : v; }
+        });
+        return { opMap: opMap, initModel: initModel };
+    }
+    var __init = __buildInit(__def);
+
+    var dynConfig = {
+        data: function () {
+            return {
+                pageCfg: __uiCfg,
+                filterModel: JSON.parse(JSON.stringify(__init.initModel)),
+                opMap: __init.opMap,
+                initModel: __init.initModel
+            };
+        },
+        methods: {
+            // 组装 {字段:{op,value}}，剔除空值
+            buildSubmit: function () {
+                var f = {}, self = this;
+                Object.keys(this.filterModel).forEach(function (k) {
+                    var v = self.filterModel[k];
+                    if (v !== null && v !== undefined && v !== '') f[k] = { op: self.opMap[k] || 'eq', value: v };
+                });
+                return f;
+            },
+            // 查询/重置：只发事件，加载数据是编排方（模板）的职责
+            query: function () { __handle.emit('changed', this.buildSubmit()); },
+            reset: function () {
+                this.filterModel = JSON.parse(JSON.stringify(this.initModel));
+                __handle.emit('changed', {});
+            }
+        },
+        mounted: function () {
+            __handle = DynBlocks.createBlockHandle(element);
+        },
+        beforeUnmount: function () {
+            if (__handle) { __handle.destroy(); __handle = null; }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-filter { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .dyn-blk-filter__body { flex: 1; min-width: 200px; }
+    .dyn-blk-filter__btns { flex-shrink: 0; }
+</style>

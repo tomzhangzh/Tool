@@ -6,18 +6,16 @@
 @inject IPageSettingService PageSettingService
 @{
     // =====================================================================================
-    // Detail 弹窗模板（detail-modal）：作为独立片段被宿主页面经 fetchPartial 拉取并注入 layui layer。
-    //   - Model 即 DynWebPage 实例（渲染入口 DetailModal action 直接透传）
-    //   - 本模板只挂载 DetailBlock（组合模式）：根 model 由模板拼装，Block 按 data-model-key 读取
-    //   - 入参（ViewBag）：RowId（编辑时当前行主键）/ ProjectId（项目维度）/ Prefill（主子预填 JSON）
-    //   - 编辑模式：根 app mounted 里按 rowId 拉单行数据，sendCommand('detail', {cmd:'editForm', row}) 回填
-    //   - 保存成功：DetailBlock 弹窗模式下发全局 dyndata.saved 事件 + 关闭弹窗，宿主页面据此刷新列表
+    // Detail 弹窗片段（detail-modal）：宿主页面经 fetchPartial 拉取、注入 layui layer 后挂载。
+    //   本片段【零 JS、零根 app】：只把 WebPage 实例参数 + PageSetting UI 元数据组装成
+    //   一个 JSON 交给 DetailApp（独立 BlockApp）。编辑回填/新增预填都是 DetailApp 自身能力。
+    //   保存/删除成功 DetailApp 只 emit saved；关窗与刷新列表由宿主模板接线决定。
+    //   入参（ViewBag）：RowId（编辑态主键）/ ProjectId / Prefill（主子预填 JSON）
     // =====================================================================================
     Layout = null;
     var rowId = (ViewBag.RowId as string) ?? "";
     var project = (ViewBag.ProjectId as string) ?? "";
 
-    // 读实例参数（TableName / URLs / DetailPageSettingId）；默认数据端点统一业务库（#8）
     dynamic runTimeModel = ClayHelper.Parse(Model.ConfigJson ?? "{}");
     var tableName = ClayHelper.GetString(runTimeModel, "TableName") ?? "";
     var addUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "AddUrl"), DynPageViewHelper.BizInsert);
@@ -25,7 +23,7 @@
     var deleteUrl = DynPageViewHelper.UrlOr(ClayHelper.GetString(runTimeModel, "DeleteUrl"), DynPageViewHelper.BizDelete);
     var detailPsId = int.TryParse(ClayHelper.GetString(runTimeModel, "DetailPageSettingId") ?? "", out int dv) ? dv : (int?)null;
     var keyField = ClayHelper.GetString(runTimeModel, "KeyField") ?? "Id";
-    // 主子表"+子"预填：宿主把 {外键字段:父行主键} JSON 放在 query 透传进来
+
     var preFill = new JObject();
     var prefillRaw = (ViewBag.Prefill as string) ?? "";
     if (!string.IsNullOrWhiteSpace(prefillRaw))
@@ -33,6 +31,7 @@
         try { if (JObject.Parse(prefillRaw) is JObject po) preFill = po; } catch { /* 非法预填忽略 */ }
     }
 
+    // DetailApp 的唯一输入 data-blk-config
     var detailCfg = new JObject();
     DynPageViewHelper.ApplyFrontSetting(detailCfg, PageSettingService, detailPsId, "detailConfig", "detailDefault");
     detailCfg["table"] = tableName;
@@ -41,77 +40,23 @@
     detailCfg["editUrl"] = editUrl;
     detailCfg["deleteUrl"] = deleteUrl;
     detailCfg["keyField"] = keyField;
-    detailCfg["modal"] = true;   // 弹窗形态：保存/删除成功后发 dyndata.saved 并自动关窗
-    detailCfg["preFill"] = preFill;
     detailCfg["rowId"] = rowId;
+    detailCfg["preFill"] = preFill;
 
-    var rootModel = new JObject
-    {
-        ["msgCenter"] = null,
-        ["detailCfg"] = detailCfg
-    };
-    var rootModelForScript = DynPageViewHelper.SafeJson(rootModel);
-
-    var extId = "Tdb" + Guid.NewGuid().ToString("N");
-    var extIdRoot = extId + "-root";
-    var extIdDetail = extId + "-detail";
+    var extIdDetail = "Tdb" + Guid.NewGuid().ToString("N");
     var title = Model.Name;
 }
 <div class="tsb-modal" style="padding:4px 2px;">
     <div class="tsb-mhead" style="display:flex;align-items:center;gap:8px;padding-bottom:10px;">
-        @* 弹窗片段位于 Vue app 容器之外，el-tag 不会被编译，这里用原生 span + el-tag 样式类 *@
         <span style="font-size:14px;font-weight:600;color:#303133;">@title</span>
         <span class="el-tag el-tag--small el-tag--info el-tag--plain">@tableName</span>
         @if (!string.IsNullOrEmpty(rowId)) { <span class="el-tag el-tag--small el-tag--warning el-tag--plain">编辑 #@rowId</span> }
         else { <span class="el-tag el-tag--small el-tag--success el-tag--plain">新增</span> }
     </div>
 
-    @* 根 app：承载 detailCfg + 消息中心；mounted 时若 rowId 有值则拉行数据回填 DetailBlock *@
-    <div id="@extIdRoot" data-dyn-mode="createApp" class="tsb-rootapp" style="display:none;">
-        <script type="application/json" tag="dynmodel">@Html.Raw(rootModelForScript)</script>
-        <script type="text/plain" tag="dynconfig">
-        var dynConfig = {
-            data: function () { return {}; },
-            mounted: function () {
-                var m = this.model;
-                m.msgCenter = createMessageCenter();
-                var self = this;
-                this.__unsubs = [];
-                // 编辑模式：按 rowId 拉单行数据回填 DetailBlock
-                var dc = m.detailCfg;
-                // sendCommand 时 DetailBlock 可能尚未挂载（片段内根 app 在前、Block 在后串行 mount），
-                // reject 表示"积木未注册"，按 50ms 重试，最多约 1.5s
-                var sendDetail = function (payload) {
-                    var tries = 0;
-                    (function send() {
-                        self.model.msgCenter.sendCommand('detail', payload).catch(function () {
-                            if (++tries < 30) setTimeout(send, 50);
-                        });
-                    })();
-                };
-                if (dc && dc.rowId && dc.rowId !== '') {
-                    // 编辑回填：get 端点按 addUrl 风格统一选择（平台/业务），DynCall 信封解包后直接是行对象
-                    var getUrl = DynBlocks.getUrl(dc.addUrl, dc.table || '', dc.rowId, dc.project || '');
-                    DynCall.get(getUrl, {}, { silent: true })
-                        .then(function (row) {
-                            if (row) { sendDetail({ cmd: 'editForm', row: row }); }
-                        })
-                        .catch(function (e) { console.error('[DetailModal] 加载行数据失败', e); });
-                } else if (dc && dc.preFill && Object.keys(dc.preFill).length) {
-                    // 新增态 + 主子预填（如"+子"）：直接命令 DetailBlock 用预填外键建表单
-                    sendDetail({ cmd: 'newForm', preFill: dc.preFill });
-                }
-            },
-            beforeUnmount: function () {
-                if (this.__unsubs) { this.__unsubs.forEach(function (f) { try { f(); } catch (e) { } }); this.__unsubs = []; }
-                if (this.model && this.model.msgCenter) { try { this.model.msgCenter.destroy(); } catch (e) { } this.model.msgCenter = null; }
-            }
-        };
-        </script>
-    </div>
-
-    @await Html.PartialAsync("~/Views/DynBlocks/DetailBlock.cshtml", new ViewDataDictionary(ViewData) {
-        { "ExtId", extIdDetail }, { "RootExtId", extIdRoot }, { "ModelKey", "detailCfg" }, { "MsgCenterKey", "msgCenter" }, { "BlkModal", "true" } })
+    @await Html.PartialAsync("~/Views/DynBlocks/Apps/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
+        ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg)
+    })
 
     <style>
         .tsb-modal .dyn-blk-detail__btns { margin-top: 8px; }

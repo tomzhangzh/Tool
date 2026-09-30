@@ -1,0 +1,161 @@
+@{
+    // =====================================================================================
+    // ListApp —— 列表 Block（独立 VueApp 版，自包含、可放置于任何宿主）
+    //
+    // 契约：
+    //   输入：容器 data-blk-config 单个 JSON ——
+    //         { columns:[{field,label,width,minWidth,align,fixed,cellType:'tag',
+    //                     options:[{value,label,type}],tagType,emptyText}],
+    //           table, keyField='Id', project, loadUrl, deleteUrl }
+    //   命令（编排方 handle.send）：
+    //         loadData  payload={filter:{...}}  带筛选回到第 1 页加载
+    //         reload    payload 可空            按当前条件刷新
+    //   事件（handle.emit → 编排方 handle.on）：
+    //         add / edit{row} / addChild{row}
+    //   内部：分页、列呈现（tag/options 字典/空值占位）、行删除（确认+请求+自刷新）。
+    //         新增/编辑/+子如何响应（开弹窗/跳页）由模板决定，本 Block 只发事件。
+    // =====================================================================================
+    var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
+    var extId = (ViewData["ExtId"] as string) ?? ("lb" + Guid.NewGuid().ToString("N"));
+}
+<div id="@extId" data-dyn-mode="createApp" data-blk-role="list" class="dyn-blk-list" data-blk-config="@blkConfig">
+    <div class="dyn-blk-list__toolbar">
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">+ 新增</button>
+    </div>
+    <el-table :data="model.rows" v-loading="model.loading" size="small" border>
+        <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label"
+            :width="col.width || undefined" :min-width="col.minWidth || undefined"
+            :align="col.align || undefined" :fixed="col.fixed || undefined"
+            :show-overflow-tooltip="col.cellType !== 'tag'">
+            <template #default="scope">
+                <el-tag v-if="col.cellType === 'tag'" :type="cellTagType(col, scope.row)" size="small" effect="light">
+                    {{ formatCell(col, scope.row) }}
+                </el-tag>
+                <span v-else>{{ formatCell(col, scope.row) }}</span>
+            </template>
+        </el-table-column>
+        <el-table-column label="操作" width="180" fixed="right">
+            <template #default="scope">
+                <button type="button" class="el-button el-button--small is-link" @@click="onEdit(scope.row)">编辑</button>
+                <button type="button" class="el-button el-button--small is-link" @@click="onAddChild(scope.row)">+子</button>
+                <button type="button" class="el-button el-button--small is-link is-text" @@click="onDelete(scope.row)">删除</button>
+            </template>
+        </el-table-column>
+    </el-table>
+    <div class="dyn-blk-list__page">
+        <el-pagination background layout="total, prev, pager, next, sizes"
+            :total="model.total" :current-page="model.page" :page-size="model.size"
+            :page-sizes="[10, 20, 50, 100]" @@current-change="onPage" @@size-change="onSize"></el-pagination>
+    </div>
+    <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
+    <script type="text/plain" tag="dynconfig">
+    // ===== 自读配置（独立 app，无任何根依赖） =====
+    var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
+    var __handle = null;
+
+    var dynConfig = {
+        data: function () {
+            return {
+                columns: __cfg.columns || [],
+                keyField: __cfg.keyField || 'Id',
+                table: __cfg.table || '',
+                loadUrl: __cfg.loadUrl || '',
+                deleteUrl: __cfg.deleteUrl || '',
+                project: __cfg.project || ''
+            };
+        },
+        methods: {
+            // 加载列表：两种接口风格 POST body 同构 {table,page,size,filter,project}
+            loadData: function () {
+                var self = this;
+                if (!this.table || !this.loadUrl) return Promise.resolve(null);
+                this.model.loading = true;
+                return DynBlocks.search(this.loadUrl, {
+                    table: this.table, page: this.model.page, size: this.model.size,
+                    filter: this.model.filter || {}, project: this.project
+                }, element)
+                    .then(function (data) {
+                        self.model.loading = false;
+                        self.model.rows = (data && data.rows) || [];
+                        self.model.total = (data && data.total) || 0;
+                        return data;
+                    })
+                    .catch(function () { self.model.loading = false; return null; });
+            },
+            onPage: function (p) { this.model.page = p; this.loadData(); },
+            onSize: function (s) { this.model.size = s; this.model.page = 1; this.loadData(); },
+
+            // ---------------- 列值呈现 ----------------
+            cellOption: function (col, row) {
+                var v = row ? row[col.field] : null;
+                if (col.options && col.options.length) {
+                    for (var i = 0; i < col.options.length; i++) {
+                        if (String(col.options[i].value) === String(v)) return col.options[i];
+                    }
+                }
+                return null;
+            },
+            formatCell: function (col, row) {
+                var v = row ? row[col.field] : null;
+                if (v === null || v === undefined || v === '') return col.emptyText || '-';
+                var o = this.cellOption(col, row);
+                if (o && o.label !== undefined && o.label !== null) return o.label;
+                return v;
+            },
+            cellTagType: function (col, row) {
+                var v = row ? row[col.field] : null;
+                var o = this.cellOption(col, row);
+                if (o && o.type) return o.type;
+                if (col.tagType) return col.tagType;
+                return v ? 'success' : 'info';
+            },
+
+            // ---------------- 对外事件（如何响应由模板编排） ----------------
+            onAdd: function () { __handle.emit('add', {}); },
+            onEdit: function (row) { __handle.emit('edit', { row: row }); },
+            onAddChild: function (row) { __handle.emit('addChild', { row: row }); },
+
+            // ---------------- 内部动作：行删除（确认 + 请求 + 自刷新） ----------------
+            onDelete: function (row) {
+                var self = this;
+                var id = row && row[this.keyField];
+                if (id === null || id === undefined) return;
+                var doDelete = function () {
+                    var req = DynBlocks.deleteRequest(self.deleteUrl, self.table, id, self.keyField, self.project);
+                    DynCall.post(req.url, req.body, { scopeEl: element })
+                        .then(function () { dyn.showMessage('删除成功', 'success'); self.loadData(); })
+                        .catch(function () { /* DynCall 已统一 toast */ });
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该条记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else {
+                    doDelete();
+                }
+            }
+        },
+        mounted: function () {
+            var self = this;
+            __handle = DynBlocks.createBlockHandle(element);
+            __handle
+                .reg('loadData', function (p) {
+                    self.model.filter = (p && p.filter) || {};
+                    self.model.page = 1;
+                    return self.loadData();
+                })
+                .reg('reload', function () { return self.loadData(); });
+            // mounted 只做自身首屏加载，不发对外事件
+            this.loadData();
+        },
+        beforeUnmount: function () {
+            if (__handle) { __handle.destroy(); __handle = null; }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-list { display: flex; flex-direction: column; }
+    .dyn-blk-list__toolbar { margin-bottom: 12px; }
+    .dyn-blk-list .el-table { width: 100%; }
+    .dyn-blk-list__page { display: flex; justify-content: flex-end; margin-top: 14px; }
+</style>

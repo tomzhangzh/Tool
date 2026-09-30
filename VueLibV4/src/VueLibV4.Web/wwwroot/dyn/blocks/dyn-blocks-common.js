@@ -1,8 +1,13 @@
 /**
- * dyn-blocks-common.js — 积木公共能力（#6 根上下文解析 + #8 统一 API 契约）
+ * dyn-blocks-common.js — 积木公共能力（统一 API 契约 + Block 实例句柄）
  * ------------------------------------------------------------
- * 必须在各 Block（FilterBlock/ListBlock/DetailBlock）的 dynconfig 执行前加载。
- * 依赖：DynCall（HTTP）、dyn.getApp（根应用注册表）。
+ * 必须在各 BlockApp（Apps/*.cshtml）的 dynconfig 执行前加载。
+ * 依赖：DynCall（HTTP）。
+ *
+ * 架构约定：
+ *   - 每个 Block 是独立 VueApp，自读容器上的 data-blk-config，不依赖任何根 app；
+ *   - Block 间协作只通过挂在容器上的实例句柄 element.__dynBlock（见 createBlockHandle）；
+ *   - 模板只负责摆放 UI 与 mount 后的显式接线，Block 内部不感知宿主形态。
  */
 (function (global) {
     'use strict';
@@ -16,50 +21,7 @@
         catch (e) { return null; }
     };
 
-    // ---------------- #6 组合模式根应用解析（绝不静默降级） ----------------
-
-    // 元素未声明 data-root-ext-id → 返回 null（独立模式）；
-    // 声明了 → { rid, el, app }，app 为 null 表示根 app 尚未就绪/配置错误。
-    DynBlocks.getRoot = function (element) {
-        var rid = element.getAttribute('data-root-ext-id');
-        if (!rid) return null;
-        var el = document.getElementById(rid);
-        var app = el && global.dyn && typeof dyn.getApp === 'function' ? dyn.getApp(el) : null;
-        return { rid: rid, el: el || null, app: app };
-    };
-
-    // 组合模式等待根 app 就绪：50ms 轮询、最多约 2 秒。
-    // done(app) 成功；done(null, message) 超时/不存在（调用方渲染显式错误，不自建消息中心）。
-    DynBlocks.whenRootReady = function (element, done) {
-        var root = DynBlocks.getRoot(element);
-        if (!root) { done(null, '元素未声明 data-root-ext-id'); return; }
-        if (root.app) { done(root.app); return; }
-        var tries = 0;
-        var timer = setInterval(function () {
-            var cur = DynBlocks.getRoot(element);
-            if (cur && cur.app) { clearInterval(timer); done(cur.app); }
-            else if (++tries >= 40) {
-                clearInterval(timer);
-                done(null, '组合模式根应用未就绪：' + root.rid + '（请检查 RootExtId 与挂载顺序）');
-            }
-        }, 50);
-    };
-
-    // 组合模式：读取根 app model 上由 data-model-key 指定的配置对象与 data-msg-center-key 指定的消息中心。
-    // 成功 {cfg,msg}；缺配置/缺消息中心 {error:文案}（调用方渲染显式错误，不降级）。
-    DynBlocks.combinedCtx = function (element, app) {
-        var mk = element.getAttribute('data-model-key');
-        var msgKey = element.getAttribute('data-msg-center-key') || 'msgCenter';
-        var cfg = mk ? app.model[mk] : null;
-        var msg = app.model[msgKey] || null;
-        if (mk && !(cfg && typeof cfg === 'object')) {
-            return { error: '根 model 不存在配置 key【' + mk + '】或值非对象，请检查模板 Partial 传参 ModelKey' };
-        }
-        if (!msg) return { error: '根 model 不存在消息中心【' + msgKey + '】，请检查模板初始化' };
-        return { cfg: cfg || {}, msg: msg };
-    };
-
-    // ---------------- #8 数据 API：平台直连 vs 业务库，契约统一一处 ----------------
+    // ---------------- 数据 API：平台直连 vs 业务库，契约统一一处 ----------------
 
     DynBlocks.URLS = {
         bizSearch: '/api/business/dyndata/search',
@@ -122,5 +84,84 @@
         var keys = {};
         keys[keyField || 'Id'] = id;
         return { url: deleteUrl || DynBlocks.URLS.bizDelete, body: { table: table, keys: keys, project: project } };
+    };
+
+    // ---------------- Block 实例句柄（独立 app 协作契约） ----------------
+    // 每个 Block 挂在自己的独立 VueApp 上，自读 data-blk-config，不依赖任何根 app。
+    // 对外协作只通过挂在容器上的实例句柄 element.__dynBlock：
+    //   handle.send(cmd, payload)  —— 编排方向 block 下命令（Promise，未注册/已销毁 reject）
+    //   handle.on(evt, fn) -> off  —— 编排方订阅 block 事件（返回注销函数）
+    //   handle.emit(evt, payload)  —— block 内部向外发事件
+    //   handle.destroy()           —— unmount 时调用，之后全部静默（防悬垂订阅/失效命令）
+    // 契约：Block 在 mounted 阶段只做自身初始化（首屏加载/回填），不得 emit 对外事件；
+    //       外事件只能由用户交互触发——编排方必然已在 mount 完成后完成接线。
+    DynBlocks.createBlockHandle = function (element) {
+        var commands = Object.create(null);
+        var listeners = Object.create(null);
+        var destroyed = false;
+        var handle = {
+            role: element.getAttribute('data-blk-role') || '',
+            destroyed: false,
+            // block 内部注册命令处理器
+            reg: function (cmd, fn) {
+                if (!destroyed && typeof fn === 'function') commands[cmd] = fn;
+                return handle;
+            },
+            // 编排方向 block 下发命令
+            send: function (cmd, payload) {
+                if (destroyed || !commands[cmd]) {
+                    return Promise.reject(new Error('Block 命令未注册或实例已销毁: ' + cmd));
+                }
+                try { return Promise.resolve(commands[cmd](payload)); }
+                catch (e) { return Promise.reject(e); }
+            },
+            // 编排方订阅 block 事件
+            on: function (evt, fn) {
+                if (destroyed || typeof fn !== 'function') return function () { };
+                (listeners[evt] = listeners[evt] || []).push(fn);
+                return function () {
+                    var arr = listeners[evt];
+                    if (!arr) return;
+                    var i = arr.indexOf(fn);
+                    if (i > -1) arr.splice(i, 1);
+                };
+            },
+            // block 内部向外发事件
+            emit: function (evt, payload) {
+                if (destroyed) return;
+                (listeners[evt] || []).slice().forEach(function (fn) {
+                    try { fn(payload); } catch (e) { console.error('[block event ' + evt + ']', e); }
+                });
+            },
+            // 编排方排查用：当前已注册命令/已订阅事件
+            introspect: function () {
+                return { destroyed: destroyed, commands: Object.keys(commands), events: Object.keys(listeners) };
+            },
+            destroy: function () {
+                destroyed = true;
+                handle.destroyed = true;
+                commands = Object.create(null);
+                listeners = Object.create(null);
+            }
+        };
+        element.__dynBlock = handle;
+        return handle;
+    };
+
+    // 扫描容器内全部已挂载 Block，返回 { role: handle }（容器自身是 Block 时也包含）。
+    // 用于 updateEl/open 注入片段后的接线：谁注入，谁编排。
+    DynBlocks.scan = function (container) {
+        var out = {};
+        var add = function (el) {
+            if (el && el.__dynBlock) {
+                var role = el.getAttribute('data-blk-role') || 'block';
+                if (!out[role]) out[role] = el.__dynBlock;
+            }
+        };
+        if (container && container.getAttribute) add(container);
+        if (container && container.querySelectorAll) {
+            [].forEach.call(container.querySelectorAll('[data-blk-role]'), add);
+        }
+        return out;
     };
 })(window);
