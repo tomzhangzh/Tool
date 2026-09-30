@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -17,6 +17,7 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 ///   /Platform/Page/WebPageRender?code=student-manage   动态页面
 ///   /Platform/Page/DynWebPage?id=1            模板引擎运行时（外壳视图）
 ///   /Platform/Page/Demo/ActionHelper          动作助手 Demo
+///   /Platform/Page/Demo/Rpc                   能力桥 RPC Demo
 /// </summary>
 [Area("Platform")]
 public class PageController : Controller
@@ -148,6 +149,15 @@ public class PageController : Controller
         ViewData["Title"] = "CodeMirror Demo - VueLibV4";
         ViewData["ApiBase"] = "/api";
         return View(string.Format(Demo, "CodeMirror"));
+    }
+
+    /// <summary>能力桥 RPC Demo：dyn.service 调用后端 DI 服务 / dyn.eval 执行 C# 取数（含调用规范）</summary>
+    [HttpGet("/Platform/Page/Demo/Rpc")]
+    public IActionResult DemoRpc()
+    {
+        ViewData["Title"] = "能力桥 RPC Demo - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View(string.Format(Demo, "Rpc"));
     }
 
     /// <summary>Mac 风格桌面 Demo（仿 macOS / portfolio.zxh.me 拟物风格，独立 _LayoutMac 布局）</summary>

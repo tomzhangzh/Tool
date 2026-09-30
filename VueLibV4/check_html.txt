@@ -1,0 +1,595 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>&#x83DC;&#x5355;&#x6811;&#x5F62;&#x7BA1;&#x7406; Demo - VueLibV4</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/dyn/dyn.css?v=NWu9GA_R1Zu4B4hR2Mt-CV6kQMFSK-I9tRIyiILLGxM" />
+    
+</head>
+<body>
+<div class="tr-root">
+    <div class="tr-head">
+        <div class="tr-title">
+            <span class="tr-name">&#x83DC;&#x5355;&#x6811;&#x5F62;&#x7BA1;&#x7406; Demo</span>
+            <el-tag size="small" type="info" effect="plain">tree-detail</el-tag>
+            <el-tag size="small" type="warning" effect="plain">SysMenu</el-tag>
+        </div>
+        <div class="tr-actions">
+                <el-button size="small" type="warning" text @click="go('/Platform/Mgmt/DynWebPageMgmt?id=12')">✎ 进入设计器</el-button>
+            <el-button type="primary" size="small" text @click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+        </div>
+    </div>
+
+    <div class="tr-split" id="Ttr301223e5ce194672824d509649e03287-split">
+        <div id="Ttr301223e5ce194672824d509649e03287-root" data-dyn-mode="createApp" class="tr-pane-left" style="width:30%">
+            <script type="application/json" tag="dynmodel">{"msgCenter":null,"detailCfg":{"detailConfig":{"component":"DynGridContainer","options":{"comoptions":{"direction":"vertical","size":"small","gridTemplateColumns":"1fr"},"labeloptions":{"required":false,"show":false,"labelposition":"right","labelwidth":"120px"},"itemoptions":{"class":"grid grid-cols-2 gap-x-3 gap-y-2 items-start"},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth","comInnerInfo":{"labelWidth":"200px","labelPosition":"right","size":"small"}},"childrenctrls":[{"component":"DynElInput","modelname":"Id","options":{"comoptions":{"size":"small"},"labeloptions":{"required":false,"show":false},"itemoptions":{"style":{"display":"none"}},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElSelect","modelname":"ParentId","options":{"comoptions":{"size":"small","sourceType":"table","table":"SysMenu","valueField":"Id","textField":"Name","projectId":2,"placeholder":"请选择","clearable":true},"labeloptions":{"label":"Parent Id","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElInput","modelname":"Code","options":{"comoptions":{"size":"small","placeholder":"请输入Code","clearable":true},"labeloptions":{"label":"Code","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElInput","modelname":"Name","options":{"comoptions":{"size":"small","placeholder":"请输入Name","clearable":true},"labeloptions":{"label":"Name","required":true,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"},"validators":[{"type":"required","message":"Name不能为空"}]},{"component":"DynElEmojiPicker","modelname":"Icon","options":{"comoptions":{"size":"small","placeholder":"搜索 Emoji（中/英文）","clearable":true},"labeloptions":{"label":"Icon","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElInput","modelname":"Url","options":{"comoptions":{"size":"small","placeholder":"请输入Url","clearable":true},"labeloptions":{"label":"Url","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElInput","modelname":"TargetType","options":{"comoptions":{"size":"small","placeholder":"请输入Target Type","clearable":true},"labeloptions":{"label":"Target Type","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElSwitch","modelname":"IsAddToDesktop","options":{"comoptions":{"size":"small","placeholder":"请输入Is Add To Desktop","clearable":true},"labeloptions":{"label":"Is Add To Desktop","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElInputNumber","modelname":"SortNo","options":{"comoptions":{"size":"small","step":1},"labeloptions":{"label":"Sort No","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElSwitch","modelname":"IsActive","options":{"comoptions":{"size":"small","placeholder":"请输入Is Active","clearable":true},"labeloptions":{"label":"Is Active","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElInput","modelname":"PermissionCode","options":{"comoptions":{"size":"small","placeholder":"请输入Permission Code","clearable":true},"labeloptions":{"label":"Permission Code","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElInputNumber","modelname":"Width","options":{"comoptions":{"size":"small","step":1},"labeloptions":{"label":"Width","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElInputNumber","modelname":"Height","options":{"comoptions":{"size":"small","step":1},"labeloptions":{"label":"Height","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElSwitch","modelname":"IsAddToDesktopRoot","options":{"comoptions":{"size":"small","placeholder":"请输入Is Add To Desktop Root","clearable":true},"labeloptions":{"label":"Is Add To Desktop Root","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}},{"component":"DynElSwitch","modelname":"IsAddToStartMenu","options":{"comoptions":{"size":"small","placeholder":"请输入Is Add To Start Menu","clearable":true},"labeloptions":{"label":"Is Add To Start Menu","required":false,"show":true},"compassthrough":"comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"}}]},"detailDefault":{"Id":null,"ParentId":null,"Code":null,"Name":null,"Icon":null,"Url":null,"TargetType":null,"IsAddToDesktop":1,"SortNo":0,"IsActive":1,"PermissionCode":null,"Width":0,"Height":0,"IsAddToDesktopRoot":1,"IsAddToStartMenu":1},"table":"SysMenu","project":"","addUrl":"/api/platform/dyndata/save?table=SysMenu","editUrl":"/api/platform/dyndata/save?table=SysMenu","deleteUrl":"/api/platform/dyndata/delete","keyField":"Id"},"treeParams":{"table":"SysMenu","keyField":"Id","parentField":"ParentId","titleField":"Name","iconField":"Icon","sortField":"SortNo","loadUrl":"/api/platform/dyndata/search","editUrl":"/api/platform/dyndata/save?table=SysMenu","project":"","enableDrag":true,"dragSameLevelOnly":false}}</script>
+            <script type="text/plain" tag="dynconfig">
+            var dynConfig = {
+                data: function () {
+                    var tp = this.model.treeParams || {};
+                    return {
+                        title: '&#x83DC;&#x5355;&#x6811;&#x5F62;&#x7BA1;&#x7406; Demo',
+                        tableName: tp.table || '',
+                        keyField: tp.keyField || 'Id',
+                        parentField: tp.parentField || 'ParentId',
+                        titleField: tp.titleField || 'Name',
+                        iconField: tp.iconField || 'Icon',
+                        sortField: tp.sortField || 'SortNo',
+                        loadUrl: tp.loadUrl || '/api/business/dyndata/search',
+                        editUrl: tp.editUrl || '/api/business/dyndata/update',
+                        project: tp.project || '',
+                        enableDrag: tp.enableDrag === true || tp.enableDrag === 'true',
+                        dragSameLevelOnly: tp.dragSameLevelOnly === true || tp.dragSameLevelOnly === 'true',
+                        treeData: [], treeLoading: false, filterText: '',
+                        treeKey: 0,
+                        split: 30,
+                        current: null
+                    };
+                },
+                computed: {
+                    // 搜索节点：按标题字段递归过滤，命中节点及其祖先保留；关键词为空显示全部
+                    filteredTreeData: function () {
+                        var val = this.filterText || '';
+                        if (!val) return this.treeData;
+                        var tf = this.titleField;
+                        function walk(list) {
+                            var out = [];
+                            list.forEach(function (n) {
+                                var hit = String(n[tf] || '').indexOf(val) !== -1;
+                                var kids = (n.children && n.children.length) ? walk(n.children) : [];
+                                if (hit || kids.length) { var c = Object.assign({}, n, { children: kids }); out.push(c); }
+                            });
+                            return out;
+                        }
+                        return walk(this.treeData);
+                    }
+                },
+                watch: {
+                    // el-tree 用 :key 强制重建（新增/删除/排序后 treeKey+1），重建后重新绑定拖拽
+                    treeKey: function () { var self = this; this.$nextTick(function () { if (self.enableDrag) self.initSortable(); }); }
+                },
+                methods: {
+                    go: function (u) { window.location.href = u; },
+                    // 组树：父级字段匹配 + 同级排序
+                    buildTree: function (rows) {
+                        var p = { keyField: this.keyField, parentField: this.parentField, sortField: this.sortField };
+                        var map = {}, roots = [];
+                        rows.forEach(function (r) { map[r[p.keyField]] = Object.assign({}, r, { children: [], __key: String(r[p.keyField]) }); });
+                        rows.forEach(function (r) {
+                            var node = map[r[p.keyField]];
+                            var pid = r[p.parentField];
+                            var parent = (pid !== null && pid !== undefined && pid !== '') ? map[pid] : null;
+                            if (parent) parent.children.push(node); else roots.push(node);
+                        });
+                        (function sort(list) {
+                            list.sort(function (a, b) { return ((a[p.sortField] != null ? a[p.sortField] : 0) - (b[p.sortField] != null ? b[p.sortField] : 0)); });
+                            list.forEach(function (n) { if (n.children && n.children.length) sort(n.children); });
+                        })(roots);
+                        return roots;
+                    },
+                    loadTree: function () {
+                        var self = this;
+                        this.treeLoading = true;
+                        DynCall.post(this.loadUrl, {
+                            table: this.tableName, page: 1, size: 100000,
+                            sort: { field: this.sortField, order: 'asc' }, project: this.project
+                        }, { scopeEl: element }).then(function (res) {
+                            var rows = (res && res.rows) || (res && res.data && res.data.rows) || [];
+                            self.treeData = self.buildTree(rows);
+                            self.treeKey = self.treeKey + 1; // 强制 el-tree 重挂载，保证删除/新增后视图同步
+                        }).catch(function () { dyn.showMessage('加载树失败', 'error'); })
+                          .finally(function () { self.treeLoading = false; });
+                    },
+                    // 树节点点击 → 命令 Detail 回填
+                    onNodeClick: function (data) {
+                        this.current = data;
+                        var msg = this.model.msgCenter;
+                        if (msg) msg.sendCommand('detail', { cmd: 'editForm', row: data });
+                    },
+                    // 新增根节点（空表单）
+                    onAddRoot: function () {
+                        this.current = null;
+                        var msg = this.model.msgCenter;
+                        if (msg) msg.sendCommand('detail', { cmd: 'newForm', preFill: {} });
+                    },
+                    // 新增子节点（预填父级字段）
+                    onAddChild: function () {
+                        var c = this.current;
+                        if (!c || c[this.keyField] === null || c[this.keyField] === undefined || c[this.keyField] === '') {
+                            dyn.showMessage('请先选择一个父节点', 'warning'); return;
+                        }
+                        var pre = {}; pre[this.parentField] = c[this.keyField];
+                        var msg = this.model.msgCenter;
+                        if (msg) msg.sendCommand('detail', { cmd: 'newForm', preFill: pre });
+                    },
+                    // 分隔条拖拽：直接操作根 App 元素宽度（18%~60%）
+                    _dragStart: null,
+                    onDragStart: function (e) {
+                        e.preventDefault();
+                        this._dragStart = { x: e.clientX, w: element.getBoundingClientRect().width, split: this.split };
+                        document.body.style.userSelect = 'none';
+                    },
+                    onDragMove: function (e) {
+                        if (!this._dragStart) return;
+                        var dx = e.clientX - this._dragStart.x;
+                        var pct = (this._dragStart.w > 0) ? (this._dragStart.w * this._dragStart.split / 100 + dx) / this._dragStart.w * 100 : this.split;
+                        this.split = Math.min(60, Math.max(18, pct));
+                        element.style.width = this.split + '%';
+                    },
+                    onDragEnd: function () {
+                        if (!this._dragStart) return;
+                        this._dragStart = null;
+                        document.body.style.userSelect = '';
+                    },
+                    // 表单保存/删除成功后刷新树
+                    onDetailSaved: function () { this.loadTree(); },
+                    // ---------- 拖拽排序（Sortable） ----------
+                    initSortable: function () {
+                        if (!this.enableDrag) return;
+                        var self = this;
+                        this.destroySortable();
+                        var treeRef = this.$refs.treeEl;
+                        if (!treeRef || !treeRef.$el) return;
+                        if (typeof Sortable === 'undefined') { dyn.showMessage('拖拽组件未加载', 'error'); return; }
+                        var rootEl = treeRef.$el;
+                        // 关键：Element Plus 树的节点列表容器是 .el-tree-node__children（每层），
+                        // 根级节点直接挂在 .el-tree 本身上、没有额外 children 容器。
+                        // 此前用 .el-tree__children 匹配不到任何元素 → lists 为空 → Sortable 从未创建 → 拖拽无效。
+                        var lists = [rootEl];
+                        rootEl.querySelectorAll('.el-tree-node__children').forEach(function (l) { lists.push(l); });
+                        this._sortables = [];
+                        lists.forEach(function (list) {
+                            if (!list || !list.querySelectorAll) return;
+                            var s = Sortable.create(list, {
+                                group: 'dyn-tree-sort',
+                                animation: 150,
+                                handle: '.tr-node',
+                                ghostClass: 'dyn-tree-ghost',   // 拖拽幽灵（跟随鼠标的插入指示）
+                                chosenClass: 'dyn-tree-chosen',
+                                dragClass: 'dyn-tree-drag',
+                                fallbackTolerance: 2,
+                                onMove: function (evt) {
+                                    if (self.dragSameLevelOnly && evt.from !== evt.to) return false;
+                                    return true;
+                                },
+                                onEnd: function (evt) { self.saveOrder(evt); }
+                            });
+                            self._sortables.push(s);
+                        });
+                    },
+                    destroySortable: function () {
+                        if (this._sortables) { this._sortables.forEach(function (s) { try { s.destroy(); } catch (e) { } }); this._sortables = []; }
+                    },
+                    collectOrder: function (listEl, updates) {
+                        var parentEl = listEl.parentElement;
+                        var parentKeyEl = parentEl ? parentEl.querySelector('[data-key]') : null;
+                        var parent = parentKeyEl ? parentKeyEl.getAttribute('data-key') : '';
+                        var nodes = listEl.querySelectorAll(':scope > .el-tree-node');
+                        for (var i = 0; i < nodes.length; i++) {
+                            var keyEl = nodes[i].querySelector('[data-key]');
+                            var key = keyEl ? keyEl.getAttribute('data-key') : '';
+                            if (!key) continue;
+                            var prev = updates[key];
+                            updates[key] = { key: key, sortNo: i, parent: parent, parentChanged: !prev || prev.parent !== parent };
+                        }
+                    },
+                    saveOrder: function (evt) {
+                        var self = this;
+                        var updates = {};
+                        this.collectOrder(evt.from, updates);
+                        if (evt.to && evt.to !== evt.from) this.collectOrder(evt.to, updates);
+                        var keys = Object.keys(updates);
+                        if (!keys.length) return;
+                        // 关键契约差异：
+                        //  - /api/platform/dyndata/save?table=xxx ：body 为【扁平实体字段】（主键+要改的列），table 走 URL query
+                        //  - /api/business/dyndata/update      ：body 为 {table, project, data:{主键,...}}
+                        // 旧实现恒用 {table,project,data}，导致 platform/save 取不到主键→误走新增→排序从未保存。
+                        var isPlatformSave = self.editUrl.indexOf('dyndata/save') !== -1;
+                        var reqs = keys.map(function (k) {
+                            var u = updates[k];
+                            var flat = {};
+                            flat[self.keyField] = u.key;
+                            flat[self.sortField] = Number(u.sortNo);
+                            if (u.parentChanged) flat[self.parentField] = u.parent || null;
+                            var payload = isPlatformSave ? flat : { table: self.tableName, project: self.project, data: flat };
+                            return DynCall.post(self.editUrl, payload, { scopeEl: element });
+                        });
+                        Promise.all(reqs).then(function () {
+                            dyn.showMessage('排序已保存', 'success');
+                            self.loadTree();
+                        }).catch(function () { dyn.showMessage('排序保存失败', 'error'); });
+                    }
+                },
+                mounted: function () {
+                    var self = this;
+                    this.model.msgCenter = createMessageCenter();
+                    this.__unsubs = [];
+                    this.__unsubs.push(this.model.msgCenter.subscribeEvent('detail.saved', function () { self.onDetailSaved(); }));
+                    // 拖拽事件：JS 绑定到分隔条/外层（绕过 Vue 作用域，gutter 在根 App 外）
+                    var gutterEl = document.getElementById('Ttr301223e5ce194672824d509649e03287-gutter');
+                    var splitEl = document.getElementById('Ttr301223e5ce194672824d509649e03287-split');
+                    self.__onGutterDown = function (e) { self.onDragStart(e); };
+                    self.__onSplitMove = function (e) { self.onDragMove(e); };
+                    self.__onWindowUp = function (e) { self.onDragEnd(); };
+                    if (gutterEl) gutterEl.addEventListener('mousedown', self.__onGutterDown);
+                    if (splitEl) splitEl.addEventListener('mousemove', self.__onSplitMove);
+                    window.addEventListener('mouseup', self.__onWindowUp);
+                    this.loadTree();
+                },
+                beforeUnmount: function () {
+                    this.destroySortable();
+                    if (this.__unsubs) { this.__unsubs.forEach(function (f) { try { f(); } catch (e) { } }); this.__unsubs = []; }
+                    var gutterEl = document.getElementById('Ttr301223e5ce194672824d509649e03287-gutter');
+                    var splitEl = document.getElementById('Ttr301223e5ce194672824d509649e03287-split');
+                    if (gutterEl && this.__onGutterDown) gutterEl.removeEventListener('mousedown', this.__onGutterDown);
+                    if (splitEl && this.__onSplitMove) splitEl.removeEventListener('mousemove', this.__onSplitMove);
+                    if (this.__onWindowUp) window.removeEventListener('mouseup', this.__onWindowUp);
+                    if (this.model && this.model.msgCenter) { try { this.model.msgCenter.destroy(); } catch (e) { } this.model.msgCenter = null; }
+                }
+            };
+            </script>
+
+            <div class="tr-pane-head">
+                <span class="tr-pane-title">树</span>
+                <div class="tr-pane-tools">
+                    <el-button type="success" size="small" @click="onAddRoot">+ 新增根</el-button>
+                    <el-button type="primary" size="small" @click="onAddChild" :disabled="!current">+ 子节点</el-button>
+                    <el-button type="primary" size="small" text @click="loadTree" :loading="treeLoading">刷新</el-button>
+                </div>
+            </div>
+            <el-input v-model="filterText" placeholder="搜索节点" clearable size="small" style="margin-bottom:8px;width:100%;"></el-input>
+            <div class="tr-tree-wrap">
+                <el-tree ref="treeEl"
+                         :key="treeKey"
+                         :data="filteredTreeData"
+                         :props="{ children: 'children', label: titleField }"
+                         node-key="__key"
+                         default-expand-all
+                         highlight-current
+                         :expand-on-click-node="false"
+                         v-loading="treeLoading"
+                         @node-click="onNodeClick">
+                    <template #default="{ data }">
+                        <span class="tr-node" :data-key="data.__key" @click.stop="onNodeClick(data)">
+                            <span>{{ (data.children && data.children.length) ? (data[iconField] || '📁') : (data[iconField] || '📄') }}</span>
+                            <span>{{ data[titleField] }}</span>
+                            <el-tag v-if="data.IsActive === false || data.IsActive === 0" size="small" type="info" style="margin-left:4px">停用</el-tag>
+                        </span>
+                    </template>
+                </el-tree>
+            </div>
+        </div>
+
+        <div class="tr-gutter" id="Ttr301223e5ce194672824d509649e03287-gutter" title="拖拽调整，双击复位" @dblclick="split=30">
+            <span class="tr-gutter-bar"></span>
+        </div>
+
+        <div class="tr-pane-right">
+            <div id="Ttr301223e5ce194672824d509649e03287-detail" data-dyn-mode="createApp" data-root-ext-id="Ttr301223e5ce194672824d509649e03287-root"
+     data-model-key="detailCfg" data-msg-center-key="msgCenter"
+     data-blk-config="" data-blk-default="" data-blk-table=""
+     data-blk-addurl="" data-blk-editurl="" data-blk-deleteurl=""
+     data-blk-project="" data-blk-modal="" class="db">
+    <div class="db-errbar" v-if="formError">{{ formError }}</div>
+    <div class="db-body">
+        <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+    </div>
+    <div class="db-btns">
+        <button type="button" class="el-button el-button--small" data-dyn-click-DetailCancel>取消</button>
+        <button type="button" class="el-button el-button--danger el-button--small" :disabled="loading || !form[keyField]" data-dyn-click-DetailDelete>删除</button>
+        <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" data-dyn-click-DetailSave>保存</button>
+    </div>
+    <script type="text/plain" tag="dynconfig">
+    // ========== 双模式：组合（data-root-ext-id + data-model-key/data-msg-center-key，动态读根 model） / 独立（无，读自身 data-blk-*） ==========
+    var __rid = element.getAttribute('data-root-ext-id');
+    var __rootApp = null;
+    if (__rid) { var __rootEl = document.getElementById(__rid); if (__rootEl) __rootApp = dyn.getApp(__rootEl); }
+    var __ctx = {};
+    if (__rootApp) {
+        // 组合模式：配置对象由模板通过 data-model-key 指定，消息中心由 data-msg-center-key 指定（缺省 'msgCenter'）。
+        // 模板根 model 用什么 key 完全由模板决定，Block 不预设任何固定字段，只按传入 key 动态读取。
+        var __modelKey = element.getAttribute('data-model-key');
+        var __msgKey = element.getAttribute('data-msg-center-key') || 'msgCenter';
+        var __cfg = __modelKey ? __rootApp.model[__modelKey] : null;
+        if (__cfg && typeof __cfg === 'object') {
+            __ctx = __cfg;
+        } else if (__rid) {
+            console.error('[DetailBlock] 根 model 不存在 key【' + __modelKey + '】或值非对象，请检查模板 Partial 传参 ModelKey');
+        }
+        __ctx.msgCenter = __rootApp.model[__msgKey] || null;
+    } else {        // 独立模式：外部未注入根上下文 → 从自身 data-blk-config / data-blk-default / data-blk-table / data-blk-addurl / data-blk-editurl 读取，并自建消息中心。
+        // 约定：独立使用时，页面/容器需自行引入 message-center.js 并提供上述属性。
+        var __P = function (s) { try { return JSON.parse(s || 'null') || null; } catch (e) { return null; } };
+        __ctx = {
+            detailConfig: __P(element.getAttribute('data-blk-config')),
+            detailDefault: __P(element.getAttribute('data-blk-default')) || {},
+            table: element.getAttribute('data-blk-table') || '',
+            addUrl: element.getAttribute('data-blk-addurl') || '',
+            editUrl: element.getAttribute('data-blk-editurl') || '',
+            deleteUrl: element.getAttribute('data-blk-deleteurl') || '',
+            project: element.getAttribute('data-blk-project') || '',
+            msgCenter: (typeof createMessageCenter === 'function') ? createMessageCenter() : null
+        };
+    }
+    // 弹窗模式：data-blk-modal="true" 时，保存成功后发全局 dyndata.saved 事件并关闭弹窗（宿主页面据此刷新列表）
+    __ctx.modal = element.getAttribute('data-blk-modal') === 'true';
+    var dynConfig = {
+        data: function () {
+            var initForm = __ctx.detailDefault || {};
+            return {
+                detailCfg: __ctx.detailConfig || null,
+                form: JSON.parse(JSON.stringify(initForm)),
+                formError: '',
+                loading: false,
+                table: __ctx.table || '',
+                addUrl: __ctx.addUrl || '',
+                editUrl: __ctx.editUrl || '',
+                deleteUrl: __ctx.deleteUrl || '',
+                keyField: __ctx.keyField || 'Id',
+                project: __ctx.project || '',
+                modal: __ctx.modal === true,
+                __initForm: initForm
+            };
+        },
+        methods: {
+            // 表单校验：扫描容器内动态组件节点的 __dynValidate 钩子
+            validateForm: function () {
+                var errs = [];
+                var nodes = element.querySelectorAll('*');
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    if (typeof n.__dynValidate === 'function') {
+                        try {
+                            var ok = n.__dynValidate();
+                            if (ok !== true) {
+                                var msg = null;
+                                if (n.__dynErrors && n.__dynErrors.length) {
+                                    msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
+                                }
+                                if (!msg) {
+                                    try {
+                                        var inst = n.__vueParentComponent;
+                                        var comp = inst && inst.proxy;
+                                        if (comp && comp.comInnerInfo && comp.comInnerInfo.validation && comp.comInnerInfo.validation.errors) {
+                                            comp.comInnerInfo.validation.errors.forEach(function (e) { if (e && e.message) msg = e.message; });
+                                        }
+                                    } catch (e) { }
+                                }
+                                if (!msg) msg = '存在未通过校验的字段';
+                                if (errs.indexOf(msg) < 0) errs.push(msg);
+                            }
+                        } catch (e) { console.warn('[detail validate]', e); }
+                    }
+                }
+                return errs;
+            },
+            // 命令入口：newForm（新增，静态 default + preFill 浅合并，不改 PageSetting）/ editForm（回填）
+            handleCommand: function (cmd, payload) {
+                if (cmd === 'newForm') {
+                    var preFill = (payload && payload.preFill) || {};
+                    this.form = Object.assign({}, JSON.parse(JSON.stringify(this.__initForm)), preFill);
+                    this.formError = '';
+                    return Promise.resolve(null);
+                }
+                if (cmd === 'editForm') {
+                    var row = (payload && payload.row) || {};
+                    this.form = Object.assign({}, JSON.parse(JSON.stringify(this.__initForm)), row);
+                    this.formError = '';
+                    return Promise.resolve(null);
+                }
+                return Promise.resolve(null);
+            },
+            // 保存：校验 → 业务库 insert/update（body {table,data}，统一走 DynCall）→ 发 detail.saved 事件
+            onSave: function () {
+                var self = this;
+                var errs = this.validateForm();
+                if (errs.length) {
+                    this.formError = errs.join('；');
+                    dyn.showMessage(errs.join('；'), 'warning');
+                    return;
+                }
+                this.loading = true;
+                var isEdit = this.form && this.form.Id !== null && this.form.Id !== undefined && this.form.Id !== '';
+                // 接口风格适配：/api/platform/* 为平台直连（save?table= 直接发行数据）；否则业务 dyndata（insert/update，body {table,data}）
+                var isPlat = (this.addUrl || '').indexOf('/api/platform/') === 0;
+                var body = isPlat ? this.form : { table: this.table, data: this.form, project: this.project };
+                DynCall.post(isEdit ? this.editUrl : this.addUrl, body, { scopeEl: element })
+                    .then(function () {
+                        self.loading = false;
+                        self.formError = '';
+                        dyn.showMessage('保存成功', 'success');
+                        var msg = __ctx.msgCenter;
+                        if (msg) msg.emitEvent('detail.saved', { action: isEdit ? 'edit' : 'add', row: self.form });
+                        // 弹窗模式：通知宿主页面刷新 + 关闭弹窗（宿主据此重新加载列表）
+                        if (self.modal) {
+                            try {
+                                window.dispatchEvent(new CustomEvent('dyndata.saved', { detail: { table: self.table, project: self.project } }));
+                            } catch (e) { }
+                            var layero = element.closest ? element.closest('.layui-layer') : null;
+                            if (window.layui && window.layui.layer) {
+                                var times = layero ? layero.getAttribute('times') : null;
+                                if (times && times !== '') window.layui.layer.close(times);
+                                else window.layui.layer.closeAll();
+                            }
+                        }
+                    })
+                    .catch(function (e) { self.loading = false; /* DynCall 已统一 toast */ });
+            },
+            // 取消：清空表单（新增态骨架）
+            onCancel: function () {
+                this.form = JSON.parse(JSON.stringify(this.__initForm));
+                this.formError = '';
+            },
+            // 删除：仅编辑态（有主键）可用。确认后 POST deleteUrl {table, keys:{Id}, project}，成功后发 detail.saved{action:'delete'}。
+            // 统一走 DynCall（信封解包 + 统一 toast）；blockId 判断用注册时的 'detail' 别名，宿主据此刷新（树/列表）。
+            onDelete: function () {
+                var self = this;
+                var id = this.form[this.keyField];
+                if (id === null || id === undefined || id === '' || id === 0) { dyn.showMessage('请先选择要删除的记录', 'warning'); return; }
+                if (!this.deleteUrl) { dyn.showMessage('未配置删除接口 deleteUrl', 'warning'); return; }
+                var doDelete = function () {
+                    self.loading = true;
+                    // 接口风格适配：平台直连 delete 用 query 传 table/id；业务 dyndata delete 用 body {table, keys}
+                    var isPlat = (self.deleteUrl || '').indexOf('/api/platform/') === 0;
+                    var dUrl = isPlat ? (self.deleteUrl + '?table=' + encodeURIComponent(self.table) + '&id=' + encodeURIComponent(id)) : self.deleteUrl;
+                    var dBody = isPlat ? {} : { table: self.table, keys: { Id: id }, project: self.project };
+                    DynCall.post(dUrl, dBody, { scopeEl: element })
+                        .then(function () {
+                            self.loading = false;
+                            dyn.showMessage('删除成功', 'success');
+                            self.form = JSON.parse(JSON.stringify(self.__initForm));
+                            self.formError = '';
+                            var msg = __ctx.msgCenter;
+                            if (msg) msg.emitEvent('detail.saved', { action: 'delete', row: { Id: id } });
+                            if (self.modal) {
+                                try {
+                                    window.dispatchEvent(new CustomEvent('dyndata.saved', { detail: { table: self.table, project: self.project } }));
+                                } catch (e) { }
+                                var layero = element.closest ? element.closest('.layui-layer') : null;
+                                if (window.layui && window.layui.layer) {
+                                    var times = layero ? layero.getAttribute('times') : null;
+                                    if (times && times !== '') window.layui.layer.close(times);
+                                    else window.layui.layer.closeAll();
+                                }
+                            }
+                        })
+                        .catch(function (e) { self.loading = false; /* DynCall 已统一 toast */ });
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else { doDelete(); }
+            },
+            // 注册本 Block 的保存/取消/删除动作（dyn-click 委托在 document 捕获层触发，ctx.vm 即本 Block proxy）
+            registerActions: function () {
+                if (!dyn || typeof dyn.defineAction !== 'function') return;
+                dyn.defineAction('DetailSave', function (ctx) {
+                    var vm = ctx && ctx.vm;
+                    if (vm && typeof vm.onSave === 'function') return vm.onSave();
+                });
+                dyn.defineAction('DetailCancel', function (ctx) {
+                    var vm = ctx && ctx.vm;
+                    if (vm && typeof vm.onCancel === 'function') return vm.onCancel();
+                });
+                dyn.defineAction('DetailDelete', function (ctx) {
+                    var vm = ctx && ctx.vm;
+                    if (vm && typeof vm.onDelete === 'function') return vm.onDelete();
+                });
+                // 注意：无需 dyn.rebindActions —— generateSelector 每次点击动态生成，动作注册即生效；
+                // 多次 rebind 会导致 document 监听叠加（一次点击触发多次动作）。
+            }
+        },
+        mounted: function () {
+            this.registerActions();
+            // 向根 app 消息中心注册本积木（接收 newForm/editForm 命令）
+            var self = this, msg = __ctx.msgCenter;
+            if (msg && typeof msg.registerBlock === 'function') {
+                msg.registerBlock('detail', function (cmd, payload) { return self.handleCommand(cmd, payload); });
+            }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .db { display: flex; flex-direction: column; }
+    .db-errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
+        border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .db-body { flex: 1; }
+    .db-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
+        padding-top: 12px; border-top: 1px solid #e4e7ed; }
+</style>
+
+        </div>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .tr-root { display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+    .tr-head { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e4e7ed; flex-shrink: 0; }
+    .tr-head .tr-title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: #303133; margin-right: auto; }
+    .tr-split { flex: 1; min-height: 0; display: flex; margin: 14px; box-sizing: border-box; background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; overflow: hidden; }
+    .tr-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+    .tr-pane-left { flex-shrink: 0; padding: 12px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+    .tr-pane-right { flex: 1; padding: 12px 16px; box-sizing: border-box; overflow: auto; }
+    .tr-pane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .tr-pane-tools { display: flex; align-items: center; gap: 4px; }
+    .tr-pane-title { font-size: 13px; font-weight: 600; color: #303133; }
+    .tr-tree-wrap { flex: 1; min-height: 0; overflow: auto; }
+    .tr-gutter { flex-shrink: 0; width: 8px; cursor: col-resize; background: #f2f4f7; position: relative; display: flex; align-items: center; justify-content: center; }
+    .tr-gutter:hover { background: #e4e7ed; }
+    .tr-gutter-bar { width: 2px; height: 36px; border-radius: 2px; background: #c0c4cc; }
+    .tr-node { display: inline-flex; align-items: center; gap: 4px; }
+    /* ===== 拖拽排序占位/幽灵样式 ===== */
+    .dyn-tree-ghost { opacity: 0.35; background: #ecf5ff; box-shadow: 0 0 0 1px #409eff; border-radius: 4px; }
+    .dyn-tree-chosen { background: #ecf5ff; }
+    .dyn-tree-drag { opacity: 0.9; }
+    /* 插入位置的占位空槽（Sortable 默认 placeholder），在 el-tree 节点列表里固定一个高度，让用户看到"会插到哪" */
+    .tr-tree-wrap .sortable-placeholder,
+    .tr-tree-wrap .sortable-ghost {
+        height: 28px !important;
+        background: #d9ecff !important;
+        border: 1px dashed #409eff !important;
+        border-radius: 4px !important;
+        box-sizing: border-box !important;
+        list-style: none;
+    }
+</style>
+
+
+
+
+    <script type="application/json" id="dyncom-registry">[{"name":"DynCrudPage","label":"\u514D\u6A21\u578B\u589E\u5220\u6539\u67E5\u9875","category":"\u4E1A\u52A1","type":0,"icon":"\uD83D\uDDC3\uFE0F","loadUrl":"/api/component/define/DynCrudPage","uiPlatform":"ElementUI","isComposite":true},{"name":"DynEChart","label":"ECharts\u56FE\u8868","category":"\u56FE\u8868","type":0,"icon":"\uD83D\uDCCA","loadUrl":"/api/component/define/DynEChart","uiPlatform":"Web","isComposite":true},{"name":"DynElButton","label":"\u6309\u94AE","category":"\u57FA\u7840","type":0,"icon":"\uD83D\uDD18","loadUrl":"/api/component/define/DynElButton","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElAlert","label":"\u8B66\u544A\u63D0\u793A","category":"\u57FA\u7840","type":0,"icon":"\uD83D\uDEA8","loadUrl":"/api/component/define/DynElAlert","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElTag","label":"\u6807\u7B7E","category":"\u57FA\u7840","type":0,"icon":"\uD83C\uDFF7\uFE0F","loadUrl":"/api/component/define/DynElTag","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElDivider","label":"\u5206\u5272\u7EBF","category":"\u57FA\u7840","type":0,"icon":"\u2796","loadUrl":"/api/component/define/DynElDivider","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElImage","label":"\u56FE\u7247","category":"\u57FA\u7840","type":0,"icon":"\uD83C\uDF04","loadUrl":"/api/component/define/DynElImage","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElProgress","label":"\u8FDB\u5EA6\u6761","category":"\u57FA\u7840","type":0,"icon":"\uD83D\uDCCA","loadUrl":"/api/component/define/DynElProgress","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElRow","label":"\u6805\u683C\u884C","category":"\u5BB9\u5668","type":0,"icon":"\u25AC","loadUrl":"/api/component/define/DynElRow","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElCol","label":"\u6805\u683C\u5217","category":"\u5BB9\u5668","type":0,"icon":"\u25AB\uFE0F","loadUrl":"/api/component/define/DynElCol","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElCard","label":"\u5361\u7247","category":"\u5BB9\u5668","type":0,"icon":"\uD83D\uDDC3\uFE0F","loadUrl":"/api/component/define/DynElCard","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElTabs","label":"\u6807\u7B7E\u9875","category":"\u5BB9\u5668","type":0,"icon":"\uD83D\uDDC2\uFE0F","loadUrl":"/api/component/define/DynElTabs","uiPlatform":"ElementUI","isComposite":true},{"name":"DynForm","label":"\u52A8\u6001\u8868\u5355","category":"\u5BB9\u5668","type":0,"icon":"\uD83D\uDCCB","loadUrl":"/api/component/define/DynForm","uiPlatform":"Common","isComposite":true},{"name":"DynTable","label":"\u8868\u683C","category":"\u5BB9\u5668","type":0,"icon":"\uD83D\uDCD1","loadUrl":"/api/component/define/DynTable","uiPlatform":"Common","isComposite":true},{"name":"DynViewSwitcher","label":"\u89C6\u56FE\u5207\u6362\u5BB9\u5668(Grid/ListView)","category":"\u5BB9\u5668","type":0,"icon":"\uD83D\uDD04","loadUrl":"/api/component/define/DynViewSwitcher","uiPlatform":"Web","isComposite":true},{"name":"DynElSteps","label":"\u6B65\u9AA4\u6761","category":"\u5BB9\u5668","type":0,"icon":"\uD83E\uDE9C","loadUrl":"/api/component/define/DynElSteps","uiPlatform":"ElementUI","isComposite":true},{"name":"DynMacWindow","label":"Mac\u7A97\u53E3","category":"\u5BB9\u5668","type":0,"icon":"\uD83D\uDDA5\uFE0F","loadUrl":"/api/component/define/DynMacWindow","uiPlatform":"ElementUI","isComposite":true},{"name":"DynMacSidebar","label":"Mac\u4FA7\u8FB9\u680F","category":"\u5BB9\u5668","type":0,"icon":"\uD83D\uDCD1","loadUrl":"/api/component/define/DynMacSidebar","uiPlatform":"ElementUI","isComposite":true},{"name":"DynVueTemplate","label":"Vue\u6A21\u677F","category":"\u81EA\u5B9A\u4E49","type":0,"icon":"\uD83E\uDDE9","loadUrl":"/api/component/define/DynVueTemplate","uiPlatform":"Common","isComposite":true},{"name":"DynElInput","label":"\u8F93\u5165\u6846","category":"\u8868\u5355","type":0,"icon":"\u2328\uFE0F","loadUrl":"/api/component/define/DynElInput","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElTextarea","label":"\u591A\u884C\u6587\u672C","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDCDD","loadUrl":"/api/component/define/DynElTextarea","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElInputNumber","label":"\u6570\u5B57\u8F93\u5165","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDD22","loadUrl":"/api/component/define/DynElInputNumber","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElPassword","label":"\u5BC6\u7801\u6846","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDD12","loadUrl":"/api/component/define/DynElPassword","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElSelect","label":"\u4E0B\u62C9\u9009\u62E9","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDCCB","loadUrl":"/api/component/define/DynElSelect","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElRadioGroup","label":"\u5355\u9009\u6846\u7EC4","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDD18","loadUrl":"/api/component/define/DynElRadioGroup","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElCheckboxGroup","label":"\u591A\u9009\u6846\u7EC4","category":"\u8868\u5355","type":0,"icon":"\u2611\uFE0F","loadUrl":"/api/component/define/DynElCheckboxGroup","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElSwitch","label":"\u5F00\u5173","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDD1B","loadUrl":"/api/component/define/DynElSwitch","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElDatePicker","label":"\u65E5\u671F\u9009\u62E9","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDCC5","loadUrl":"/api/component/define/DynElDatePicker","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElTimePicker","label":"\u65F6\u95F4\u9009\u62E9","category":"\u8868\u5355","type":0,"icon":"\u23F0","loadUrl":"/api/component/define/DynElTimePicker","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElSlider","label":"\u6ED1\u5757","category":"\u8868\u5355","type":0,"icon":"\uD83C\uDF9A\uFE0F","loadUrl":"/api/component/define/DynElSlider","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElRate","label":"\u8BC4\u5206","category":"\u8868\u5355","type":0,"icon":"\u2B50","loadUrl":"/api/component/define/DynElRate","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElColorPicker","label":"\u989C\u8272\u9009\u62E9","category":"\u8868\u5355","type":0,"icon":"\uD83C\uDFA8","loadUrl":"/api/component/define/DynElColorPicker","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElFormItem","label":"\u8868\u5355\u9879","category":"\u8868\u5355","type":0,"icon":"\uD83C\uDFF7\uFE0F","loadUrl":null,"uiPlatform":"ElementUI","isComposite":true},{"name":"DynElTable","label":"\u8868\u683C(\u6A21\u677F)","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDCCA","loadUrl":"/api/component/define/DynElTable","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElEmojiPicker","label":"Emoji\u56FE\u6807\u9009\u62E9","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDE00","loadUrl":"/api/component/define/DynElEmojiPicker","uiPlatform":"ElementUI","isComposite":true},{"name":"DynJsonDesigner","label":"JSON\u914D\u7F6E\u8BBE\u8BA1\u5668","category":"\u8868\u5355","type":0,"icon":"\uD83D\uDEE0","loadUrl":"/api/component/define/DynJsonDesigner","uiPlatform":"ElementUI","isComposite":true},{"name":"DynListView","label":"\u5361\u7247\u5217\u8868ListView","category":"\u8868\u683C\u0026\u5217\u8868","type":0,"icon":"\uD83D\uDDC2\uFE0F","loadUrl":"/api/component/define/DynListView","uiPlatform":"Web","isComposite":true},{"name":"DynText","label":"\u6587\u672C","category":"\u901A\u7528","type":0,"icon":"\uD83D\uDD24","loadUrl":"/api/component/define/DynText","uiPlatform":"Common","isComposite":true},{"name":"DynDynamicCom","label":"\u52A8\u6001\u7EC4\u4EF6\u6E32\u67D3\u5668","category":"\u901A\u7528","type":0,"icon":"\uD83E\uDDE9","loadUrl":"/api/component/define/DynDynamicCom","uiPlatform":"Common","isComposite":true},{"name":"DynElContainer","label":"\u5BB9\u5668","category":"\u901A\u7528","type":0,"icon":"\u2B1C","loadUrl":"/api/component/define/DynElContainer","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElCollapse","label":"\u6298\u53E0\u9762\u677F","category":"\u901A\u7528","type":0,"icon":"\uD83D\uDCC2","loadUrl":"/api/component/define/DynElCollapse","uiPlatform":"ElementUI","isComposite":true},{"name":"DynElCollapseItem","label":"\u6298\u53E0\u9762\u677F\u9879","category":"\u901A\u7528","type":0,"icon":"\uD83D\uDCC1","loadUrl":"/api/component/define/DynElCollapseItem","uiPlatform":"ElementUI","isComposite":true},{"name":"DynGridContainer","label":"\u7F51\u683C\u5BB9\u5668","category":"\u901A\u7528","type":0,"icon":"\uD83D\uDD32","loadUrl":"/api/component/define/DynGridContainer","uiPlatform":"ElementUI","isComposite":true},{"name":"DynSplitter","label":"\u5206\u9694\u9762\u677F","category":"\u901A\u7528","type":0,"icon":"\u21D4","loadUrl":"/api/component/define/DynSplitter","uiPlatform":"ElementUI","isComposite":true}]</script>
+
+
+    <script src="/lib/echarts.min.js"></script>
+
+    <script src="/dyn/dyn-lib.js?v=mwRLi5ZZbJZWZdSHQCB0xlpaVDxThJTmqf6fd-Eo-Wo"></script>
+
+    
+    <script src="/dyn/blocks/message-center.js?v=3"></script>
+    <script>
+        DynLib.ready(function () {
+            var rootEl = document.getElementById('Ttr301223e5ce194672824d509649e03287-root');
+            var detailEl = document.getElementById('Ttr301223e5ce194672824d509649e03287-detail');
+            // 先挂载根 App（树逻辑 + model），再挂载根 App 外的 DetailBlock（组合模式读根 model）
+            window.dyn.mount(rootEl).then(function () {
+                return window.dyn.mount(detailEl);
+            }).then(function () {
+                console.log('[TreeDetail] 就绪（左树根App + 右DetailBlock，分隔条可拖拽）');
+            });
+        });
+    </script>
+
+
+    
+    <script>
+            DynLib.ready(function () {
+               dyn.initActions("body");
+            });
+    </script>
+</body>
+</html>
+

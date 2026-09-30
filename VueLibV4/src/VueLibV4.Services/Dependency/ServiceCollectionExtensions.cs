@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using VueLibV4.Services.Data.Sugar;
 using VueLibV4.Services.Dependency;
+using VueLibV4.Services.Rpc;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -36,6 +37,9 @@ public static class VueLibServiceCollectionExtensions
             .Where(t => t.IsClass && !t.IsAbstract && markerType.IsAssignableFrom(t))
             .ToList();
 
+        // RPC 服务目录：与 DI 注册同源构建，供能力桥（前端调用 C# 服务）使用
+        var rpcCatalog = new RpcServiceCatalog();
+
         foreach (var implType in implementTypes)
         {
             // 业务接口：实现类继承的、属于 IDependency 体系但非三个标记接口本身的"最具体"接口；
@@ -49,7 +53,13 @@ public static class VueLibServiceCollectionExtensions
                 services.TryAddTransient(serviceType, implType);
             else
                 services.TryAddScoped(serviceType, implType); // 默认/Scoped
+
+            rpcCatalog.Add(implType, serviceType);
         }
+
+        services.TryAddSingleton(rpcCatalog);
+        // 能力桥执行引擎（Scoped：随请求解析 DI 服务、打开临时库客户端）
+        services.TryAddScoped<RpcEvaluator>();
 
         return services;
     }

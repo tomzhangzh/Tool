@@ -67,6 +67,7 @@ const DYN_MODULES = [
   "dyn-com.js",
   "dyn-core.js",
   "dyn-call.js",
+  "dyn-rpc.js",
   "dyn-validator.js",
   "dyn-designer-ops.js",
   "dyn-designer-sortable.js",
@@ -77,7 +78,7 @@ const DYN_MODULES = [
 ];
 
 const DynLib = {
-  version:"4.2.14",
+  version:"4.3.1",
   base:BASE,
   _libs:{},
   _ready:false,

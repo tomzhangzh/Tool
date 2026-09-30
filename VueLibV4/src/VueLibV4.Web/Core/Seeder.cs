@@ -184,6 +184,19 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
                 _logger.LogInformation("[Init] SysMenu 平台引擎组补插完成");
             }
         }
+
+        // 能力桥 RPC Demo（幂等补插：仅当 Code 不存在时插入，桌面根级图标）
+        using (var rpc = conn.CreateCommand())
+        {
+            rpc.CommandText = "SELECT COUNT(*) FROM SysMenu WHERE Code='demo-rpc';";
+            if (Convert.ToInt32(rpc.ExecuteScalar()) == 0)
+            {
+                using var ins = conn.CreateCommand();
+                ins.CommandText = "INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive) SELECT NULL, 'demo-rpc', '能力桥 RPC', '🌉', '/Platform/Page/Demo/Rpc', 'FullScreen', 1, 4, 1 WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='demo-rpc');";
+                ins.ExecuteNonQuery();
+                _logger.LogInformation("[Init] SysMenu 能力桥 RPC Demo 补插完成");
+            }
+        }
     }
 
     private void EnsureColumn(SqliteConnection conn, string table, string column, string definition)

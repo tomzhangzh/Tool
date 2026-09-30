@@ -48,6 +48,11 @@ SELECT 'demo-action-helper',
        (SELECT Id FROM DesktopSolution WHERE Code='default'),
        '动作助手 Demo', '/Platform/Page/Demo/ActionHelper', '⚡', 'page', 3, 1
 WHERE NOT EXISTS (SELECT 1 FROM DesktopShortcut WHERE Code='demo-action-helper');
+INSERT INTO DesktopShortcut (Code, SolutionId, Name, Url, Icon, TargetType, SortNo, IsActive)
+SELECT 'demo-rpc',
+       (SELECT Id FROM DesktopSolution WHERE Code='default'),
+       '能力桥 RPC', '/Platform/Page/Demo/Rpc', '🌉', 'page', 4, 1
+WHERE NOT EXISTS (SELECT 1 FROM DesktopShortcut WHERE Code='demo-rpc');
 
 -- ---------------- 动作助手演示种子（script / url / api / chain 四类） ----------------
 INSERT INTO DynActionHelper (Code, Name, ActionType, Script, Language, ParamsJson, Description, SortNo, IsActive)

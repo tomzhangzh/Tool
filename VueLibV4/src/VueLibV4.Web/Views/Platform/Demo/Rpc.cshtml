@@ -1,0 +1,281 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "能力桥 RPC Demo - VueLibV4";
+}
+<div id="app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">能力桥 RPC Demo</span>
+        <el-tag size="small" type="success">JS 直接调用 C# 服务 / 执行 C# 取数</el-tag>
+    </div>
+
+    <div class="main">
+        <!-- 左列：服务目录 + 可运行示例 -->
+        <div class="col">
+            <el-card shadow="never" class="block">
+                <template #header>
+                    <div class="card-head">
+                        <b>① RPC 服务目录</b>
+                        <el-button size="small" text type="primary" :loading="svcLoading" @@click="loadServices">刷新</el-button>
+                    </div>
+                </template>
+                <el-select v-model="svcName" size="small" filterable placeholder="选择一个 DI 服务"
+                           style="width:100%" @@change="svcDetail = pickService(svcName)">
+                    <el-option v-for="s in services" :key="s.name"
+                               :label="s.name + '（' + s.methods.length + ' 个方法）'" :value="s.name" />
+                </el-select>
+                <div v-if="svcDetail" class="svc-detail">
+                    <div class="muted">接口：<code>{{ svcDetail.serviceType }}</code>
+                        <span v-if="svcDetail.aliases && svcDetail.aliases.length">｜别名：{{ svcDetail.aliases.join(', ') }}</span>
+                    </div>
+                    <div v-for="m in svcDetail.methods" :key="m.name" class="method-line">
+                        <el-tag size="small" type="info">{{ m.returnType }}</el-tag>
+                        <code class="m-name">{{ m.name }}</code>
+                        <span class="muted">({{ sigParams(m) }})</span>
+                    </div>
+                </div>
+            </el-card>
+
+            <el-card shadow="never" class="block" v-for="ex in examples" :key="ex.key">
+                <template #header>
+                    <div class="card-head">
+                        <b>{{ ex.title }}</b>
+                        <el-button size="small" type="primary" :loading="ex.loading" @@click="run(ex)">▶ 运行</el-button>
+                    </div>
+                </template>
+                <el-tag size="small" :type="ex.tagType">{{ ex.tag }}</el-tag>
+                <span class="ex-desc">{{ ex.desc }}</span>
+                <pre class="code-pre">{{ ex.code }}</pre>
+                <div v-if="ex.error" class="result err">{{ ex.error }}</div>
+                <pre v-if="ex.result !== null" class="result ok">{{ ex.result }}</pre>
+            </el-card>
+        </div>
+
+        <!-- 右列：调用规范 -->
+        <div class="col">
+            <el-card shadow="never" class="block">
+                <template #header><b>统一返回信封</b></template>
+                <p class="p">后端所有接口统一返回 <code>{ code, msg, data }</code>：成功 <code>code === 0</code>。
+                    <code>dyn.service / dyn.eval</code> 已自动解包，<b>await 拿到的就是 data</b>；
+                    失败时 reject 并按 <code>silent</code> 配置弹错误提示。</p>
+                <pre class="code-pre small">// 成功
+{ "code": 0, "msg": "ok", "data": ... }
+// 失败
+{ "code": 500, "msg": "错误原因", "data": null }</pre>
+            </el-card>
+
+            <el-card shadow="never" class="block">
+                <template #header><b>前端三个 API</b></template>
+                <p class="p"><code>dyn.service(name)</code>：返回服务代理，方法名 / 参数顺序与 C# 一致；
+                    实参按顺序绑定，可只传必选参数（尾部可选参数自动省略），中间跳过的参数传 <code>null</code>。</p>
+                <p class="p"><code>dyn.eval(code, args?, opts?)</code>：执行一段 C# 表达式，内置变量见下。</p>
+                <p class="p"><code>dyn.rpcServices()</code>：拉取服务与方法目录（本页左侧即它渲染的）。</p>
+            </el-card>
+
+            <el-card shadow="never" class="block">
+                <template #header><b>eval 的三类数据源</b></template>
+                <ul class="rules">
+                    <li><b>实体门面（SQL 下推）</b>：每个强类型实体注入同名变量（如 <code>DesktopShortcut</code>），
+                        链式 <code>Where / WhereIF / OrderBy / OrderByDescending / Skip / Take / SelectFields / ToList / First / Count / Any</code>。
+                        条件是<b>字符串 lambda</b>：<code>.Where("x =&gt; x.IsActive == true")</code>，由后端编译成表达式树交给数据库执行。</li>
+                    <li><b>内存 LINQ</b>：<code>XxxService.List().Where(x =&gt; ...).Select(...).ToList()</code>，
+                        先全量加载到内存再过滤，仅适合小数据量。</li>
+                    <li><b>免模型（业务动态表）</b>：<code>Crud.Tables(Biz)</code>、
+                        <code>Crud.Query(Biz, "Student", whereSql, params, orderBy)</code>；
+                        <code>Biz</code> 业务库、<code>Platform</code> 平台库。</li>
+                </ul>
+            </el-card>
+
+            <el-card shadow="never" class="block">
+                <template #header><b>调用规范（务必遵守）</b></template>
+                <ul class="rules">
+                    <li><b>动态值一律走 args，禁止拼代码字符串</b>（防注入、类型准确）：
+                        <pre class="code-pre small">await dyn.eval(
+  'DesktopShortcut.Where("x =&gt; x.Name.Contains(kw)").Count()',
+  { kw: '管理' }          // 代码里直接用 kw
+);</pre>
+                    </li>
+                    <li>字符串 lambda 内外都能引用 args 变量；lambda 参数名自取（x、t 均可）。</li>
+                    <li>查询结果已物化为 JSON 数组，默认上限 <b>10000 行</b>，不要在 eval 里做超大查询。</li>
+                    <li>耗时操作传 <code>{ timeoutSec: n }</code>，默认 30 秒，超时熔断。</li>
+                    <li>eval 代码最长 20000 字符；每次调用都写审计日志。</li>
+                </ul>
+            </el-card>
+
+            <el-card shadow="never" class="block">
+                <template #header><b>选型建议</b></template>
+                <ul class="rules">
+                    <li>固定 / 复杂 / 可复用查询（连表、分组、事务）→ 在 C# Service 里写方法，前端 <code>dyn.service().方法()</code> 调用。</li>
+                    <li>运行期即席查询、设计器取数 → <code>dyn.eval</code> 实体门面（SQL 下推）。</li>
+                    <li>业务库无 CLR 实体的动态表 → <code>Crud + Biz</code>。</li>
+                </ul>
+                <p class="p muted">服务端开关位于 appsettings.json 的 <code>Dyn:Rpc</code>：
+                    Enabled / EvalEnabled / MaxRows / TimeoutSeconds。</p>
+            </el-card>
+        </div>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; margin-right: auto; }
+    .main { padding: 16px; display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; align-items: start; }
+    @@media (max-width: 1000px) { .main { grid-template-columns: 1fr; } }
+    .block { margin-bottom: 16px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; }
+    .ex-desc { margin-left: 8px; color: #606266; font-size: 13px; }
+    .code-pre { background: #282c34; color: #abb2bf; padding: 12px; border-radius: 6px; font-size: 12px;
+               max-height: 260px; overflow: auto; margin: 10px 0 0; white-space: pre-wrap; word-break: break-all; }
+    .code-pre.small { max-height: 180px; }
+    .result { padding: 10px 12px; border-radius: 6px; font-size: 12px; max-height: 320px; overflow: auto; margin: 8px 0 0; white-space: pre-wrap; word-break: break-all; }
+    .result.ok { background: #f0f9eb; color: #529b2e; border: 1px solid #c2e7b0; }
+    .result.err { background: #fef0f0; color: #c45656; border: 1px solid #fbc4c4; }
+    .svc-detail { margin-top: 10px; max-height: 340px; overflow: auto; }
+    .method-line { padding: 4px 0; border-bottom: 1px dashed #ebeef5; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .m-name { color: #409eff; font-weight: 600; }
+    .p { font-size: 13px; color: #606266; line-height: 1.8; margin: 0 0 8px; }
+    .p:last-child { margin-bottom: 0; }
+    .muted { color: #909399; font-size: 12px; }
+    .rules { font-size: 13px; color: #606266; line-height: 1.9; margin: 0; padding-left: 18px; }
+    .rules code { color: #c41d7f; }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            Vue.createApp({
+                data: function () {
+                    return {
+                        services: [],
+                        svcName: '',
+                        svcDetail: null,
+                        svcLoading: false,
+                        examples: [
+                            {
+                                key: 'invoke-one',
+                                title: '② 调用 C# 服务方法（invoke）',
+                                tag: 'dyn.service', tagType: 'primary',
+                                desc: '代理后端 DI 服务，方法名/参数与 C# 一致；await 直接拿到 data。',
+                                code:
+"const svc = dyn.service('DesktopShortcutService');\n" +
+"const row = await svc.GetById(1);   // 对应 C# GetById(object id)\n" +
+"return row;",
+                                loading: false, result: null, error: ''
+                            },
+                            {
+                                key: 'invoke-list',
+                                title: '③ 可选参数自动省略',
+                                tag: 'dyn.service', tagType: 'primary',
+                                desc: '实参个数可少于 C# 可选参数总数；中间跳过的可选参数显式传 null。',
+                                code:
+"const svc = dyn.service('DesktopShortcutService');\n" +
+"// C# 签名：List(where = null, orderBy = null)，两个可选参数全省略\n" +
+"const rows = await svc.List();\n" +
+"return { count: rows.length, rows: rows };",
+                                loading: false, result: null, error: ''
+                            },
+                            {
+                                key: 'fluent',
+                                title: '④ 实体门面：SQL 下推查询',
+                                tag: 'dyn.eval · 门面', tagType: 'success',
+                                desc: '字符串 lambda 被编译成表达式树，过滤/排序/选列都在数据库侧执行。',
+                                code:
+"return await dyn.eval(`\n" +
+"  DesktopShortcut\n" +
+"    .Where(\"x => x.IsActive == true\")\n" +
+"    .OrderBy(\"x => x.SortNo\")\n" +
+"    .SelectFields(\"Name, SortNo\")\n" +
+"    .ToList()`);",
+                                loading: false, result: null, error: ''
+                            },
+                            {
+                                key: 'args',
+                                title: '⑤ 参数与代码分离（规范写法）',
+                                tag: 'dyn.eval · args', tagType: 'warning',
+                                desc: '动态值放第二个参数 args，字符串 lambda 内外都能引用，杜绝注入。',
+                                code:
+"return await dyn.eval(\n" +
+"  'DesktopShortcut.Where(\"x => x.Name.Contains(keyword)\").Count()',\n" +
+"  { keyword: '管理' }      // 代码中直接用变量 keyword\n" +
+");",
+                                loading: false, result: null, error: ''
+                            },
+                            {
+                                key: 'linq',
+                                title: '⑥ 内存 LINQ（先加载后过滤）',
+                                tag: 'dyn.eval · 内存', tagType: 'info',
+                                desc: '服务方法返回 List 后可用原生 lambda 链式操作；注意是内存过滤，仅适合小表。',
+                                code:
+"return await dyn.eval(`\n" +
+"  DesktopShortcutService.List()\n" +
+"    .Where(x => x.IsActive == true)\n" +
+"    .OrderBy(x => x.SortNo)\n" +
+"    .Select(x => x.Name)\n" +
+"    .ToList()`);",
+                                loading: false, result: null, error: ''
+                            },
+                            {
+                                key: 'crud',
+                                title: '⑦ 免模型：业务库动态表',
+                                tag: 'dyn.eval · Crud', tagType: 'danger',
+                                desc: '业务库无 CLR 实体，用 Crud + Biz 直接按表名取数。',
+                                code:
+"return await dyn.eval(`Crud.Tables(Biz)`);   // 列出业务库所有表",
+                                loading: false, result: null, error: ''
+                            }
+                        ]
+                    };
+                },
+                mounted: function () { this.loadServices(); },
+                methods: {
+                    go: function (url) { window.location.href = url; },
+                    sigParams: function (m) {
+                        return (m.parameters || []).map(function (p) {
+                            return p.name + ': ' + p.type + (p.optional ? '?' : '');
+                        }).join(', ');
+                    },
+                    pickService: function (name) {
+                        return this.services.find(function (s) { return s.name === name; }) || null;
+                    },
+                    loadServices: function () {
+                        var self = this;
+                        self.svcLoading = true;
+                        dyn.rpcServices({ silent: false }).then(function (list) {
+                            self.services = list || [];
+                            if (!self.svcName && self.services.length) {
+                                self.svcName = 'DesktopShortcutService';
+                                self.svcDetail = self.pickService(self.svcName);
+                            }
+                        }).catch(function (e) {
+                            self.svcDetail = null;
+                            ElementPlus.ElMessage.error('加载服务目录失败：' + ((e && e.message) || e));
+                        }).finally(function () { self.svcLoading = false; });
+                    },
+                    run: function (ex) {
+                        var self = this;
+                        ex.loading = true;
+                        ex.error = '';
+                        ex.result = null;
+                        var fn;
+                        try {
+                            // 展示代码即执行代码：包一层 async 函数，示例中用 return 返回结果
+                            fn = new Function('return (async function () {\n' + ex.code + '\n})()');
+                        } catch (e) {
+                            ex.error = '代码语法错误：' + (e.message || e);
+                            ex.loading = false;
+                            return;
+                        }
+                        Promise.resolve(fn()).then(function (data) {
+                            ex.result = JSON.stringify(data, null, 2);
+                        }).catch(function (e) {
+                            ex.error = (e && e.message) ? e.message : String(e);
+                        }).finally(function () {
+                            ex.loading = false;
+                        });
+                    }
+                }
+            }).mount('#app');
+        });
+    </script>
+}
