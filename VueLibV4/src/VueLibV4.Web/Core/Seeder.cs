@@ -161,6 +161,8 @@ CREATE TABLE SysMenu (
         EnsureDynBlockTables(conn);
         SeedDynBlocks(conn);
         SeedDynTemplateBlocks(conn);
+        // tabs-basic 多页签容器模板（URL 片段驱动，无 Block 槽位；在参数包种子之后注册）
+        SeedTabsTemplate(conn);
     }
 
     /// <summary>DynBlock / DynTemplateBlock 建表（旧库迁移；新库 platform.sql 已含）</summary>
@@ -468,6 +470,56 @@ WHERE NOT EXISTS (SELECT 1 FROM PageSetting WHERE Code='setting-detail-basic');"
             itemoptions = new { }
         }
     };
+
+    /// <summary>多行文本控件（参数页编辑 JSON 字符串用，如 tabs-basic 的 TabsJson）。</summary>
+    private static object TextAreaCtrl(string model, string label, string? placeholder = null, int rows = 4, bool required = false) => new
+    {
+        component = "DynElTextarea",
+        modelname = model,
+        options = new
+        {
+            comoptions = string.IsNullOrEmpty(placeholder)
+                ? (object)new { rows }
+                : new { rows, placeholder },
+            labeloptions = new { label, show = true, required },
+            itemoptions = new { }
+        }
+    };
+
+    /// <summary>
+    /// tabs-basic 多页签容器模板种子（URL 片段驱动，零 Block 槽位）：
+    /// Code 不存在则 INSERT，存在则自愈 ViewPath/ConfigJson（DefaultJson 保留用户已保存实例的缺省基线，
+    /// 仅空时补）。参数页两个多行文本：TabsJson（页签定义数组）/ SharedParamsJson（共享层初始值）。
+    /// </summary>
+    private void SeedTabsTemplate(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynTemplate")) return;
+
+        var cfg = Js(ParamTree(new[]
+        {
+            TextAreaCtrl("TabsJson", "页签配置 JSON",
+                "[{\"title\":\"页签标题\",\"url\":\"/后端片段Url?bizId=$params.rowId\",\"lazy\":true,\"keepAlive\":true,\"watchParams\":\"rowId\"}]",
+                14, true),
+            TextAreaCtrl("SharedParamsJson", "共享参数 JSON", "{\"rowId\":0}", 3)
+        }));
+        const string def = "{\"TabsJson\":\"[\\n  {\\\"title\\\": \\\"示例页签\\\", \\\"url\\\": \\\"/Platform/TplTabs/Sample\\\", \\\"lazy\\\": false, \\\"keepAlive\\\": true}\\n]\",\"SharedParamsJson\":\"{\\\"rowId\\\":0}\"}";
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive)
+SELECT 'tabs-basic','多页签容器(片段)','业务','🗂','~/Views/DynTemplates/TabsBasic.cshtml',@def,@cfg,
+'每个页签=一个后端片段URL：[{title,url,lazy,keepAlive,watchParams}]；首次切入懒加载，切走可保活或卸载重挂；共享参数层跨页签联动（$params.token 占位）。',20,1
+WHERE NOT EXISTS (SELECT 1 FROM DynTemplate WHERE Code='tabs-basic');
+UPDATE DynTemplate SET ViewPath='~/Views/DynTemplates/TabsBasic.cshtml', ConfigJson=@cfg
+WHERE Code='tabs-basic';
+UPDATE DynTemplate SET DefaultJson=@def WHERE Code='tabs-basic' AND (DefaultJson IS NULL OR DefaultJson='');";
+            cmd.Parameters.AddWithValue("@cfg", cfg);
+            cmd.Parameters.AddWithValue("@def", def);
+            cmd.ExecuteNonQuery();
+        }
+        _logger.LogInformation("[Init] DynTemplate 种子 tabs-basic 同步完成");
+    }
 
     /// <summary>
     /// 三个内置积木种子（filter/list/detail）。

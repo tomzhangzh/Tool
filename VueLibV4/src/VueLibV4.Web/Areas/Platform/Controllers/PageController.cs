@@ -269,7 +269,8 @@ public class PageController : Controller
         // （业务 key 由模板决定），直接透传 DynWebPage 实例。
         if (string.Equals(template.Code, "triscreen-blocks", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filterlist-crud", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "tree-detail", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(template.Code, "tree-detail", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);
         }

@@ -1,0 +1,89 @@
+@using VueLibV4.Platform.Models
+@model List<DynWebPage>
+@{
+    // tabs-basic「关联页面」页签片段：模板 → DynWebPage（外部配置实例）钻取。
+    var rows = Model ?? new List<DynWebPage>();
+    var tplName = ViewBag.TplName as string;
+}
+<div class="tpl-pages">
+    <div class="tpl-pages-head">
+        <span class="tpl-pages-title">@tplName 关联的 WebPage</span>
+        <span class="tpl-pages-count">共 @rows.Count 个页面实例</span>
+    </div>
+
+    @if (rows.Count == 0)
+    {
+        <div class="tpl-pages-empty">该模板下还没有页面实例（去「WebPage 管理」中新建并选择本模板）。</div>
+    }
+    else
+    {
+        <table class="tpl-pages-table">
+            <thead>
+                <tr>
+                    <th style="width:60px;">Id</th>
+                    <th>页面名称</th>
+                    <th style="width:160px;">Code</th>
+                    <th style="width:90px;">状态</th>
+                    <th style="width:210px;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in rows.OrderByDescending(p => p.Id))
+                {
+                    var runOpt = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        title = "运行 - " + p.Name,
+                        mode = "iframe",
+                        url = "/Platform/Page/DynWebPage?id=" + p.Id,
+                        area = new[] { "92%", "90%" }
+                    });
+                    var cfgOpt = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        title = "参数配置 - " + p.Name,
+                        mode = "iframe",
+                        url = "/Platform/Mgmt/DynWebPageMgmt?id=" + p.Id,
+                        area = new[] { "92%", "90%" }
+                    });
+                    <tr>
+                        <td>@p.Id</td>
+                        <td class="tpl-pages-name">@p.Name</td>
+                        <td><code>@p.Code</code></td>
+                        <td>
+                            @if (p.IsActive)
+                            {
+                                <span class="tpl-badge tpl-badge-on">启用</span>
+                            }
+                            else
+                            {
+                                <span class="tpl-badge tpl-badge-off">停用</span>
+                            }
+                        </td>
+                        <td>
+                            <button type="button" class="el-button el-button--small el-button--primary"
+                                    data-dyn-click-open="@runOpt">运行</button>
+                            <button type="button" class="el-button el-button--small"
+                                    data-dyn-click-open="@cfgOpt">参数配置</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<style>
+    .tpl-pages { font-size: 13px; color: #303133; }
+    .tpl-pages-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .tpl-pages-title { font-weight: 600; font-size: 14px; }
+    .tpl-pages-count { color: #909399; font-size: 12px; }
+    .tpl-pages-empty { background: #f4f4f5; color: #909399; border-radius: 6px; padding: 18px; text-align: center; }
+    .tpl-pages-table { width: 100%; border-collapse: collapse; border: 1px solid #ebeef5; }
+    .tpl-pages-table th, .tpl-pages-table td { border-bottom: 1px solid #ebeef5; padding: 9px 12px; text-align: left; }
+    .tpl-pages-table thead th { background: #fafafa; color: #606266; font-weight: 600; }
+    .tpl-pages-table tbody tr:hover { background: #f5f7fa; }
+    .tpl-pages-name { font-weight: 500; }
+    .tpl-pages-table code { background: #f4f4f5; padding: 1px 6px; border-radius: 3px; color: #c7254e; font-size: 12px; }
+    .tpl-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+    .tpl-badge-on { background: #f0f9eb; color: #67c23a; }
+    .tpl-badge-off { background: #f4f4f5; color: #909399; }
+</style>

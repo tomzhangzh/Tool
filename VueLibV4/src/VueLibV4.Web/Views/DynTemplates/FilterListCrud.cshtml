@@ -132,7 +132,10 @@
                         content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
                         success: function () {
                             window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
-                                holder.innerHTML = html;
+                                // 经 dyn.html(boot=false) 注入：只做节点搬运+内联脚本执行（片段自带的
+                                // 引导脚本，如 tabs-basic 的页签编排，必须在这里被执行；原生 innerHTML
+                                // 注入的 <script> 不会运行）。createApp 仍由下面的链显式挂载，保持既有顺序。
+                                window.dyn.html(holder, html, false);
                                 var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
                                 var chain = window.Promise.resolve();
                                 [].forEach.call(apps, function (ae) {

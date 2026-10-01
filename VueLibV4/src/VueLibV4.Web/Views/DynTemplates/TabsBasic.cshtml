@@ -1,0 +1,254 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Web.Core
+@using Newtonsoft.Json.Linq
+@{
+    // =====================================================================================
+    // 多页签容器（tabs-basic）：纯布局 + 薄编排，本身【不是】 VueApp。
+    //   - 每个页签 = 一个后端片段 URL（Action 返回 Partial），首次切入才懒加载；
+    //   - 片段经 dyn.html(boot=true, parentCtx) 注入，自动从本模板参数链 fork：
+    //     片段内 dyn.params(el).get('rowId') / {{$params.xxx}} 与本页同源；
+    //   - lazy / keepAlive / watchParams 三个开关覆盖全部语义：
+    //       lazy=false       首屏即加载；=true 首次切入才加载
+    //       keepAlive=true   切走只隐藏（实例/状态保留 = 快照语义）
+    //       keepAlive=false  切走卸载并清空，切回重新拉取（重挂取最新共享值）
+    //       watchParams      已加载页签跟随共享层变化自动重拉（跟随语义，逗号分隔多键）
+    //   - 实例参数（ParamsJson 顶层）：
+    //       TabsJson         页签定义数组 JSON 字符串
+    //                        [{title,url,method?,lazy,keepAlive,watchParams?}]
+    //       SharedParamsJson 共享层初始值 JSON，如 {"rowId":0}
+    //   - URL 支持参数占位：$params.rowId（整串）或 {{$params.rowId}}（行内），加载前替换。
+    //
+    // 双形态：浏览器直访走 _Layout（整页）；被 fetchPartial 拉取走 _AjaxLayout（弹窗片段），
+    //         故本视图【不设置 Layout】，由 _ViewStart 按 X-Requested-With 自动切换。
+    // =====================================================================================
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    var tabsJsonRaw = ps["TabsJson"]?.ToString();
+    var sharedJsonRaw = ps["SharedParamsJson"]?.ToString();
+
+    JArray tabs;
+    try { tabs = JArray.Parse(string.IsNullOrWhiteSpace(tabsJsonRaw) ? "[]" : tabsJsonRaw); }
+    catch { tabs = new JArray(); }
+
+    JObject shared;
+    try { shared = JObject.Parse(string.IsNullOrWhiteSpace(sharedJsonRaw) ? "{}" : sharedJsonRaw); }
+    catch { shared = new JObject(); }
+
+    // rowId 服务端烘焙（弹窗经 /Platform/Page/DetailModal?rowId= 渲染时 ViewBag.RowId 有值；
+    // 浏览器直访时兼容 ?rowId= query）。保证懒加载片段 URL 里的 $params.rowId 一定可解析，
+    // 不依赖宿主 holder fork 的时序。
+    var modalRowId = (ViewBag.RowId as string);
+    if (string.IsNullOrWhiteSpace(modalRowId)) modalRowId = Context.Request.Query["rowId"];
+    if (long.TryParse(modalRowId, out var rid) && rid > 0) shared["rowId"] = rid;
+
+    var rootId = "Tbs" + Guid.NewGuid().ToString("N");
+    var pageParams = new JObject { ["pageCode"] = Model.Code };
+    var tabsDataJson = tabs.ToString(Newtonsoft.Json.Formatting.None);
+}
+<div id="@rootId" class="tbs-root"
+     data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)"
+     data-dyn-shared-params="@DynPageViewHelper.SafeJson(shared)">
+    <div class="tbs-bar">
+        <span class="tbs-title">@Model.Name</span>
+        <span class="tbs-code">@Model.Code</span>
+    </div>
+
+    <div class="tbs-tabs" role="tablist">
+        @for (var i = 0; i < tabs.Count; i++)
+        {
+            var title = tabs[i]["title"]?.ToString() ?? ("页签" + (i + 1));
+            <button type="button" class="tbs-tab" role="tab" data-idx="@i">@title</button>
+        }
+    </div>
+
+    <div class="tbs-panes">
+        @for (var i = 0; i < tabs.Count; i++)
+        {
+            var lazy = tabs[i]["lazy"]?.Type == JTokenType.Boolean && tabs[i]["lazy"]!.Value<bool>();
+            <section class="tbs-pane" role="tabpanel" data-pane="@i" @(lazy ? "hidden" : "")>
+                <div class="tbs-host" data-host="@i"></div>
+            </section>
+        }
+    </div>
+
+    @if (tabs.Count == 0)
+    {
+        <div class="tbs-state tbs-err">
+            当前页面未配置页签：请在参数页填写 <b>TabsJson</b>（页签定义数组）。
+        </div>
+    }
+
+    <script>
+        window['@(rootId)-tabs'] = @Html.Raw(tabsDataJson.Replace("</", "<\\/"));
+    </script>
+</div>
+
+<style>
+    .tbs-root { box-sizing: border-box; padding: 10px 14px 18px; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .tbs-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .tbs-title { font-size: 15px; font-weight: 600; color: #303133; }
+    .tbs-code { font-size: 12px; color: #909399; background: #f4f4f5; border-radius: 3px; padding: 1px 7px; }
+    .tbs-tabs { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid #e4e7ed; flex-wrap: wrap; }
+    .tbs-tab { border: 1px solid #dcdfe6; background: #fff; color: #606266; padding: 7px 16px;
+        border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; margin-bottom: -1px; }
+    .tbs-tab:hover { color: #409eff; }
+    .tbs-tab.is-active { color: #409eff; border-color: #409eff #409eff #fff; font-weight: 600; }
+    .tbs-pane { padding-top: 12px; }
+    .tbs-host[hidden], .tbs-pane[hidden] { display: none; }
+    .tbs-host { min-height: 80px; }
+    .tbs-state { color: #909399; font-size: 13px; background: #f4f4f5; border-radius: 6px; padding: 14px 16px; }
+    .tbs-err { color: #f56c6c; background: #fef0f0; }
+</style>
+
+<script>
+(function () {
+    var ROOT_ID = '@rootId';
+
+    function boot() {
+        var root = document.getElementById(ROOT_ID);
+        if (!root || root.__tbsReady) return;
+        root.__tbsReady = true;
+
+        var P = window.dyn && typeof dyn.params === 'function' ? dyn.params(root) : null;
+        var TABS = window[ROOT_ID + '-tabs'] || [];
+        // 每个页签一份运行态：loaded=内容已注入；watch=跟随监听已绑定
+        var states = TABS.map(function () { return { loaded: false, watch: false }; });
+        var current = -1;
+
+        // URL 参数占位：$params.key（保留类型后编码）与 {{$params.key}}
+        function resolveUrl(u) {
+            return String(u == null ? '' : u).replace(/\{\{\s*\$params\.([A-Za-z_]\w*)\s*\}\}|\$params\.([A-Za-z_]\w*)/g,
+                function (_, a, b) {
+                    var k = a || b;
+                    var v = P ? P.get(k) : null;
+                    return encodeURIComponent(v == null ? '' : v);
+                });
+        }
+
+        function hostOf(i) { return root.querySelector('.tbs-host[data-host="' + i + '"]'); }
+
+        function loadTab(i) {
+            var tab = TABS[i];
+            var host = hostOf(i);
+            if (!host) return;
+            if (!tab || !tab.url) {
+                host.innerHTML = '<div class="tbs-state tbs-err">该页签未配置 url</div>';
+                states[i].loaded = true;
+                return;
+            }
+            host.innerHTML = '<div class="tbs-state">加载中…</div>';
+            var url = resolveUrl(tab.url);
+            window.dyn.fetchPartial(url, {}, tab.method || 'GET').then(function (html) {
+                // 片段从本模板参数上下文 fork：rowId / 共享实体在片段内按 $params 同一语法取用
+                return window.dyn.html(host, html, true, { parentCtx: P || null, local: {} });
+            }).then(function () {
+                states[i].loaded = true;
+                wireDetailClose(host);
+            }).catch(function (e) {
+                host.innerHTML = '<div class="tbs-state tbs-err">加载失败：' +
+                    ((e && e.message) || e) +
+                    ' &nbsp;<button type="button" class="el-button el-button--small" data-tbs-retry="' + i + '">重试</button></div>';
+            });
+        }
+
+        // 弹窗形态：本视图经 DetailModal 路由注入 layer，宿主 FilterListCrud 的句柄 scan
+        // 早于页签懒加载，接不到 DetailApp 的 saved/cancel；这里在片段注入后补接，
+        // 保存/取消即关闭【本模板所在的那一层】（钻取子弹窗不受影响）。
+        function wireDetailClose(host) {
+            if (host.__tbsWired || !window.DynBlocks || typeof DynBlocks.scan !== 'function') return;
+            var handles = null;
+            try { handles = DynBlocks.scan(host); } catch (e) { return; }
+            var detail = handles && handles.detail;
+            if (!detail) return;
+            host.__tbsWired = true;
+            function closeThisLayer() {
+                var lay = window.layui && window.layui.layer;
+                if (!lay) return;
+                var box = host.closest ? host.closest('.layui-layer') : null;
+                if (box && box.id && box.id.indexOf('layui-layer') === 0) {
+                    var idx = parseInt(box.id.replace('layui-layer', ''), 10);
+                    if (!isNaN(idx)) lay.close(idx);
+                }
+            }
+            detail.on('saved', closeThisLayer);
+            detail.on('cancel', closeThisLayer);
+        }
+
+        // 跟随型：共享层具名参数变化 → 已加载页签自动重拉（未加载的懒页签激活时自然取新值）
+        function watchKeys(tab) {
+            var w = tab && tab.watchParams;
+            if (!w) return [];
+            if (Array.isArray(w)) return w.map(String);
+            return String(w).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+        }
+        function bindWatcher(i) {
+            if (states[i].watch) return;
+            var keys = watchKeys(TABS[i]);
+            if (!keys.length) return;
+            states[i].watch = true;
+            // 监听挂在模板根：共享层 commit 的 dyn-param-changed 沿参数链派发，根必收到
+            root.addEventListener('dyn-param-changed', function (e) {
+                var d = e.detail || {};
+                if (keys.indexOf(d.key) < 0) return;
+                if (states[i].loaded) loadTab(i);
+            });
+        }
+
+        function activate(i) {
+            if (i === current || i < 0 || i >= TABS.length) return;
+            if (current >= 0) {
+                var prevPane = root.querySelector('.tbs-pane[data-pane="' + current + '"]');
+                if (prevPane) prevPane.hidden = true;
+                var prevTab = TABS[current];
+                // 非保活：切走卸载实例并清空（切回重新拉片段 = 重挂取最新共享值）
+                if (prevTab && prevTab.keepAlive === false) {
+                    var ph = hostOf(current);
+                    if (ph) {
+                        try { window.dyn.unmount(ph); } catch (e) { }
+                        ph.__tbsWired = false;
+                        ph.innerHTML = '';
+                    }
+                    states[current].loaded = false;
+                }
+            }
+            current = i;
+            var btns = root.querySelectorAll('.tbs-tab');
+            for (var k = 0; k < btns.length; k++) {
+                btns[k].classList.toggle('is-active', String(btns[k].getAttribute('data-idx')) === String(i));
+            }
+            var pane = root.querySelector('.tbs-pane[data-pane="' + i + '"]');
+            if (pane) pane.hidden = false;
+            if (!states[i].loaded) loadTab(i);
+            bindWatcher(i);
+        }
+
+        var navBtns = root.querySelectorAll('.tbs-tab');
+        for (var n = 0; n < navBtns.length; n++) {
+            navBtns[n].addEventListener('click', function () {
+                activate(parseInt(this.getAttribute('data-idx'), 10) || 0);
+            });
+        }
+        // 失败重试（事件委托，重试按钮是动态注入的）
+        root.addEventListener('click', function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest('[data-tbs-retry]') : null;
+            if (!btn || !root.contains(btn)) return;
+            loadTab(parseInt(btn.getAttribute('data-tbs-retry'), 10) || 0);
+        });
+
+        // 首屏：激活第一个页签（lazy=false 的内容此刻加载；lazy=true 等点击）
+        if (TABS.length) activate(0);
+    }
+
+    // 整页模式下本脚本先于 dyn-lib.js 解析（_Layout 中库在 RenderBody 之后）；
+    // 弹窗片段模式下 DynLib 已由宿主页加载。两种形态统一走 ready。
+    if (window.DynLib) {
+        window.DynLib.ready(boot);
+    } else {
+        var hits = 0;
+        var timer = setInterval(function () {
+            hits++;
+            if (window.DynLib) { clearInterval(timer); window.DynLib.ready(boot); }
+            else if (hits > 200) { clearInterval(timer); }
+        }, 40);
+    }
+})();
+</script>

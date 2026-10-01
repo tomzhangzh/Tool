@@ -1,0 +1,20 @@
+@{
+    // tabs-basic 懒加载冒烟片段：纯静态服务端内容，无 Layout 显式声明（_ViewStart 自动切换）。
+    var now = ViewBag.ServerTime as string;
+}
+<div class="tpl-sample-card">
+    <div class="tpl-sample-head">示例片段（/Platform/TplTabs/Sample）</div>
+    <div class="tpl-sample-body">
+        <p>如果你看到这张卡片，说明页签片段已通过 <code>dyn.fetchPartial + dyn.html</code> 懒加载注入。</p>
+        <p>服务端渲染时间：<b>@now</b></p>
+        <p class="tpl-sample-tip">切换到其他页签再切回来：本页签 keepAlive=true，内容与状态保留。</p>
+    </div>
+</div>
+
+<style>
+    .tpl-sample-card { border: 1px solid #ebeef5; border-radius: 8px; overflow: hidden; background: #fff; }
+    .tpl-sample-head { background: #f4f8ff; color: #409eff; font-size: 13px; font-weight: 600; padding: 10px 16px; border-bottom: 1px solid #e9eefb; }
+    .tpl-sample-body { padding: 16px; color: #606266; font-size: 13px; line-height: 1.9; }
+    .tpl-sample-body code { background: #f4f4f5; padding: 1px 6px; border-radius: 3px; color: #c7254e; }
+    .tpl-sample-tip { color: #909399; }
+</style>
