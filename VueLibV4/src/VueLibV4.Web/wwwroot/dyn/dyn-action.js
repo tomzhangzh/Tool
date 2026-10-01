@@ -1021,6 +1021,16 @@ function initActions(root){
   if(root.querySelectorAll) list.push(...[].slice.call(root.querySelectorAll('*')));
   list.forEach(el=>{
     if(el.__dynInitDone) return;
+    // 挂载掩码暂存区（#dyn-holder）里的节点属于外层 App 的递归挂载链，
+    // 此时提前引导会把子 App 挂到游离节点；外层还原后会由其 mountCore 自行 initActions
+    if(el.closest && el.closest('#dyn-holder')) return;
+    // 最近的 createApp 祖先"尚未挂载完成"（有 mode 标记但无实例，含组合动作延迟启动的情况）：
+    // 本节点交给该祖先挂载完成后的递归 initActions，绝不能提前独立引导，否则会变成孤儿 App。
+    // 祖先已挂载（__dynApp 存在）时则放行——那是 updateEl 注入进活 App 的片段，需要自举。
+    if(el.closest){
+      const anc = el.closest('[data-dyn-mode="createApp"]');
+      if(anc && anc!==el && !anc.__dynApp) return;
+    }
     const attrs = el.attributes?[].slice.call(el.attributes):[];
     attrs.forEach(a=>{
       if(a.name.indexOf(CONST.ATTR_INIT_PREFIX)===0){

@@ -25,6 +25,22 @@ let _uidSeq = 0;
 const _appMap = typeof WeakMap!=='undefined'?new WeakMap():null;
 /** scope共享作用域存储：DOM宿主元素 -> reactive对象 */
 const _scopeStore = new WeakMap();
+/** 不安全注入告警去重：元素 -> true */
+const _injectWarned = typeof WeakSet!=='undefined'?new WeakSet():null;
+
+/**
+ * 官方注入点组件：updateEl/片段注入应落在 <dyn-inject-host> 内。
+ * 只渲染一个稳定空容器，Vue 不会 diff 其命令式注入的子节点，
+ * 外层 App 任何重渲染都不会抹掉注入内容（修复"往运行中 App 管辖 DOM 注入"的存活问题）。
+ * @example <dyn-inject-host id="paneChild" name="childList"></dyn-inject-host>
+ */
+const DynInjectHost = {
+  name:'DynInjectHost',
+  props:{ name:{type:String,default:''}, tag:{type:String,default:'div'} },
+  render(){
+    return Vue.h(this.tag||'div',{class:'dyn-inject-host','data-dyn-inject':this.name||undefined});
+  }
+};
 
 /**
  * @description 获取DOM元素，支持选择器/DOM对象
@@ -63,7 +79,14 @@ function findAncestor(el,selector){
  * @returns {HTMLElement|null}
  */
 function closestDynInit(el){
-  return findAncestor(el,'['+CONST.ATTR_MODE+'="createApp"]');
+  // 注意：必须从父节点开始找。createapp 动作在调 mount 前已给自身打上 mode 标记，
+  // 用 el.closest 会把自己误判为父 App，导致父子台账登记不上。
+  let cur = el && el.parentNode;
+  while(cur && cur.nodeType===1){
+    if(cur.getAttribute && cur.getAttribute(CONST.ATTR_MODE)==='createApp') return cur;
+    cur = cur.parentNode;
+  }
+  return null;
 }
 
 /**
@@ -125,13 +148,14 @@ function parseModel(el){
 }
 
 /**
- * @description 读取script[type="application/json"][tag="dynmodel"]内嵌model
+ * @description 读取【直接子级】script[type="application/json"][tag="dynmodel"]内嵌model。
+ * 只认直接子节点：嵌套App自带的dynmodel不能污染外层App（多App/嵌套App场景）。
  * @param {HTMLElement} el
  * @returns {object|null}
  */
 function readModelScript(el){
   if(!el||!el.querySelector) return null;
-  const s = el.querySelector('script[type="'+CONST.SCRIPT_TYPE_JSON+'"][tag="'+CONST.SCRIPT_TAG_DYNMODEL+'"]');
+  const s = el.querySelector(':scope > script[type="'+CONST.SCRIPT_TYPE_JSON+'"][tag="'+CONST.SCRIPT_TAG_DYNMODEL+'"]');
   if(s) try{ return JSON.parse(s.textContent); }catch(e){ console.error("[DynCore] dynmodel脚本解析失败",e); }
   return null;
 }
@@ -234,9 +258,22 @@ function confirmAsync(msg){
   }));
 }
 
-function storeApp(el,app){
+/**
+ * App 台账登记：记录 el->app 及父子关系。
+ * unmount 按台账级联，不依赖 DOM 位置（嵌套节点挂载期间会临时脱离文档到 #dyn-holder）。
+ */
+function registerApp(el,app,parentEl){
+  if(!el) return;
   if(_appMap)_appMap.set(el,app);
   el.__dynApp = app;
+  if(parentEl && parentEl!==el){
+    if(!parentEl.__dynChildApps) parentEl.__dynChildApps = new Set();
+    parentEl.__dynChildApps.add(el);
+    el.__dynParentAppEl = parentEl;
+  }
+}
+function storeApp(el,app){
+  registerApp(el,app,el&&el.__dynParentAppEl||null);
 }
 function getClosestApp(el){
   const host = closestDynInit(el);
@@ -255,6 +292,11 @@ function removeApp(el){
   if(!el) return;
   if(_appMap)_appMap.delete(el);
   el.__dynApp = null;
+  // 从父台账摘除
+  const p = el.__dynParentAppEl;
+  if(p && p.__dynChildApps) p.__dynChildApps.delete(el);
+  el.__dynParentAppEl = null;
+  el.__dynChildApps = null;
 }
 
 function holderEl(){
@@ -264,15 +306,41 @@ function holderEl(){
 }
 
 /**
- * @description 掩码嵌套dyn-init-createApp节点，mount时递归处理子App
+ * @description 收集【直接】嵌套的 dyn-mode=createApp 节点。
+ * 只取最近嵌套祖先就是 el 的节点，不深入已命中的嵌套子树——
+ * 深层节点交给子 App 自己的 mountCore 递归掩码，避免 dyn-host 被重复包裹。
  * @param {HTMLElement} el
- * @param {Array} out 输出子节点列表
+ * @returns {Array<HTMLElement>}
+ */
+function collectNestedApps(el){
+  const out = [];
+  if(!el.querySelectorAll) return out;
+  // 同时识别两种根标记：
+  //  data-dyn-mode="createApp"（已引导/远程片段）
+  //  data-dyn-init-createapp（initActions 尚未扫到、mode 还没打上的待引导节点）
+  const all = [].slice.call(el.querySelectorAll(
+    '['+CONST.ATTR_MODE+'="createApp"],[data-dyn-init-createapp]'
+  ));
+  all.forEach(node=>{
+    if(node.__dynApp||node.__dynMounting) return;
+    let p = node.parentNode, nearest = null;
+    while(p && p!==el){
+      if(p.nodeType===1 && p.getAttribute &&
+         (p.getAttribute(CONST.ATTR_MODE)==='createApp' || p.hasAttribute('data-dyn-init-createapp'))){ nearest=p; break; }
+      p = p.parentNode;
+    }
+    if(!nearest) out.push(node);
+  });
+  return out;
+}
+
+/**
+ * @description 掩码直接嵌套的dyn-init-createApp节点，mount时递归处理子App
+ * @param {HTMLElement} el
+ * @param {Array} out 输出子节点列表 {child,host,uid}
  */
 function maskNested(el,out){
-  if(!el.querySelectorAll) return;
-  const nested = [].slice.call(el.querySelectorAll('['+CONST.ATTR_MODE+'="createApp"]'));
-  nested.forEach(child=>{
-    if(child.__dynApp||child.__dynMounting) return;
+  collectNestedApps(el).forEach(child=>{
     const uid = child.getAttribute('data-dyn-uid')||('dyn'+(++_uidSeq));
     child.setAttribute('data-dyn-uid',uid);
     const host = document.createElement('dyn-host');
@@ -281,6 +349,29 @@ function maskNested(el,out){
     holderEl().appendChild(child);
     out.push({child,host,uid});
   });
+}
+
+/**
+ * @description mountCore 失败回滚：销毁半成品 app，把尚未挂载的掩码节点从 holder 还原回占位点
+ * @param {HTMLElement} el
+ * @param {Array} nested maskNested 产出
+ * @param {object|null} app
+ */
+function rollbackMasked(el,nested,app){
+  if(app){ try{ app.unmount(); }catch(e){} }
+  (nested||[]).forEach(item=>{
+    try{
+      if(item.child && !item.child.__dynApp){
+        if(item.host && item.host.parentNode) item.host.parentNode.insertBefore(item.child,item.host);
+        if(item.host && item.host.parentNode) item.host.parentNode.removeChild(item.host);
+        item.child.removeAttribute('data-dyn-uid');
+      }
+    }catch(e){}
+  });
+  removeApp(el);
+  el.__dynModel = null;
+  el.__dynProxy = null;
+  el.__dynLoaded = false;
 }
 
 /**
@@ -301,12 +392,16 @@ function checkRuntimeDeps(){
 /**
  * @description 内部mount核心逻辑
  * @param {HTMLElement} el
+ * @param {HTMLElement|null} [parentEl] 父App宿主（台账用，嵌套掩码还原挂载时显式传入）
  * @returns {Promise<any>}
  */
-async function mountCore(el){
+async function mountCore(el,parentEl){
   checkRuntimeDeps();
+  // 幂等守卫：任何链路重复进入都直接返回已挂载实例，杜绝重复 createApp/mount
+  if(el.__dynApp) return el.__dynApp;
   let cfgScript = null;
-  const cfgDom = el.querySelector('script[tag="dynconfig"]');
+  // dynconfig 同样只认直接子级，避免读到嵌套App的配置
+  const cfgDom = el.querySelector(':scope > script[tag="dynconfig"]');
   if(cfgDom){
     try{
       cfgScript = new Function('element','dyn',cfgDom.textContent+"\n; return typeof dynConfig!=='undefined'?dynConfig:null;")(el,global.dyn);
@@ -318,10 +413,12 @@ async function mountCore(el){
   let useSharedModel = null;
   if(bindScopeId) useSharedModel = getScopeModel(el);
   const reactiveModel = useSharedModel ?? Vue.reactive(srcModel);
-  // 移除容器内script标签，避免Vue模板解析干扰（原生DOM，无jQuery）
-  [].slice.call(el.querySelectorAll('script')).forEach(s=>s.remove());
+  // 先掩码把直接嵌套App整体搬到 #dyn-holder，再移除script——
+  // 否则嵌套App自带的 dynmodel 等script会被外层提前删掉，子App挂载时拿不到初始model
   const nested = [];
   maskNested(el,nested);
+  // 移除容器内剩余（均为本App自身的）script标签，避免Vue模板解析干扰
+  [].slice.call(el.querySelectorAll('script')).forEach(s=>s.remove());
 
   const component = {
     template:el.innerHTML,
@@ -345,30 +442,65 @@ async function mountCore(el){
   }
 
   const app = Vue.createApp(component);
-  ///////////////////////
-  // 插件注册
-  el.__dynApp = app;
-  storeApp(el,app);
-  global.DynCom.setupApp(app);
-  await global.DynCom.ensureRegistered(app);
-  /////////////////////
-  // 全局属性注册
-  app.config.globalProperties.$dyn = global.dyn;
-  el.__dynApp = app;
-  el.__dynModel = reactiveModel;
-  app.__dynModel = reactiveModel;
-  el.__dynLoaded = true;
-  try{ el.__dynProxy = app.mount(el)||null; }catch(e){ el.__dynProxy=null; throw e; }
-  app.__dynProxy = el.__dynProxy;
-  app.model = el.__dynProxy?el.__dynProxy.model:Vue.reactive(srcModel);
+  // 掩码占位符 dyn-host 是原生自定义元素，禁止 Vue 尝试解析为组件
+  app.config.compilerOptions.isCustomElement = tag=>tag==='dyn-host';
+  // 官方注入点：模板中可写 <dyn-inject-host> 作为 updateEl 的安全目标
+  app.component('dyn-inject-host',DynInjectHost);
+  let mounted = false;
+  try{
+    // 先登记台账（含挂载中状态），失败时 rollbackMasked 统一清理
+    registerApp(el,app,parentEl||el.__dynParentAppEl||null);
+    global.DynCom.setupApp(app);
+    await global.DynCom.ensureRegistered(app);
+    // 全局属性注册
+    app.config.globalProperties.$dyn = global.dyn;
+    el.__dynModel = reactiveModel;
+    app.__dynModel = reactiveModel;
+    el.__dynProxy = app.mount(el)||null;
+    mounted = true;
+    el.__dynLoaded = true;
+    app.__dynProxy = el.__dynProxy;
+    app.model = el.__dynProxy?el.__dynProxy.model:Vue.reactive(srcModel);
+  }catch(e){
+    el.__dynProxy = null;
+    if(!mounted) rollbackMasked(el,nested,app);
+    else removeApp(el);
+    throw e;
+  }
 
-  nested.forEach(item=>{
-    if(item.host&&item.host.parentNode) item.host.appendChild(item.child);
-    mount(item.child);
-  });
+  // 外层挂载成功后，再依次还原并挂载直接子App：
+  // 必须 for...of await——ensureRegistered 异步组件注册未完成就返回会与外层清空容器竞态，
+  // 导致子App挂到游离节点（嵌套app孤儿）
+  for(const item of nested){
+    try{
+      // app.mount 会按模板重建占位元素，不能再持有旧 host 引用，按 uid 定位渲染后的占位符
+      const liveHost = el.querySelector
+        ? el.querySelector('dyn-host[data-dyn-uid="'+item.uid+'"]')
+        : null;
+      const host = liveHost || (item.host && item.host.parentNode ? item.host : null);
+      if(host){
+        host.appendChild(item.child);
+        item.child.__dynParentAppEl = el;
+        if(el.__dynChildApps) el.__dynChildApps.add(item.child);
+        await mount(item.child);
+      }else{
+        // 占位符丢失（模板里没渲染出来）：兜底还原到容器末尾，避免子App永久滞留 holder
+        el.appendChild(item.child);
+        item.child.removeAttribute('data-dyn-uid');
+        item.child.__dynParentAppEl = el;
+        await mount(item.child);
+      }
+    }catch(e){
+      console.error('[DynCore] 嵌套App挂载失败',item.uid,e);
+    }
+  }
   // mount完成后（含ajax载入片段），自动扫描执行容器内 data-dyn-init-* 初始化动作
   if(global.dyn&&typeof dyn.initActions==='function'){
     dyn.initActions(el);
+  }
+  // 注入/挂载完成即扫描Block句柄，供 Tabs 模板等编排方 await mount 后直接取用
+  if(global.DynBlocks && typeof global.DynBlocks.scan==='function'){
+    try{ app.__dynBlocks = global.DynBlocks.scan(el); }catch(e){}
   }
   return app;
 }
@@ -421,25 +553,63 @@ async function mountConfig(cfg,target,model){
     }
   };
   const app = Vue.createApp(component);
-  storeApp(target,app);
+  app.config.compilerOptions.isCustomElement = tag=>tag==='dyn-host';
+  app.component('dyn-inject-host',DynInjectHost);
+  registerApp(target,app,null);
   global.DynCom.setupApp(app);
   await global.DynCom.ensureRegistered(app);
-  target.__dynApp = app;
   target.__dynModel = reactiveModel;
   app.__dynModel = reactiveModel;
   target.__dynLoaded = true;
-  try{ target.__dynProxy = app.mount(target)||null; }catch(e){ target.__dynProxy=null; throw e; }
+  try{ target.__dynProxy = app.mount(target)||null; }
+  catch(e){
+    target.__dynProxy=null;
+    rollbackMasked(target,[],app);
+    throw e;
+  }
   if(global.dyn&&typeof dyn.initActions==='function') dyn.initActions(target);
+  if(global.DynBlocks && typeof global.DynBlocks.scan==='function'){
+    try{ app.__dynBlocks = global.DynBlocks.scan(target); }catch(e){}
+  }
   return app;
 }
+/**
+ * 注入目标安全性提醒：updateEl 往"运行中 App 管辖的普通元素"里注入时，
+ * 外层重渲染可能清空命令式内容，建议改用 <dyn-inject-host>。每元素只告警一次。
+ * @param {HTMLElement} el
+ */
+function warnIfUnsafeInject(el){
+  try{
+    if(el.hasAttribute && el.hasAttribute('data-dyn-inject')) return;
+    if(el.classList && el.classList.contains('dyn-inject-host')) return;
+    if(el.closest && el.closest('.dyn-inject-host')) return;
+    const host = closestDynInit(el);
+    if(host && host!==el && host.__dynApp){
+      if(_injectWarned) _injectWarned.add(el);
+      console.warn('[DynCore] 注入目标位于运行中 App 管辖的普通元素内，外层重渲染可能清空注入内容；建议模板中改用 <dyn-inject-host> 作为 updateEl 注入点。', el);
+    }
+  }catch(e){}
+}
+
 /**
  * 渲染html，执行所有层级内联script，
  * 跳过带 tag="xxx" 属性的script节点，
  * 脚本内可以直接访问变量 el（当前容器DOM）
  * @param {HTMLElement} el 目标容器
  * @param {string} htmlStr html字符串
+ * @param {boolean} [boot=true] 是否立即扫描挂载 data-dyn-init-* 容器。
+ *   updateEl/open 直接注入时为 true；render/reload 之后还要走 mountCore 的链路必须传 false，
+ *   否则内嵌 App 被提前挂载，会与 mountCore 的掩码递归冲突产生孤儿 App。
+ * @returns {object|undefined} boot=true 时返回 DynBlocks.scan 句柄表（若存在 DynBlocks）
  */
-function html(el, htmlStr) {
+function html(el, htmlStr, boot) {
+  if(boot === undefined) boot = true;
+  if(boot){
+    // 片段替换前先释放旧内容中的 App（重复 updateEl/open 防实例泄漏）。
+    // boot=false 的链路调用方已自行 unmount（render/reload/mount）。
+    unmount(el);
+    if(_injectWarned && !_injectWarned.has(el)) warnIfUnsafeInject(el);
+  }
   el.innerHTML = "";
   const temp = document.createElement('div');
   temp.innerHTML = htmlStr;
@@ -481,7 +651,13 @@ function html(el, htmlStr) {
       console.error('脚本执行失败', err);
     }
   });
+  if(!boot) return undefined;
   dyn.initActions(el);
+  // 注入即接线：返回片段内全部 Block 句柄（谁注入，谁编排）
+  if(global.DynBlocks && typeof global.DynBlocks.scan==='function'){
+    try{ return global.DynBlocks.scan(el); }catch(e){}
+  }
+  return undefined;
 }
 /**
  * @description 挂载。两种签名：
@@ -495,64 +671,68 @@ function mount(elOrCfg,targetEl,model){
   if(elOrCfg&&typeof elOrCfg==='object'&&elOrCfg.nodeType!==1&&elOrCfg.component){
     return mountConfig(elOrCfg,targetEl,model);
   }
-  let el = elOrCfg;
-  return new Promise(promiseResolve=>{
-    // 这里调用的是dyn的dom解析工具函数，不再和promise回调冲突
-    el = dyn.resolve(el);
-    if(!el) return promiseResolve(null);
-    if(el.__dynApp) return promiseResolve(el.__dynApp);
-    if(el.__dynMounting) return promiseResolve(null);
+  let el = dyn.resolve(elOrCfg);
+  if(!el) return Promise.resolve(null);
+  if(el.__dynApp) return Promise.resolve(el.__dynApp);
+  // 重入共享：挂载进行中的并发调用等待同一个 Promise，而不是被静默吞成 null
+  if(el.__dynMounting) return el.__dynMounting;
 
-    el.__dynMounting = true;
-    const url = el.getAttribute(CONST.ATTR_URL);
-    const force = el.getAttribute('data-dyn-load') === 'true';
-    const empty = el.childElementCount === 0;
-    const needLoad = url && !el.__dynLoaded && (empty || force);
-
-    if(needLoad){
-      const m = parseModel(el)||{};
-      fetchPartial(url,m,'POST').then(html=>{
-        global.dyn.render(el,html);
-        el.__dynMounting = false;
-        try{
-          const app = mountCore(el);
-          promiseResolve(app);
-        }catch(e){
-          console.error("[DynCore] mount失败",e);
-          promiseResolve(null);
-        }
-      }).catch(err=>{
-        el.__dynMounting = false;
-        el.innerHTML = '<div class="dyn-loading">加载失败：'+((err&&err.message)||err)+'</div>';
-        promiseResolve(null);
-      });
-    }else{
-      el.__dynMounting = false;
-      try{
-        const app = mountCore(el);
-        promiseResolve(app);
-      }catch(e){
-        console.error("[DynCore] mount失败",e);
-        promiseResolve(null);
+  // 父App宿主：优先显式指定（嵌套还原挂载），否则取最近已挂载祖先（片段注入进活App场景）
+  const parentEl = el.__dynParentAppEl || closestDynInit(el);
+  let loaded = false;
+  const task = (async()=>{
+    try{
+      const url = el.getAttribute(CONST.ATTR_URL);
+      const force = el.getAttribute('data-dyn-load') === 'true';
+      const empty = el.childElementCount === 0;
+      const needLoad = !!(url && !el.__dynLoaded && (empty || force));
+      if(needLoad){
+        const m = parseModel(el)||{};
+        const method = el.getAttribute('data-dyn-method')||'POST';
+        const htmlText = await fetchPartial(url,m,method);
+        // 只注入不引导：内嵌 App 统一由下面的 mountCore 递归链挂载，避免 render+mountCore 双挂载
+        dyn.html(el,htmlText,false);
       }
+      loaded = true;
+      return await mountCore(el,parentEl);
+    }catch(err){
+      console.error('[DynCore] mount失败',err);
+      if(!loaded){
+        try{ el.innerHTML = '<div class="dyn-loading">加载失败：'+((err&&err.message)||err)+'</div>'; }catch(e){}
+      }
+      return null;
     }
-  });
+  })();
+  el.__dynMounting = task;
+  task.then(()=>{ if(el.__dynMounting===task) el.__dynMounting=null; },
+            ()=>{ if(el.__dynMounting===task) el.__dynMounting=null; });
+  return task;
 }
 
 
 /**
- * @description 卸载App，递归卸载子嵌套App，清理内存
+ * @description 卸载App，递归卸载子嵌套App，清理内存。
+ * 优先按 App 台账级联（子App可能已脱离DOM文档，如被Vue patch抹掉或还滞留在holder），
+ * 再用 DOM 查询兜底旧式/游离属性节点。
  * @param {string|HTMLElement} el
  */
 function unmount(el){
   el = resolve(el);
   if(!el) return;
+  // 1) 台账级联（快照，子节点卸载时会从 Set 中摘除自己）
+  if(el.__dynChildApps && el.__dynChildApps.size){
+    Array.from(el.__dynChildApps).forEach(child=>unmount(child));
+  }
+  // 2) DOM 兜底：台账未登记的嵌套节点（旧版本挂载的、外部手动标记的）
   if(el.querySelectorAll){
-    [].slice.call(el.querySelectorAll('['+CONST.ATTR_MODE+'="createApp"]')).forEach(n=>unmount(n));
+    [].slice.call(el.querySelectorAll('['+CONST.ATTR_MODE+'="createApp"]')).forEach(n=>{
+      if(n!==el && n.__dynApp) unmount(n);
+    });
   }
   if(el.__dynApp){
     try{ el.__dynApp.unmount(); }catch(e){}
-    el.__dynApp = null; el.__dynModel=null;
+    el.__dynModel=null;
+    el.__dynProxy=null;
     removeApp(el);
   }
 }
@@ -567,7 +747,8 @@ function render(el,html){
   el = resolve(el);
   if(!el) return Promise.resolve(null);
   unmount(el);
-  global.dyn.html(el,html||'');
+  // boot=false：内嵌App交给随后 mount() 的 mountCore 递归链统一引导，避免提前挂载产生孤儿
+  global.dyn.html(el,html||'',false);
   return mount(el);
 }
 
@@ -670,7 +851,7 @@ async function reload(target,opts){
       return mount(targetEl);
     }else{
       unmount(targetEl);
-      global.dyn.html(targetEl,text);
+      global.dyn.html(targetEl,text,false);
       return mount(targetEl);
     }
   }).catch(err=>{ showMessage('刷新失败：'+((err&&err.message)||err),'error'); return null; });
