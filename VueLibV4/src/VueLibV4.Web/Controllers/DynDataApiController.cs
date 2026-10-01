@@ -34,27 +34,41 @@ public class DynDataApiController : ControllerBase
     [HttpGet("tables")]
     public ApiResult Tables(string project = null)
     {
-        using var db = Resolve(project);
-        return ApiResult.Ok(_svc.Tables(db));
+        try
+        {
+            using var db = Resolve(project);
+            return ApiResult.Ok(_svc.Tables(db));
+        }
+        catch (Exception ex) { return ApiResult.Fail(ex.GetBaseException().Message); }
     }
 
     [HttpGet("columns")]
     public ApiResult Columns(string table, string project = null)
     {
-        using var db = Resolve(project);
-        return ApiResult.Ok(_svc.Columns(db, table));
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        try
+        {
+            using var db = Resolve(project);
+            return ApiResult.Ok(_svc.Columns(db, table));
+        }
+        catch (Exception ex) { return ApiResult.Fail(ex.GetBaseException().Message); }
     }
 
     [HttpGet("meta")]
     public ApiResult Meta(string table, string project = null)
     {
-        using var db = Resolve(project);
-        return ApiResult.Ok(new
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        try
         {
-            table,
-            columns = _svc.Columns(db, table),
-            primaryKeys = _svc.PrimaryKeys(db, table)
-        });
+            using var db = Resolve(project);
+            return ApiResult.Ok(new
+            {
+                table,
+                columns = _svc.Columns(db, table),
+                primaryKeys = _svc.PrimaryKeys(db, table)
+            });
+        }
+        catch (Exception ex) { return ApiResult.Fail(ex.GetBaseException().Message); }
     }
 
     // ---------------- 查询 ----------------
@@ -69,8 +83,12 @@ public class DynDataApiController : ControllerBase
         var page = req["page"]?.Value<int>() ?? 1;
         var size = req["size"]?.Value<int>() ?? 20;
         var filter = req["filter"] as JObject;
-        using var db = Resolve(project);
-        return ApiResult.Ok(_svc.Page(db, table, page, size, filter));
+        try
+        {
+            using var db = Resolve(project);
+            return ApiResult.Ok(_svc.Page(db, table, page, size, filter));
+        }
+        catch (Exception ex) { return ApiResult.Fail("查询失败：" + ex.GetBaseException().Message); }
     }
 
     /// <summary>按主键取单行（query：table/id/project）</summary>
@@ -78,10 +96,14 @@ public class DynDataApiController : ControllerBase
     public ApiResult Get(string table, string id, string project = null)
     {
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
-        using var db = Resolve(project);
-        var pks = _svc.PrimaryKeys(db, table);
-        if (pks.Count == 0) return ApiResult.Fail("表没有主键");
-        return ApiResult.Ok(_svc.First(db, table, $"[{pks[0]}]=@v", new { v = id }));
+        try
+        {
+            using var db = Resolve(project);
+            var pks = _svc.PrimaryKeys(db, table);
+            if (pks.Count == 0) return ApiResult.Fail("表没有主键");
+            return ApiResult.Ok(_svc.First(db, table, $"{DynamicCrudService.QuoteIdent(pks[0])}=@v", new { v = id }));
+        }
+        catch (Exception ex) { return ApiResult.Fail(ex.GetBaseException().Message); }
     }
 
     // ---------------- 增删改（统一信封，异常永远 JSON，不冒 HTML 异常页） ----------------

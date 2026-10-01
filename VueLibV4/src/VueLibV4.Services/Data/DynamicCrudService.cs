@@ -2,6 +2,7 @@ using Newtonsoft.Json.Linq;
 using SqlSugar;
 using System.Data;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace VueLibV4.Services.Data;
 
@@ -189,12 +190,12 @@ public class DynamicCrudService
                 }
                 else if (val.Type == JTokenType.Null || val.Type == JTokenType.Undefined)
                 {
-                    sb.Append($" AND [{prop.Name}] IS NULL ");
+                    sb.Append($" AND {QuoteIdent(prop.Name)} IS NULL ");
                 }
                 else
                 {
                     var p = $"@p{pars.Count}";
-                    sb.Append($" AND [{prop.Name}] = {p} ");
+                    sb.Append($" AND {QuoteIdent(prop.Name)} = {p} ");
                     pars.Add(new SugarParameter(p, ToDbValue(val, dt)));
                 }
             }
@@ -273,12 +274,12 @@ public class DynamicCrudService
             var v = keys[pk];
             if (v == null || v.Type == JTokenType.Null) throw new Exception($"删除缺少主键值: {pk}");
             var p = $"@d{pars.Count}";
-            conds.Add($"[{pk}] = {p}");
+            conds.Add($"{QuoteIdent(pk)} = {p}");
             colInfos.TryGetValue(pk, out var ci);
             pars.Add(new SugarParameter(p, ToDbValue(v, ci?.DataType)));
         }
         var where = string.Join(" AND ", conds);
-        return db.Ado.ExecuteCommand($"DELETE FROM [{table}] WHERE {where}", pars.ToArray());
+        return db.Ado.ExecuteCommand($"DELETE FROM {QuoteIdent(table)} WHERE {where}", pars.ToArray());
     }
 
     // ---------------- 辅助 ----------------
@@ -312,31 +313,32 @@ public class DynamicCrudService
             warnings?.Add($"不支持的筛选操作符 [{op}]（字段 [{col}]，值 {v}），该条件已忽略。支持：eq/neq/gt/ge/lt/le/like/notlike/in/between");
             return;
         }
+        var c = QuoteIdent(col); // 列名来自 schema 白名单，此处再做方括号转义兜底
         switch (op.ToLower())
         {
             case "eq":
-                AddParam(sb, pars, $" AND [{col}] = {{p}} ", ToDbValue(v, dataType));
+                AddParam(sb, pars, $" AND {c} = {{p}} ", ToDbValue(v, dataType));
                 break;
             case "neq":
-                AddParam(sb, pars, $" AND [{col}] <> {{p}} ", ToDbValue(v, dataType));
+                AddParam(sb, pars, $" AND {c} <> {{p}} ", ToDbValue(v, dataType));
                 break;
             case "gt":
-                AddParam(sb, pars, $" AND [{col}] > {{p}} ", ToDbValue(v, dataType));
+                AddParam(sb, pars, $" AND {c} > {{p}} ", ToDbValue(v, dataType));
                 break;
             case "ge":
-                AddParam(sb, pars, $" AND [{col}] >= {{p}} ", ToDbValue(v, dataType));
+                AddParam(sb, pars, $" AND {c} >= {{p}} ", ToDbValue(v, dataType));
                 break;
             case "lt":
-                AddParam(sb, pars, $" AND [{col}] < {{p}} ", ToDbValue(v, dataType));
+                AddParam(sb, pars, $" AND {c} < {{p}} ", ToDbValue(v, dataType));
                 break;
             case "le":
-                AddParam(sb, pars, $" AND [{col}] <= {{p}} ", ToDbValue(v, dataType));
+                AddParam(sb, pars, $" AND {c} <= {{p}} ", ToDbValue(v, dataType));
                 break;
             case "like":
-                AddParam(sb, pars, $" AND [{col}] LIKE {{p}} ", "%" + (v?.ToString() ?? "") + "%");
+                AddParam(sb, pars, $" AND {c} LIKE {{p}} ", "%" + (v?.ToString() ?? "") + "%");
                 break;
             case "notlike":
-                AddParam(sb, pars, $" AND [{col}] NOT LIKE {{p}} ", "%" + (v?.ToString() ?? "") + "%");
+                AddParam(sb, pars, $" AND {c} NOT LIKE {{p}} ", "%" + (v?.ToString() ?? "") + "%");
                 break;
             case "in":
                 if (v is JArray arr && arr.Count > 0)
@@ -348,7 +350,7 @@ public class DynamicCrudService
                         names.Add(p);
                         pars.Add(new SugarParameter(p, ToDbValue(item, dataType)));
                     }
-                    sb.Append($" AND [{col}] IN ({string.Join(",", names)}) ");
+                    sb.Append($" AND {c} IN ({string.Join(",", names)}) ");
                 }
                 else
                 {
@@ -362,7 +364,7 @@ public class DynamicCrudService
                     pars.Add(new SugarParameter(p1, ToDbValue(bt[0], dataType)));
                     var p2 = $"@p{pars.Count}";
                     pars.Add(new SugarParameter(p2, ToDbValue(bt[1], dataType)));
-                    sb.Append($" AND [{col}] BETWEEN {p1} AND {p2} ");
+                    sb.Append($" AND {c} BETWEEN {p1} AND {p2} ");
                 }
                 else
                 {
@@ -394,14 +396,14 @@ public class DynamicCrudService
                 var dir = match.Groups["dir"].Value.ToLower();
                 var cols = db.DbMaintenance.GetColumnInfosByTableName(table, false)
                     .Select(c => c.DbColumnName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                if (cols.Contains(col)) return $"[{col}] {dir}";
+                if (cols.Contains(col)) return $"{QuoteIdent(col)} {dir}";
             }
             // 非法排序子句直接忽略（回退主键排序），不抛异常以免影响列表加载
         }
         var pks = PrimaryKeys(db, table);
-        if (pks.Count > 0) return $"[{pks[0]}] desc";
+        if (pks.Count > 0) return $"{QuoteIdent(pks[0])} desc";
         var first = db.DbMaintenance.GetColumnInfosByTableName(table, false).FirstOrDefault();
-        return first != null ? $"[{first.DbColumnName}] asc" : "(SELECT 0)";
+        return first != null ? $"{QuoteIdent(first.DbColumnName)} asc" : "(SELECT 0)";
     }
 
     private static Dictionary<string, object> ToColumnDict(JObject data, Dictionary<string, DbColumnInfo> colInfos)
@@ -449,9 +451,28 @@ public class DynamicCrudService
         return token.ToString();
     }
 
+    /// <summary>
+    /// 标识符白名单（Unicode 字母/下划线开头，字母数字下划线，≤128）：
+    /// 表名/列名进入 SQL 前的第一道防线，挡掉 ] ; -- 空格 连字符等任何引号逃逸字符；
+    /// 第二道防线是 EnsureTable 的"表必须真实存在"与各调用点的列存在性校验。
+    /// </summary>
+    private static readonly Regex IdentRx = new(@"^[\p{L}_][\p{L}0-9_]{0,127}$", RegexOptions.Compiled);
+
+    /// <summary>把标识符安全包进方括号（转义内部 ]）。仅用于来自 schema/请求且已过白名单的名字。</summary>
+    public static string QuoteIdent(string name) => "[" + (name ?? "").Replace("]", "]]") + "]";
+
+    private static string EnsureIdent(string name, string kind)
+    {
+        if (string.IsNullOrWhiteSpace(name) || !IdentRx.IsMatch(name))
+            throw new Exception($"非法{kind}名：{name}（只允许字母/下划线开头的字母数字下划线）");
+        return name;
+    }
+
     private void EnsureTable(SqlSugarClient db, string table)
     {
         if (string.IsNullOrWhiteSpace(table)) throw new Exception("表名不能为空");
+        // 即使后面会做"表存在"校验，也先过标识符正则：防止构造奇特的库内表名后利用方括号拼接
+        EnsureIdent(table, "表");
         var names = db.DbMaintenance.GetTableInfoList(false).Select(t => t.Name);
         if (!names.Any(n => string.Equals(n, table, StringComparison.OrdinalIgnoreCase)))
             throw new Exception($"表 {table} 不存在");

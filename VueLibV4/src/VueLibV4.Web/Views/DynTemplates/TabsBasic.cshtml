@@ -99,6 +99,11 @@
     .tbs-err { color: #f56c6c; background: #fef0f0; }
 </style>
 
+@* 整页片段嵌入（页签 url 指向 DynWebPage 整页）时，片段内联块脚本先于其自身
+   dyn-blocks-common.js 外部脚本执行（dyn.html 注入的外/内联脚本存在加载竞态），
+   宿主页先引一份全局，保证 DynBlocks 已定义；文件本身幂等，弹窗片段形态重复引入无害。 *@
+<script src="~/dyn/blocks/dyn-blocks-common.js" asp-append-version="true"></script>
+
 <script>
 (function () {
     var ROOT_ID = '@rootId';

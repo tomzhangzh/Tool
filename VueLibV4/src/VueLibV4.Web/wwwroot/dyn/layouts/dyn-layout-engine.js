@@ -73,7 +73,7 @@
         return s ? (s.block || null) : null;
     }
 
-    function makeShellHandle(def, root, spec) {
+    function makeShellHandle(def, root, spec, handles) {
         var listeners = Object.create(null);
         var cmdNames = def.commands ? Object.keys(def.commands) : [];
         return {
@@ -86,7 +86,7 @@
                     if (global.DynDebug && DynDebug.note) DynDebug.note(msg, { source: 'shell' });
                     return Promise.reject(new Error('壳命令未注册: ' + cmd));
                 }
-                try { return Promise.resolve(fn(payload, { root: root, spec: spec })); }
+                try { return Promise.resolve(fn(payload, { root: root, spec: spec, handles: handles })); }
                 catch (e) { return Promise.reject(e); }
             },
             on: function (evt, fn) {
@@ -140,16 +140,21 @@
 
             var sourceHandle = handles[src.node];
             if (!sourceHandle || typeof sourceHandle.on !== 'function') {
-                warnings.push('wire 源节点不存在或未挂载：' + src.node + '（' + w.from + '）');
+                // 壳默认连线对槽位自适应：页面 spec 没放该槽（如无 filter 的壳页面）时安静跳过；
+                // 页面自己写的 wire 必须吵闹——那是显式意图，节点缺失就是配置错误。
+                if (w.origin !== 'default')
+                    warnings.push('wire 源节点不存在或未挂载：' + src.node + '（' + w.from + '）');
                 return;
             }
             var live = targets.filter(function (t) {
                 if (!handles[t.node] || typeof handles[t.node].send !== 'function') {
-                    warnings.push('wire 目标节点不存在或未挂载：' + t.node + '（来自 ' + w.from + '）');
+                    if (w.origin !== 'default')
+                        warnings.push('wire 目标节点不存在或未挂载：' + t.node + '（来自 ' + w.from + '）');
                     return false;
                 }
                 return true;
             });
+            if (live.length === 0) return;
 
             var off = sourceHandle.on(src.port, function (payload) {
                 var arg = mapWith(w.with, { event: payload, provide: spec.provide || {} });
@@ -184,7 +189,9 @@
         });
         return Promise.all(ready).then(function () {
             // 2) 槽位名 → 句柄
-            var handles = { shell: makeShellHandle(def, root, spec) };
+            var handles = { };
+            // shell 命令上下文带 handles：壳命令可按 spec 把事件转发给其他槽（如 addChild 预填外键）
+            handles.shell = makeShellHandle(def, root, spec, handles);
             [].forEach.call(root.querySelectorAll('[data-layout-slot]'), function (pane) {
                 var blkEl = pane.hasAttribute('data-blk-role') ? pane : pane.querySelector('[data-blk-role]');
                 var slotName = pane.getAttribute('data-layout-slot');

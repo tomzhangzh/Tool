@@ -67,6 +67,10 @@ public class PageGenResult
     public int? DetailId { get; set; }
     /// <summary>编辑弹窗页面实例 Id（detail-modal 模板，主页 ModalPageId 引用）</summary>
     public int? ModalPageId { get; set; }
+    /// <summary>布局壳页面实例 Id（请求 layout="list-master-detail" 时额外生成，复用同批三屏设置）</summary>
+    public int? ShellPageId { get; set; }
+    /// <summary>布局壳页面 Url（ShellPageId 有值时）</summary>
+    public string? ShellUrl { get; set; }
     /// <summary>页面扩展视图路径（真实 cshtml 骨架；生成失败或已手工指定时可能为空）</summary>
     public string? ExtViewPath { get; set; }
 }
@@ -295,7 +299,54 @@ public class PageGenService : IPageGenService
         page.Url = "/Platform/Page/DynWebPage?id=" + page.Id;
         _pages.Update(page);
 
-        return (true, "页面生成成功" + extWarn, new PageGenResult
+        // ---------- 可选：额外产出一个布局壳页面（list-master-detail），复用同批三屏设置 ----------
+        int? shellPageId = null;
+        string? shellUrl = null;
+        var layout = (req["layout"]?.ToString() ?? "").Trim();
+        if (string.Equals(layout, "list-master-detail", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(layout, "shell", StringComparison.OrdinalIgnoreCase))
+        {
+            var shellTpl = _templates.Query(t => t.Code == "list-master-detail").First();
+            if (shellTpl == null) return (false, "布局壳模板 list-master-detail 不存在（平台库未初始化？）", null);
+
+            // provide.project：显式请求坐标优先；为空则留空，壳视图回退页面 ProjectId
+            var spec = new JObject
+            {
+                ["layout"] = "list-master-detail",
+                ["layoutProps"] = new JObject { ["leftWidth"] = 50, ["childFkField"] = "" },
+                ["provide"] = new JObject
+                {
+                    ["table"] = table,
+                    ["keyField"] = pk,
+                    ["project"] = project ?? ""
+                },
+                ["slots"] = new JObject
+                {
+                    ["filter"] = new JObject { ["block"] = "filter", ["settingId"] = filterId },
+                    ["master"] = new JObject { ["block"] = "list", ["settingId"] = listId },
+                    ["detail"] = new JObject { ["block"] = "detail", ["settingId"] = detailId }
+                }
+            };
+
+            var shellCode = code + "-shell";
+            var existShell = _pages.Query(p => p.Code == shellCode).First();
+            var shellPage = existShell ?? new DynWebPage { Code = shellCode, CreateTime = DateTime.Now };
+            shellPage.Name = name + "（布局壳）";
+            shellPage.ProjectId = projectId;
+            shellPage.TemplateId = shellTpl.Id;
+            shellPage.PageJson = null;
+            shellPage.ParamsJson = null; // 壳页面：规格只在 SpecJson，不与老参数混用
+            shellPage.SpecJson = spec.ToJson();
+            shellPage.IsActive = true;
+            if (existShell == null) _pages.Insert(shellPage); else _pages.Update(shellPage);
+            shellPage.Url = "/Platform/Page/DynWebPage?id=" + shellPage.Id;
+            _pages.Update(shellPage);
+            shellPageId = shellPage.Id;
+            shellUrl = shellPage.Url;
+        }
+
+        var msg = "页面生成成功" + (shellPageId != null ? "（含布局壳页面）" : "") + extWarn;
+        return (true, msg, new PageGenResult
         {
             Id = page.Id,
             Code = code,
@@ -306,6 +357,8 @@ public class PageGenService : IPageGenService
             ListId = listId,
             DetailId = detailId,
             ModalPageId = modalPage.Id,
+            ShellPageId = shellPageId,
+            ShellUrl = shellUrl,
             ExtViewPath = extViewPath
         });
     }

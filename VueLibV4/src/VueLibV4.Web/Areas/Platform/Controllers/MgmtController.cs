@@ -59,7 +59,7 @@ public class MgmtController : Controller
         {
             var pks = _svc.PrimaryKeys(db, "DesktopShortcut");
             var found = pks.Count > 0
-                ? _svc.First(db, "DesktopShortcut", $"[{pks[0]}]=@v", new { v = id })
+                ? _svc.First(db, "DesktopShortcut", $"{DynamicCrudService.QuoteIdent(pks[0])}=@v", new { v = id })
                 : null;
             if (found == null) return Content("记录不存在");
             row = found;

@@ -68,11 +68,11 @@ public class DynCommonController : ControllerBase
         object pars = null;
         if (!string.IsNullOrWhiteSpace(parentField) && !string.IsNullOrEmpty(parentValue) && colMap.TryGetValue(parentField, out var pf))
         {
-            where = $"[{parentField}]=@pv";
+            where = $"{DynamicCrudService.QuoteIdent(parentField)}=@pv";
             pars = new { pv = ConvertValue(parentValue, pf.DataType) };
         }
 
-        var rows = _svc.Query(db, table, where, pars, $"[{textField}] ASC");
+        var rows = _svc.Query(db, table, where, pars, $"{DynamicCrudService.QuoteIdent(textField)} ASC");
         var data = rows.Select(r => new
         {
             value = r[valueField],

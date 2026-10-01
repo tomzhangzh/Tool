@@ -89,6 +89,12 @@
                 <el-form-item label="页面名称">
                     <el-input v-model="form.name" placeholder="如 学生管理" style="width:200px"></el-input>
                 </el-form-item>
+                <el-form-item label="页面形态">
+                    <el-select v-model="form.layout" style="width:260px">
+                        <el-option label="标准：筛选列表 + 编辑弹窗（filterlist-crud）" value=""></el-option>
+                        <el-option label="布局壳：筛选+列表+明细同屏（list-master-detail，额外生成壳页面）" value="list-master-detail"></el-option>
+                    </el-select>
+                </el-form-item>
                 <el-form-item>
                     <el-button type="primary" :loading="generating" @@click="generate">生成三屏页面</el-button>
                 </el-form-item>
@@ -122,7 +128,7 @@
                     fields: [],
                     loadingCols: false,
                     generating: false,
-                    form: { project: '', table: '', code: '', name: '' }
+                    form: { project: '', table: '', code: '', name: '', layout: '' }
                 };
             },
             mounted: function () {
@@ -194,6 +200,7 @@
                     var pkField = (self.fields.find(function (f) { return f.isPk; }) || {}).name || 'Id';
                     var payload = {
                         project: self.form.project || null,
+                        layout: self.form.layout || '',
                         table: self.form.table,
                         pk: pkField,
                         code: self.form.code,
@@ -212,8 +219,9 @@
                         body: JSON.stringify(payload)
                     }).then(function (r) { return r.json(); }).then(function (res) {
                         if (res && res.code === 0 && res.data && res.data.url) {
+                            var target = res.data.shellUrl || res.data.url;
                             layui.layer.msg('生成成功，正在打开页面…', { icon: 1, time: 1200 });
-                            setTimeout(function () { window.location.href = res.data.url; }, 1200);
+                            setTimeout(function () { window.location.href = target; }, 1200);
                         } else {
                             layui.layer.msg((res && res.msg) || '生成失败', { icon: 2 });
                         }

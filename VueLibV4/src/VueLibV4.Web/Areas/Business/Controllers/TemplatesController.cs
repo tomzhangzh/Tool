@@ -93,7 +93,7 @@ public class TemplatesController : Controller
                 using var bdb = _projects.Resolve(project);
                 var pks = _svc.PrimaryKeys(bdb, table);
                 var pk = pks.Count > 0 ? pks[0] : "Id";
-                row = _svc.First(bdb, table, $"[{pk}]=@v", new { v = id });
+                row = _svc.First(bdb, table, $"{DynamicCrudService.QuoteIdent(pk)}=@v", new { v = id });
             }
             catch (Exception ex)
             {

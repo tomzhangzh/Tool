@@ -11,8 +11,14 @@
     var Slots = ViewData["DynExtSlots"] as DynExtSlots ?? new DynExtSlots();
     var tabsTplId = TemplateSvc.Query(t => t.Code == "tabs-basic").First()?.Id ?? 0;
 
+    // 布局壳模板：Id → {code, 骨架 DefaultJson}，供壳 spec 编辑卡判断可见性/载入骨架
+    var shellTpls = TemplateSvc.Query(t => t.Code == "tree-master-detail" || t.Code == "list-master-detail")
+        .Select(t => new { id = t.Id, code = t.Code, def = t.DefaultJson ?? "{}" }).ToList();
+    var shellTplsJson = System.Text.Json.JsonSerializer.Serialize(shellTpls);
+
     // ① 自定义表单区：挂在动态组件树之后（detail:body-extra），与 DetailApp 同一个 VueApp
-    Slots["detail:body-extra"] = @<div v-if="tbsVisible" class="pmg-tbs">
+    Slots["detail:body-extra"] = @<text>
+    <div v-if="tbsVisible" class="pmg-tbs">
         <div class="pmg-tbs__head">
             <span class="pmg-tbs__title">多页签容器参数（tabs-basic 专用）</span>
             <button type="button" class="el-button el-button--primary el-button--small" @@click="tbsAdd()">+ 添加页签</button>
@@ -44,19 +50,51 @@
             <label>SharedParamsJson（共享层初始值，如 {&quot;rowId&quot;:0}）</label>
             <el-input v-model="tplSharedText" type="textarea" :rows="2" placeholder='{"rowId":0}' @@change="tbsSync()"></el-input>
         </div>
-    </div>;
+    </div>
+
+    <div v-if="shellVisible" class="pmg-shell">
+        <div class="pmg-shell__head">
+            <span class="pmg-shell__title">布局壳规格 SpecJson（壳模板专用，独立于 ParamsJson）</span>
+            <span class="pmg-shell__actions">
+                <button type="button" class="el-button el-button--small" @@click="shellLoadSkeleton()">载入模板骨架</button>
+                <button type="button" class="el-button el-button--small" @@click="shellFormat()">格式化</button>
+                <span :class="['pmg-shell__badge', specValid ? 'is-ok' : 'is-bad']">
+                    {{ specValid ? 'JSON 合法' : 'JSON 非法' }}
+                </span>
+            </span>
+        </div>
+        <el-input v-model="specText" type="textarea" :rows="14" spellcheck="false"
+                  placeholder='{"layout":"...","provide":{...},"slots":{...}}'
+                  @@input="shellSync()" class="pmg-shell__editor"></el-input>
+        <div v-if="!specValid" class="pmg-shell__err">{{ specError || 'JSON 解析失败' }}</div>
+        <div class="pmg-shell__hint">
+            结构：layout / layoutProps / provide{table,keyField,project} /
+            slots{槽:{block,settingId,model?}} / wires? / replaceDefaultWires?。
+            平台表 project 填 <code>__platform__</code>；规格内不写任何 URL。非法 JSON 时保存会被拦截。
+        </div>
+    </div>
+    </text>;
 
     // ② 脚本合并进 DetailApp 的 VueApp：this.form 即详情表单模型
     Slots["detail:app-ext"] = @<script type="text/plain" tag="dynconfig-ext">
     var TBS_TPL_ID = @tabsTplId;
+    var SHELL_TPLS = @Html.Raw(shellTplsJson);
     var dynConfigExt = {
         data: function () {
-            return { tplTabs: [], tplSharedText: '{}', __tbsStop: null };
+            return {
+                tplTabs: [], tplSharedText: '{}', __tbsStop: null,
+                specText: '', specValid: true, specError: '', __shellStop: null, __saveWrapped: false
+            };
         },
         computed: {
             // 仅当当前表单选中的模板是 tabs-basic 时出现专用编辑卡
             tbsVisible: function () {
                 return TBS_TPL_ID > 0 && Number(this.form && this.form.TemplateId) === TBS_TPL_ID;
+            },
+            // 当前选中模板是否为布局壳
+            shellVisible: function () {
+                var tid = Number(this.form && this.form.TemplateId);
+                return tid > 0 && SHELL_TPLS.some(function (t) { return t.id === tid; });
             }
         },
         methods: {
@@ -99,6 +137,73 @@
             tbsRemove: function (i) {
                 this.tplTabs.splice(i, 1);
                 this.tbsSync();
+            },
+
+            // ---------------- 布局壳 SpecJson 编辑卡 ----------------
+
+            __shellTpl: function () {
+                var tid = Number(this.form && this.form.TemplateId);
+                for (var i = 0; i < SHELL_TPLS.length; i++) if (SHELL_TPLS[i].id === tid) return SHELL_TPLS[i];
+                return null;
+            },
+            // 载入顺序：form.SpecJson（v1.1 权威）→ form.ParamsJson 里若已含 layout（v1 老壳页 PAGE 21，编辑即自动迁移）
+            shellLoad: function () {
+                var raw = this.form && this.form.SpecJson;
+                if (!raw) {
+                    try {
+                        var pj = JSON.parse((this.form && this.form.ParamsJson) || '{}');
+                        if (pj && pj.layout) raw = JSON.stringify(pj, null, 2);
+                    } catch (e) { raw = ''; }
+                }
+                this.specText = raw || '';
+                this.specValid = true;
+                this.specError = '';
+            },
+            // 校验并写回 form.SpecJson（空串允许：壳视图回退 ParamsJson）
+            shellSync: function () {
+                var text = this.specText || '';
+                if (!text.trim()) { this.specValid = true; this.specError = ''; this.form.SpecJson = ''; return; }
+                try {
+                    var obj = JSON.parse(text);
+                    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('规格必须是 JSON 对象');
+                    this.specValid = true; this.specError = '';
+                    this.form.SpecJson = JSON.stringify(obj);
+                } catch (e) {
+                    this.specValid = false; this.specError = e.message;
+                }
+            },
+            shellLoadSkeleton: function () {
+                var tpl = this.__shellTpl();
+                this.specText = tpl && tpl.def ? tpl.def : '{}';
+                this.shellSync();
+                this.shellFormat();
+            },
+            shellFormat: function () {
+                try {
+                    var obj = JSON.parse(this.specText || '{}');
+                    this.specText = JSON.stringify(obj, null, 2);
+                    this.shellSync();
+                } catch (e) {
+                    this.specValid = false; this.specError = e.message;
+                }
+            },
+            // 非法 spec 拦截 DetailApp 原生保存（包装一次；其余保存链路原样不动）
+            shellWrapSave: function () {
+                if (this.__saveWrapped || typeof this.onSave !== 'function') return;
+                this.__saveWrapped = true;
+                var self = this, orig = this.onSave;
+                this.onSave = function () {
+                    if (self.shellVisible) self.shellSync();
+                    if (self.shellVisible && !self.specValid) {
+                        var msg = '布局壳 SpecJson 不是合法 JSON，已阻止保存：' + (self.specError || '');
+                        console.warn('[page-mgmt.ext] ' + msg);
+                        if (typeof ElMessage !== 'undefined' && ElMessage) ElMessage.error(msg);
+                        else if (window.ElementPlus && window.ElementPlus.ElMessage) window.ElementPlus.ElMessage.error(msg);
+                        else alert(msg);
+                        return;
+                    }
+                    return orig.apply(self, arguments);
+                };
             }
         },
         mounted: function () {
@@ -110,9 +215,17 @@
                 function () { if (self.tbsVisible) self.tbsLoad(); }
             );
             if (this.tbsVisible) this.tbsLoad();
+
+            this.__shellStop = this.$watch(
+                function () { return [self.form.Id, self.form.TemplateId, self.shellVisible]; },
+                function () { if (self.shellVisible && !self.specText) self.shellLoad(); }
+            );
+            if (this.shellVisible) this.shellLoad();
+            this.shellWrapSave();
         },
         beforeUnmount: function () {
             if (this.__tbsStop) { try { this.__tbsStop(); } catch (e) { } this.__tbsStop = null; }
+            if (this.__shellStop) { try { this.__shellStop(); } catch (e) { } this.__shellStop = null; }
         }
     };
     </script>;
@@ -128,4 +241,16 @@
     .pmg-tbs__empty { text-align: center; color: #909399; padding: 16px; }
     .pmg-tbs__shared { margin-top: 10px; }
     .pmg-tbs__shared label { display: block; font-size: 12px; color: #606266; margin-bottom: 4px; }
+
+    .pmg-shell { margin-top: 14px; border: 1px dashed #67c23a; border-radius: 6px; padding: 12px; background: #f5fef5; }
+    .pmg-shell__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+    .pmg-shell__title { font-weight: 600; color: #303133; font-size: 13px; }
+    .pmg-shell__actions { display: flex; align-items: center; gap: 8px; }
+    .pmg-shell__badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+    .pmg-shell__badge.is-ok { background: #f0f9eb; color: #67c23a; border: 1px solid #c2e7b0; }
+    .pmg-shell__badge.is-bad { background: #fef0f0; color: #f56c6c; border: 1px solid #fbc4c4; }
+    .pmg-shell__editor textarea { font-family: Consolas, Menlo, monospace; font-size: 12px; line-height: 1.5; }
+    .pmg-shell__err { margin-top: 6px; font-size: 12px; color: #f56c6c; }
+    .pmg-shell__hint { margin-top: 8px; font-size: 12px; color: #909399; line-height: 1.6; }
+    .pmg-shell__hint code { background: #f4f4f5; padding: 0 4px; border-radius: 3px; color: #c7254e; }
 </style>

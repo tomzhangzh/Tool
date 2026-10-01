@@ -265,12 +265,13 @@ public class PageController : Controller
         ViewData["ShowDesignEntry"] = _config.GetValue<bool>("Dyn:ShowRuntimeDesignEntry");
         var viewPath = string.IsNullOrWhiteSpace(template.ViewPath) ? "~/Views/DynTemplates/CrudBasic.cshtml" : template.ViewPath;
         // 积木化模板（triscreen-blocks 三屏 / filterlist-crud 筛选列表 / tree-detail 树形管理 /
-        // tree-master-detail 布局壳 v1）：模板自行从 ParamsJson 读实例规格 + PageSettingService
-        // 读取相关 PageSetting 并动态拼装根 model（业务 key 由模板决定），直接透传 DynWebPage 实例。
+        // tree-master-detail、list-master-detail 布局壳）：模板自行从 SpecJson/ParamsJson 读实例规格
+        // + PageSettingService 读取相关 PageSetting 并动态拼装根 model（业务 key 由模板决定），直接透传 DynWebPage 实例。
         if (string.Equals(template.Code, "triscreen-blocks", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filterlist-crud", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tree-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tree-master-detail", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "list-master-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);

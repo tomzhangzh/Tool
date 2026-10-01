@@ -153,6 +153,8 @@ CREATE TABLE SysMenu (
         EnsureColumn(conn, "DynTemplate", "ViewPath", "TEXT NULL");
         // DynWebPage 实例扩展视图路径列（页面级扩展：真实 cshtml，具名槽位 + dynconfig-ext 脚本合并）
         EnsureColumn(conn, "DynWebPage", "ExtViewPath", "TEXT NULL");
+        // 布局壳规格列（壳模型 v1.1：spec 与老模板 ParamsJson 分家；旧库幂等补列，空值回退 ParamsJson）
+        EnsureColumn(conn, "DynWebPage", "SpecJson", "TEXT NULL");
         // 页面模板种子 + 页面实例种子（demo：页面设置管理 / 页面实例列表）
         SeedDynTemplates(conn);
         SeedDynWebPages(conn);
@@ -163,6 +165,8 @@ CREATE TABLE SysMenu (
         SeedDynTemplateBlocks(conn);
         // tabs-basic 多页签容器模板（URL 片段驱动，无 Block 槽位；在参数包种子之后注册）
         SeedTabsTemplate(conn);
+        // 布局壳 v1.1：list-master-detail 壳模板 + SysMenu 演示页（spec 存独立列 SpecJson）
+        SeedListMasterDetailShell(conn);
         // 早期手工入库模板的 class 名图标修正为 Emoji（平台图标统一 Emoji 直出）
         SeedBuiltinTemplateIcons(conn);
     }
@@ -524,7 +528,59 @@ UPDATE DynTemplate SET DefaultJson=@def WHERE Code='tabs-basic' AND (DefaultJson
     }
 
     /// <summary>
-    /// 内置模板图标自愈：平台图标统一按 Emoji 文本渲染（各处 {{row.Icon}} 直出，无 iconfont 机制）。
+    /// 布局壳 v1.1 种子（幂等）：
+    /// 1) DynTemplate 增列第二个壳 list-master-detail（顶筛选 + 左列表 + 右明细，spec 驱动）；
+    /// 2) DynWebPage 增演示页：SysMenu 平台表，复用 49/50/51 三屏设置，规格写入【独立列 SpecJson】。
+    /// </summary>
+    private void SeedListMasterDetailShell(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynTemplate") || !TableExists(conn, "DynWebPage")) return;
+
+        var tplDef = "{\"layout\":\"list-master-detail\",\"layoutProps\":{\"leftWidth\":50,\"childFkField\":\"\"},"
+            + "\"provide\":{\"table\":\"\",\"keyField\":\"Id\",\"project\":\"\"},"
+            + "\"slots\":{\"filter\":{\"block\":\"filter\",\"settingId\":null},\"master\":{\"block\":\"list\",\"settingId\":null},"
+            + "\"detail\":{\"block\":\"detail\",\"settingId\":null}}}";
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive)
+SELECT 'list-master-detail','列表主从(壳)','布局壳','🧱','~/Views/DynLayouts/ListMasterDetail.cshtml',@def,NULL,
+'布局壳 v1.1：顶部筛选(可选)+左列表+右明细同屏；spec(SpecJson)声明槽位 Block/PageSetting，默认连线 filter→list→detail；childFkField 支持主子预填。',30,1
+WHERE NOT EXISTS (SELECT 1 FROM DynTemplate WHERE Code='list-master-detail');
+UPDATE DynTemplate SET Name='列表主从(壳)', Category='布局壳', Icon='🧱', ViewPath='~/Views/DynLayouts/ListMasterDetail.cshtml',
+    Description='布局壳 v1.1：顶部筛选(可选)+左列表+右明细同屏；spec(SpecJson)声明槽位 Block/PageSetting，默认连线 filter→list→detail；childFkField 支持主子预填。'
+WHERE Code='list-master-detail';
+UPDATE DynTemplate SET DefaultJson=@def WHERE Code='list-master-detail' AND (DefaultJson IS NULL OR DefaultJson='');";
+            cmd.Parameters.AddWithValue("@def", tplDef);
+            cmd.ExecuteNonQuery();
+        }
+
+        if (!TableExists(conn, "DynWebPage")) return;
+        var spec = "{\"layout\":\"list-master-detail\",\"layoutProps\":{\"leftWidth\":45,\"childFkField\":\"ParentId\"},"
+            + "\"provide\":{\"table\":\"SysMenu\",\"keyField\":\"Id\",\"project\":\"__platform__\"},"
+            + "\"slots\":{\"filter\":{\"block\":\"filter\",\"settingId\":49},\"master\":{\"block\":\"list\",\"settingId\":50},"
+            + "\"detail\":{\"block\":\"detail\",\"settingId\":51}}}";
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+INSERT INTO DynWebPage (Code, Name, TemplateId, ProjectId, ParamsJson, SpecJson, Url, IsActive)
+SELECT 'sysmenu-list-shell-demo','菜单列表主从(壳模型v1.1)',(SELECT Id FROM DynTemplate WHERE Code='list-master-detail'),NULL,NULL,@spec,
+'/Platform/Page/DynWebPage?id=',1
+WHERE NOT EXISTS (SELECT 1 FROM DynWebPage WHERE Code='sysmenu-list-shell-demo');
+UPDATE DynWebPage SET TemplateId=(SELECT Id FROM DynTemplate WHERE Code='list-master-detail'), SpecJson=@spec, IsActive=1
+WHERE Code='sysmenu-list-shell-demo';
+UPDATE DynWebPage SET Url='/Platform/Page/DynWebPage?id=' || Id
+WHERE Code='sysmenu-list-shell-demo';";
+            cmd.Parameters.AddWithValue("@spec", spec);
+            cmd.ExecuteNonQuery();
+        }
+        _logger.LogInformation("[Init] 布局壳 list-master-detail 模板与演示页种子同步完成");
+    }
+
+    /// <summary>
+    /// 内置模板图标自愈：平台图标统一按 Emoji 文本渲染（各处 {{ row.Icon }} 直出，无 iconfont 机制）。
     /// 早期手工入库的 4 个模板写的是 class 名（puzzle/icon-table/icon-edit/icon-tree），界面会显示原始字符串，
     /// 这里按 Code 幂等修正为 Emoji（仅更新仍是旧 class 值的行，不覆盖用户已改的 Emoji）。
     /// </summary>

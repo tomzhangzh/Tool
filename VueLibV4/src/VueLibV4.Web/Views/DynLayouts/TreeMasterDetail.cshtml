@@ -28,7 +28,8 @@
     // =====================================================================================
     Layout = "_Layout";
 
-    var spec = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    // 规格权威字段 = DynWebPage.SpecJson（壳模型 v1.1）；空值回退 ParamsJson（兼容 v1 PAGE 21）
+    var spec = DynPageViewHelper.ParseShellSpec(Model);
     var provide = spec["provide"] as JObject ?? new JObject();
     string Prov(string key, string dft = "")
     {

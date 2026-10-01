@@ -92,6 +92,13 @@ public static class DynPageViewHelper
         catch { return new JObject(); }
     }
 
+    /// <summary>
+    /// 解析布局壳页面规格：SpecJson 为唯一权威字段（壳模型 v1.1）；
+    /// 为空时回退 ParamsJson（兼容 v1 时期把 spec 写在实例参数里的 PAGE 21）。
+    /// </summary>
+    public static JObject ParseShellSpec(VueLibV4.Platform.Models.DynWebPage page)
+        => ParseParams(!string.IsNullOrWhiteSpace(page.SpecJson) ? page.SpecJson : page.ParamsJson);
+
     /// <summary>取某槽位 Block 的保存节点：params.blocks[slot]（无则 null）。</summary>
     public static JObject? SlotBlock(JObject ps, string slot)
         => ps["blocks"]?[slot] as JObject;

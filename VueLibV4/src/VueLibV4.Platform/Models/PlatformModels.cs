@@ -276,6 +276,16 @@ public class DynWebPage
     [SugarColumn(ColumnDataType = "text", IsNullable = true)]
     public string? ParamsJson { get; set; }
 
+    /// <summary>
+    /// 布局壳规格 JSON（壳模型 v1.1）：仅布局壳模板（tree-master-detail / list-master-detail 等）使用，
+    /// 与 ParamsJson 完全分开——ParamsJson 继续承载老模板的扁平实例参数 + blocks 槽位分组。
+    /// 结构：{ layout, layoutProps?, provide:{table,keyField,project?}, slots:{槽:{block,settingId?,model?}},
+    ///        wires?:[], replaceDefaultWires?:false }；壳视图零 URL，数据域只看 provide.project。
+    /// 为空时壳视图回退解析 ParamsJson（兼容壳模型 v1 的 PAGE 21）。
+    /// </summary>
+    [SugarColumn(ColumnDataType = "text", IsNullable = true)]
+    public string? SpecJson { get; set; }
+
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Url { get; set; }
 

@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS DynWebPage (
     TemplateId            INTEGER NULL,
     PageJson              TEXT NULL,
     ParamsJson            TEXT NULL,
+    SpecJson              TEXT NULL,
     Url                   TEXT NULL,
     ExtViewPath           TEXT NULL,
     IsActive              INTEGER NOT NULL DEFAULT 1,
