@@ -155,6 +155,8 @@ CREATE TABLE SysMenu (
         EnsureColumn(conn, "DynWebPage", "ExtViewPath", "TEXT NULL");
         // 布局壳规格列（壳模型 v1.1：spec 与老模板 ParamsJson 分家；旧库幂等补列，空值回退 ParamsJson）
         EnsureColumn(conn, "DynWebPage", "SpecJson", "TEXT NULL");
+        // 表结构显示名字典（PageGen 中文名来源）：旧库幂等建表 + 通用列名层种子
+        EnsureSchemaLabelTable(conn);
         // 页面模板种子 + 页面实例种子（demo：页面设置管理 / 页面实例列表）
         SeedDynTemplates(conn);
         SeedDynWebPages(conn);
@@ -218,6 +220,64 @@ CREATE TABLE DynTemplateBlock (
             idx.ExecuteNonQuery();
             _logger.LogInformation("[Init] 迁移：新建表 DynTemplateBlock");
         }
+    }
+
+    /// <summary>
+    /// DynSchemaLabel 建表（旧库迁移；新库 platform.sql 已含）+ 通用列名层种子。
+    /// 通用层 ProjectId=0/TableName=''，只补不删（用户自定义通用词不覆盖：WHERE NOT EXISTS）。
+    /// </summary>
+    private void EnsureSchemaLabelTable(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynSchemaLabel"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE DynSchemaLabel (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProjectId   INTEGER NOT NULL DEFAULT 0,
+    TableName   TEXT NOT NULL DEFAULT '',
+    ColumnName  TEXT NOT NULL DEFAULT '',
+    Label       TEXT NOT NULL,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UpdateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX UX_DynSchemaLabel_Key ON DynSchemaLabel(ProjectId, TableName, ColumnName);";
+            create.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 DynSchemaLabel");
+        }
+
+        // 通用列名层（覆盖最常见的 PascalCase 平台/业务字段；PageGen 未命中表层时回退到此）
+        var common = new (string Col, string Label)[]
+        {
+            ("Id","编号"), ("Code","编码"), ("Name","名称"), ("Title","标题"), ("Remark","备注"),
+            ("Description","描述"), ("Content","内容"), ("Icon","图标"), ("Url","链接"), ("SortNo","排序"),
+            ("Sort","排序"), ("OrderNo","序号"), ("Status","状态"), ("State","状态"), ("Type","类型"),
+            ("Category","分类"), ("ParentId","上级Id"), ("ProjectId","项目Id"), ("TemplateId","模板Id"),
+            ("SettingId","设置Id"), ("UserId","用户Id"), ("UserName","用户名"), ("NickName","昵称"),
+            ("Account","账号"), ("Password","密码"), ("Phone","电话"), ("Mobile","手机号"), ("Email","邮箱"),
+            ("Address","地址"), ("Gender","性别"), ("Age","年龄"), ("Birthday","生日"),
+            ("ClassName","班级"), ("Score","分数"), ("Grade","年级"),
+            ("IsActive","启用"), ("IsDefault","默认"), ("IsDeleted","已删除"), ("IsSystem","系统内置"),
+            ("CreateTime","创建时间"), ("UpdateTime","更新时间"), ("CreateText","创建时间"),
+            ("CreateBy","创建人"), ("UpdateBy","更新人"), ("ExtJson","扩展配置"), ("RemarkText","备注")
+        };
+        using var cmd = conn.CreateCommand();
+        for (var i = 0; i < common.Length; i++)
+        {
+            cmd.Parameters.AddWithValue("@c" + i, common[i].Col);
+            cmd.Parameters.AddWithValue("@l" + i, common[i].Label);
+        }
+        // 每条独立 WHERE NOT EXISTS + 唯一索引双保险，重复启动幂等
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < common.Length; i++)
+        {
+            sb.Append("INSERT INTO DynSchemaLabel (ProjectId,TableName,ColumnName,Label) ")
+              .Append("SELECT 0,'',@c").Append(i).Append(",@l").Append(i)
+              .Append(" WHERE NOT EXISTS(SELECT 1 FROM DynSchemaLabel WHERE ProjectId=0 AND TableName='' AND ColumnName=@c")
+              .Append(i).Append(");");
+        }
+        cmd.CommandText = sb.ToString();
+        cmd.ExecuteNonQuery();
     }
 
     /// <summary>SysMenu 初始种子（幂等：仅当表为空时插入根菜单与示例子菜单）</summary>

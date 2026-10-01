@@ -51,7 +51,7 @@ public interface IPageGenService : IScopeDependency
     /// 读取表字段元数据 + 按同一套规则推断「推荐控件」，供页面生成向导【第二步：配置字段】预填充控件下拉。
     /// 与 Generate 共用 BuildColumns 推断逻辑，保证「第二步预览」与「最终生成」控件推断一致。
     /// </summary>
-    List<GenFieldMeta> GetTableFieldMeta(string table);
+    List<GenFieldMeta> GetTableFieldMeta(string table, string? project = null);
 }
 
 /// <summary>页面生成成功后的返回数据（Controller 转为 ApiResult.Ok 返回前端）</summary>
@@ -110,6 +110,7 @@ public class PageGenService : IPageGenService
     private readonly IPageSettingService _settings;
     private readonly IConfiguration _config;
     private readonly IDynPageExtService? _pageExt;
+    private readonly IDynSchemaLabelService? _schemaLabels;
 
     public PageGenService(
         IDynProjectService projects,
@@ -117,7 +118,8 @@ public class PageGenService : IPageGenService
         IDynWebPageService pages,
         IPageSettingService settings,
         IConfiguration config,
-        IDynPageExtService? pageExt = null)
+        IDynPageExtService? pageExt = null,
+        IDynSchemaLabelService? schemaLabels = null)
     {
         _projects = projects;
         _templates = templates;
@@ -125,6 +127,22 @@ public class PageGenService : IPageGenService
         _settings = settings;
         _config = config;
         _pageExt = pageExt;
+        _schemaLabels = schemaLabels;
+    }
+
+    /// <summary>
+    /// 把显示名字典应用到推断列：表字段层 → 通用列名层（服务内部回退）→ 保留 NiceLabel 英文拆词。
+    /// project 为坐标字符串/Id（"__platform__" / "Platform" / "2" / 业务项目 code）。
+    /// </summary>
+    private void ApplySchemaLabels(List<GenColumn> columns, string table, string? project)
+    {
+        if (_schemaLabels == null || columns.Count == 0) return;
+        var pid = ResolveProjectId(project ?? "");
+        if (pid == null) return; // 解析不到项目（未选项目且平台项目缺失）时退回英文，不猜
+        var labels = _schemaLabels.ResolveLabels(pid.Value, table, columns.Select(c => c.Name));
+        if (labels.Count == 0) return;
+        foreach (var c in columns)
+            if (labels.TryGetValue(c.Name, out var lb) && !string.IsNullOrWhiteSpace(lb)) c.Label = lb;
     }
 
     /// <summary>执行生成（Controller 只做路由与 ApiResult 封装，业务规则全在此）。</summary>
@@ -196,6 +214,24 @@ public class PageGenService : IPageGenService
         {
             try { projectId = _projects.Query(x => x.Code == "Platform").First()?.Id; } catch { }
             if (projectId == null) { try { projectId = _projects.Query(x => true).First()?.Id; } catch { } }
+        }
+
+        // 显示名字典：表字段层 → 通用列名层 → NiceLabel 英文（在用户覆盖之前应用，向导里改过的 label 已在上方覆盖进来）
+        ApplySchemaLabels(columns, table, project);
+
+        // 回写（默认开启，前端 rememberLabels=false 可关）：只写表字段层，且只回写最终选用字段的最终 label。
+        // 护栏在服务层：projectId<=0/表名为空一律跳过，通用层永不被写。
+        var rememberLabels = req["rememberLabels"]?.Type != JTokenType.Boolean || (bool)req["rememberLabels"]!;
+        if (rememberLabels && projectId != null)
+        {
+            try
+            {
+                var toSave = fields
+                    .Where(f => !string.IsNullOrWhiteSpace(f.Label))
+                    .ToDictionary(f => f.Name, f => f.Label!);
+                _schemaLabels?.UpsertTableLabels(projectId.Value, table, toSave);
+            }
+            catch (Exception ex) { System.Console.WriteLine("[PageGen] 字典回写跳过：" + ex.Message); }
         }
 
         // ---------- 生成三屏（ConfigJson=UI 渲染树 / DefaultJson=model 骨架） ----------
@@ -371,12 +407,14 @@ public class PageGenService : IPageGenService
     /// 读取表字段元数据，并按与 Generate 相同的 BuildColumns 规则推断推荐控件。
     /// 供页面生成向导【第二步：配置字段】预填充控件下拉框；用户可手动覆盖后回传 Generate。
     /// </summary>
-    public List<GenFieldMeta> GetTableFieldMeta(string table)
+    public List<GenFieldMeta> GetTableFieldMeta(string table, string? project = null)
     {
         var schema = ReadTableSchema(table);
         if (schema.Count == 0) return new List<GenFieldMeta>();
         // 字典映射此处不涉及（向导第二步用户还没配置字典），先用空字典走智能分类
         var columns = BuildColumns(schema, new Dictionary<string, string>());
+        // 显示名字典（表层→通用层→英文）：让向导第二步直接预填中文名
+        ApplySchemaLabels(columns, table, project);
         return columns.Select(c => new GenFieldMeta
         {
             FieldName = c.Name,

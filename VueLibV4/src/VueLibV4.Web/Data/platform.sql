@@ -140,6 +140,20 @@ CREATE TABLE IF NOT EXISTS DynWebPage (
     ExtJson               TEXT NULL
 );
 
+-- ---------------- 8a2. 表结构显示名字典（PageGen 中文名来源；两层作用域） ----------------
+-- ProjectId=0 + TableName='' 为通用列名层（种子只读）；否则为表字段层（PageGen 自动回写，只写此层）。
+-- 键段 NOT NULL 默认 ''/0，避免 SQLite 多 NULL 导致唯一约束失效。
+CREATE TABLE IF NOT EXISTS DynSchemaLabel (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProjectId   INTEGER NOT NULL DEFAULT 0,
+    TableName   TEXT NOT NULL DEFAULT '',
+    ColumnName  TEXT NOT NULL DEFAULT '',
+    Label       TEXT NOT NULL,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UpdateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS UX_DynSchemaLabel_Key ON DynSchemaLabel(ProjectId, TableName, ColumnName);
+
 -- ---------------- 8b. 三屏页面设置（筛选/列表/详情） ----------------
 CREATE TABLE IF NOT EXISTS PageSetting (
     Id              INTEGER PRIMARY KEY AUTOINCREMENT,

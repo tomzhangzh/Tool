@@ -177,3 +177,96 @@ public class DynComService : SugarService<DynCom>, IDynComService
 {
     public DynComService(ISqlSugarClient db) : base(db) { }
 }
+
+// ============ 表结构显示名字典（PageGen 中文名来源） ============
+
+public interface IDynSchemaLabelService : ISugarService<DynSchemaLabel>, IScopeDependency
+{
+    /// <summary>
+    /// 批量解析列显示名：表字段层（ProjectId+TableName+ColumnName）优先，
+    /// 未命中回退通用列名层（ProjectId=0,TableName=''）；都没有则不进返回字典，由调用方英文拆词兜底。
+    /// 返回 key = 列名（忽略大小写），value = 显示名。
+    /// </summary>
+    Dictionary<string, string> ResolveLabels(int projectId, string table, IEnumerable<string> columns);
+
+    /// <summary>表整体显示名（ProjectId+TableName+ColumnName=''），无则 null。</summary>
+    string? ResolveTableLabel(int projectId, string table);
+
+    /// <summary>
+    /// 幂等回写【表字段层】显示名（PageGen 自动回写的唯一入口）。
+    /// 纪律：projectId&lt;=0 或表名/列名为空直接跳过——永远不写通用层，避免一次生成污染跨项目通用词。
+    /// 键已存在则更新 Label。
+    /// </summary>
+    void UpsertTableLabels(int projectId, string table, IReadOnlyDictionary<string, string> labels);
+}
+
+public class DynSchemaLabelService : SugarService<DynSchemaLabel>, IDynSchemaLabelService
+{
+    public DynSchemaLabelService(ISqlSugarClient db) : base(db) { }
+
+    public Dictionary<string, string> ResolveLabels(int projectId, string table, IEnumerable<string> columns)
+    {
+        var wanted = columns.Where(c => !string.IsNullOrWhiteSpace(c))
+                            .Select(c => c.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (wanted.Count == 0) return result;
+
+        // 表字段层
+        if (projectId > 0 && !string.IsNullOrWhiteSpace(table))
+        {
+            var rows = Query(x => x.ProjectId == projectId && x.TableName == table && x.ColumnName != "");
+            foreach (var r in rows)
+                if (wanted.Contains(r.ColumnName) && !string.IsNullOrWhiteSpace(r.Label))
+                    result[r.ColumnName] = r.Label;
+        }
+        // 通用列名层（仅补表字段层未命中的）
+        var missing = wanted.Where(w => !result.ContainsKey(w)).ToList();
+        if (missing.Count > 0)
+        {
+            var common = Query(x => x.ProjectId == 0 && x.TableName == "");
+            foreach (var r in common)
+                if (missing.Contains(r.ColumnName, StringComparer.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(r.Label))
+                    result[r.ColumnName] = r.Label;
+        }
+        return result;
+    }
+
+    public string? ResolveTableLabel(int projectId, string table)
+    {
+        if (projectId <= 0 || string.IsNullOrWhiteSpace(table)) return null;
+        return Query(x => x.ProjectId == projectId && x.TableName == table && x.ColumnName == "")
+            .First()?.Label;
+    }
+
+    public void UpsertTableLabels(int projectId, string table, IReadOnlyDictionary<string, string> labels)
+    {
+        // 硬性护栏：只写表字段层
+        if (projectId <= 0 || string.IsNullOrWhiteSpace(table) || labels == null || labels.Count == 0) return;
+
+        var existing = Query(x => x.ProjectId == projectId && x.TableName == table && x.ColumnName != "");
+        var map = new Dictionary<string, DynSchemaLabel>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in existing) map[e.ColumnName] = e;
+
+        var now = DateTime.Now;
+        foreach (var kv in labels)
+        {
+            var col = kv.Key?.Trim() ?? "";
+            var label = kv.Value?.Trim() ?? "";
+            if (col.Length == 0 || label.Length == 0) continue;
+            if (map.TryGetValue(col, out var row))
+            {
+                if (row.Label == label) continue;
+                row.Label = label; row.UpdateTime = now;
+                Update(row);
+            }
+            else
+            {
+                Insert(new DynSchemaLabel
+                {
+                    ProjectId = projectId, TableName = table.Trim(), ColumnName = col,
+                    Label = label, CreateTime = now, UpdateTime = now
+                });
+            }
+        }
+    }
+}

@@ -33,12 +33,12 @@ public class PageGenController : ControllerBase
 
     /// <summary>
     /// 读取表字段元数据 + 按规则推断推荐控件，供向导【第二步：配置字段】预填充控件下拉。
-    /// 用法：GET /api/business/pagegen/fields?table=Order
+    /// 用法：GET /api/business/pagegen/fields?table=Order&project=__platform__
     /// </summary>
     [HttpGet("fields")]
-    public ApiResult Fields(string table)
+    public ApiResult Fields(string table, string? project = null)
     {
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少表名");
-        return ApiResult.Ok(_pageGen.GetTableFieldMeta(table));
+        return ApiResult.Ok(_pageGen.GetTableFieldMeta(table, project));
     }
 }

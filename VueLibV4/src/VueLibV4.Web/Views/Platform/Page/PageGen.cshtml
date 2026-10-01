@@ -96,6 +96,11 @@
                     </el-select>
                 </el-form-item>
                 <el-form-item>
+                    <el-checkbox v-model="form.rememberLabels" title="把本次确认的字段显示名记到【本表】字典（不写跨表通用词）；下次为同一张表生成页面时自动预填">
+                        记住字段名到本表字典
+                    </el-checkbox>
+                </el-form-item>
+                <el-form-item>
                     <el-button type="primary" :loading="generating" @@click="generate">生成三屏页面</el-button>
                 </el-form-item>
             </el-form>
@@ -113,11 +118,8 @@
 @section Scripts {
 <script>
     DynLib.ready(function () {
-        // 字段中文名兜底提示（可在表格中手工修改）
-        var LABEL_HINTS = {
-            Id: '编号', Name: '姓名', Gender: '性别', Age: '年龄', ClassName: '班级',
-            Score: '成绩', Phone: '电话', Address: '地址', CreateText: '创建时间'
-        };
+        // 字段中文名由后端 DynSchemaLabel 字典统一提供（表字段层 → 通用列名层 → 英文拆词），
+        // 用户在向导里改过的名字在生成时按"记住字段名"勾选回写到本表字典。
         var DICT_HINTS = { Gender: 'gender', ClassName: 'classname' };
 
         var app = Vue.createApp({
@@ -128,7 +130,7 @@
                     fields: [],
                     loadingCols: false,
                     generating: false,
-                    form: { project: '', table: '', code: '', name: '', layout: '' }
+                    form: { project: '', table: '', code: '', name: '', layout: '', rememberLabels: true }
                 };
             },
             mounted: function () {
@@ -164,7 +166,8 @@
                     if (!self.form.name) self.form.name = self.form.table + '管理';
                     // 字段元数据 + 推荐控件由后端 PageGenService 统一推断（GetTableFieldMeta），
                     // 保证第二步预填的控件/屏归属与最终生成完全一致；用户可手动修改覆盖。
-                    var url = '/api/business/pagegen/fields?table=' + encodeURIComponent(self.form.table);
+                    var url = '/api/business/pagegen/fields?table=' + encodeURIComponent(self.form.table)
+                        + (self.form.project ? '&project=' + encodeURIComponent(self.form.project) : '');
                     fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
                         if (res && res.code === 0) {
                             var metas = res.data || [];
@@ -176,7 +179,7 @@
                                     name: name,
                                     dataType: dt,
                                     isPk: isPk,
-                                    label: LABEL_HINTS[name] || m.Label || name,
+                                    label: m.Label || name,
                                     inFilter: m.InFilter === true,
                                     inList: m.InList !== false,
                                     inDetail: m.InDetail !== false,
@@ -200,6 +203,7 @@
                     var pkField = (self.fields.find(function (f) { return f.isPk; }) || {}).name || 'Id';
                     var payload = {
                         project: self.form.project || null,
+                        rememberLabels: self.form.rememberLabels !== false,
                         layout: self.form.layout || '',
                         table: self.form.table,
                         pk: pkField,

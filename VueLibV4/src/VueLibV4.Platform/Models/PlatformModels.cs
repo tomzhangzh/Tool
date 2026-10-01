@@ -306,6 +306,42 @@ public class DynWebPage
 }
 
 /// <summary>
+/// 表结构显示名字典（PageGen 中文名来源）：记录"表/字段本身叫什么"（语言中立的显示名 Label，
+/// 不命名为 ChineseName）。与 DynDict 职责不同——DynDict 是"字段的可选值枚举"，本表是"字段叫什么"。
+/// 两层作用域（唯一键 UX(ProjectId,TableName,ColumnName)，键段统一 NOT NULL 默认 ''/0，
+/// 避免 SQLite 多 NULL  distinct 导致唯一约束失效）：
+///   ① 通用列名层：ProjectId=0, TableName='', ColumnName=列名（Id/Name/CreateTime… 跨项目共享，种子只读）
+///   ② 表字段层：  ProjectId=项目Id, TableName=表名, ColumnName=列名（Name 在 Student 表=姓名、在 Class 表=班级名）
+///   表显示名行：  ColumnName=''（某表整体的显示名，可选）
+/// 取值回退链：表字段层 → 通用列名层 → 调用方英文拆词。
+/// 回写纪律：PageGen 自动回写【只写表字段层】（ProjectId&gt;0 且 TableName 非空），通用层只能靠种子/维护变更。
+/// </summary>
+[SugarTable("DynSchemaLabel")]
+public class DynSchemaLabel
+{
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+    public int Id { get; set; }
+
+    /// <summary>项目 Id；0 = 通用层（不区分项目）</summary>
+    public int ProjectId { get; set; } = 0;
+
+    /// <summary>表名；'' = 通用列名层记录</summary>
+    [SugarColumn(Length = 128, IsNullable = false)]
+    public string TableName { get; set; } = string.Empty;
+
+    /// <summary>列名；'' = 表整体显示名记录</summary>
+    [SugarColumn(Length = 128, IsNullable = false)]
+    public string ColumnName { get; set; } = string.Empty;
+
+    /// <summary>显示名（语言中立；当前填中文）</summary>
+    [SugarColumn(Length = 100, IsNullable = false)]
+    public string Label { get; set; } = string.Empty;
+
+    public DateTime CreateTime { get; set; } = DateTime.Now;
+    public DateTime UpdateTime { get; set; } = DateTime.Now;
+}
+
+/// <summary>
 /// 三屏页面设置（M4）：一条记录对应“筛选区 / 列表区 / 详情区”之一的组件配置树（ConfigJson）。
 /// DynWebPage 通过实例参数 ConfigJson 中的 Filter/List/DetailPageSettingId 绑定三屏，由模板 View 渲染。
 /// </summary>
