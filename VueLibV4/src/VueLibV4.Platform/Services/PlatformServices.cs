@@ -247,20 +247,29 @@ public class DynSchemaLabelService : SugarService<DynSchemaLabel>, IDynSchemaLab
         var map = new Dictionary<string, DynSchemaLabel>(StringComparer.OrdinalIgnoreCase);
         foreach (var e in existing) map[e.ColumnName] = e;
 
+        // 通用列名层：表层只存"与通用层不同的差异"。值与通用层一致时不新增；
+        // 历史已写入的冗余行顺手清掉（同值表层记录无信息量）。
+        var common = Query(x => x.ProjectId == 0 && x.TableName == "").ToList()
+            .ToDictionary(x => x.ColumnName, x => x.Label, StringComparer.OrdinalIgnoreCase);
+
         var now = DateTime.Now;
         foreach (var kv in labels)
         {
             var col = kv.Key?.Trim() ?? "";
             var label = kv.Value?.Trim() ?? "";
             if (col.Length == 0 || label.Length == 0) continue;
+            var sameAsCommon = common.TryGetValue(col, out var cl) && cl == label;
+
             if (map.TryGetValue(col, out var row))
             {
+                if (sameAsCommon) { Delete(row); continue; }   // 与通用层同值 → 去冗余
                 if (row.Label == label) continue;
                 row.Label = label; row.UpdateTime = now;
                 Update(row);
             }
             else
             {
+                if (sameAsCommon) continue;                    // 与通用层同值 → 不复制
                 Insert(new DynSchemaLabel
                 {
                     ProjectId = projectId, TableName = table.Trim(), ColumnName = col,
