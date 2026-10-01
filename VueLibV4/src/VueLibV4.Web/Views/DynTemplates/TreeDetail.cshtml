@@ -33,13 +33,14 @@
     var titleField = Top(ps, "TitleField") ?? "Name";
     var iconField = Top(ps, "IconField") ?? "Icon";
     var sortField = Top(ps, "SortField") ?? "SortNo";
-    var project = Model.ProjectId?.ToString() ?? "";
-    var loadUrl = DynPageViewHelper.UrlOr(Top(ps, "ListUrl"), DynPageViewHelper.BizSearch);
+    // 数据域坐标：实例参数 Project 显式声明优先（平台库="__platform__"），否则用页面 ProjectId
+    var project = ps["Project"]?.ToString() ?? Model.ProjectId?.ToString() ?? "";
+    var loadUrl = DynPageViewHelper.UrlOr(Top(ps, "ListUrl"), DynPageViewHelper.SearchUrl);
     // 树拖拽排序保存接口走模板自身参数；右侧 DetailApp 的接口走 detail 槽位（旧扁平 AddUrl/EditUrl/DeleteUrl 同键回退）
-    var treeEditUrl = DynPageViewHelper.UrlOr(Top(ps, "EditUrl"), DynPageViewHelper.BizUpdate);
-    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.BizInsert);
-    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.BizUpdate);
-    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
+    var treeEditUrl = DynPageViewHelper.UrlOr(Top(ps, "EditUrl"), DynPageViewHelper.SaveUrl);
+    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.SaveUrl);
+    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.SaveUrl);
+    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
     var leftWidth = int.TryParse(Top(ps, "LeftWidth") ?? "30", out int lw) ? lw : 30;
     static bool ParseBool(string v)
     {
@@ -114,8 +115,8 @@
                         titleField: tp.titleField || 'Name',
                         iconField: tp.iconField || 'Icon',
                         sortField: tp.sortField || 'SortNo',
-                        loadUrl: tp.loadUrl || '/api/business/dyndata/search',
-                        editUrl: tp.editUrl || '/api/business/dyndata/update',
+                        loadUrl: tp.loadUrl || '/api/dyndata/search',
+                        editUrl: tp.editUrl || '/api/dyndata/save',
                         project: tp.project || '',
                         enableDrag: tp.enableDrag === true || tp.enableDrag === 'true',
                         dragSameLevelOnly: tp.dragSameLevelOnly === true || tp.dragSameLevelOnly === 'true',
@@ -311,8 +312,6 @@
                         var keys = Object.keys(updates);
                         if (!keys.length) { this.loadTree(); return; }
                         var currentParent = this.buildParentMap();
-                        var saveStyle = DynBlocks.apiStyle(self.editUrl);
-                        var saveUrl = DynBlocks.saveUrl(saveStyle, self.editUrl, self.tableName, true);
                         var tasks = keys.map(function (k) {
                             var u = updates[k];
                             var oldParent = currentParent[k] != null ? currentParent[k] : '';
@@ -321,10 +320,7 @@
                             flat[self.keyField] = u.key;
                             flat[self.sortField] = Number(u.sortNo);
                             if (parentChanged) flat[self.parentField] = u.parent || null;
-                            return {
-                                url: saveUrl,
-                                body: DynBlocks.savePayload(saveStyle, self.tableName, flat, self.project)
-                            };
+                            return DynBlocks.saveRequest(self.editUrl, self.tableName, flat, self.project);
                         });
                         // 串行提交：SQLite 并发写会 database is locked
                         var chain = Promise.resolve();

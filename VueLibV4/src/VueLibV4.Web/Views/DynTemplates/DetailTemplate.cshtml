@@ -60,7 +60,8 @@
                     form: Object.assign({}, JSON.parse(JSON.stringify(initForm)), prefill),
                     formError: '',
                     loading: false,
-                    apiDb: shared.Db || 'platform'
+                    // 统一端点数据域：__platform__=平台库（默认），空=默认业务库，或项目 Code/Id
+                    project: shared.Project || '__platform__'
                 };
             },
             methods: {
@@ -82,8 +83,10 @@
                 load: function () {
                     var self = this;
                     if (!this.bizId) return;
-                    var url = this.apiDb === 'business' ? '/api/business/dyndata/search' : '/api/platform/dyndata/search';
-                    this.httpRequest(url, 'POST', { table: this.table, page: 1, size: 1, filter: { Id: { op: 'eq', value: this.bizId } } })
+                    // 唯一数据端点：数据域由 body.project 决定
+                    this.httpRequest('/api/dyndata/search', 'POST',
+                        { table: this.table, page: 1, size: 1, project: this.project,
+                          filter: { Id: { op: 'eq', value: this.bizId } } })
                         .then(function (res) {
                             if (res.code !== 0 || !res.data || !res.data.rows || !res.data.rows.length) return;
                             var row = res.data.rows[0];
@@ -141,10 +144,9 @@
                     }
                     this.loading = true;
                     var isEdit = this.bizId > 0;
-                    var dbUrl = '/api/' + (this.apiDb === 'business' ? 'business' : 'platform') + '/dyndata/';
-                    var req;
-                    // 平台/业务统一契约：POST {db}/dyndata/save，body 同形 {table,data}（服务端按主键自动增/改）
-                    req = this.httpRequest(dbUrl + 'save', 'POST', { table: this.table, data: this.form });
+                    // 唯一数据端点：POST /api/dyndata/save，body {table,data,project}（服务端按主键自动增/改）
+                    var req = this.httpRequest('/api/dyndata/save', 'POST',
+                        { table: this.table, data: this.form, project: this.project });
                     req.then(function (res) {
                         self.loading = false;
                         if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }

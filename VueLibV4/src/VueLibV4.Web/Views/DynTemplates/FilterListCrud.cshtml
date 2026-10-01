@@ -24,9 +24,10 @@
 
     var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
     var tableName = ps["TableName"]?.ToString() ?? "";
-    var loadUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "loadUrl", "ListUrl"), DynPageViewHelper.BizSearch);
-    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
-    var project = Model.ProjectId?.ToString() ?? "";
+    var loadUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "loadUrl", "ListUrl"), DynPageViewHelper.SearchUrl);
+    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
+    // 数据域坐标：实例参数 ParamsJson.Project 显式声明优先（平台库="__platform__"），否则用页面 ProjectId
+    var project = ps["Project"]?.ToString() ?? Model.ProjectId?.ToString() ?? "";
     var modalPageId = ps["ModalPageId"]?.ToString() ?? "";
     var childFkField = ps["ChildFkField"]?.ToString() ?? "";
     var keyField = ps["KeyField"]?.ToString() ?? "Id";

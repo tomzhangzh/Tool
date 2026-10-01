@@ -13,6 +13,17 @@
     'use strict';
     var DynBlocks = global.DynBlocks = global.DynBlocks || {};
 
+    // ---------------- Block 端口契约（静态声明） ----------------
+    // 布局壳 wire 运行时（dyn-layout-engine）据此在挂载时校验连线：
+    // 连到不存在的事件/命令立即 console.error + 进浮层，而不是等用户点了没反应。
+    // 新增 Block 时必须在此登记端口，否则壳页面 spec.wires 引用它会被判为未声明端口。
+    DynBlocks.CONTRACTS = {
+        filter: { commands: ['submit'], events: ['changed'] },
+        list:   { commands: ['loadData', 'reload'], events: ['add', 'edit', 'addChild'] },
+        detail: { commands: ['newForm', 'editForm'], events: ['saved', 'cancel'] },
+        tree:   { commands: ['reload'], events: ['nodeClick', 'addRoot', 'addChild'] }
+    };
+
     // ---------------- 小工具 ----------------
 
     // 读取元素上的 JSON 属性，失败/无值返回 null
@@ -21,75 +32,52 @@
         catch (e) { return null; }
     };
 
-    // ---------------- 数据 API：平台直连 vs 业务库，契约统一一处 ----------------
-
+    // ---------------- 数据 API：全系统唯一一套端点，数据域只由 project 坐标决定 ----------------
+    //   /api/dyndata/{search,save,insert,update,delete,get}
+    //   project 缺省                 → 默认业务库 BusinessDb
+    //   project="__platform__"       → 平台元数据库 PlatformDb
+    //   project=DynProject.Code/Id   → 项目独立库
+    // Block 不再需要知道/配置任何 URL：无配置时全部走下面的缺省；configuredUrl 参数仅为
+    // 将来“单个 Block 指向自定义处理器”保留，正常页面规格里不应该出现任何 *Url。
     DynBlocks.URLS = {
-        bizSearch: '/api/business/dyndata/search',
-        bizSave: '/api/business/dyndata/save',
-        bizInsert: '/api/business/dyndata/insert',
-        bizUpdate: '/api/business/dyndata/update',
-        bizDelete: '/api/business/dyndata/delete',
-        bizGet: '/api/business/dyndata/get',
-        platSearch: '/api/platform/dyndata/search',
-        platSave: '/api/platform/dyndata/save',
-        platDelete: '/api/platform/dyndata/delete',
-        platGet: '/api/platform/dyndata/get'
+        search: '/api/dyndata/search',
+        save: '/api/dyndata/save',
+        insert: '/api/dyndata/insert',
+        update: '/api/dyndata/update',
+        delete: '/api/dyndata/delete',
+        get: '/api/dyndata/get'
     };
 
-    // /api/platform/ 前缀 → 平台库（固定 PlatformDb，project 被忽略）；其余按业务库（body.project 切库）。
-    // 两端点请求/响应【完全同形】：save body={table,data,project?}；delete body={table,keys,project?}。
-    DynBlocks.apiStyle = function (url) {
-        return (url || '').indexOf('/api/platform/') === 0 ? 'platform' : 'business';
-    };
+    // 平台库数据域坐标（与后端 ProjectDbResolver.PlatformProjectKey 对应）
+    DynBlocks.PLATFORM_PROJECT = '__platform__';
 
-    // 列表查询：两种风格 POST body 同构 {table,page,size,filter,sort,project}
+    // 列表查询：POST body {table,page,size,filter,sort?,project?}
     DynBlocks.search = function (url, payload, scopeEl) {
-        return global.DynCall.post(url, payload || {}, scopeEl ? { scopeEl: scopeEl } : undefined);
+        return global.DynCall.post(url || DynBlocks.URLS.search, payload || {},
+            scopeEl ? { scopeEl: scopeEl } : undefined);
     };
 
-    // 明细 GET 地址：平台 /api/platform/dyndata/get?table=&id=；业务多 project
-    DynBlocks.getUrl = function (configuredOrStyleBase, table, id, project) {
-        var style = DynBlocks.apiStyle(configuredOrStyleBase);
-        var base = style === 'platform' ? DynBlocks.URLS.platGet : DynBlocks.URLS.bizGet;
-        var q = 'table=' + encodeURIComponent(table) + '&id=' + encodeURIComponent(id);
-        if (style !== 'platform') q += '&project=' + encodeURIComponent(project || '');
-        return base + '?' + q;
+    // 单行 GET 地址：/api/dyndata/get?table=&id=&project=
+    DynBlocks.getUrl = function (table, id, project) {
+        return DynBlocks.URLS.get
+            + '?table=' + encodeURIComponent(table)
+            + '&id=' + encodeURIComponent(id)
+            + '&project=' + encodeURIComponent(project || '');
     };
 
-    // 剥掉 URL 上旧契约残留的 table=/id= query（统一后端只认 body.table / body.keys），保留其余参数
-    function stripLegacyQuery(u) {
-        var qi = u.indexOf('?');
-        if (qi < 0) return u;
-        var kept = [];
-        u.slice(qi + 1).split('&').forEach(function (pair) {
-            var key = pair.split('=')[0];
-            if (key && key !== 'table' && key !== 'id') kept.push(pair);
-        });
-        return kept.length ? u.slice(0, qi) + '?' + kept.join('&') : u.slice(0, qi);
-    }
-
-    // 保存 body【统一契约】：平台/业务完全同形 {table,data,project?}
-    DynBlocks.savePayload = function (style, table, form, project) {
-        return { table: table, data: form, project: project };
+    // 保存请求：POST {table,data,project?}（服务端按主键自动判别增/改）
+    DynBlocks.saveRequest = function (configuredUrl, table, data, project) {
+        return { url: configuredUrl || DynBlocks.URLS.save, body: { table: table, data: data, project: project } };
     };
 
-    // 保存 URL【统一契约】：平台与业务都走各自的 save 端点（服务端按主键自动判别增/改），
-    // 不再区分 insert/update、不再拼 query table。configuredUrl 优先（空则用缺省端点）。
-    DynBlocks.saveUrl = function (style, configuredUrl, table, isEdit) {
-        if (configuredUrl) {
-            // 防御：历史配置可能残留 ?table=X 旧形态；统一端点从 body.table 取值，剥掉旧 query
-            return stripLegacyQuery(configuredUrl);
-        }
-        return style === 'platform' ? DynBlocks.URLS.platSave : DynBlocks.URLS.bizSave;
-    };
-
-    // 删除请求【统一契约】：平台/业务同形 body {table,keys:{Id},project?}，无 query 表名/主键
-    DynBlocks.deleteRequest = function (deleteUrl, table, id, keyField, project) {
-        var style = DynBlocks.apiStyle(deleteUrl);
+    // 删除请求：POST {table,keys:{Id:...},project?}
+    DynBlocks.deleteRequest = function (configuredUrl, table, id, keyField, project) {
         var keys = {};
         keys[keyField || 'Id'] = id;
-        var url = deleteUrl || (style === 'platform' ? DynBlocks.URLS.platDelete : DynBlocks.URLS.bizDelete);
-        return { url: stripLegacyQuery(url), body: { table: table, keys: keys, project: project } };
+        return {
+            url: configuredUrl || DynBlocks.URLS.delete,
+            body: { table: table, keys: keys, project: project }
+        };
     };
 
     // ---------------- Block 实例句柄（独立 app 协作契约） ----------------

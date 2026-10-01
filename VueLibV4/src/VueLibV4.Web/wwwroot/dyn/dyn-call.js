@@ -9,7 +9,7 @@
  *
  * 供模板 / 积木(Block) / 动作助手(defineAction) 统一调用，替代各处手写 axios/fetch。
  * 用法示例：
- *   DynCall.post('/api/business/dyndata/search', {table,page,size,filter}, {scopeEl, silent})
+ *   DynCall.post('/api/dyndata/search', {table,page,size,filter,project}, {scopeEl, silent})
  *     .then(data=>{ ... }).catch(err=>{ ... });            // data 已是信封解包后的 data
  */
 (function (global) {

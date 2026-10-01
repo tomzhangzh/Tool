@@ -264,12 +264,13 @@ public class PageController : Controller
         // 运行时右上角「进入设计器」入口：由配置 Dyn:ShowRuntimeDesignEntry 控制显隐（无认证时以此充当"管理员可见"开关）
         ViewData["ShowDesignEntry"] = _config.GetValue<bool>("Dyn:ShowRuntimeDesignEntry");
         var viewPath = string.IsNullOrWhiteSpace(template.ViewPath) ? "~/Views/DynTemplates/CrudBasic.cshtml" : template.ViewPath;
-        // 积木化模板（triscreen-blocks 三屏 / filterlist-crud 筛选列表 / tree-detail 树形管理）：
-        // 模板自行从 ConfigJson 读实例参数 + PageSettingService 读取相关 PageSetting 并动态拼装根 model
-        // （业务 key 由模板决定），直接透传 DynWebPage 实例。
+        // 积木化模板（triscreen-blocks 三屏 / filterlist-crud 筛选列表 / tree-detail 树形管理 /
+        // tree-master-detail 布局壳 v1）：模板自行从 ParamsJson 读实例规格 + PageSettingService
+        // 读取相关 PageSetting 并动态拼装根 model（业务 key 由模板决定），直接透传 DynWebPage 实例。
         if (string.Equals(template.Code, "triscreen-blocks", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filterlist-crud", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tree-detail", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "tree-master-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);
@@ -303,11 +304,11 @@ public class PageController : Controller
         if (raw.TryGetValue("TableName", out var t) && t != null && !string.IsNullOrWhiteSpace(t.ToString()))
         {
             var table = t.ToString();
-            // 统一契约：端点不再拼 query table，表名随 body 发送（{table,data} / {table,keys}）
-            if (!HasValue(result, "ListUrl")) result["ListUrl"] = "/api/platform/dyndata/search";
-            if (!HasValue(result, "AddUrl")) result["AddUrl"] = "/api/platform/dyndata/save";
-            if (!HasValue(result, "EditUrl")) result["EditUrl"] = "/api/platform/dyndata/save";
-            if (!HasValue(result, "DeleteUrl")) result["DeleteUrl"] = "/api/platform/dyndata/delete";
+            // 唯一数据端点：表名随 body 发送（{table,data} / {table,keys}），数据域由 project 坐标决定
+            if (!HasValue(result, "ListUrl")) result["ListUrl"] = DynPageViewHelper.SearchUrl;
+            if (!HasValue(result, "AddUrl")) result["AddUrl"] = DynPageViewHelper.SaveUrl;
+            if (!HasValue(result, "EditUrl")) result["EditUrl"] = DynPageViewHelper.SaveUrl;
+            if (!HasValue(result, "DeleteUrl")) result["DeleteUrl"] = DynPageViewHelper.DeleteUrl;
         }
         return result;
     }
@@ -369,8 +370,10 @@ public class PageController : Controller
             WinWidth = Request.Query["winWidth"].FirstOrDefault(),
             WinHeight = Request.Query["winHeight"].FirstOrDefault(),
             WinMax = string.Equals(Request.Query["winMax"].FirstOrDefault(), "true", StringComparison.OrdinalIgnoreCase),
-            // 数据访问库 + 新增预填（主从联动：子表新增预填外键）
-            Db = Request.Query["db"].FirstOrDefault(),
+            // 数据域坐标 project（统一端点 /api/dyndata；缺省=平台库 __platform__）+ 新增预填（主从联动）
+            Project = string.IsNullOrWhiteSpace(Request.Query["project"])
+                ? DynPageViewHelper.PlatformProject
+                : Request.Query["project"].FirstOrDefault(),
             PrefillJson = Request.Query["prefill"].FirstOrDefault()
         };
         if (!string.IsNullOrWhiteSpace(s.ConfigJson))

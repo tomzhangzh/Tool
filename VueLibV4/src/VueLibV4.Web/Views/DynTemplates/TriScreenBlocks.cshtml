@@ -23,15 +23,16 @@
 
     var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
     var tableName = ps["TableName"]?.ToString() ?? "";
-    var loadUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "loadUrl", "ListUrl"), DynPageViewHelper.BizSearch);
-    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.BizInsert);
-    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.BizUpdate);
+    var loadUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "loadUrl", "ListUrl"), DynPageViewHelper.SearchUrl);
+    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.SaveUrl);
+    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.SaveUrl);
     // 列表/详情各自持有删除接口（旧扁平 DeleteUrl 同时回退，行为不变）
-    var listDeleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
-    var detailDeleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
+    var listDeleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
+    var detailDeleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
     var childFkField = ps["ChildFkField"]?.ToString() ?? "";
     var keyField = ps["KeyField"]?.ToString() ?? "Id";
-    var project = Model.ProjectId?.ToString() ?? "";
+    // 数据域坐标：实例参数 Project 显式声明优先（平台库="__platform__"），否则用页面 ProjectId
+    var project = ps["Project"]?.ToString() ?? Model.ProjectId?.ToString() ?? "";
     var filterPsId = DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId");
     var listPsId = DynPageViewHelper.SlotSettingId(ps, "list", "ListPageSettingId");
     var detailPsId = DynPageViewHelper.SlotSettingId(ps, "detail", "DetailPageSettingId");

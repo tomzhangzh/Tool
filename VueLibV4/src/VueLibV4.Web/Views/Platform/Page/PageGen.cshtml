@@ -136,7 +136,7 @@
                 loadTables: function () {
                     var self = this;
                     self.tables = []; self.form.table = ''; self.fields = [];
-                    var url = '/api/business/dyndata/tables' + (self.form.project ? '?project=' + encodeURIComponent(self.form.project) : '');
+                    var url = '/api/dyndata/tables' + (self.form.project ? '?project=' + encodeURIComponent(self.form.project) : '');
                     fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
                         if (res && res.code === 0) self.tables = res.data || [];
                     });

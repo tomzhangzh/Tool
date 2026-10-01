@@ -57,9 +57,11 @@
                 formError: '',
                 loading: false,
                 table: __pv('table', ''),
-                addUrl: __pv('addUrl', ''),
-                editUrl: __pv('editUrl', ''),
-                deleteUrl: __pv('deleteUrl', ''),
+                // URL 是基础设施，Block 默认只认统一端点；数据域（平台/业务/项目）由 project 决定。
+                // cfg 显式 URL 仅为旧配置兼容保留（新壳 spec 不应再出现任何 *Url）。
+                addUrl: __pv('addUrl', DynBlocks.URLS.save),
+                editUrl: __pv('editUrl', DynBlocks.URLS.save),
+                deleteUrl: __pv('deleteUrl', DynBlocks.URLS.delete),
                 keyField: __pv('keyField', 'Id'),
                 project: __pv('project', ''),
                 initForm: initForm
@@ -114,11 +116,8 @@
                 this.loading = true;
                 var kf = this.keyField;
                 var isEdit = this.form[kf] !== null && this.form[kf] !== undefined && this.form[kf] !== '';
-                var configured = isEdit ? this.editUrl : this.addUrl;
-                var style = DynBlocks.apiStyle(configured);
-                var saveUrl = DynBlocks.saveUrl(style, configured, this.table, isEdit);
-                var body = DynBlocks.savePayload(style, this.table, this.form, this.project);
-                DynCall.post(saveUrl, body, { scopeEl: element })
+                var req = DynBlocks.saveRequest(isEdit ? this.editUrl : this.addUrl, this.table, this.form, this.project);
+                DynCall.post(req.url, req.body, { scopeEl: element })
                     .then(function () {
                         self.loading = false;
                         self.formError = '';
@@ -173,7 +172,7 @@
             var rowId = __pv('rowId', null);
             var preFill = __pv('preFill', null) || __cfg.preFill || {};
             if (rowId !== null && rowId !== undefined && rowId !== '') {
-                var getUrl = DynBlocks.getUrl(this.addUrl, this.table, rowId, this.project);
+                var getUrl = DynBlocks.getUrl(this.table, rowId, this.project);
                 DynCall.get(getUrl, {}, { silent: true })
                     .then(function (row) { if (row) self.editForm(row); })
                     .catch(function (e) { console.error('[DetailApp] 加载行数据失败', e); });

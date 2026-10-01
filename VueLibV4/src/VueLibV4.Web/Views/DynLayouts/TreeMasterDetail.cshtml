@@ -1,0 +1,251 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
+@{
+    // =====================================================================================
+    // 布局壳：tree-master-detail（左树 + 可拖拽分隔条 + 右侧明细）——壳模型 v1
+    //
+    // 本文件只承载【壳】的职责：
+    //   1. 布局 DOM：.lsh-split 两槽 + gutter；槽内放什么 Block 由 spec.slots 数据决定；
+    //   2. 壳自己的 UI 状态机：分隔条拖拽（本视图 onMount 内联实现，engine 不提供具体 UI）；
+    //   3. 壳的内置连线 defaultWires：nodeClick→editForm / addRoot/addChild→newForm / saved→reload；
+    //   4. 壳自身端口 shell.log（供页面自定义连线落地观察）。
+    // 树/表单的内部逻辑分别在 TreeApp / DetailApp 两个 Block 里，壳不感知其实现。
+    //
+    // 页面规格（DynWebPage.ParamsJson）：
+    //   { layout:"tree-master-detail",
+    //     layoutProps:{leftWidth:30},
+    //     provide:{table,keyField,project?},
+    //     slots:{
+    //       master:{block:"tree", model:{parentField,titleField,iconField,sortField,
+    //                                     enableDrag,dragSameLevelOnly}},
+    //       detail:{block:"detail", settingId:51} },
+    //     wires:[ {from,to,with?} ... ] }   // 省略 wires 时使用壳默认连线
+    // 规格里没有任何 *Url：数据请求全部走 Block 内置的统一端点 /api/dyndata，数据域只看 provide.project。
+    // =====================================================================================
+    Layout = "_Layout";
+
+    var spec = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    var provide = spec["provide"] as JObject ?? new JObject();
+    string Prov(string key, string dft = "")
+    {
+        var v = provide[key];
+        if (v == null || v.Type == JTokenType.Null) return dft;
+        var s = v.ToString();
+        return string.IsNullOrEmpty(s) ? dft : s;
+    }
+
+    var tableName = Prov("table");
+    var keyField = Prov("keyField", "Id");
+    // 数据域坐标：provide.project 显式声明（平台库="__platform__"），缺省回退页面 ProjectId（再缺省=默认业务库）
+    var project = Prov("project", Model.ProjectId?.ToString() ?? "");
+
+    var slots = spec["slots"] as JObject ?? new JObject();
+    var masterSlot = slots["master"] as JObject ?? new JObject();
+    var detailSlot = slots["detail"] as JObject ?? new JObject();
+    var masterModel = masterSlot["model"] as JObject ?? new JObject();
+
+    string Mv(JObject m, string k, string? dft = null)
+    {
+        var v = m[k];
+        if (v == null || v.Type == JTokenType.Null) return dft ?? "";
+        var s = v.ToString();
+        return string.IsNullOrWhiteSpace(s) ? (dft ?? "") : s;
+    }
+    bool Mb(JObject m, string k)
+    {
+        var v = m[k];
+        if (v == null || v.Type == JTokenType.Null) return false;
+        if (v.Type == JTokenType.Boolean) return v.Value<bool>();
+        var s = v.ToString().Trim();
+        return s == "1" || string.Equals(s, "true", StringComparison.OrdinalIgnoreCase);
+    }
+    int? MInt(JObject m, string k) => int.TryParse(m[k]?.ToString(), out var i) ? i : null;
+
+    var masterBlock = string.IsNullOrWhiteSpace(masterSlot["block"]?.ToString()) ? "tree" : masterSlot["block"]!.ToString().Trim().ToLowerInvariant();
+    var detailBlock = string.IsNullOrWhiteSpace(detailSlot["block"]?.ToString()) ? "detail" : detailSlot["block"]!.ToString().Trim().ToLowerInvariant();
+    var masterPartial = DynPageViewHelper.BlockAppPath(masterBlock);
+    var detailPartial = DynPageViewHelper.BlockAppPath(detailBlock);
+
+    // —— 左槽 Block 配置：只有数据域 + 树私有参数；没有任何 URL（Block 默认统一端点）——
+    var treeCfg = new JObject
+    {
+        ["table"] = tableName,
+        ["keyField"] = keyField,
+        ["project"] = project,
+        ["parentField"] = Mv(masterModel, "parentField", "ParentId"),
+        ["titleField"] = Mv(masterModel, "titleField", "Name"),
+        ["iconField"] = Mv(masterModel, "iconField", "Icon"),
+        ["sortField"] = Mv(masterModel, "sortField", "SortNo"),
+        ["enableDrag"] = Mb(masterModel, "enableDrag"),
+        ["dragSameLevelOnly"] = Mb(masterModel, "dragSameLevelOnly")
+    };
+
+    // —— 右槽 Detail Block 配置：数据域 + PageSetting 决定的表单 UI 树；同样零 URL ——
+    var detailCfg = new JObject();
+    DynPageViewHelper.ApplyFrontSetting(detailCfg, PageSettingService, MInt(detailSlot, "settingId"),
+        "detailConfig", "detailDefault");
+    detailCfg["table"] = tableName;
+    detailCfg["keyField"] = keyField;
+    detailCfg["project"] = project;
+
+    var layoutProps = spec["layoutProps"] as JObject ?? new JObject();
+    var leftWidth = int.TryParse(layoutProps["leftWidth"]?.ToString(), out var lw0) ? lw0 : 30;
+
+    var extSlots = await Html.LoadPageExtAsync(Model);
+    var extId = "Lsh" + Guid.NewGuid().ToString("N");
+    var rootId = extId + "-root";
+    var masterId = extId + "-master";
+    var detailId = extId + "-detail";
+    var showDesignEntry = Convert.ToBoolean(ViewData["ShowDesignEntry"] ?? false);
+
+    // 页面级 L1 静态参数：壳根声明，槽内 Block 与扩展脚本经父链共享
+    var pageParams = new JObject
+    {
+        ["table"] = tableName,
+        ["tableName"] = tableName,
+        ["keyField"] = keyField,
+        ["parentField"] = (string?)treeCfg["parentField"],
+        ["titleField"] = (string?)treeCfg["titleField"],
+        ["project"] = project
+    };
+}
+<div id="@rootId" class="lsh-root" data-dyn-layout="tree-master-detail"
+     data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)"
+     data-dyn-page-spec="@DynPageViewHelper.SafeJson(spec)">
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = Model.Name, ["Code"] = "tree-master-detail", ["TableName"] = tableName,
+        ["ShowBack"] = true, ["ShowDesign"] = showDesignEntry, ["PageId"] = Model.Id.ToString()
+    })
+
+    @if (masterPartial == null || detailPartial == null)
+    {
+        <div class="lsh-fatal">
+            壳槽位引用了未登记的 Block：master=@masterBlock，detail=@detailBlock
+        </div>
+    }
+    else
+    {
+        <div class="lsh-split" data-split-container>
+            @* ===== 左槽（master）：放什么 Block 由 spec.slots.master.block 决定，壳契约期望 tree ===== *@
+            <div class="lsh-pane lsh-pane--master" data-layout-slot="master"
+                 data-split-pane="master" style="width:@(leftWidth)%">
+                @await Html.PartialAsync(masterPartial, new ViewDataDictionary(ViewData) {
+                    ["ExtId"] = masterId,
+                    ["BlkConfig"] = DynPageViewHelper.SafeJson(treeCfg),
+                    ["ExtSlots"] = extSlots
+                })
+            </div>
+
+            <div class="lsh-gutter" data-split-gutter="" title="拖拽调整，双击复位">
+                <span class="lsh-gutter-bar"></span>
+            </div>
+
+            @* ===== 右槽（detail）：壳契约期望 detail ===== *@
+            <div class="lsh-pane lsh-pane--detail" data-layout-slot="detail">
+                @await Html.PartialAsync(detailPartial, new ViewDataDictionary(ViewData) {
+                    ["ExtId"] = detailId,
+                    ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg),
+                    ["ExtSlots"] = extSlots
+                })
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .lsh-root { height: 100vh; box-sizing: border-box; display: flex; flex-direction: column;
+        background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .lsh-split { flex: 1; min-height: 0; display: flex; margin: 14px; box-sizing: border-box;
+        background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; overflow: hidden; }
+    .lsh-pane { box-sizing: border-box; min-width: 0; }
+    .lsh-pane--master { flex-shrink: 0; padding: 12px; overflow: hidden; min-height: 0; }
+    .lsh-pane--detail { flex: 1; padding: 12px 16px; overflow: auto; }
+    .lsh-gutter { flex-shrink: 0; width: 8px; cursor: col-resize; background: #f2f4f7;
+        position: relative; display: flex; align-items: center; justify-content: center; }
+    .lsh-gutter:hover { background: #e4e7ed; }
+    .lsh-gutter-bar { width: 2px; height: 36px; border-radius: 2px; background: #c0c4cc; }
+    .lsh-fatal { margin: 24px; padding: 16px; color: #c45656; background: #fef0f0;
+        border: 1px solid #fde2e2; border-radius: 6px; }
+</style>
+
+@section Scripts {
+    <script src="~/dyn/blocks/dyn-blocks-common.js" asp-append-version="true"></script>
+    <script src="~/dyn/layouts/dyn-layout-engine.js" asp-append-version="true"></script>
+    <script>
+        DynLib.ready(function () {
+            // ===== 壳定义：槽位契约 + 默认连线 + 壳端口 + 布局状态机 =====
+            DynLayouts.register('tree-master-detail', {
+                slots: { master: { expect: 'tree' }, detail: { expect: 'detail' } },
+                // 壳内置连线：页面 spec 不写 wires 即采用这套；写了则追加（replaceDefaultWires 可整组替换）
+                defaultWires: [
+                    { from: 'master.nodeClick', to: 'detail.editForm', with: { row: '$event.row' } },
+                    { from: 'master.addRoot',   to: 'detail.newForm',  with: { preFill: {} } },
+                    { from: 'master.addChild',  to: 'detail.newForm',  with: { preFill: '$event.preFill' } },
+                    { from: 'detail.saved',     to: 'master.reload' }
+                ],
+                // 壳自身端口：页面 wires 可把任意 Block 事件连到 shell.*（自定义动作的挂载点）
+                commands: {
+                    log: function (payload, ctx) {
+                        var text = '[shell.log] ' + (ctx && ctx.spec ? ctx.spec.layout : '') + ' ← ' + JSON.stringify(payload);
+                        console.info(text);
+                        if (window.DynDebug && DynDebug.note) DynDebug.note(text, { source: 'shell' });
+                    }
+                },
+                // 壳自有 UI：左窗按百分比定宽，gutter 拖拽改宽 + 双击复位。
+                // 纯壳内行为，不碰 Block；回传 dispose 由 engine 在 destroy 时统一解绑。
+                onMount: function (root, spec) {
+                    var pane = root.querySelector('[data-split-pane="master"]');
+                    var gutter = root.querySelector('[data-split-gutter]');
+                    var min = 18, max = 60;
+                    var initial = (spec.layoutProps && spec.layoutProps.leftWidth) || 30;
+                    var pct = initial, drag = null;
+
+                    function apply(p) {
+                        pct = Math.min(max, Math.max(min, p));
+                        pane.style.width = pct + '%';
+                    }
+                    function onDown(e) {
+                        e.preventDefault();
+                        drag = { x: e.clientX, w: pane.getBoundingClientRect().width, pct: pct };
+                        document.body.style.userSelect = 'none';
+                    }
+                    function onMove(e) {
+                        if (!drag) return;
+                        var p = drag.w > 0
+                            ? (drag.w * drag.pct / 100 + (e.clientX - drag.x)) / drag.w * 100
+                            : drag.pct;
+                        apply(p);
+                    }
+                    function onUp() {
+                        if (!drag) return;
+                        drag = null;
+                        document.body.style.userSelect = '';
+                    }
+                    function onDbl() { apply(initial); }
+
+                    apply(initial);
+                    gutter.addEventListener('mousedown', onDown);
+                    window.addEventListener('mousemove', onMove);
+                    window.addEventListener('mouseup', onUp);
+                    gutter.addEventListener('dblclick', onDbl);
+                    return {
+                        dispose: function () {
+                            gutter.removeEventListener('mousedown', onDown);
+                            window.removeEventListener('mousemove', onMove);
+                            window.removeEventListener('mouseup', onUp);
+                            gutter.removeEventListener('dblclick', onDbl);
+                        }
+                    };
+                }
+            });
+
+            DynLayouts.mount(document.getElementById('@rootId')).then(function (info) {
+                window.__shell = info; // 验收/排查用：__shell.wires / handles / warnings
+            });
+        });
+    </script>
+}

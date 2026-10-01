@@ -72,8 +72,8 @@ public class DetailTemplateModel
     public string? WinHeight { get; set; }
     public bool WinMax { get; set; }
 
-    /// <summary>数据访问库：platform=平台库(默认) / business=业务库（缺省项目库）</summary>
-    public string? Db { get; set; }
+    /// <summary>统一端点数据域坐标 project："__platform__"=平台库(默认)，空=默认业务库，或 DynProject.Code/Id</summary>
+    public string? Project { get; set; }
     /// <summary>新增时预填字段 JSON（主从联动：子表新增预填外键，如 {"OrderId":3}）</summary>
     public string? PrefillJson { get; set; }
 }

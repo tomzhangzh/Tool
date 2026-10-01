@@ -196,7 +196,7 @@
                     loadTree: function () {
                         var self = this;
                         this.treeLoading = true;
-                        fetch(this.tableName ? '/api/platform/dyndata/search' : '/api/platform/dyndata/search', {
+                        fetch(this.tableName ? '/api/dyndata/search' : '/api/dyndata/search', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -216,7 +216,7 @@
                         var self = this;
                         if (id === null || id === undefined || id === '' || id === 0) { this.resetForm(); return; }
                         this.formLoading = true;
-                        fetch('/api/platform/dyndata/get?table=' + encodeURIComponent(this.tableName) + '&id=' + encodeURIComponent(id))
+                        fetch('/api/dyndata/get?table=' + encodeURIComponent(this.tableName) + '&id=' + encodeURIComponent(id))
                             .then(function (r) { return r.json(); }).then(function (res) {
                                 if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '读取数据失败', 'error'); return; }
                                 var d = res.data;
@@ -254,7 +254,7 @@
                         var self = this;
                         if (!this.validate()) return;
                         this.saving = true;
-                        fetch(this.tableName ? '/api/platform/dyndata/save?table=' + encodeURIComponent(this.tableName) : '', {
+                        fetch(this.tableName ? '/api/dyndata/save?table=' + encodeURIComponent(this.tableName) : '', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(this.form)
@@ -274,7 +274,7 @@
                         dyn.confirmAsync('确定删除「' + (this.form[this.titleField] || k) + '」吗？子节点会一并处理。').then(function (ok) {
                             if (!ok) return;
                             self.deleting = true;
-                            fetch('/api/platform/dyndata/delete?table=' + encodeURIComponent(self.tableName) + '&id=' + encodeURIComponent(k), { method: 'POST' })
+                            fetch('/api/dyndata/delete?table=' + encodeURIComponent(self.tableName) + '&id=' + encodeURIComponent(k), { method: 'POST' })
                                 .then(function (r) { return r.json(); }).then(function (res) {
                                     if (res.code !== 0) { dyn.showMessage(res.msg || '删除失败', 'error'); return; }
                                     dyn.showMessage(res.msg || '删除成功', 'success');

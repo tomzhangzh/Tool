@@ -87,7 +87,8 @@
     // ============ V4 免模型配置（table/project/columns/searchFields/formFields） ============
     const table = comoptions.table || comoptions.Table || '';
     const project = comoptions.project || comoptions.Project || '';
-    const apiBase = '/api/business/dyndata';
+    // 唯一数据端点；数据域由 comoptions.project 决定（空=默认业务库）
+    const apiBase = '/api/dyndata';
 
     const crud = Vue.reactive({
         loading: false, saving: false,

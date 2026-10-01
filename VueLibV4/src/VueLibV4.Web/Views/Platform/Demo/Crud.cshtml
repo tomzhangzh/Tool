@@ -13,10 +13,10 @@
         <el-card shadow="never" style="margin-top:16px">
             <template #header><b>数据接口说明</b></template>
             <div style="font-size:13px;color:#606266;line-height:2">
-                <div><code>GET /api/business/dyndata/page?table=Student&amp;project=Business-School&amp;page=1&amp;size=20&amp;filter={"Name":{"op":"like","value":"张"}}</code> — 分页+排序+条件</div>
-                <div><code>POST /api/business/dyndata/save</code> — 新增/更新（带 Id 则更新，由主键驱动）</div>
-                <div><code>POST /api/business/dyndata/delete</code> — 删除（传主键）</div>
-                <div><code>GET /api/business/dyndata/meta?table=Student</code> — 表主键/字段信息</div>
+                <div><code>POST /api/dyndata/search</code> body=<code>{"table":"Student","project":"Business-School","page":1,"size":20,"filter":{"Name":{"op":"like","value":"张"}}}</code> — 分页+条件（project 缺省=默认业务库，"__platform__"=平台库）</div>
+                <div><code>POST /api/dyndata/save</code> body=<code>{"table":"Student","data":{...},"project":"Business-School"}</code> — 新增/更新（带 Id 则更新，由主键驱动）</div>
+                <div><code>POST /api/dyndata/delete</code> body=<code>{"table":"Student","keys":{"Id":1},"project":"Business-School"}</code> — 删除（传主键）</div>
+                <div><code>GET /api/dyndata/meta?table=Student&amp;project=Business-School</code> — 表主键/字段信息</div>
                 <div>业务库词典：<code>GET /api/business/dict/all</code>（业务词典放业务库，平台词典放平台库 DynDict）</div>
             </div>
         </el-card>

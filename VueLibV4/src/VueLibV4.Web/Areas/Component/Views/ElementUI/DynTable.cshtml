@@ -53,8 +53,8 @@
     const table = co.table || '';
     const project = co.project || null;
     const gridId = co.gridId || '';
-    // 查询端点可按 comoptions.apiBase 覆盖（M5 平台管理页指向 /api/platform/dyndata），默认业务库端点向后兼容
-    const apiBase = co.apiBase || '/api/business/dyndata';
+    // 唯一数据端点 /api/dyndata（数据域由 co.project 决定）；comoptions.apiBase 仅用于指向自定义处理器
+    const apiBase = co.apiBase || '/api/dyndata';
     const rows = ref([]);
     const total = ref(0);
     const page = ref(1);

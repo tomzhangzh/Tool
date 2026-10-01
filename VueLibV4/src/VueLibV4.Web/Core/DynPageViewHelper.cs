@@ -10,22 +10,35 @@ namespace VueLibV4.Web.Core;
 /// </summary>
 public static class DynPageViewHelper
 {
-    // 业务库（项目 SQLite）默认端点
-    public const string BizSearch = "/api/business/dyndata/search";
-    public const string BizInsert = "/api/business/dyndata/insert";
-    public const string BizUpdate = "/api/business/dyndata/update";
-    public const string BizDelete = "/api/business/dyndata/delete";
-    public const string BizGet = "/api/business/dyndata/get";
+    // 统一动态数据端点：全系统唯一数据入口，数据域由请求 project 坐标决定
+    // （空=默认业务库；"__platform__"=平台元数据库；DynProject.Code/Id=项目库）。
+    public const string SearchUrl = "/api/dyndata/search";
+    public const string InsertUrl = "/api/dyndata/insert";
+    public const string UpdateUrl = "/api/dyndata/update";
+    public const string DeleteUrl = "/api/dyndata/delete";
+    public const string GetUrl = "/api/dyndata/get";
+    /// <summary>按主键自动判别增/改的保存端点（Block 写操作标准入口）。</summary>
+    public const string SaveUrl = "/api/dyndata/save";
 
-    // 平台直连默认端点（save 端点自动判别增改，table 走 query）
-    public const string PlatSearch = "/api/platform/dyndata/search";
-    public const string PlatSave = "/api/platform/dyndata/save";
-    public const string PlatDelete = "/api/platform/dyndata/delete";
-    public const string PlatGet = "/api/platform/dyndata/get";
+    /// <summary>平台元数据库的数据域坐标（与 ProjectDbResolver.PlatformProjectKey 对应）。</summary>
+    public const string PlatformProject = "__platform__";
 
     /// <summary>配置值为空时取缺省 URL。</summary>
     public static string UrlOr(string configured, string fallback)
         => string.IsNullOrWhiteSpace(configured) ? fallback : configured;
+
+    /// <summary>
+    /// block 角色 → BlockApp 部分视图路径（布局壳按 spec.slots[name].block 数据驱动选槽内积木）。
+    /// 未登记角色返回 null（壳视图负责拒绝渲染并报错）。
+    /// </summary>
+    public static string? BlockAppPath(string? block) => (block ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "tree" => "~/Views/DynBlocks/Apps/TreeApp.cshtml",
+        "filter" => "~/Views/DynBlocks/Apps/FilterApp.cshtml",
+        "list" => "~/Views/DynBlocks/Apps/ListApp.cshtml",
+        "detail" => "~/Views/DynBlocks/Apps/DetailApp.cshtml",
+        _ => null
+    };
 
     /// <summary>
     /// 读取 Front 类型 PageSetting，把 ConfigJson / DefaultJson 解析后写入

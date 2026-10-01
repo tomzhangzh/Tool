@@ -16,10 +16,10 @@
   · 参数（DynWebPage.ConfigJson，模板 ConfigJson 定义）：
       MasterTableName 主表名（必填）｜ MasterKeyField 主表主键(默认 Id)
       DetailTableName 子表名（必填）｜ DetailForeignKey 子表外键(默认 MasterId)
-      Db 数据访问库(business/platform，默认 business)
+      Project 数据域坐标（空=默认业务库，__platform__=平台库，或 DynProject.Code/Id）
       主表三屏：Filter/List/Detail 配置填在 DynWebPage 的 FilterPageSettingId/ListPageSettingId/DetailPageSettingId
       子表两屏：DetailListPageSettingId 子表列表配置 ｜ DetailDetailPageSettingId 子表表单配置（模板参数）
-  · 数据：/api/business/dyndata（insert/update/delete 分开）或 /api/platform/dyndata（save）
+  · 数据：唯一端点 /api/dyndata（search/save/delete，数据域由 body.project 决定）
 *@
 <div id="@extId" class="md-root">
     @* ===== 头部 ===== *@
@@ -144,8 +144,9 @@
             var masterTitleField = ep.MasterTitleField || 'Name';
             var detailTable = ep.DetailTableName || '';
             var detailForeignKey = ep.DetailForeignKey || 'MasterId';
-            var db = ep.Db || 'business';
-            var apiBase = db === 'business' ? '/api/business/dyndata' : '/api/platform/dyndata';
+            // 唯一数据端点 /api/dyndata；数据域坐标 project（空=默认业务库，__platform__=平台库）
+            var project = ep.Project || '';
+            var apiBase = '/api/dyndata';
             var detailListSettingId = ep.DetailListPageSettingId || '';
             var detailDetailSettingId = ep.DetailDetailPageSettingId || '';
 
@@ -212,7 +213,7 @@
                         this.masterLoading = true;
                         fetch(apiBase + '/search', {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ table: masterTable, page: this.masterPageInfo.PageIndex, size: this.masterPageInfo.PageSize, filter: this.buildSubmitFilter() })
+                            body: JSON.stringify({ table: masterTable, page: this.masterPageInfo.PageIndex, size: this.masterPageInfo.PageSize, filter: this.buildSubmitFilter(), project: project })
                         }).then(function (r) { return r.json(); }).then(function (res) {
                             if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '加载主表失败', 'error'); return; }
                             self.masterRows = res.data.rows || [];
@@ -248,7 +249,7 @@
                         f[detailForeignKey] = { op: 'eq', value: this.currentMaster[masterKeyField] };
                         fetch(apiBase + '/search', {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ table: detailTable, page: 1, size: 500, filter: f })
+                            body: JSON.stringify({ table: detailTable, page: 1, size: 500, filter: f, project: project })
                         }).then(function (r) { return r.json(); }).then(function (res) {
                             if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '加载明细失败', 'error'); return; }
                             self.detailRows = res.data.rows || [];
@@ -275,7 +276,7 @@
                                 settingId: settingId || '',
                                 table: table,
                                 bizId: isEdit ? row.Id : '',
-                                db: db,
+                                project: project,
                                 prefill: prefill ? JSON.stringify(prefill) : '',
                                 winTitle: win.title,
                                 winWidth: win.width,
@@ -293,16 +294,10 @@
                         var name = row.Name || row.OrderNo || row.ProductName || id;
                         dyn.confirmAsync('确定删除' + label + '「' + name + '」吗？').then(function (ok) {
                             if (!ok) return;
-                            var req;
-                            if (db === 'business') {
-                                req = fetch(apiBase + '/delete', {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ table: table, keys: { Id: id } })
-                                }).then(function (r) { return r.json(); });
-                            } else {
-                                req = fetch(apiBase + '/delete?table=' + encodeURIComponent(table) + '&id=' + encodeURIComponent(id), { method: 'POST' })
-                                    .then(function (r) { return r.json(); });
-                            }
+                            var req = fetch(apiBase + '/delete', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ table: table, keys: { Id: id }, project: project })
+                            }).then(function (r) { return r.json(); });
                             req.then(function (res) {
                                 if (res.code !== 0) { dyn.showMessage(res.msg || '删除失败', 'error'); return; }
                                 dyn.showMessage('删除成功', 'success');

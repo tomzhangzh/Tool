@@ -14,15 +14,18 @@
     // =====================================================================================
     Layout = null;
     var rowId = (ViewBag.RowId as string) ?? "";
-    var project = (ViewBag.ProjectId as string) ?? "";
 
     // 实例参数（ParamsJson）：TableName/KeyField 为模板自身参数（顶层）；
     // 表单配置与接口走 blocks.detail 槽位 {settingId,model:{addUrl/editUrl/deleteUrl}}；旧扁平键自动回退。
     var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    // 数据域坐标：宿主 query 传入优先（宿主页的 project），实例参数 Project 兜底
+    var project = !string.IsNullOrEmpty(ViewBag.ProjectId as string)
+        ? (ViewBag.ProjectId as string)
+        : (ps["Project"]?.ToString() ?? Model.ProjectId?.ToString() ?? "");
     var tableName = ps["TableName"]?.ToString() ?? "";
-    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.BizInsert);
-    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.BizUpdate);
-    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.BizDelete);
+    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.SaveUrl);
+    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.SaveUrl);
+    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
     var detailPsId = DynPageViewHelper.SlotSettingId(ps, "detail", "DetailPageSettingId");
     var keyField = ps["KeyField"]?.ToString() ?? "Id";
 
