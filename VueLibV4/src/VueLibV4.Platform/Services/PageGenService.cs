@@ -138,7 +138,12 @@ public class PageGenService : IPageGenService
     {
         if (_schemaLabels == null || columns.Count == 0) return;
         var pid = ResolveProjectId(project ?? "");
-        if (pid == null) return; // 解析不到项目（未选项目且平台项目缺失）时退回英文，不猜
+        if (pid == null) // 与生成主流程一致：未指定/特殊坐标时回退 Platform 工程，再退首个工程
+        {
+            try { pid = _projects.Query(x => x.Code == "Platform").First()?.Id; } catch { }
+            if (pid == null) { try { pid = _projects.Query(x => true).First()?.Id; } catch { } }
+        }
+        if (pid == null) return; // 解析不到项目（无任何工程）时退回英文，不猜
         var labels = _schemaLabels.ResolveLabels(pid.Value, table, columns.Select(c => c.Name));
         if (labels.Count == 0) return;
         foreach (var c in columns)
@@ -227,8 +232,10 @@ public class PageGenService : IPageGenService
         {
             try
             {
+                // 只回写"非英文默认拆词"的 label：避免把 NiceLabel 产出的英文垃圾冻进表层
+                // （字典命中/用户手改的中文才值得沉淀；英文默认值下次还能重新推断）
                 var toSave = fields
-                    .Where(f => !string.IsNullOrWhiteSpace(f.Label))
+                    .Where(f => !string.IsNullOrWhiteSpace(f.Label) && f.Label != NiceLabel(f.Name))
                     .ToDictionary(f => f.Name, f => f.Label!);
                 _schemaLabels?.UpsertTableLabels(projectId.Value, table, toSave);
             }

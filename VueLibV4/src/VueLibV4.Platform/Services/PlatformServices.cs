@@ -214,7 +214,7 @@ public class DynSchemaLabelService : SugarService<DynSchemaLabel>, IDynSchemaLab
         // 表字段层
         if (projectId > 0 && !string.IsNullOrWhiteSpace(table))
         {
-            var rows = Query(x => x.ProjectId == projectId && x.TableName == table && x.ColumnName != "");
+            var rows = Query(x => x.ProjectId == projectId && x.TableName == table && x.ColumnName != "").ToList();
             foreach (var r in rows)
                 if (wanted.Contains(r.ColumnName) && !string.IsNullOrWhiteSpace(r.Label))
                     result[r.ColumnName] = r.Label;
@@ -223,7 +223,7 @@ public class DynSchemaLabelService : SugarService<DynSchemaLabel>, IDynSchemaLab
         var missing = wanted.Where(w => !result.ContainsKey(w)).ToList();
         if (missing.Count > 0)
         {
-            var common = Query(x => x.ProjectId == 0 && x.TableName == "");
+            var common = Query(x => x.ProjectId == 0 && x.TableName == "").ToList();
             foreach (var r in common)
                 if (missing.Contains(r.ColumnName, StringComparer.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(r.Label))
                     result[r.ColumnName] = r.Label;
@@ -243,7 +243,7 @@ public class DynSchemaLabelService : SugarService<DynSchemaLabel>, IDynSchemaLab
         // 硬性护栏：只写表字段层
         if (projectId <= 0 || string.IsNullOrWhiteSpace(table) || labels == null || labels.Count == 0) return;
 
-        var existing = Query(x => x.ProjectId == projectId && x.TableName == table && x.ColumnName != "");
+        var existing = Query(x => x.ProjectId == projectId && x.TableName == table && x.ColumnName != "").ToList();
         var map = new Dictionary<string, DynSchemaLabel>(StringComparer.OrdinalIgnoreCase);
         foreach (var e in existing) map[e.ColumnName] = e;
 

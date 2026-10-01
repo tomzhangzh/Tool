@@ -13,6 +13,13 @@
  *   - Notes：收集运行期告警（未知 op、未注册命令等），带来源与时间
  *   - window.DynDebug.note(msg, meta) 供各模块统一上报
  *
+ * Vue 查看器（🎯 拾取）：
+ *   - 进入拾取后，页面上点任意元素（不会触发业务点击），沿 DOM 向上标注
+ *     VueApp(__dynApp) / Block(__dynBlock) / 壳槽 / DynParams ctx，并定位"所属 VueApp"
+ *   - 展示该 app 根代理的 data 快照 + computed/methods 清单；
+ *     同时挂到 window.__sel（元素）/ window.__selApp（app 代理），可在 Console 深查
+ *   - 控制台也可直接 DynDebug.pick()（再点页面）或 DynDebug.inspect($0)
+ *
  * 零依赖、原生 DOM；样式自带注入，不污染业务 css。
  */
 (function (global) {
@@ -33,6 +40,12 @@
     var collapsed = false;
     var timer = null;
 
+    // ---- Vue 查看器状态 ----
+    var selectedEl = null;   // 最近拾取的元素
+    var picking = false;     // 是否正在拾取
+    var hoverEl = null;      // 拾取中悬停元素
+    var overlayEl = null;    // 悬停高亮框
+
     var DynDebug = {
         enabled: enabled(),
         /** 上报一条调试记录：msg 文本，meta={source,table,...} */
@@ -50,6 +63,22 @@
             if (renderQueued) return;
             renderQueued = true;
             setTimeout(function () { renderQueued = false; draw(); }, 200);
+        },
+        /** 进入拾取模式（下一次点击的元素成为查看目标；Esc 取消） */
+        pick: function () { startPicking(); },
+        /** 取消拾取 */
+        cancelPick: function () { stopPicking(); },
+        /** 直接查看指定元素：返回 {el, ownerApp, chain, vueChain} 描述对象（控制台友好） */
+        inspect: function (el) {
+            var info = describe(el);
+            if (info) {
+                selectedEl = el || null;
+                global.__sel = selectedEl;
+                global.__selApp = info.ownerProxy || info.ownerApp; // 根代理：可直接读写 data/调方法
+                global.__selAppRaw = info.ownerApp;                 // Vue 应用实例（unmount/config 等）
+                if (panelEl) draw();
+            }
+            return info;
         }
     };
     var renderQueued = false;
@@ -141,6 +170,291 @@
         return html;
     }
 
+    // ============================================================
+    //  Vue 查看器：元素拾取 + 向上找所属 VueApp
+    // ============================================================
+
+    function elDesc(el) {
+        if (!el || el.nodeType !== 1) return '(非元素)';
+        var s = el.tagName.toLowerCase();
+        if (el.id) s += '#' + el.id;
+        var cls = (el.getAttribute && el.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean);
+        if (cls.length) s += '.' + cls.slice(0, 3).join('.');
+        return s;
+    }
+
+    /** 深度受限的快照（避免循环引用/巨型响应式对象卡死） */
+    function snapshot(v, depth, seen) {
+        depth = depth || 0; seen = seen || new Set();
+        if (v === null || v === undefined) return v;
+        var t = typeof v;
+        if (t === 'function') return '[Function]';
+        if (t !== 'object') return v;
+        if (depth >= 3) return Array.isArray(v) ? '[Array×' + v.length + ']' : '{…}';
+        if (seen.has(v)) return '[Circular]';
+        seen.add(v);
+        // 跳过 Vue 内部 __vnode/$ 开头实例与 DOM
+        if (v.nodeType) return '[DOM ' + elDesc(v) + ']';
+        if (v.__v_isRef) return snapshot(v.value, depth, seen);
+        var out;
+        if (Array.isArray(v)) {
+            out = v.slice(0, 20).map(function (x) { return snapshot(x, depth + 1, seen); });
+            if (v.length > 20) out.push('[…+' + (v.length - 20) + ']');
+        } else {
+            out = {};
+            var keys = Object.keys(v).filter(function (k) { return k.charAt(0) !== '_' && k.charAt(0) !== '$'; }).slice(0, 40);
+            keys.forEach(function (k) {
+                try { out[k] = snapshot(v[k], depth + 1, seen); } catch (e) { out[k] = '[err]'; }
+            });
+        }
+        seen.delete(v);
+        return out;
+    }
+
+    /** Vue 内部组件链（best effort；生产构建仍带 __vueParentComponent） */
+    function vueComponentChain(el) {
+        var chain = [];
+        try {
+            var inst = el.__vueParentComponent;
+            var guard = 0;
+            while (inst && guard++ < 30) {
+                var type = inst.type || {};
+                var name = type.name || type.__name || (type.__file ? type.__file.split('/').pop().replace(/\.\w+$/, '') : null);
+                chain.push(name || ('<' + (typeof type === 'string' ? type : 'Anonymous') + '>'));
+                inst = inst.parent;
+            }
+        } catch (e) { }
+        return chain;
+    }
+
+    /**
+     * 取根组件代理。dyn-core 挂载时：
+     *   el.__dynApp   = createApp() 的应用实例（unmount/config 在这）
+     *   el.__dynProxy = app.mount(el) 的根组件代理（$data/$options/方法在这；也镜像到 app.__dynProxy）
+     * 兜底再试 Vue 内部 app._instance.proxy。
+     */
+    function rootProxyOf(app, rootEl) {
+        try { if (rootEl && rootEl.__dynProxy) return rootEl.__dynProxy; } catch (e) { }
+        if (!app) return null;
+        try { if (app.__dynProxy) return app.__dynProxy; } catch (e) { }
+        if (app.$data !== undefined || (app.$options !== undefined && app.$ !== undefined)) return app; // 已是组件代理
+        try {
+            var inst = app._instance;
+            if (inst && inst.proxy) return inst.proxy;
+        } catch (e) { }
+        return null;
+    }
+
+    /**
+     * 沿 DOM 向上描述：返回各层标记 + 最近的所属 VueApp。
+     * 所属规则：自身/祖先上第一个挂 __dynApp 的节点（dyn-core 每个 createApp 根都有登记）。
+     */
+    function describe(el) {
+        if (!el || el.nodeType !== 1) return null;
+        var chain = [];
+        var ownerApp = null;
+        var ownerRoot = null;
+        var node = el, guard = 0;
+        while (node && node.nodeType === 1 && guard++ < 80) {
+            var badges = [];
+            if (node.__dynApp) { badges.push('VueApp'); if (!ownerApp) { ownerApp = node.__dynApp; ownerRoot = node; } }
+            if (node.hasAttribute && node.hasAttribute('data-dyn-mode')) badges.push('dyn:' + node.getAttribute('data-dyn-mode'));
+            if (node.__dynBlock) badges.push('Block:' + (node.getAttribute('data-blk-role') || '?'));
+            else if (node.hasAttribute && node.hasAttribute('data-blk-role')) badges.push('Block?' + node.getAttribute('data-blk-role'));
+            if (node.hasAttribute && node.hasAttribute('data-layout-slot')) badges.push('slot:' + node.getAttribute('data-layout-slot'));
+            if (node.hasAttribute && node.hasAttribute('data-dyn-layout')) badges.push('shell:' + node.getAttribute('data-dyn-layout'));
+            if (node.__dynLayout) badges.push('shellRoot');
+            var ctxId = null;
+            try { if (global.DynParams) { var pc = DynParams.fromEl(node); if (pc && pc.id) ctxId = pc.id; } } catch (e) { }
+            if (ctxId) badges.push('ctx:' + ctxId);
+            chain.push({ desc: elDesc(node), self: node === el, badges: badges });
+            if (node.tagName === 'BODY') break;
+            node = node.parentElement;
+        }
+        return {
+            el: el,
+            ownerApp: ownerApp,
+            ownerProxy: rootProxyOf(ownerApp, ownerRoot),
+            ownerRoot: ownerRoot,
+            chain: chain,
+            vueChain: vueComponentChain(el)
+        };
+    }
+
+    function appDataInfo(proxy, ownerRoot) {
+        var info = { name: '?', dataKeys: [], dataSnap: null, computed: [], methods: [], err: null };
+        try {
+            var optName = proxy.$options && (proxy.$options.name || proxy.$options.__name);
+            // 我们的 BlockApp 大多没显式 name：退到根节点的 data-blk-role / data-dyn-mode
+            var domName = ownerRoot && (ownerRoot.getAttribute('data-blk-role')
+                || ownerRoot.getAttribute('data-dyn-mode') || '');
+            info.name = optName || (domName ? 'dyn:' + domName : 'AnonymousApp');
+        } catch (e) { }
+        try {
+            var data = proxy.$data || {};
+            info.dataKeys = Object.keys(data);
+            info.dataSnap = snapshot(data, 0);
+        } catch (e) { info.err = e.message; }
+        try {
+            if (proxy.$options) {
+                info.computed = Object.keys(proxy.$options.computed || {});
+                info.methods = Object.keys(proxy.$options.methods || {});
+            }
+        } catch (e) { }
+        return info;
+    }
+
+    function inspectorSection() {
+        if (picking) {
+            return '<div class="dyndb-card dyndb-pick">'
+                + '<div class="dyndb-card-h"><b>🎯 拾取中</b></div>'
+                + '<div class="dyndb-line">点击页面任意元素查看其所属 VueApp；按 <b>Esc</b> 取消。'
+                + '（业务点击已被拦截）</div></div>';
+        }
+        if (!selectedEl || !document.contains(selectedEl)) return '';
+        var info;
+        try { info = describe(selectedEl); } catch (e) {
+            return '<div class="dyndb-card"><div class="dyndb-bad">describe 异常: ' + esc(e.message) + '</div></div>';
+        }
+        if (!info) return '';
+
+        var html = '<div class="dyndb-card dyndb-insp">';
+        html += '<div class="dyndb-card-h"><b>Vue 查看</b>'
+            + '<button class="dyndb-btn dyndb-float" data-act="pick">换一个</button></div>';
+        html += '<div class="dyndb-line"><span class="dyndb-k">元素</span> ' + esc(elDesc(selectedEl)) + '</div>';
+
+        // 向上链（只列带标记的层 + 自身），最近的在最前
+        var marked = info.chain.filter(function (c) { return c.self || c.badges.length; });
+        if (marked.length) {
+            html += '<div class="dyndb-chain-list">';
+            marked.slice(0, 15).forEach(function (c) {
+                html += '<div class="dyndb-chain-row' + (c.self ? ' is-self' : '') + '">'
+                    + '<span class="dyndb-chain-el">' + esc(c.desc) + '</span>'
+                    + c.badges.map(function (b) {
+                        var cls = b.indexOf('VueApp') === 0 ? 'dyndb-tag-app'
+                            : b.indexOf('Block') === 0 ? 'dyndb-tag-blk'
+                            : b.indexOf('shell') === 0 || b.indexOf('slot') === 0 ? 'dyndb-tag-shell'
+                            : 'dyndb-tag-ctx';
+                        return ' <span class="dyndb-tag ' + cls + '">' + esc(b) + '</span>';
+                    }).join('')
+                    + '</div>';
+            });
+            html += '</div>';
+        }
+
+        if (info.vueChain.length) {
+            html += '<div class="dyndb-line"><span class="dyndb-k">Vue组件</span> '
+                + esc(info.vueChain.slice(0, 10).join(' ← ')) + '</div>';
+        }
+
+        if (info.ownerApp) {
+            if (!info.ownerProxy) {
+                html += '<div class="dyndb-line dyndb-bad">找到 __dynApp 但取不到根代理（Vue 版本差异？app._instance 缺失）</div></div>';
+                return html;
+            }
+            var ai = appDataInfo(info.ownerProxy, info.ownerRoot);
+            html += '<div class="dyndb-line"><span class="dyndb-k">所属App</span> <b class="dyndb-appname">' + esc(ai.name) + '</b>'
+                + ' <span class="dyndb-id">' + esc(elDesc(info.ownerRoot)) + '</span></div>';
+            if (ai.computed.length)
+                html += '<div class="dyndb-line"><span class="dyndb-k">computed</span> ' + esc(ai.computed.join(', ')) + '</div>';
+            if (ai.methods.length)
+                html += '<div class="dyndb-line"><span class="dyndb-k">methods</span> <span class="dyndb-na">'
+                    + esc(ai.methods.slice(0, 24).join(', ') + (ai.methods.length > 24 ? '…' : '')) + '</span></div>';
+            if (ai.err) {
+                html += '<div class="dyndb-line dyndb-bad">data 读取失败: ' + esc(ai.err) + '</div>';
+            } else if (ai.dataKeys.length) {
+                html += '<div class="dyndb-params">';
+                ai.dataKeys.slice(0, 30).forEach(function (k) {
+                    var v; try { v = ai.dataSnap[k]; } catch (e) { v = '[err]'; }
+                    var s;
+                    try { s = typeof v === 'string' ? v : JSON.stringify(v); } catch (e) { s = String(v); }
+                    if (s && s.length > 160) s = s.slice(0, 160) + '…';
+                    html += '<div class="dyndb-line"><span class="dyndb-k">' + esc(k) + '</span> '
+                        + '<span class="dyndb-val">' + esc(s == null ? 'null' : s) + '</span></div>';
+                });
+                html += '</div>';
+            }
+            html += '<div class="dyndb-line dyndb-console-hint">Console：<b>__selApp</b>=app代理 <b>__sel</b>=元素（可直接改值/调方法）</div>';
+        } else {
+            html += '<div class="dyndb-line dyndb-bad">该元素向上没有找到 __dynApp（不属于任何 Dyn VueApp，或在 app 挂载完成前拾取）</div>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    // ---- 拾取交互 ----
+
+    function ensureOverlay() {
+        if (overlayEl) return overlayEl;
+        overlayEl = document.createElement('div');
+        overlayEl.className = 'dyndb-pick-overlay';
+        overlayEl.style.display = 'none';
+        document.body.appendChild(overlayEl);
+        return overlayEl;
+    }
+
+    function moveOverlay(toEl) {
+        var ov = ensureOverlay();
+        if (!toEl || !toEl.getBoundingClientRect) { ov.style.display = 'none'; return; }
+        var r = toEl.getBoundingClientRect();
+        ov.style.display = 'block';
+        ov.style.left = (r.left + global.scrollX) + 'px';
+        ov.style.top = (r.top + global.scrollY) + 'px';
+        ov.style.width = r.width + 'px';
+        ov.style.height = r.height + 'px';
+    }
+
+    function startPicking() {
+        if (picking || !document.body) return;
+        picking = true;
+        hoverEl = null;
+        if (panelEl) panelEl.classList.add('dyndb-picking');
+        document.addEventListener('mousemove', onPickMove, true);
+        document.addEventListener('click', onPickClick, true);
+        document.addEventListener('keydown', onPickKey, true);
+        draw();
+    }
+
+    function stopPicking() {
+        if (!picking) return;
+        picking = false; hoverEl = null;
+        if (overlayEl) overlayEl.style.display = 'none';
+        if (panelEl) panelEl.classList.remove('dyndb-picking');
+        document.removeEventListener('mousemove', onPickMove, true);
+        document.removeEventListener('click', onPickClick, true);
+        document.removeEventListener('keydown', onPickKey, true);
+        draw();
+    }
+
+    function onPickMove(e) {
+        var t = e.target;
+        if (t === overlayEl) return;
+        if (panelEl && panelEl.contains(t)) { hoverEl = null; moveOverlay(null); return; }
+        if (t && t.nodeType === 1) { hoverEl = t; moveOverlay(t); }
+    }
+
+    function onPickClick(e) {
+        var t = e.target;
+        if (panelEl && panelEl.contains(t)) return; // 面板内按钮走正常逻辑
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        var picked = hoverEl || (t && t.nodeType === 1 ? t : null);
+        stopPicking();
+        if (picked) {
+            selectedEl = picked;
+            global.__sel = picked;
+            var info = describe(picked);
+            global.__selApp = info ? (info.ownerProxy || info.ownerApp) : null;
+            global.__selAppRaw = info ? info.ownerApp : null;
+            draw();
+        }
+    }
+
+    function onPickKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); stopPicking(); }
+    }
+
     function draw() {
         if (!bodyEl) return;
         var blocks = [];
@@ -158,8 +472,11 @@
             }).join('')
             : '<div class="dyndb-empty">暂无告警</div>';
 
+        var inspHtml = inspectorSection();
+
         bodyEl.innerHTML =
-            '<div class="dyndb-sec-h">Blocks（' + blocks.length + '）</div>' + blocksHtml
+            inspHtml
+            + '<div class="dyndb-sec-h">Blocks（' + blocks.length + '）</div>' + blocksHtml
             + '<div class="dyndb-sec-h">Notes（' + notes.length + '）</div>' + notesHtml;
     }
 
@@ -186,7 +503,28 @@
             + '.dyndb-chain{color:#808080}.dyndb-bad{color:#f48771;font-weight:bold}'
             + '.dyndb-note{border-left:3px solid #f48771;padding:2px 6px;margin:3px 0;background:#2a2020}'
             + '.dyndb-time{color:#808080}.dyndb-src{color:#c586c0}'
-            + '.dyndb-empty{color:#6a6a6a;padding:4px 0}';
+            + '.dyndb-empty{color:#6a6a6a;padding:4px 0}'
+            /* —— Vue 查看器 —— */
+            + '.dyndb-insp{border-color:#2d6e4e;box-shadow:0 0 0 1px #143d2e inset}'
+            + '.dyndb-pick{border-color:#b58900;background:#2e2a18}'
+            + '.dyndb-float{float:right}'
+            + '.dyndb-chain-list{margin:4px 0;border:1px solid #3a3a3a;border-radius:4px;overflow:hidden}'
+            + '.dyndb-chain-row{padding:2px 6px;border-bottom:1px solid #2e2e2e}'
+            + '.dyndb-chain-row:last-child{border-bottom:none}'
+            + '.dyndb-chain-row.is-self{background:#2f3a4d}'
+            + '.dyndb-chain-el{color:#9cdcfe;word-break:break-all}'
+            + '.dyndb-tag{display:inline-block;padding:0 5px;margin-left:4px;border-radius:3px;font-size:11px;white-space:nowrap}'
+            + '.dyndb-tag-app{background:#143d2e;color:#4ec9b0;border:1px solid #2d6e4e}'
+            + '.dyndb-tag-blk{background:#3d2e14;color:#d7ba7d;border:1px solid #6e5a2d}'
+            + '.dyndb-tag-shell{background:#2d2350;color:#c586c0;border:1px solid #5a3d7a}'
+            + '.dyndb-tag-ctx{background:#0e3a4a;color:#569cd6;border:1px solid #1f5a70}'
+            + '.dyndb-appname{color:#4ec9b0}'
+            + '.dyndb-console-hint{color:#808080;font-size:11px;margin-top:4px}'
+            + '.dyndb-pick-overlay{position:absolute;z-index:2147483599;pointer-events:none;'
+            + 'border:2px solid #4ec9b0;background:rgba(78,201,176,.12);border-radius:2px;'
+            + 'box-shadow:0 0 0 99999px rgba(0,0,0,.15)}'
+            + '.dyndb-panel.dyndb-picking{box-shadow:0 0 0 2px #b58900,0 6px 24px rgba(0,0,0,.45)}'
+            + '.dyndb-panel.dyndb-picking *{cursor:crosshair !important}';
         var st = document.createElement('style');
         st.id = 'dyndb-style';
         st.textContent = css;
@@ -201,6 +539,7 @@
         panelEl.innerHTML =
             '<div class="dyndb-head" data-act="toggle"><b>dyn-debug</b>'
             + '<span class="dyndb-spacer"></span>'
+            + '<button class="dyndb-btn" data-act="pick">🎯拾取</button>'
             + '<button class="dyndb-btn" data-act="refresh">刷新</button>'
             + '<button class="dyndb-btn" data-act="clear">清空</button>'
             + '<button class="dyndb-btn" data-act="hide">－</button></div>'
@@ -210,6 +549,7 @@
 
         panelEl.addEventListener('click', function (e) {
             var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+            if (act === 'pick') { startPicking(); return; }
             if (act === 'refresh') { draw(); return; }
             if (act === 'clear') { DynDebug.clear(); return; }
             if (act === 'hide') { panelEl.style.display = 'none'; remountBtn(); return; }
