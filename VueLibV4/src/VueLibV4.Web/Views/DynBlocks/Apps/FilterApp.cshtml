@@ -63,7 +63,15 @@
                 var f = {}, self = this;
                 Object.keys(this.filterModel).forEach(function (k) {
                     var v = self.filterModel[k];
-                    if (v !== null && v !== undefined && v !== '') f[k] = { op: self.opMap[k] || 'eq', value: v };
+                    // 嵌套绑定模式：控件 modelname=k.value（PageGen 规范，骨架 {k:{op,value}}），
+                    // 输入后 v={value:裸值}（op 已收进 opMap），此处解包，避免再套一层 value。
+                    if (v && typeof v === 'object' && !Array.isArray(v) && Object.prototype.hasOwnProperty.call(v, 'value')) {
+                        if (v.value !== null && v.value !== undefined && v.value !== '')
+                            f[k] = { op: v.op || self.opMap[k] || 'eq', value: v.value };
+                    }
+                    else if (v !== null && v !== undefined && v !== '') {
+                        f[k] = { op: self.opMap[k] || 'eq', value: v };
+                    }
                 });
                 return f;
             },

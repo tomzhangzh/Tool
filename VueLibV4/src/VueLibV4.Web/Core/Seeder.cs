@@ -163,6 +163,8 @@ CREATE TABLE SysMenu (
         SeedDynTemplateBlocks(conn);
         // tabs-basic 多页签容器模板（URL 片段驱动，无 Block 槽位；在参数包种子之后注册）
         SeedTabsTemplate(conn);
+        // 早期手工入库模板的 class 名图标修正为 Emoji（平台图标统一 Emoji 直出）
+        SeedBuiltinTemplateIcons(conn);
     }
 
     /// <summary>DynBlock / DynTemplateBlock 建表（旧库迁移；新库 platform.sql 已含）</summary>
@@ -519,6 +521,23 @@ UPDATE DynTemplate SET DefaultJson=@def WHERE Code='tabs-basic' AND (DefaultJson
             cmd.ExecuteNonQuery();
         }
         _logger.LogInformation("[Init] DynTemplate 种子 tabs-basic 同步完成");
+    }
+
+    /// <summary>
+    /// 内置模板图标自愈：平台图标统一按 Emoji 文本渲染（各处 {{row.Icon}} 直出，无 iconfont 机制）。
+    /// 早期手工入库的 4 个模板写的是 class 名（puzzle/icon-table/icon-edit/icon-tree），界面会显示原始字符串，
+    /// 这里按 Code 幂等修正为 Emoji（仅更新仍是旧 class 值的行，不覆盖用户已改的 Emoji）。
+    /// </summary>
+    private void SeedBuiltinTemplateIcons(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynTemplate")) return;
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+UPDATE DynTemplate SET Icon='🧩' WHERE Code='triscreen-blocks' AND Icon='puzzle';
+UPDATE DynTemplate SET Icon='🔍' WHERE Code='filterlist-crud' AND Icon='icon-table';
+UPDATE DynTemplate SET Icon='📝' WHERE Code='detail-modal' AND Icon='icon-edit';
+UPDATE DynTemplate SET Icon='🌳' WHERE Code='tree-detail' AND Icon='icon-tree';";
+        cmd.ExecuteNonQuery();
     }
 
     /// <summary>
