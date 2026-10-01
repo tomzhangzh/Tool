@@ -15,7 +15,11 @@
     //   实例参数（ParamsJson）：模板自身 TableName/ModalPageId/KeyField/ChildFkField（顶层）+
     //     blocks.filter/list 槽位 {settingId,model:{loadUrl/deleteUrl}}；旧扁平键自动回退。
     // =====================================================================================
-    Layout = "_Layout";
+    // 双形态：浏览器直访走 _Layout（整页）；被 fetchPartial 拉取走 _AjaxLayout（页签/弹窗片段），
+    // 与 TabsBasic/DetailModal 一致，使本模板可作为 tabs-basic 页签片段被嵌入。
+    Layout = Context.Request.Headers.TryGetValue("X-Requested-With", out var __xrw)
+                && __xrw == "XMLHttpRequest"
+                ? "_AjaxLayout" : "_Layout";
     ViewData["Title"] = Model.Name + " - VueLibV4";
 
     var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
@@ -58,6 +62,15 @@
         ["modalPageId"] = modalPageId,
         ["childFkField"] = childFkField
     };
+    // 预置筛选（上下文透传，如 tabs 页签 ?filterInit={"TemplateId":{"op":"eq","value":12}}）：
+    // 服务端烘焙进 L1 静态层，片段嵌入时不受宿主页面 location.search（L4）影响；
+    // FilterApp 据此回显输入并以其为重置基线，ListApp 据此发首屏请求，新增时作为表单预填。
+    var filterInitRaw = Context.Request.Query["filterInit"].FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(filterInitRaw))
+    {
+        try { if (JObject.Parse(filterInitRaw) is JObject __fi) pageParams["filterInit"] = __fi; }
+        catch { /* 非法预置 JSON 忽略，页面按无条件打开 */ }
+    }
 }
 <div class="flc-root" data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)">
     @* 头部在任何 app 之外，纯原生元素 *@
@@ -101,6 +114,19 @@
             function childPreFill(row) {
                 if (!CHILD_FK_FIELD || !row) return {};
                 var pf = {}; pf[CHILD_FK_FIELD] = row[KEY_FIELD] || null; return pf;
+            }
+
+            // 上下文预置预填：从参数链 filterInit 取裸值（如模板页签内新增 WebPage 默认 TemplateId=当前模板）
+            function presetPreFill() {
+                var pf = {};
+                var fi = fEl.__dynParams && fEl.__dynParams.get ? fEl.__dynParams.get('filterInit') : null;
+                if (fi && typeof fi === 'object') {
+                    Object.keys(fi).forEach(function (k) {
+                        var v = fi[k];
+                        pf[k] = (v && typeof v === 'object' && !Array.isArray(v)) ? v.value : v;
+                    });
+                }
+                return pf;
             }
 
             // 打开 Detail 弹窗：拉片段 → 注入 layer → 挂载 DetailApp → 用句柄接线。
@@ -172,7 +198,7 @@
                 filter.on('changed', function (params) {
                     list.send('loadData', { filter: params || {} });
                 });
-                list.on('add', function () { openDetailModal(null); });
+                list.on('add', function () { openDetailModal(null, presetPreFill()); });
                 list.on('edit', function (p) {
                     openDetailModal(p.row ? p.row[KEY_FIELD] : null);
                 });

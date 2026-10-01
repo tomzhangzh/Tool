@@ -482,6 +482,12 @@ async function mountCore(el,parentEl){
   checkRuntimeDeps();
   // 幂等守卫：任何链路重复进入都直接返回已挂载实例，杜绝重复 createApp/mount
   if(el.__dynApp) return el.__dynApp;
+  // 统一参数上下文：必须【先于】dynconfig 脚本执行建立——脚本内 dyn.params(element)
+  // （fromEl）取到的应是块自身 ctx（L1 含 data-blk-config），否则会捕获到中间片段容器
+  // 的 ctx，其 local 只有 tableName 没有 table，table 将继续沿 L3 父链上溯到宿主，发生串表。
+  // 同样必须在 maskNested/删 script 之前建立（L1 要读直接子级 dynparams 脚本）。
+  // 嵌套 App 掩码期间 DOM 祖先链断开，父上下文用显式 parentEl 接回。
+  const paramCtx = global.DynParams ? global.DynParams.ensure(el,parentEl) : null;
   let cfgScript = null;
   // dynconfig 同样只认直接子级，避免读到嵌套App的配置
   const cfgDom = el.querySelector(':scope > script[tag="dynconfig"]');
@@ -493,9 +499,6 @@ async function mountCore(el,parentEl){
   // 页面扩展脚本（dynconfig-ext）：同样只认直接子级；须在下方移除容器 script 之前读取
   const extCfgs = readExtConfigs(el);
   const srcModel = readModelScript(el)||parseModel(el)||{};
-  // 统一参数上下文：必须在 maskNested/删 script 之前建立（L1 要读直接子级 dynparams 脚本）。
-  // 嵌套 App 掩码期间 DOM 祖先链断开，父上下文用显式 parentEl 接回。
-  const paramCtx = global.DynParams ? global.DynParams.ensure(el,parentEl) : null;
   // 优先绑定共享scope
   const bindScopeId = el.getAttribute(CONST.ATTR_USE_SCOPE);
   let useSharedModel = null;

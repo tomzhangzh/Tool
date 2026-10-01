@@ -153,6 +153,23 @@
                     return self.loadData();
                 })
                 .reg('reload', function () { return self.loadData(); });
+            // 首屏预置筛选：参数链 filterInit（与 FilterApp 同源，如页签透传 TemplateId=当前模板）。
+            // 直接作为首屏 filter 发一次请求（不是先空查再重查，避免两次响应竞态覆盖）。
+            // 支持 {字段:{op,value}} 与 {字段:裸值} 两种写法。
+            var fi = (__P && __P.get('filterInit')) || null;
+            if (fi && typeof fi === 'object') {
+                var initFilter = {};
+                Object.keys(fi).forEach(function (k) {
+                    var v = fi[k];
+                    var fv, op;
+                    if (v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v)) {
+                        op = v.op || 'eq'; fv = (v.value === undefined ? null : v.value);
+                    } else { op = 'eq'; fv = v; }
+                    // 空值剔除（与 FilterApp.buildSubmit 同口径），避免把 {op,value:null} 当条件下发
+                    if (fv !== null && fv !== undefined && fv !== '') initFilter[k] = { op: op, value: fv };
+                });
+                this.model.filter = initFilter;
+            }
             // mounted 只做自身首屏加载，不发对外事件
             this.loadData();
         },

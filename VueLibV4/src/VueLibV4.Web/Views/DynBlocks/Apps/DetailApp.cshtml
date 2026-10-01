@@ -27,6 +27,9 @@
     <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
     <div class="dyn-blk-detail__body">
         <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+        @* 页面扩展槽位：动态组件树之外的自定义表单区（ext 视图填 Slots["detail:body-extra"]），
+           与本 Block 同一个 VueApp 编译，可直接绑 this.form / 调 app-ext 注入的方法。 *@
+        @(extSlots?.Render("detail:body-extra"))
     </div>
     <div class="dyn-blk-detail__btns">
         <button type="button" class="el-button el-button--small" @@click="onCancel()">取消</button>

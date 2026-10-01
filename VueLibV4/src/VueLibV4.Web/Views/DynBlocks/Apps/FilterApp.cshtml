@@ -33,12 +33,18 @@
     var __def = __cfg.filterDefault || {};
     var __handle = null;
 
-    // 由 default 推导初始值与操作符表：{字段:{op}} → 值置 null；裸值 → op='eq'
+    // 由 default 推导初始值与操作符表：
+    //   嵌套模型（控件 modelname=字段.value）：{op,value} → initModel[字段] 保留同构对象，
+    //      预置 value 非空时控件经 _.get('字段.value') 直接回显（filterInit 预置筛选靠此）；
+    //   裸值（扁平模型）→ op='eq'，值原样。
     function __buildInit(fd) {
         var opMap = {}, initModel = {};
         Object.keys(fd || {}).forEach(function (k) {
             var v = fd[k];
-            if (v && typeof v === 'object' && v.op) { opMap[k] = v.op; initModel[k] = null; }
+            if (v && typeof v === 'object' && v.op) {
+                opMap[k] = v.op;
+                initModel[k] = { op: v.op, value: (v.value === undefined ? null : v.value) };
+            }
             else { opMap[k] = 'eq'; initModel[k] = (v === null || v === undefined) ? null : v; }
         });
         return { opMap: opMap, initModel: initModel };
@@ -77,13 +83,18 @@
             },
             // 查询/重置：只发事件，加载数据是编排方（模板）的职责
             query: function () { __handle.emit('changed', this.buildSubmit()); },
+            // 重置=恢复初始基线（含 filterInit 预置条件）并按基线重新查询；
+            // 无预置值时 buildSubmit() 返回 {}，与旧的"重置即无条件"完全等价。
             reset: function () {
                 this.filterModel = JSON.parse(JSON.stringify(this.initModel));
-                __handle.emit('changed', {});
+                __handle.emit('changed', this.buildSubmit());
             }
         },
         mounted: function () {
+            var self = this;
             __handle = DynBlocks.createBlockHandle(element);
+            // 编排方可用 send('submit') 以当前输入主动触发一次查询（初始化预置筛选时用）
+            __handle.reg('submit', function () { __handle.emit('changed', self.buildSubmit()); return null; });
         },
         beforeUnmount: function () {
             if (__handle) { __handle.destroy(); __handle = null; }

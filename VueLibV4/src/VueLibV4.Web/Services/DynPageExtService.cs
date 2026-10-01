@@ -99,6 +99,7 @@ public class DynPageExtService : IDynPageExtService
     list:app-ext        合并进 list Block 的脚本（script[tag=dynconfig-ext]）
     filter:actions      筛选按钮区（查询 / 重置 之后）
     filter:app-ext      合并进 filter Block 的脚本
+    detail:body-extra   动态表单树之后的自定义表单区（与 detail Block 同 VueApp，可绑 form）
     detail:footer       表单底部按钮区（取消 / 删除 / 保存 之后）
     detail:app-ext      合并进 detail Block 的脚本
     tree:tools          树形页左树工具区

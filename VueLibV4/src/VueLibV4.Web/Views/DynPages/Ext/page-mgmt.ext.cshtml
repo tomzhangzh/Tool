@@ -1,0 +1,131 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Web.Core
+@using VueLibV4.Platform.Services
+@inject IDynTemplateService TemplateSvc
+@{
+    // tabs-basic（多页签容器(片段)）的实例参数 TabsJson/SharedParamsJson 是"字符串里套 JSON"的特殊结构，
+    // 页面生成器的通用控件（含 DynJsonDesigner）产不出结构化编辑器。
+    // 这里用 detail:body-extra 插槽 + detail:app-ext 脚本合并，在标准详情表单树下挂一个
+    // 仅对 tabs-basic 实例可见的专用编辑卡，直接读写 DetailApp 的 this.form.ParamsJson，
+    // 保存仍走 DetailApp 原生 onSave（同一套校验/接口/关窗刷新链路）。
+    var Slots = ViewData["DynExtSlots"] as DynExtSlots ?? new DynExtSlots();
+    var tabsTplId = TemplateSvc.Query(t => t.Code == "tabs-basic").First()?.Id ?? 0;
+
+    // ① 自定义表单区：挂在动态组件树之后（detail:body-extra），与 DetailApp 同一个 VueApp
+    Slots["detail:body-extra"] = @<div v-if="tbsVisible" class="pmg-tbs">
+        <div class="pmg-tbs__head">
+            <span class="pmg-tbs__title">多页签容器参数（tabs-basic 专用）</span>
+            <button type="button" class="el-button el-button--primary el-button--small" @@click="tbsAdd()">+ 添加页签</button>
+        </div>
+        <table class="pmg-tbs__table">
+            <thead>
+                <tr>
+                    <th style="width:170px;">页签标题</th>
+                    <th v-pre>片段 URL（支持 $params.xxx 或 {{$params.xxx}} 占位）</th>
+                    <th style="width:64px;">懒加载</th>
+                    <th style="width:64px;">保活</th>
+                    <th style="width:56px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="(t, i) in tplTabs" :key="i">
+                    <td><el-input v-model="t.title" size="small" @@change="tbsSync()"></el-input></td>
+                    <td><el-input v-model="t.url" size="small" placeholder="/Platform/... 或 $params 占位" @@change="tbsSync()"></el-input></td>
+                    <td style="text-align:center;"><el-switch v-model="t.lazy" @@change="tbsSync()"></el-switch></td>
+                    <td style="text-align:center;"><el-switch v-model="t.keepAlive" @@change="tbsSync()"></el-switch></td>
+                    <td><button type="button" class="el-button el-button--small is-link is-text" @@click="tbsRemove(i)">移除</button></td>
+                </tr>
+                <tr v-if="!tplTabs.length">
+                    <td colspan="5" class="pmg-tbs__empty">暂无页签，点右上角「添加页签」</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="pmg-tbs__shared">
+            <label>SharedParamsJson（共享层初始值，如 {&quot;rowId&quot;:0}）</label>
+            <el-input v-model="tplSharedText" type="textarea" :rows="2" placeholder='{"rowId":0}' @@change="tbsSync()"></el-input>
+        </div>
+    </div>;
+
+    // ② 脚本合并进 DetailApp 的 VueApp：this.form 即详情表单模型
+    Slots["detail:app-ext"] = @<script type="text/plain" tag="dynconfig-ext">
+    var TBS_TPL_ID = @tabsTplId;
+    var dynConfigExt = {
+        data: function () {
+            return { tplTabs: [], tplSharedText: '{}', __tbsStop: null };
+        },
+        computed: {
+            // 仅当当前表单选中的模板是 tabs-basic 时出现专用编辑卡
+            tbsVisible: function () {
+                return TBS_TPL_ID > 0 && Number(this.form && this.form.TemplateId) === TBS_TPL_ID;
+            }
+        },
+        methods: {
+            // 从 form.ParamsJson 读入：TabsJson 本身是 JSON 字符串（字符串套 JSON）
+            tbsLoad: function () {
+                var pj = {};
+                try { pj = JSON.parse(this.form.ParamsJson || '{}') || {}; } catch (e) { pj = {}; }
+                var arr = [];
+                try { arr = JSON.parse(pj.TabsJson || '[]') || []; } catch (e) { arr = []; }
+                this.tplTabs = (Array.isArray(arr) ? arr : []).map(function (t) {
+                    return {
+                        title: t.title || '',
+                        url: t.url || '',
+                        lazy: t.lazy === true,
+                        keepAlive: t.keepAlive !== false,
+                        method: t.method || 'GET',
+                        watchParams: t.watchParams || ''
+                    };
+                });
+                this.tplSharedText = pj.SharedParamsJson || '{}';
+            },
+            // 写回 form.ParamsJson：保留其它键，只覆盖 TabsJson / SharedParamsJson
+            tbsSync: function () {
+                var pj = {};
+                try { pj = JSON.parse(this.form.ParamsJson || '{}') || {}; } catch (e) { pj = {}; }
+                var arr = this.tplTabs.map(function (t) {
+                    var o = { title: t.title, url: t.url, lazy: !!t.lazy, keepAlive: !!t.keepAlive };
+                    if (t.method && t.method !== 'GET') o.method = t.method;
+                    if (t.watchParams) o.watchParams = t.watchParams;
+                    return o;
+                });
+                pj.TabsJson = JSON.stringify(arr);
+                pj.SharedParamsJson = this.tplSharedText || '{}';
+                this.form.ParamsJson = JSON.stringify(pj);
+            },
+            tbsAdd: function () {
+                this.tplTabs.push({ title: '新页签', url: '', lazy: true, keepAlive: false, method: 'GET', watchParams: '' });
+                this.tbsSync();
+            },
+            tbsRemove: function (i) {
+                this.tplTabs.splice(i, 1);
+                this.tbsSync();
+            }
+        },
+        mounted: function () {
+            var self = this;
+            // 编辑行数据是 mounted 后异步拉取回填（editForm 整体替换 form），
+            // 监听 主键/模板 变化时重新载入；新增态预填 TemplateId 也会触发。
+            this.__tbsStop = this.$watch(
+                function () { return [self.form.Id, self.form.TemplateId]; },
+                function () { if (self.tbsVisible) self.tbsLoad(); }
+            );
+            if (this.tbsVisible) this.tbsLoad();
+        },
+        beforeUnmount: function () {
+            if (this.__tbsStop) { try { this.__tbsStop(); } catch (e) { } this.__tbsStop = null; }
+        }
+    };
+    </script>;
+}
+
+<style>
+    .pmg-tbs { margin-top: 14px; border: 1px dashed #409eff; border-radius: 6px; padding: 12px; background: #f5f9ff; }
+    .pmg-tbs__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .pmg-tbs__title { font-weight: 600; color: #303133; font-size: 13px; }
+    .pmg-tbs__table { width: 100%; border-collapse: collapse; background: #fff; }
+    .pmg-tbs__table th, .pmg-tbs__table td { border: 1px solid #ebeef5; padding: 6px 8px; font-size: 12px; }
+    .pmg-tbs__table thead th { background: #fafafa; color: #606266; font-weight: 600; }
+    .pmg-tbs__empty { text-align: center; color: #909399; padding: 16px; }
+    .pmg-tbs__shared { margin-top: 10px; }
+    .pmg-tbs__shared label { display: block; font-size: 12px; color: #606266; margin-bottom: 4px; }
+</style>

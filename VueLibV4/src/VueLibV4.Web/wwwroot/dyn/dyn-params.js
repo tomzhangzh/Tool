@@ -97,24 +97,36 @@
   /**
    * 找最近的已就绪上下文；途中遇到带 data-dyn-params 声明但尚未建 ctx 的祖先，
    * 自顶向下惰性补建（模板把参数声明在普通 div 上、Block 先于编排脚本挂载时靠这条）。
+   * 关键：即使更上方已有就绪 ctx，路径上的【每个】声明节点也必须补建并介入链——
+   * L1 容器声明的优先级高于 L3 父链，否则被注入片段（如 tabs 页签）自身烘焙的
+   * data-dyn-params 会被宿主上下文遮蔽（典型：片段 tableName/filterInit 被宿主 table 串改）。
    */
+  function materializeDeclarers(declarers, ancestor) {
+    var parent = ancestor || null;
+    // declarers 按就近 → 远序收集，自顶向下（远 → 近）逐层补建
+    for (var i = declarers.length - 1; i >= 0; i--) {
+      if (declarers[i].__dynParams) { parent = declarers[i].__dynParams; continue; }
+      parent = createContext(declarers[i], { parent: parent });
+    }
+    return parent; // 最近声明节点的 ctx（无声明时即 ancestor）
+  }
+
   function findHangingContext(el) {
     if (el && el.__dynParams) return el.__dynParams;
     var cur = el && el.parentNode;
-    var declar = null;
+    var declarers = [];
     while (cur && cur.nodeType === 1) {
-      if (cur.__dynParams) return cur.__dynParams;
-      if (declar === null && hasDecl(cur)) declar = cur;
+      if (cur.__dynParams) {
+        return declarers.length ? materializeDeclarers(declarers, cur.__dynParams) : cur.__dynParams;
+      }
+      if (hasDecl(cur)) declarers.push(cur);
       var id = cur.getAttribute && cur.getAttribute(ATTR_CTX);
-      if (id && _registry[id]) return _registry[id];
+      if (id && _registry[id]) {
+        return declarers.length ? materializeDeclarers(declarers, _registry[id]) : _registry[id];
+      }
       cur = cur.parentNode;
     }
-    if (declar) {
-      // 递归先把更高层声明祖先补建好（递归沿 parentNode 上行，不经过 declar 自身，必然终止）
-      var parent = findHangingContext(declar);
-      return createContext(declar, { parent: parent || null });
-    }
-    return null;
+    return declarers.length ? materializeDeclarers(declarers, null) : null;
   }
 
   function makeView(ctx) {
