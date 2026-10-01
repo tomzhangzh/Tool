@@ -60,6 +60,9 @@
     var extIdDetail = extId + "-detail";
     var title = Model.Name;
 
+    // 页面扩展视图（DynWebPage.ExtViewPath）：执行扩展 cshtml 收集具名槽位片段，下发给各 Block
+    var extSlots = await Html.LoadPageExtAsync(Model);
+
     // 页面级统一参数声明（L1 静态层）：三个 Block 经父链共享，URL 同名参数可就近覆盖
     var pageParams = new JObject
     {
@@ -76,17 +79,17 @@
     @* 布局卡片是纯 HTML 容器，不属于任何 app 的受管模板（避免外层 app 编译 Block 内部指令） *@
     <div class="tsb-card">
         @await Html.PartialAsync("~/Views/DynBlocks/Apps/FilterApp.cshtml", new ViewDataDictionary(ViewData) {
-            ["ExtId"] = extIdFilter, ["BlkConfig"] = DynPageViewHelper.SafeJson(filterCfg)
+            ["ExtId"] = extIdFilter, ["BlkConfig"] = DynPageViewHelper.SafeJson(filterCfg), ["ExtSlots"] = extSlots
         })
     </div>
     <div class="tsb-card">
         @await Html.PartialAsync("~/Views/DynBlocks/Apps/ListApp.cshtml", new ViewDataDictionary(ViewData) {
-            ["ExtId"] = extIdList, ["BlkConfig"] = DynPageViewHelper.SafeJson(listCfg)
+            ["ExtId"] = extIdList, ["BlkConfig"] = DynPageViewHelper.SafeJson(listCfg), ["ExtSlots"] = extSlots
         })
     </div>
     <div class="tsb-card">
         @await Html.PartialAsync("~/Views/DynBlocks/Apps/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
-            ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg)
+            ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg), ["ExtSlots"] = extSlots
         })
     </div>
 </div>

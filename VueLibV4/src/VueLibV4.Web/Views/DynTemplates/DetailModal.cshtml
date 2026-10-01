@@ -47,6 +47,9 @@
 
     var extIdDetail = "Tdb" + Guid.NewGuid().ToString("N");
     var title = Model.Name;
+
+    // 页面扩展视图（DynWebPage.ExtViewPath）：弹窗片段同样支持 detail 槽位扩展
+    var extSlots = await Html.LoadPageExtAsync(Model);
 }
 <div class="tsb-modal" style="padding:4px 2px;">
     <div class="tsb-mhead" style="display:flex;align-items:center;gap:8px;padding-bottom:10px;">
@@ -57,7 +60,7 @@
     </div>
 
     @await Html.PartialAsync("~/Views/DynBlocks/Apps/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
-        ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg)
+        ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg), ["ExtSlots"] = extSlots
     })
 
     <style>

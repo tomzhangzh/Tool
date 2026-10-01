@@ -13,6 +13,8 @@
     // =====================================================================================
     var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
     var extId = (ViewData["ExtId"] as string) ?? ("fb" + Guid.NewGuid().ToString("N"));
+    // 页面扩展槽位（DynWebPage.ExtViewPath 收集而来；无扩展时为 null，锚点零输出）
+    var extSlots = ViewData["ExtSlots"] as DynExtSlots;
 }
 <div id="@extId" data-dyn-mode="createApp" data-blk-role="filter" class="dyn-blk-filter" data-blk-config="@blkConfig">
     <div class="dyn-blk-filter__body">
@@ -22,6 +24,7 @@
     <div class="dyn-blk-filter__btns">
         <button type="button" class="el-button el-button--primary el-button--small" @@click="query()">查询</button>
         <button type="button" class="el-button el-button--small" @@click="reset()">重置</button>
+        @(extSlots?.Render("filter:actions"))
     </div>
     <script type="text/plain" tag="dynconfig">
     // ===== 自读配置（独立 app，无任何根依赖；同步就绪，无水合/轮询） =====
@@ -79,6 +82,8 @@
         }
     };
     </script>
+    @* 页面扩展脚本锚点：dynconfig-ext 由 dyn-core mountCore 读取并合并进本 Block 的 VueApp *@
+    @(extSlots?.Render("filter:app-ext"))
 </div>
 
 <style>

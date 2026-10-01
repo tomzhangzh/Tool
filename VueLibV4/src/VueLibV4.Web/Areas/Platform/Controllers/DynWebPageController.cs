@@ -22,6 +22,7 @@ public class DynWebPageController : ControllerBase
     private readonly IPageSettingService _settings;
     private readonly IDynTemplateBlockService _templateBlocks;
     private readonly IDynBlockService _blocks;
+    private readonly IDynPageExtService? _pageExt;
 
     public DynWebPageController(
         IDynWebPageService svc,
@@ -29,7 +30,8 @@ public class DynWebPageController : ControllerBase
         IDynTemplateService templates,
         IPageSettingService settings,
         IDynTemplateBlockService templateBlocks,
-        IDynBlockService blocks)
+        IDynBlockService blocks,
+        IDynPageExtService? pageExt = null)
     {
         _svc = svc;
         _projects = projects;
@@ -37,6 +39,7 @@ public class DynWebPageController : ControllerBase
         _settings = settings;
         _templateBlocks = templateBlocks;
         _blocks = blocks;
+        _pageExt = pageExt;
     }
 
     [HttpGet("all")]
@@ -273,6 +276,27 @@ public class DynWebPageController : ControllerBase
         if (id <= 0) return ApiResult.Fail("缺少 Id");
         _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
+    }
+
+    /// <summary>
+    /// 为已保存的页面实例生成（或定位）扩展视图骨架文件，并把路径回填到 ExtViewPath。
+    /// 文件已存在时不覆盖（保护手工定制）。入参 {id}。
+    /// </summary>
+    [HttpPost("ext-skeleton")]
+    public async Task<ApiResult> ExtSkeleton([FromBody] JObject body, CancellationToken ct)
+    {
+        var id = body["id"]?.Value<int>() ?? body["Id"]?.Value<int>() ?? 0;
+        var page = id > 0 ? _svc.GetById(id) : null;
+        if (page == null) return ApiResult.Fail("页面不存在，请先保存页面");
+        if (string.IsNullOrWhiteSpace(page.Code)) return ApiResult.Fail("页面 Code 为空，无法生成扩展视图");
+        if (_pageExt == null) return ApiResult.Fail("扩展视图服务未注册");
+        var path = await _pageExt.EnsureSkeletonAsync(page.Code, page.Name, ct);
+        if (!string.Equals(page.ExtViewPath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            page.ExtViewPath = path;
+            _svc.Update(page);
+        }
+        return ApiResult.Ok(new { viewPath = path }, "扩展视图骨架已就绪");
     }
 
     private DynWebPage FirstByIdOrCode(string key)

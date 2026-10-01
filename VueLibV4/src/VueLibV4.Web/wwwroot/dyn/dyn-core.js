@@ -406,6 +406,73 @@ function checkRuntimeDeps(){
 }
 
 /**
+ * @description 读取 App 根元素的直接子级扩展脚本 script[tag="dynconfig-ext"]（页面扩展视图注入）。
+ *   必须在 mountCore 删除容器内 script 之前调用；每个扩展脚本约定声明 dynConfigExt 对象。
+ * @param {HTMLElement} el
+ * @returns {object[]}
+ */
+function readExtConfigs(el){
+  const list = [];
+  const doms = el.querySelectorAll(':scope > script[tag="dynconfig-ext"]');
+  [].forEach.call(doms,function(d){
+    try{
+      const cfg = new Function('element','dyn',d.textContent+"\n; return typeof dynConfigExt!=='undefined'?dynConfigExt:null;")(el,global.dyn);
+      if(cfg&&typeof cfg==='object') list.push(cfg);
+    }catch(e){ console.error("[DynCore] dynconfig-ext执行异常",e); }
+  });
+  return list;
+}
+
+/**
+ * @description 把页面扩展配置合并进 Vue 组件选项（就地修改 component）。
+ *   - methods/computed/watch/components/directives：键合并，扩展同名覆盖（允许深度定制）
+ *   - data：基础与扩展各自求值后浅合并，扩展键覆盖
+ *   - 生命周期（created/mounted/...）：按 基础→扩展 顺序串联；扩展钩子异常不阻断
+ *   - 其他顶层属性：扩展直接覆盖；setup/template 不允许扩展
+ * @param {object} component
+ * @param {object[]} extCfgs
+ */
+function mergeExtOptions(component,extCfgs){
+  if(!extCfgs||!extCfgs.length) return;
+  const LIFECYCLE = ['beforeCreate','created','beforeMount','mounted','beforeUpdate','updated','beforeUnmount','unmounted'];
+  const MERGE_MAP = ['methods','computed','watch','components','directives','filters'];
+  extCfgs.forEach(function(ext){
+    if(!ext||typeof ext!=='object') return;
+    if(typeof ext.data==='function'){
+      const baseData = typeof component.data==='function'?component.data:function(){ return {}; };
+      const extData = ext.data;
+      component.data = function(){
+        const a = baseData.call(this)||{};
+        const b = extData.call(this)||{};
+        return Object.assign(a,b); // 扩展 data 键覆盖同名
+      };
+    }
+    MERGE_MAP.forEach(function(k){
+      if(ext[k]&&typeof ext[k]==='object'){
+        component[k] = Object.assign(component[k]||{},ext[k]);
+      }
+    });
+    LIFECYCLE.forEach(function(k){
+      if(typeof ext[k]!=='function') return;
+      const baseFn = typeof component[k]==='function'?component[k]:null;
+      const extFn = ext[k];
+      component[k] = function(){
+        let ret;
+        if(baseFn) ret = baseFn.apply(this,arguments);
+        try{ extFn.apply(this,arguments); }
+        catch(e){ console.error("[DynCore] dynconfig-ext "+k+" 异常",e); }
+        return ret;
+      };
+    });
+    Object.keys(ext).forEach(function(k){
+      if(k==='data'||k==='setup'||k==='template') return;
+      if(MERGE_MAP.indexOf(k)>=0||LIFECYCLE.indexOf(k)>=0) return;
+      component[k] = ext[k];
+    });
+  });
+}
+
+/**
  * @description 内部mount核心逻辑
  * @param {HTMLElement} el
  * @param {HTMLElement|null} [parentEl] 父App宿主（台账用，嵌套掩码还原挂载时显式传入）
@@ -423,6 +490,8 @@ async function mountCore(el,parentEl){
       cfgScript = new Function('element','dyn',cfgDom.textContent+"\n; return typeof dynConfig!=='undefined'?dynConfig:null;")(el,global.dyn);
     }catch(e){ console.error("[DynCore] dynconfig执行异常",e); }
   }
+  // 页面扩展脚本（dynconfig-ext）：同样只认直接子级；须在下方移除容器 script 之前读取
+  const extCfgs = readExtConfigs(el);
   const srcModel = readModelScript(el)||parseModel(el)||{};
   // 统一参数上下文：必须在 maskNested/删 script 之前建立（L1 要读直接子级 dynparams 脚本）。
   // 嵌套 App 掩码期间 DOM 祖先链断开，父上下文用显式 parentEl 接回。
@@ -462,6 +531,8 @@ async function mountCore(el,parentEl){
     });
     Object.keys(cfgScript).forEach(k=>{ if(!(k in component)&&k!=='setup'&&k!=='template') component[k]=cfgScript[k]; });
   }
+  // 页面扩展（DynWebPage.ExtViewPath 槽位脚本）：methods 覆盖 / data 浅合并 / 生命周期串联
+  mergeExtOptions(component,extCfgs);
 
   const app = Vue.createApp(component);
   // 掩码占位符 dyn-host 是原生自定义元素，禁止 Vue 尝试解析为组件

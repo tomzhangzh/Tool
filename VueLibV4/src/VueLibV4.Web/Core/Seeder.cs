@@ -151,6 +151,8 @@ CREATE TABLE SysMenu (
         SeedSysMenu(conn);
         // DynTemplate 外壳视图路径列（旧库幂等补齐；新库 platform.sql 已包含）
         EnsureColumn(conn, "DynTemplate", "ViewPath", "TEXT NULL");
+        // DynWebPage 实例扩展视图路径列（页面级扩展：真实 cshtml，具名槽位 + dynconfig-ext 脚本合并）
+        EnsureColumn(conn, "DynWebPage", "ExtViewPath", "TEXT NULL");
         // 页面模板种子 + 页面实例种子（demo：页面设置管理 / 页面实例列表）
         SeedDynTemplates(conn);
         SeedDynWebPages(conn);

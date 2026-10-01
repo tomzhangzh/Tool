@@ -79,6 +79,9 @@
     var title = Model.Name;
     var showDesignEntry = Convert.ToBoolean(ViewData["ShowDesignEntry"] ?? false);
 
+    // 页面扩展视图（DynWebPage.ExtViewPath）：tree 内联 app 与右侧 DetailApp 均支持槽位扩展
+    var extSlots = await Html.LoadPageExtAsync(Model);
+
     // 页面级统一参数声明（L1 静态层）：左树 app 与右侧 DetailApp 经父链共享
     var pageParams = new JObject
     {
@@ -373,6 +376,8 @@
                 }
             };
             </script>
+            @* 页面扩展脚本锚点：dynconfig-ext 由 dyn-core mountCore 读取并合并进 tree VueApp *@
+            @(extSlots.Render("tree:app-ext"))
 
             <div class="tr-pane-head">
                 <span class="tr-pane-title">树</span>
@@ -380,6 +385,7 @@
                     <el-button type="success" size="small" @@click="onAddRoot">+ 新增根</el-button>
                     <el-button type="primary" size="small" @@click="onAddChild" :disabled="!current">+ 子节点</el-button>
                     <el-button type="primary" size="small" text @@click="loadTree" :loading="treeLoading">刷新</el-button>
+                    @(extSlots.Render("tree:tools"))
                 </div>
             </div>
             <el-input v-model="filterText" placeholder="搜索节点" clearable size="small" style="margin-bottom:8px;width:100%;"></el-input>
@@ -413,7 +419,7 @@
         @* ===== 右表单：独立 DetailApp，与左树平级 ===== *@
         <div class="tr-pane-right">
             @await Html.PartialAsync("~/Views/DynBlocks/Apps/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
-                ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg)
+                ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg), ["ExtSlots"] = extSlots
             })
         </div>
     </div>

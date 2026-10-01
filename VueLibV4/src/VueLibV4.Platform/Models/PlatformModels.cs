@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using SqlSugar;
 
 namespace VueLibV4.Platform.Models;
@@ -278,6 +278,14 @@ public class DynWebPage
 
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Url { get; set; }
+
+    /// <summary>
+    /// 页面实例扩展视图路径（真实 cshtml，如 ~/Views/DynPages/Ext/student.ext.cshtml）。
+    /// 运行时由积木模板执行该视图：其 HTML 片段按具名槽位（list:toolbar 等）插入内置 Block，
+    /// script[tag=dynconfig-ext] 片段合并进对应 Block 的 VueApp。为空则页面无扩展。
+    /// </summary>
+    [SugarColumn(Length = 300, IsNullable = true)]
+    public string? ExtViewPath { get; set; }
 
     public bool IsActive { get; set; } = true;
 

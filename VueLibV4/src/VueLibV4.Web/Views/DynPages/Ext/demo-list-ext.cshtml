@@ -1,0 +1,35 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Web.Core
+@*
+  演示扩展（已启用版）：把 ~/Views/DynPages/Ext/demo-list-ext.cshtml 填到任意
+  「筛选列表 / 三屏」页面实例的 ExtViewPath，刷新即可看到工具栏与行操作列多出扩展按钮。
+  新页面的骨架由页面生成器 / 参数页「生成骨架」按钮生成（含全部槽位说明）。
+*@
+@{
+    var Slots = ViewData["DynExtSlots"] as DynExtSlots ?? new DynExtSlots();
+
+    // ① list 工具栏追加按钮（点击逻辑见 ③）
+    Slots["list:toolbar"] = @<button type="button"
+        class="el-button el-button--success el-button--small" @@click="onExtDemo()">
+        扩展按钮
+    </button>;
+
+    // ② list 行操作列追加按钮（处于 el-table 行模板内，scope.row 可直接用）
+    Slots["list:row-actions"] = @<button type="button"
+        class="el-button el-button--small is-link is-text" @@click="onExtRow(scope.row)">扩展行</button>;
+
+    // ③ 脚本合并进 list Block 的 VueApp：this 即 list 实例，可读 model/table/keyField，可调 loadData()
+    Slots["list:app-ext"] = @<script type="text/plain" tag="dynconfig-ext">
+    var dynConfigExt = {
+        methods: {
+            onExtDemo: function () {
+                dyn.showMessage('扩展生效：页面 @Model.Code，表 ' + this.table + '，共 ' + (this.model.total || 0) + ' 条', 'success');
+            },
+            onExtRow: function (row) {
+                var id = row ? row[this.keyField] : '';
+                dyn.showMessage('扩展行动作：主键 ' + id, 'info');
+            }
+        }
+    };
+    </script>;
+}

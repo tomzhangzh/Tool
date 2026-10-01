@@ -20,11 +20,14 @@ public class PageGenController : ControllerBase
 
     public PageGenController(IPageGenService pageGen) => _pageGen = pageGen;
 
-    /// <summary>生成三屏页面（Filter/List/Detail 三份 PageSetting + 1 条 DynWebPage）。</summary>
+    /// <summary>
+    /// 生成三屏页面：三屏 PageSetting + 筛选列表主页（filterlist-crud）+
+    /// 编辑弹窗实例（detail-modal）+ 页面扩展视图骨架（真实 cshtml）。
+    /// </summary>
     [HttpPost("generate")]
-    public ApiResult Generate([FromBody] JObject req)
+    public async Task<ApiResult> Generate([FromBody] JObject req, CancellationToken ct)
     {
-        var r = _pageGen.Generate(req);
+        var r = await _pageGen.GenerateAsync(req, ct);
         return r.Ok ? ApiResult.Ok(r.Data, r.Msg) : ApiResult.Fail(r.Msg);
     }
 

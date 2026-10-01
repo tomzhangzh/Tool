@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS DynWebPage (
     PageJson              TEXT NULL,
     ParamsJson            TEXT NULL,
     Url                   TEXT NULL,
+    ExtViewPath           TEXT NULL,
     IsActive              INTEGER NOT NULL DEFAULT 1,
     CreateTime            TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     ExtJson               TEXT NULL

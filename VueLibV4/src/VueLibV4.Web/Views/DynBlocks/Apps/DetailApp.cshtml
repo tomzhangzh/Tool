@@ -20,6 +20,8 @@
     // =====================================================================================
     var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
     var extId = (ViewData["ExtId"] as string) ?? ("db" + Guid.NewGuid().ToString("N"));
+    // 页面扩展槽位（DynWebPage.ExtViewPath 收集而来；无扩展时为 null，锚点零输出）
+    var extSlots = ViewData["ExtSlots"] as DynExtSlots;
 }
 <div id="@extId" data-dyn-mode="createApp" data-blk-role="detail" class="dyn-blk-detail" data-blk-config="@blkConfig">
     <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
@@ -30,6 +32,7 @@
         <button type="button" class="el-button el-button--small" @@click="onCancel()">取消</button>
         <button type="button" class="el-button el-button--danger el-button--small" :disabled="loading || !canDelete" @@click="onDelete()">删除</button>
         <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" @@click="onSave()">保存</button>
+        @(extSlots?.Render("detail:footer"))
     </div>
     <script type="text/plain" tag="dynconfig">
     // ===== 自读配置（独立 app，无任何根依赖） =====
@@ -180,6 +183,8 @@
         }
     };
     </script>
+    @* 页面扩展脚本锚点：dynconfig-ext 由 dyn-core mountCore 读取并合并进本 Block 的 VueApp *@
+    @(extSlots?.Render("detail:app-ext"))
 </div>
 
 <style>

@@ -40,8 +40,12 @@ namespace VueLibV4.Platform.Services;
 /// </summary>
 public interface IPageGenService : IScopeDependency
 {
-    /// <summary>执行页面生成；返回 (是否成功, 提示信息, 生成结果)。失败时 Data 为 null。</summary>
-    (bool Ok, string Msg, PageGenResult? Data) Generate(JObject req);
+    /// <summary>
+    /// 执行页面生成；返回 (是否成功, 提示信息, 生成结果)。失败时 Data 为 null。
+    /// 生成产物：三屏 PageSetting + 筛选列表主页（filterlist-crud 积木模板）+
+    /// 编辑弹窗实例（detail-modal 模板）+ 页面扩展视图骨架（真实 cshtml，回填 ExtViewPath）。
+    /// </summary>
+    Task<(bool Ok, string Msg, PageGenResult? Data)> GenerateAsync(JObject req, CancellationToken ct = default);
 
     /// <summary>
     /// 读取表字段元数据 + 按同一套规则推断「推荐控件」，供页面生成向导【第二步：配置字段】预填充控件下拉。
@@ -61,6 +65,10 @@ public class PageGenResult
     public int? FilterId { get; set; }
     public int? ListId { get; set; }
     public int? DetailId { get; set; }
+    /// <summary>编辑弹窗页面实例 Id（detail-modal 模板，主页 ModalPageId 引用）</summary>
+    public int? ModalPageId { get; set; }
+    /// <summary>页面扩展视图路径（真实 cshtml 骨架；生成失败或已手工指定时可能为空）</summary>
+    public string? ExtViewPath { get; set; }
 }
 
 /// <summary>
@@ -97,23 +105,26 @@ public class PageGenService : IPageGenService
     private readonly IDynWebPageService _pages;
     private readonly IPageSettingService _settings;
     private readonly IConfiguration _config;
+    private readonly IDynPageExtService? _pageExt;
 
     public PageGenService(
         IDynProjectService projects,
         IDynTemplateService templates,
         IDynWebPageService pages,
         IPageSettingService settings,
-        IConfiguration config)
+        IConfiguration config,
+        IDynPageExtService? pageExt = null)
     {
         _projects = projects;
         _templates = templates;
         _pages = pages;
         _settings = settings;
         _config = config;
+        _pageExt = pageExt;
     }
 
     /// <summary>执行生成（Controller 只做路由与 ApiResult 封装，业务规则全在此）。</summary>
-    public (bool Ok, string Msg, PageGenResult? Data) Generate(JObject req)
+    public async Task<(bool Ok, string Msg, PageGenResult? Data)> GenerateAsync(JObject req, CancellationToken ct = default)
     {
         var project = req["project"]?.ToString();
         var table = (req["table"]?.ToString() ?? "").Trim();
@@ -198,8 +209,35 @@ public class PageGenService : IPageGenService
             table, projectId, listCfg, listDefault);
         var detailId = UpsertSetting(code + "_detail", name + " - 详情区", "Detail", "Front", null, table, projectId, detailCfg, detailDefault);
 
-        // DynWebPage：ParamsJson=实例参数（TableName + Filter/List/DetailPageSettingId；ListUrl/AddUrl/EditUrl/DeleteUrl 由外壳自动补齐）
-        var tpl = _templates.Query(t => t.Code == "crud-basic").First();
+        // DynWebPage：主页绑定 filterlist-crud 积木模板（筛选/列表 Block + detail-modal 弹窗实例）。
+        // ParamsJson = 模板顶层参数 + blocks 槽位（各槽位 URL 留空，由 Block/模板自动补 dyndata 端点）。
+        var tpl = _templates.Query(t => t.Code == "filterlist-crud").First()
+                  ?? _templates.Query(t => t.Code == "crud-basic").First();
+        var modalTpl = _templates.Query(t => t.Code == "detail-modal").First();
+
+        // 编辑弹窗实例（幂等：{code}-modal）：DetailModal.cshtml 读顶层 TableName/KeyField + blocks.detail
+        var existModal = _pages.Query(p => p.Code == code + "-modal").First();
+        var modalPage = existModal ?? new DynWebPage { Code = code + "-modal", CreateTime = DateTime.Now };
+        modalPage.Name = name + " - 编辑弹窗";
+        modalPage.ProjectId = projectId;
+        modalPage.TemplateId = modalTpl?.Id;
+        modalPage.ParamsJson = new JObject
+        {
+            ["TableName"] = table,
+            ["KeyField"] = pk,
+            ["blocks"] = new JObject
+            {
+                ["detail"] = new JObject
+                {
+                    ["settingId"] = detailId,
+                    // addUrl/editUrl/deleteUrl 留空 → DetailApp/模板走业务 dyndata 缺省端点
+                    ["model"] = new JObject()
+                }
+            }
+        }.ToJson();
+        modalPage.IsActive = true;
+        if (existModal == null) _pages.Insert(modalPage); else _pages.Update(modalPage);
+
         var existPage = _pages.Query(p => p.Code == code).First();
         var page = new DynWebPage
         {
@@ -211,19 +249,53 @@ public class PageGenService : IPageGenService
             ParamsJson = new JObject
             {
                 ["TableName"] = table,
-                ["FilterPageSettingId"] = filterId,
-                ["ListPageSettingId"] = listId,
-                ["DetailPageSettingId"] = detailId
+                ["KeyField"] = pk,
+                ["ChildFkField"] = "",
+                ["ModalPageId"] = modalPage.Id,
+                ["blocks"] = new JObject
+                {
+                    ["filter"] = new JObject { ["settingId"] = filterId, ["model"] = new JObject() },
+                    ["list"] = new JObject { ["settingId"] = listId, ["model"] = new JObject() }
+                }
             }.ToJson(),
             IsActive = true
         };
-        if (existPage != null) { page.Id = existPage.Id; page.CreateTime = existPage.CreateTime; _pages.Update(page); }
-        else _pages.Insert(page); // 自增 Id 回填
+        if (existPage != null)
+        {
+            page.Id = existPage.Id;
+            page.CreateTime = existPage.CreateTime;
+            // 重新生成不覆盖用户已手工指定的扩展视图；未配置过则生成骨架（真实 cshtml，文件已存在不重写）
+            page.ExtViewPath = existPage.ExtViewPath;
+            _pages.Update(page);
+        }
+        else
+        {
+            _pages.Insert(page); // 自增 Id 回填
+        }
 
+        // 页面扩展视图骨架（首次生成）：失败不阻断主流程，仅在提示中说明
+        string? extViewPath = page.ExtViewPath;
+        string? extWarn = null;
+        if (string.IsNullOrWhiteSpace(extViewPath) && _pageExt != null)
+        {
+            try
+            {
+                extViewPath = await _pageExt.EnsureSkeletonAsync(code, name, ct);
+                page.ExtViewPath = extViewPath;
+                _pages.Update(page);
+            }
+            catch (Exception ex)
+            {
+                extWarn = "；扩展视图骨架生成失败：" + ex.Message;
+            }
+        }
+
+        modalPage.Url = "/Platform/Page/DetailModal?id=" + modalPage.Id;
+        _pages.Update(modalPage);
         page.Url = "/Platform/Page/DynWebPage?id=" + page.Id;
         _pages.Update(page);
 
-        return (true, "页面生成成功", new PageGenResult
+        return (true, "页面生成成功" + extWarn, new PageGenResult
         {
             Id = page.Id,
             Code = code,
@@ -232,7 +304,9 @@ public class PageGenService : IPageGenService
             Url = page.Url,
             FilterId = filterId,
             ListId = listId,
-            DetailId = detailId
+            DetailId = detailId,
+            ModalPageId = modalPage.Id,
+            ExtViewPath = extViewPath
         });
     }
 

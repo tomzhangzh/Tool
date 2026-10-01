@@ -38,6 +38,12 @@
                         <el-tag :type="scope.row.IsActive ? 'success' : 'info'" size="small">{{ scope.row.IsActive ? '启用' : '停用' }}</el-tag>
                     </template>
                 </el-table-column>
+                <el-table-column label="扩展" width="80">
+                    <template #default="scope">
+                        <el-tag v-if="scope.row.ExtViewPath" type="success" size="small">扩展</el-tag>
+                        <span v-else style="color:#c0c4cc;">—</span>
+                    </template>
+                </el-table-column>
                 <el-table-column label="操作" width="250" fixed="right">
                     <template #default="scope">
                         <el-button size="small" type="primary" @@click="onOpen(scope.row)">打开</el-button>
@@ -95,6 +101,20 @@
                 TableName 有值且 ListUrl/AddUrl/EditUrl/DeleteUrl 留空 → 自动生成 dyndata 免 model 接口；手动填写 URL 优先。
             </div>
 
+            <el-divider content-position="left">页面扩展（真实视图，可选）</el-divider>
+            <el-form-item label="扩展视图">
+                <el-input v-model="form.ExtViewPath" placeholder="~/Views/DynPages/Ext/xxx.ext.cshtml" clearable>
+                    <template #append>
+                        <el-button :loading="creatingExt" @@click="onCreateExt">生成骨架文件</el-button>
+                    </template>
+                </el-input>
+                <div style="line-height:1.5;color:#909399;font-size:12px;margin-top:4px;">
+                    真实 cshtml 文件：往内置 Block 的按钮区（list 工具栏/行操作、筛选、表单底部等）挂 HTML，
+                    脚本合并进对应 VueApp（可访问 Block 内部状态/方法）。保存文件即热重载；留空则无扩展。
+                    骨架文件生成后不会被覆盖，可直接在 IDE 中修改。
+                </div>
+            </el-form-item>
+
             <el-divider content-position="left">运行信息</el-divider>
             <div style="line-height:1.8;color:#303133;font-size:13px;">
                 <div>运行入口：<code>/Platform/Page/DynWebPage?id={{ form.Id || '{Id}' }}</code></div>
@@ -111,7 +131,7 @@
     var dynConfig = {
         data: function () {
             return {
-                loading: false, saving: false,
+                loading: false, saving: false, creatingExt: false,
                 rows: [],
                 templates: [],
                 templateMap: {},
@@ -126,7 +146,7 @@
                 activeSlots: [],
                 // 运行时「进入设计器」带 id 自动打开编辑的页面 Id
                 autoEditId: null,
-                form: { Id: 0, Code: '', Name: '', TemplateId: null, ParamsJson: '', IsActive: true },
+                form: { Id: 0, Code: '', Name: '', TemplateId: null, ParamsJson: '', ExtViewPath: '', IsActive: true },
                 // 模板自身参数：作为 parentmodelinfo 传给 dyn-dynamic-com
                 params: {}
             };
@@ -161,7 +181,7 @@
                 }).catch(function () { self.loading = false; dyn.showMessage('加载失败', 'error'); });
             },
             resetForm: function () {
-                this.form = { Id: 0, Code: '', Name: '', TemplateId: null, ParamsJson: '', IsActive: true };
+                this.form = { Id: 0, Code: '', Name: '', TemplateId: null, ParamsJson: '', ExtViewPath: '', IsActive: true };
                 this.params = {};
                 this.templateCfg = {};
                 this.declaredTemplateKeys = [];
@@ -286,6 +306,7 @@
                         Name: this.form.Name,
                         TemplateId: this.form.TemplateId,
                         ParamsJson: JSON.stringify(payloadParams),
+                        ExtViewPath: this.form.ExtViewPath || null,
                         IsActive: this.form.IsActive === undefined ? true : this.form.IsActive
                     })
                 }).then(function (r) { return r.json(); }).then(function (res) {
@@ -298,6 +319,22 @@
             },
             onOpen: function (row) {
                 window.open('/Platform/Page/DynWebPage?id=' + row.Id, '_blank');
+            },
+            // 生成扩展视图骨架：需先保存页面（按 Code 命名并回填 ExtViewPath）；已存在的文件不会被覆盖
+            onCreateExt: function () {
+                var self = this;
+                if (!this.form.Id) { dyn.showMessage('请先保存页面，再生成扩展视图骨架', 'warning'); return; }
+                this.creatingExt = true;
+                fetch('/api/platform/dynwebpage/ext-skeleton', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ Id: this.form.Id })
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    self.creatingExt = false;
+                    if (res.code !== 0) { dyn.showMessage(res.msg || '生成失败', 'error'); return; }
+                    if (res.data && res.data.viewPath) self.form.ExtViewPath = res.data.viewPath;
+                    dyn.showMessage('骨架已生成，保存页面后到该文件中取消示例注释即可', 'success');
+                }).catch(function () { self.creatingExt = false; dyn.showMessage('生成失败', 'error'); });
             },
             onCopy: function (row) {
                 var url = window.location.origin + '/Platform/Page/DynWebPage?id=' + row.Id;

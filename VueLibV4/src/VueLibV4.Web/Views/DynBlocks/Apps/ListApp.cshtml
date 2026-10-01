@@ -17,10 +17,13 @@
     // =====================================================================================
     var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
     var extId = (ViewData["ExtId"] as string) ?? ("lb" + Guid.NewGuid().ToString("N"));
+    // 页面扩展槽位（DynWebPage.ExtViewPath 收集而来；无扩展时为 null，锚点零输出）
+    var extSlots = ViewData["ExtSlots"] as DynExtSlots;
 }
 <div id="@extId" data-dyn-mode="createApp" data-blk-role="list" class="dyn-blk-list" data-blk-config="@blkConfig">
     <div class="dyn-blk-list__toolbar">
         <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">+ 新增</button>
+        @(extSlots?.Render("list:toolbar"))
     </div>
     <el-table :data="model.rows" v-loading="model.loading" size="small" border>
         <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label"
@@ -34,11 +37,12 @@
                 <span v-else>{{ formatCell(col, scope.row) }}</span>
             </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
             <template #default="scope">
                 <button type="button" class="el-button el-button--small is-link" @@click="onEdit(scope.row)">编辑</button>
                 <button type="button" class="el-button el-button--small is-link" @@click="onAddChild(scope.row)">+子</button>
                 <button type="button" class="el-button el-button--small is-link is-text" @@click="onDelete(scope.row)">删除</button>
+                @(extSlots?.Render("list:row-actions"))
             </template>
         </el-table-column>
     </el-table>
@@ -157,6 +161,8 @@
         }
     };
     </script>
+    @* 页面扩展脚本锚点：dynconfig-ext 由 dyn-core mountCore 读取并合并进本 Block 的 VueApp *@
+    @(extSlots?.Render("list:app-ext"))
 </div>
 
 <style>
