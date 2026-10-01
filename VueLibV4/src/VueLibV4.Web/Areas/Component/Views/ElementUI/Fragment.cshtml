@@ -13,14 +13,19 @@
                        :parentmodelinfo="props.parentmodelinfo"
                        :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
         </n-dynamic-com>
+        <!-- 直连模式：手写模板子元素 -->
+        <slot v-if="$slots.default"></slot>
     </div>
-    <n-dynamic-com v-else
-                   v-for="(child, idx) in safeChildren"
-                   :key="child.component + '_' + idx"
-                   :jsonconfig="child"
-                   :parentmodelinfo="props.parentmodelinfo"
-                   :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
-    </n-dynamic-com>
+    <template v-else>
+        <n-dynamic-com v-for="(child, idx) in safeChildren"
+                       :key="child.component + '_' + idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
+        </n-dynamic-com>
+        <!-- 直连模式：手写模板子元素（运行态无外层 div，直接透出） -->
+        <slot v-if="$slots.default"></slot>
+    </template>
 </template>
 
 @section setupScripts{

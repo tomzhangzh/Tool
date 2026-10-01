@@ -9,7 +9,8 @@
                        :jsonconfig="child"
                        :parentmodelinfo="props.parentmodelinfo"
                        :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
-        </n-dynamic-com></div>
+        </n-dynamic-com><!-- 直连模式：手写模板子元素（<dyn-el-input v-model=.../> 等），与 DSL 子节点并存 -->
+        <slot v-if="$slots.default"></slot></div>
     </el-container>
 </template>
 

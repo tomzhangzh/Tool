@@ -4,8 +4,17 @@ var comConfig = {
     props: {
         jsonconfig: { type: Object, default: null },
         parentmodelinfo: { type: Object, default: null },
-        nodePath: { type: String, default: '' }
+        nodePath: { type: String, default: '' },
+        // ===== 直连模式（裸标签）支持：<dyn-el-input v-model="model.Name" label="名称" required placeholder="..." /> =====
+        // 不传 jsonconfig 时，这些 props 合成内存配置，复用同一套配置驱动逻辑；与 jsonconfig 同时出现时 jsonconfig 打底、直连 props 覆盖
+        modelname: { type: String, default: null },
+        label: { type: String, default: null },
+        required: { type: Boolean, default: false },
+        placeholder: { type: String, default: null },
+        modelValue: { default: null }
     },
+    // v-model 直连通道：modelinfo setter 在无 parentmodelinfo+modelname 路径时 emit update:modelValue
+    emits: ['update:modelValue'],
     setup(props, context) {
         const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted, onBeforeUnmount, getCurrentInstance } = Vue;
         const _ = window._;
@@ -54,8 +63,25 @@ var comConfig = {
                 return undefined;
             });
         }
+        // 直连模式（裸标签未传 jsonconfig）：用直连 props 合成内存 jc（不落库、不参与设计器导出），
+        // 让下方全部配置驱动逻辑（label/绑定/校验/穿透）无差别复用
+        const directMode = !props.jsonconfig;
+        const syntheticJc = directMode ? {
+            component: (inst && inst.type && inst.type.name) || null,
+            modelname: props.modelname || null,
+            options: {
+                comoptions: props.placeholder ? { placeholder: props.placeholder } : {},
+                // 直连无 label/required 时不渲染空 label 壳
+                labeloptions: { label: props.label || '', required: !!props.required, show: !!(props.label || props.required) },
+                itemoptions: { style: {}, class: '' }
+            },
+            validators: [],
+            childrenctrls: [],
+            slots: {},
+            extendinfo: {}
+        } : null;
         // 直接引用 reactive 的 jsonconfig，不深拷贝；补齐缺失的默认字段
-        const jc = props.jsonconfig || {};
+        const jc = props.jsonconfig || syntheticJc;
         if (!jc.options) jc.options = {};
         if (!jc.options.comoptions) jc.options.comoptions = {};
         if (!jc.options.labeloptions) jc.options.labeloptions = { label: "", required: false, show: true };
@@ -205,7 +231,7 @@ var comConfig = {
                     + '&textField=' + encodeURIComponent(s.textField || 'Name');
                 if (s.parentField) {
                     var pv = '';
-                    if (s.parentValuePath) pv = getByPath(props.parentmodelinfo, s.parentValuePath);
+                    if (s.parentValuePath) pv = getByPath(parentModel.value, s.parentValuePath);
                     else if (s.parentValue !== undefined) pv = s.parentValue;
                     if (pv !== undefined && pv !== null && pv !== '') {
                         qs += '&parentField=' + encodeURIComponent(s.parentField)
@@ -221,7 +247,7 @@ var comConfig = {
             if (t === 'ajax') {
                 if (!s.url) return;
                 var url = String(s.url).replace(/\{\{\s*model\.([\w.]+)\s*\}\}/g, function (_, p) {
-                    var v = getByPath(props.parentmodelinfo, p);
+                    var v = getByPath(parentModel.value, p);
                     return encodeURIComponent(v == null ? '' : v);
                 });
                 fetch(url)
@@ -281,6 +307,16 @@ var comConfig = {
         // ========== end 属性穿透 ==========
         // inject before section scripts
         const injectParentModelPrefix = inject('parentModelPrefix', null);
+        // 直连模式：容器通过插槽（<slot/>）渲染的裸标签子组件没有显式 parentmodelinfo prop，
+        // 由最近容器 provide 的 dynSlotParentModel 兜底（可能是 computed ref 或原始对象）
+        const injectSlotParentModelRaw = inject('dynSlotParentModel', null);
+        const injectSlotParentModel = computed(() => {
+            if (!injectSlotParentModelRaw) return null;
+            return (typeof injectSlotParentModelRaw === 'object' && 'value' in injectSlotParentModelRaw)
+                ? injectSlotParentModelRaw.value : injectSlotParentModelRaw;
+        });
+        // 实际生效的父模型：显式 prop 优先，inject 兜底
+        const parentModel = computed(() => props.parentmodelinfo || injectSlotParentModel.value || null);
         const injectParentDefaultLabelOptions = inject('defaultLabelOptions', null);
         const injectUiGlobalProps = inject('ui_global_props', null);
         const injectDesignerScope = inject("designer", null);
@@ -343,7 +379,14 @@ var comConfig = {
             const base = mergeLabelOptions(mergedOptions.value.labeloptions, parentDefaultLabelOpts);
             return base;
         });
-        const finalLabelOptions = computed(() => mergePatch(originMergedLabelOpts.value, effectivePatch.labeloptions));
+        // 直连 props 补丁：label/required 显式传入时覆盖配置；evalCondition 的 effectivePatch 优先级最高
+        const directLabelPatch = computed(() => {
+            const p = {};
+            if (props.label !== null && props.label !== undefined && props.label !== '') { p.label = props.label; p.show = true; }
+            if (props.required) { p.required = true; p.show = true; }
+            return p;
+        });
+        const finalLabelOptions = computed(() => mergePatch(mergePatch(originMergedLabelOpts.value, directLabelPatch.value), effectivePatch.labeloptions));
         const finalComOptions = computed(() => {
             const base = mergePatch(mergedOptions.value.comoptions, effectivePatch.comoptions);
             return base;
@@ -360,6 +403,8 @@ var comConfig = {
             const co = jc.options.comoptions || {};
             const o = {};
             Object.keys(co).forEach(function (k) { if (!COM_OPTION_PRIVATE_KEYS[k]) o[k] = co[k]; });
+            // 直连模式 placeholder 显式 prop 覆盖（合成 jc 已含，此处再跟响应式 prop，保证动态修改生效）
+            if (props.placeholder) o.placeholder = props.placeholder;
             return o;
         });
         const originUiGlobalMerged = computed(() => Object.assign({}, parentUiGlobal || {}, jc.options.uiGlobalProps));
@@ -368,7 +413,8 @@ var comConfig = {
             if (comExtra.transparentMode) {
                 return parentModelPrefixVal || '';
             }
-            const raw = jc.modelname || '';
+            // jc.modelname（DSL）或直连 prop modelname（裸标签）
+            const raw = jc.modelname || props.modelname || '';
             if (!raw) {
                 const p = parentModelPrefixVal || '';
                 return p?.startsWith('~') ? p.slice(1) : p;
@@ -385,19 +431,33 @@ var comConfig = {
         // 父→子穿透数据源 comExtraPass 由容器布局（_ContainerLayout）统一 provide，
         // 与是否处于设计器画布无关，保证属性面板/运行时/设计器三处穿透一致。
         const innerValue = ref(DVALUE);
+        // 是否绑定了 v-model：emits 声明后监听器不进 attrs，从 vnode.props 判定
+        function isVModelBound() {
+            const vp = inst && inst.vnode && inst.vnode.props;
+            return !!(vp && typeof vp['onUpdate:modelValue'] === 'function');
+        }
         function getByPath(obj, path) { return !obj || !path ? undefined : _.get(obj, path); }
         function setByPath(obj, path, value) { if (!obj || !path) return; _.set(obj, path, value); }
+        // 值绑定三通道（优先级从高到低）：
+        // ① 路径模式：parentmodelinfo（显式 prop 或容器 inject 兜底）+ modelname
+        // ② v-model 直连：<dyn-el-input v-model="x" /> —— get 读 modelValue，set emit update:modelValue
+        // ③ 组件内部状态：无任何绑定时的本地 ref
         const modelinfo = computed({
             get() {
-                if (props.parentmodelinfo && fullModelName.value) {
-                    const val = getByPath(props.parentmodelinfo, fullModelName.value); 
+                if (parentModel.value && fullModelName.value) {
+                    const val = getByPath(parentModel.value, fullModelName.value);
                     return val === undefined ? DVALUE : val;
+                }
+                if (isVModelBound()) {
+                    return props.modelValue === undefined || props.modelValue === null ? DVALUE : props.modelValue;
                 }
                 return innerValue.value;
             },
             set(val) {
-                if (props.parentmodelinfo && fullModelName.value) {
-                    setByPath(props.parentmodelinfo, fullModelName.value, val);
+                if (parentModel.value && fullModelName.value) {
+                    setByPath(parentModel.value, fullModelName.value, val);
+                } else if (isVModelBound()) {
+                    context.emit('update:modelValue', val);
                 } else {
                     innerValue.value = val;
                 }
@@ -408,15 +468,15 @@ var comConfig = {
 	    function validate() {
             const rules = jc.validators || [];
             // 实时读取当前值（不依赖 modelinfo computed 缓存），确保 form 已更新后校验拿到最新值
-            const val = (props.parentmodelinfo && fullModelName.value)
-                ? getByPath(props.parentmodelinfo, fullModelName.value)
+            const val = (parentModel.value && fullModelName.value)
+                ? getByPath(parentModel.value, fullModelName.value)
                 : modelinfo.value;
             const errors = [];
             for (const rule of rules) {
                 if (rule.enableWhen !== undefined) {
                     try {
                         const fn = new Function("ctx", rule.enableWhen);
-                        const enable = fn({ value: val, model: props.parentmodelinfo, getByPath });
+                        const enable = fn({ value: val, model: parentModel.value, getByPath });
                         if (!enable) continue;
                     } catch (e) {
                         console.warn("[validator enableWhen error]", e);
@@ -434,7 +494,7 @@ var comConfig = {
                     // custom：rule.value 为返回布尔值的 JS 表达式脚本（参数 v=当前值, model=表单模型）
                     custom: (v, script) => {
                         if (!script) return true;
-                        try { return !!new Function('v', 'model', 'return (' + script + ');')(val, props.parentmodelinfo); }
+                        try { return !!new Function('v', 'model', 'return (' + script + ');')(val, parentModel.value); }
                         catch (e) { console.warn('[validator custom error]', e); return false; }
                     }
                 };
@@ -467,11 +527,11 @@ var comConfig = {
                 return;
             }
             try {
-                const safeGet = (path) => dyn?.getByPath(props.parentmodelinfo, path);
+                const safeGet = (path) => dyn?.getByPath(parentModel.value, path);
                 const fn = new Function("ctx", scriptText);
                 const ret = fn({
                     value: modelinfo.value,
-                    model: props.parentmodelinfo,
+                    model: parentModel.value,
                     fullModelName: fullModelName.value,
                     getByPath,
                     safeGet

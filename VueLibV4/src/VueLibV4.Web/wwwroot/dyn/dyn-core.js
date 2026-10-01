@@ -327,6 +327,8 @@ async function mountCore(el){
     template:el.innerHTML,
     data(){ return {}; },
     setup(){
+      // 直连模式：把页面模型 provide 给容器插槽里的裸标签组件（<dyn-el-input modelname="x"/> 可免写 :parentmodelinfo）
+      Vue.provide('dynSlotParentModel', reactiveModel);
       const exposed = { model:reactiveModel,element:el,dyn:global.dyn };
       if(cfgScript&&typeof cfgScript.setup==='function'){
         const extra = cfgScript.setup({model:reactiveModel,element:el})||{};
@@ -412,7 +414,11 @@ async function mountConfig(cfg,target,model){
     // 注意：data 键不能以 _ 开头——Vue3 不会把 _/$ 前缀属性代理到组件实例，模板将恒取到 undefined
     template:'<dyn-dynamic-com :jsonconfig="pageCfg" :parentmodelinfo="model"></dyn-dynamic-com>',
     data(){ return { pageCfg:cfg }; },
-    setup(){ return { model:reactiveModel, element:target, dyn:global.dyn }; }
+    setup(){
+      // 直连模式：页面模型 provide 给插槽裸标签组件
+      Vue.provide('dynSlotParentModel', reactiveModel);
+      return { model:reactiveModel, element:target, dyn:global.dyn };
+    }
   };
   const app = Vue.createApp(component);
   storeApp(target,app);

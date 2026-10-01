@@ -11,6 +11,8 @@
                        :parentmodelinfo="props.parentmodelinfo"
                        :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
         </n-dynamic-com>
+        <!-- 直连模式：手写模板子元素（折叠面板内容区） -->
+        <slot v-if="$slots.default"></slot>
     </el-collapse-item>
 </template>
 

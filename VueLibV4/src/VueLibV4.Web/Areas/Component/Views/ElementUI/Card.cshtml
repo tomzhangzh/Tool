@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
 }
 
@@ -14,6 +14,8 @@
                        :parentmodelinfo="props.parentmodelinfo"
                        :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
         </n-dynamic-com>
+        <!-- 直连模式：手写模板子元素（卡片主体） -->
+        <slot v-if="$slots.default"></slot>
     </el-card>
 </template>
 </template>

@@ -57,6 +57,16 @@ provide('comExtraPass', {
     }
 });
 
+// ===== 直连模式（裸标签插槽）支持 =====
+// 插槽内的裸标签子组件（<dyn-el-input v-model=.../> 或 modelname 路径绑定）不经 n-dynamic-com，
+// 收不到显式 parentmodelinfo prop；容器在此 provide 自己的父模型供其 inject 兜底。
+// 显式 prop 优先；容器自身也处于插槽深处时继续向上游容器继承。
+const __inheritedSlotModel = inject('dynSlotParentModel', null);
+provide('dynSlotParentModel', computed(() => {
+    const inh = __inheritedSlotModel && ('value' in __inheritedSlotModel) ? __inheritedSlotModel.value : __inheritedSlotModel;
+    return props.parentmodelinfo || inh || null;
+}));
+
 comExtra.finalUiGlobalProps = finalUiGlobalProps;
  @RenderSection("setupScripts", false)
 }

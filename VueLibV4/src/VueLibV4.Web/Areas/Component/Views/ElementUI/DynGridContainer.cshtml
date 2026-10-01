@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
 }
 
@@ -7,6 +7,8 @@
          :style="gridStyle"
          :class="[...getClass(jc.options.itemoptions), designRootClass]">
     <n-dynamic-com v-for="(child, idx) in safeChildren" :key="child.__uid" :jsonconfig="child" :parentmodelinfo="props.parentmodelinfo" :node-path="props.nodePath + '.childrenctrls[' + idx + ']'"></n-dynamic-com>
+    <!-- 直连模式：手写模板子元素 -->
+    <slot v-if="$slots.default"></slot>
 </div>
 </template>
 

@@ -14,7 +14,8 @@
                        :jsonconfig="child"
                        :parentmodelinfo="formModel"
                        :node-path="props.nodePath + '.childrenctrls[' + idx + ']'">
-        </n-dynamic-com></div>
+        </n-dynamic-com><!-- 直连模式：手写模板子元素 -->
+        <slot v-if="$slots.default"></slot></div>
     </el-form>
 </template>
 
@@ -25,6 +26,9 @@
         if (pm) return pm;
         return modelinfo.value && typeof modelinfo.value === 'object' ? modelinfo.value : {};
     });
+
+    // 直连模式：插槽裸标签子组件 inject 的父模型以 formModel 为准（可能是表单自身 modelinfo 对象）
+    provide('dynSlotParentModel', formModel);
 
     // 无 wrapper：itemoptions（子项布局）统一合并进 options.itemoptions（组件根样式）
     comExtra.safeChildren = computed(() => {
