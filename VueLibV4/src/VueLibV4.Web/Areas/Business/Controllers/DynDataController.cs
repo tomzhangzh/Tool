@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using SqlSugar;
 using VueLibV4.Web.Core;
@@ -97,8 +97,14 @@ public class DynDataController : ControllerBase
         var table = req["table"]?.ToString();
         var project = req["project"]?.ToString();
         var data = req["data"] as JObject;
-        using var db = ResolveDb(project);
-        return ApiResult.Ok(_svc.Insert(db, table, data), "新增成功");
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (data == null) return ApiResult.Fail("缺少 data（统一契约：body 必须是 {table,data:{...}}）");
+        try
+        {
+            using var db = ResolveDb(project);
+            return ApiResult.Ok(_svc.Insert(db, table, data), "新增成功");
+        }
+        catch (Exception ex) { return ApiResult.Fail("新增失败：" + ex.GetBaseException().Message); }
     }
 
     [HttpPost("update")]
@@ -107,8 +113,14 @@ public class DynDataController : ControllerBase
         var table = req["table"]?.ToString();
         var project = req["project"]?.ToString();
         var data = req["data"] as JObject;
-        using var db = ResolveDb(project);
-        return ApiResult.Ok(_svc.Update(db, table, data), "更新成功");
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (data == null) return ApiResult.Fail("缺少 data（统一契约：body 必须是 {table,data:{...}}）");
+        try
+        {
+            using var db = ResolveDb(project);
+            return ApiResult.Ok(_svc.Update(db, table, data), "更新成功");
+        }
+        catch (Exception ex) { return ApiResult.Fail("更新失败：" + ex.GetBaseException().Message); }
     }
 
     [HttpPost("delete")]
@@ -117,22 +129,34 @@ public class DynDataController : ControllerBase
         var table = req["table"]?.ToString();
         var project = req["project"]?.ToString();
         var keys = req["keys"] as JObject;
-        using var db = ResolveDb(project);
-        return ApiResult.Ok(_svc.Delete(db, table, keys), "删除成功");
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (keys == null || keys.Count == 0) return ApiResult.Fail("缺少 keys（统一契约：body 必须是 {table,keys:{Id:...}}）");
+        try
+        {
+            using var db = ResolveDb(project);
+            return ApiResult.Ok(_svc.Delete(db, table, keys), "删除成功");
+        }
+        catch (Exception ex) { return ApiResult.Fail("删除失败：" + ex.GetBaseException().Message); }
     }
 
-    /// <summary>保存（有主键→更新，无主键→新增）</summary>
+    /// <summary>保存（有主键→更新，无主键→新增）。统一契约 body={table,data,project?}</summary>
     [HttpPost("save")]
     public ApiResult Save([FromBody] JObject req)
     {
         var table = req["table"]?.ToString();
         var project = req["project"]?.ToString();
         var data = req["data"] as JObject;
-        using var db = ResolveDb(project);
-        var pks = _svc.PrimaryKeys(db, table);
-        var hasPk = pks.Count > 0 && pks.All(p => data?[p] != null && data[p].Type != JTokenType.Null && !string.IsNullOrEmpty(data[p].ToString()));
-        return hasPk
-            ? ApiResult.Ok(_svc.Update(db, table, data), "保存成功")
-            : ApiResult.Ok(_svc.Insert(db, table, data), "保存成功");
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (data == null) return ApiResult.Fail("缺少 data（统一契约：body 必须是 {table,data:{...}}）");
+        try
+        {
+            using var db = ResolveDb(project);
+            var pks = _svc.PrimaryKeys(db, table);
+            var hasPk = pks.Count > 0 && pks.All(p => data[p] != null && data[p].Type != JTokenType.Null && !string.IsNullOrEmpty(data[p].ToString()));
+            return hasPk
+                ? ApiResult.Ok(_svc.Update(db, table, data), "保存成功")
+                : ApiResult.Ok(_svc.Insert(db, table, data), "保存成功");
+        }
+        catch (Exception ex) { return ApiResult.Fail("保存失败：" + ex.GetBaseException().Message); }
     }
 }

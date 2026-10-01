@@ -143,12 +143,8 @@
                     var isEdit = this.bizId > 0;
                     var dbUrl = '/api/' + (this.apiDb === 'business' ? 'business' : 'platform') + '/dyndata/';
                     var req;
-                    if (this.apiDb === 'business') {
-                        // 业务库：insert / update 分开
-                        req = this.httpRequest(dbUrl + (isEdit ? 'update' : 'insert'), 'POST', { table: this.table, data: this.form });
-                    } else {
-                        req = this.httpRequest(dbUrl + 'save?table=' + encodeURIComponent(this.table), 'POST', this.form);
-                    }
+                    // 平台/业务统一契约：POST {db}/dyndata/save，body 同形 {table,data}（服务端按主键自动增/改）
+                    req = this.httpRequest(dbUrl + 'save', 'POST', { table: this.table, data: this.form });
                     req.then(function (res) {
                         self.loading = false;
                         if (res.code !== 0) { dyn.showMessage(res.msg || '保存失败', 'error'); return; }

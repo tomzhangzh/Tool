@@ -303,10 +303,11 @@ public class PageController : Controller
         if (raw.TryGetValue("TableName", out var t) && t != null && !string.IsNullOrWhiteSpace(t.ToString()))
         {
             var table = t.ToString();
+            // 统一契约：端点不再拼 query table，表名随 body 发送（{table,data} / {table,keys}）
             if (!HasValue(result, "ListUrl")) result["ListUrl"] = "/api/platform/dyndata/search";
-            if (!HasValue(result, "AddUrl")) result["AddUrl"] = "/api/platform/dyndata/save?table=" + table;
-            if (!HasValue(result, "EditUrl")) result["EditUrl"] = "/api/platform/dyndata/save?table=" + table;
-            if (!HasValue(result, "DeleteUrl")) result["DeleteUrl"] = "/api/platform/dyndata/delete?table=" + table;
+            if (!HasValue(result, "AddUrl")) result["AddUrl"] = "/api/platform/dyndata/save";
+            if (!HasValue(result, "EditUrl")) result["EditUrl"] = "/api/platform/dyndata/save";
+            if (!HasValue(result, "DeleteUrl")) result["DeleteUrl"] = "/api/platform/dyndata/delete";
         }
         return result;
     }

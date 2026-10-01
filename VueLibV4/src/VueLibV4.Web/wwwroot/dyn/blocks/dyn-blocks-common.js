@@ -25,6 +25,7 @@
 
     DynBlocks.URLS = {
         bizSearch: '/api/business/dyndata/search',
+        bizSave: '/api/business/dyndata/save',
         bizInsert: '/api/business/dyndata/insert',
         bizUpdate: '/api/business/dyndata/update',
         bizDelete: '/api/business/dyndata/delete',
@@ -35,7 +36,8 @@
         platGet: '/api/platform/dyndata/get'
     };
 
-    // /api/platform/ 前缀 → 平台直连（query table、扁平实体）；其余按业务库契约（body 带 table/project）
+    // /api/platform/ 前缀 → 平台库（固定 PlatformDb，project 被忽略）；其余按业务库（body.project 切库）。
+    // 两端点请求/响应【完全同形】：save body={table,data,project?}；delete body={table,keys,project?}。
     DynBlocks.apiStyle = function (url) {
         return (url || '').indexOf('/api/platform/') === 0 ? 'platform' : 'business';
     };
@@ -54,36 +56,40 @@
         return base + '?' + q;
     };
 
-    // 保存 body：平台=扁平实体（端点自动判别增改）；业务={table,data,project}
+    // 剥掉 URL 上旧契约残留的 table=/id= query（统一后端只认 body.table / body.keys），保留其余参数
+    function stripLegacyQuery(u) {
+        var qi = u.indexOf('?');
+        if (qi < 0) return u;
+        var kept = [];
+        u.slice(qi + 1).split('&').forEach(function (pair) {
+            var key = pair.split('=')[0];
+            if (key && key !== 'table' && key !== 'id') kept.push(pair);
+        });
+        return kept.length ? u.slice(0, qi) + '?' + kept.join('&') : u.slice(0, qi);
+    }
+
+    // 保存 body【统一契约】：平台/业务完全同形 {table,data,project?}
     DynBlocks.savePayload = function (style, table, form, project) {
-        return style === 'platform' ? form : { table: table, data: form, project: project };
+        return { table: table, data: form, project: project };
     };
 
-    // 保存 URL：平台统一 save 端点（必要时补 query table）；业务按 isEdit 取 update/insert
+    // 保存 URL【统一契约】：平台与业务都走各自的 save 端点（服务端按主键自动判别增/改），
+    // 不再区分 insert/update、不再拼 query table。configuredUrl 优先（空则用缺省端点）。
     DynBlocks.saveUrl = function (style, configuredUrl, table, isEdit) {
-        if (style === 'platform') {
-            var base = configuredUrl || DynBlocks.URLS.platSave;
-            if (base.indexOf('table=') === -1) {
-                base += (base.indexOf('?') > -1 ? '&' : '?') + 'table=' + encodeURIComponent(table);
-            }
-            return base;
+        if (configuredUrl) {
+            // 防御：历史配置可能残留 ?table=X 旧形态；统一端点从 body.table 取值，剥掉旧 query
+            return stripLegacyQuery(configuredUrl);
         }
-        if (configuredUrl) return configuredUrl;
-        return isEdit ? DynBlocks.URLS.bizUpdate : DynBlocks.URLS.bizInsert;
+        return style === 'platform' ? DynBlocks.URLS.platSave : DynBlocks.URLS.bizSave;
     };
 
-    // 删除请求：平台 delete?table=&id=（空 body）；业务 body {table,keys,project}
+    // 删除请求【统一契约】：平台/业务同形 body {table,keys:{Id},project?}，无 query 表名/主键
     DynBlocks.deleteRequest = function (deleteUrl, table, id, keyField, project) {
         var style = DynBlocks.apiStyle(deleteUrl);
-        if (style === 'platform') {
-            var base = deleteUrl || DynBlocks.URLS.platDelete;
-            var url = base + (base.indexOf('?') > -1 ? '&' : '?')
-                + 'table=' + encodeURIComponent(table) + '&id=' + encodeURIComponent(id);
-            return { url: url, body: {} };
-        }
         var keys = {};
         keys[keyField || 'Id'] = id;
-        return { url: deleteUrl || DynBlocks.URLS.bizDelete, body: { table: table, keys: keys, project: project } };
+        var url = deleteUrl || (style === 'platform' ? DynBlocks.URLS.platDelete : DynBlocks.URLS.bizDelete);
+        return { url: stripLegacyQuery(url), body: { table: table, keys: keys, project: project } };
     };
 
     // ---------------- Block 实例句柄（独立 app 协作契约） ----------------
@@ -109,8 +115,18 @@
             },
             // 编排方向 block 下发命令
             send: function (cmd, payload) {
-                if (destroyed || !commands[cmd]) {
-                    return Promise.reject(new Error('Block 命令未注册或实例已销毁: ' + cmd));
+                if (destroyed) {
+                    return Promise.reject(new Error('Block 实例已销毁，命令被拒绝: ' + cmd));
+                }
+                if (!commands[cmd]) {
+                    // 失败变吵：命令名拼写错/Block 未挂载/角色不匹配，过去只得到一个静默 reject，
+                    // 现象是"点了没反应"。这里把角色、已注册命令与元素位置一起打出来。
+                    var registered = Object.keys(commands);
+                    var warnMsg = '命令未注册: "' + cmd + '"（role=' + (handle.role || '?')
+                        + '，已注册=[' + registered.join(',') + ']）。检查命令名拼写/scan 时机/Block 是否挂载成功。';
+                    console.warn('[DynBlocks] ' + warnMsg, element);
+                    if (global.DynDebug && DynDebug.note) DynDebug.note(warnMsg, { source: 'block:' + (handle.role || '?') });
+                    return Promise.reject(new Error('Block 命令未注册: ' + cmd));
                 }
                 try { return Promise.resolve(commands[cmd](payload)); }
                 catch (e) { return Promise.reject(e); }

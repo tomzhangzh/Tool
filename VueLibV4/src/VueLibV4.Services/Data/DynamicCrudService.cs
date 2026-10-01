@@ -23,6 +23,13 @@ public class PageResult
     [Newtonsoft.Json.JsonProperty("page")] public int Page { get; set; }
     [Newtonsoft.Json.JsonProperty("size")] public int Size { get; set; }
     [Newtonsoft.Json.JsonProperty("rows")] public List<JObject> Rows { get; set; } = new();
+
+    /// <summary>
+    /// 非致命告警（未知筛选字段 / 不支持的 op 等"写错了但被静默忽略"的情形）。
+    /// 只在确有告警时序列化；前端收到后 console.warn / 调试浮层提示——让配置错误尽早暴露。
+    /// </summary>
+    [Newtonsoft.Json.JsonProperty("warnings", NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public List<string> Warnings { get; set; }
 }
 
 /// <summary>
@@ -121,12 +128,18 @@ public class DynamicCrudService
 
         var pars = new List<SugarParameter>();
         var sb = new StringBuilder(" 1=1 ");
+        var warnings = new List<string>();
         if (filter != null)
         {
             foreach (var prop in filter.Properties())
             {
                 if (prop.Name.StartsWith("__")) continue;
-                if (!colTypes.TryGetValue(prop.Name, out var dt)) continue;
+                if (!colTypes.TryGetValue(prop.Name, out var dt))
+                {
+                    // 失败变吵：筛选了不存在的列，旧实现静默跳过 → 条件"看起来生效了"实则全量
+                    warnings.Add($"筛选字段 [{prop.Name}] 不在表 {table} 的列中，已忽略（检查表名/拼写/大小写）");
+                    continue;
+                }
                 var val = prop.Value;
                 if (val.Type == JTokenType.Object)
                 {
@@ -151,7 +164,7 @@ public class DynamicCrudService
                             foreach (var f in fields)
                             {
                                 var itemSb = new StringBuilder();
-                                AppendOp(itemSb, pars, f, colTypes[f], op, fv);
+                                AppendOp(itemSb, pars, f, colTypes[f], op, fv, warnings);
                                 var seg = itemSb.ToString().Trim();
                                 // 去掉单条件前导 "AND "，避免 OR 组内重复 AND
                                 if (seg.StartsWith("AND ", StringComparison.OrdinalIgnoreCase))
@@ -164,14 +177,14 @@ public class DynamicCrudService
                         }
                         else if (fields.Count == 1)
                         {
-                            AppendOp(sb, pars, fields[0], colTypes[fields[0]], op, fv);
+                            AppendOp(sb, pars, fields[0], colTypes[fields[0]], op, fv, warnings);
                         }
                         // fields.Count == 0：orFields 内无任何有效字段 → 跳过该条件
                     }
                     else
                     {
                         // 无 orFields：沿用原有单字段条件（外层 key 即查询字段）
-                        AppendOp(sb, pars, prop.Name, dt, op, fv);
+                        AppendOp(sb, pars, prop.Name, dt, op, fv, warnings);
                     }
                 }
                 else if (val.Type == JTokenType.Null || val.Type == JTokenType.Undefined)
@@ -196,7 +209,14 @@ public class DynamicCrudService
             .Take(size)
             .ToDataTable();
 
-        return new PageResult { Total = total, Page = page, Size = size, Rows = DataTableToJson(rows) };
+        return new PageResult
+        {
+            Total = total,
+            Page = page,
+            Size = size,
+            Rows = DataTableToJson(rows),
+            Warnings = warnings.Count > 0 ? warnings : null
+        };
     }
 
     // ---------------- 增删改 ----------------
@@ -232,6 +252,11 @@ public class DynamicCrudService
         var missing = pks.FirstOrDefault(p => data[p] == null || data[p].Type == JTokenType.Null);
         if (missing != null) throw new Exception($"更新缺少主键值: {missing}");
         var dict = ToColumnDict(data, ColumnMap(db, table));
+        // 防御：除主键外没有任何可更新列时，SQL 会生成 "UPDATE t SET WHERE ..." 裸语法异常。
+        // 显式报友好错误（失败变吵），调用方一般是表单提交 data 异常为空。
+        var updatable = dict.Keys.Where(k => !pks.Contains(k)).ToList();
+        if (updatable.Count == 0)
+            throw new Exception($"更新数据为空：除主键({string.Join(",", pks)})外没有任何字段");
         return db.UpdateableByObject(dict).AS(table).WhereColumns(pks.ToArray()).ExecuteCommand();
     }
 
@@ -274,8 +299,19 @@ public class DynamicCrudService
         return list.ToArray();
     }
 
-    private void AppendOp(StringBuilder sb, List<SugarParameter> pars, string col, string dataType, string op, JToken v)
+    /// <summary>dyndata 支持的全部筛选操作符（未知 op 会回流告警，禁止再静默吞掉）</summary>
+    private static readonly HashSet<string> SupportedOps =
+        new(StringComparer.OrdinalIgnoreCase) { "eq", "neq", "gt", "ge", "lt", "le", "like", "notlike", "in", "between" };
+
+    private void AppendOp(StringBuilder sb, List<SugarParameter> pars, string col, string dataType, string op, JToken v, List<string> warnings = null)
     {
+        op = string.IsNullOrWhiteSpace(op) ? "eq" : op.Trim();
+        if (!SupportedOps.Contains(op))
+        {
+            // 失败变吵：如误写 contains/startsWith，旧实现 switch 无 default → 条件被静默丢弃（返回全量）
+            warnings?.Add($"不支持的筛选操作符 [{op}]（字段 [{col}]，值 {v}），该条件已忽略。支持：eq/neq/gt/ge/lt/le/like/notlike/in/between");
+            return;
+        }
         switch (op.ToLower())
         {
             case "eq":
@@ -303,7 +339,7 @@ public class DynamicCrudService
                 AddParam(sb, pars, $" AND [{col}] NOT LIKE {{p}} ", "%" + (v?.ToString() ?? "") + "%");
                 break;
             case "in":
-                if (v is JArray arr)
+                if (v is JArray arr && arr.Count > 0)
                 {
                     var names = new List<string>();
                     foreach (var item in arr)
@@ -312,8 +348,11 @@ public class DynamicCrudService
                         names.Add(p);
                         pars.Add(new SugarParameter(p, ToDbValue(item, dataType)));
                     }
-                    if (names.Count > 0)
-                        sb.Append($" AND [{col}] IN ({string.Join(",", names)}) ");
+                    sb.Append($" AND [{col}] IN ({string.Join(",", names)}) ");
+                }
+                else
+                {
+                    warnings?.Add($"操作符 [in] 的值必须是非空数组（字段 [{col}]），该条件已忽略");
                 }
                 break;
             case "between":
@@ -324,6 +363,10 @@ public class DynamicCrudService
                     var p2 = $"@p{pars.Count}";
                     pars.Add(new SugarParameter(p2, ToDbValue(bt[1], dataType)));
                     sb.Append($" AND [{col}] BETWEEN {p1} AND {p2} ");
+                }
+                else
+                {
+                    warnings?.Add($"操作符 [between] 的值必须是长度为 2 的数组（字段 [{col}]），该条件已忽略");
                 }
                 break;
         }

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using VueLibV4.Web.Core;
 using VueLibV4.Services.Data;
@@ -59,22 +59,28 @@ public class DynPlatformDataController : ControllerBase
     }
 
     /// <summary>
-    /// 保存（updateel 提交约定：body 为扁平实体字段）：有主键→更新，无主键→新增。
-    /// 返回 dyn-actions：提示 + 刷新 gridId 表格 + 关弹窗。
+    /// 保存（统一契约，与 /api/business/dyndata/save 完全同形）：
+    /// body = { table, data: {实体字段}, gridId? }；有主键→更新，无主键→新增。
+    /// 平台库忽略 project、固定 PlatformDb。gridId 仅用于旧管理页 dyn-actions（提示/刷表/关弹窗）。
     /// </summary>
     [HttpPost("save")]
-    public ApiResult Save(string table, string gridId, [FromBody] JObject data)
+    public ApiResult Save([FromBody] JObject req)
     {
+        var table = req?["table"]?.ToString();
+        var gridId = req?["gridId"]?.ToString();
+        var data = req?["data"] as JObject;
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (data == null) return ApiResult.Fail("缺少 data（统一契约：body 必须是 {table, data:{...}}）");
         using var db = _dbs.PlatformDb();
         try
         {
             var pks = _svc.PrimaryKeys(db, table);
             var hasPk = pks.Count > 0
-                && pks.All(p => data?[p] != null && data[p].Type != JTokenType.Null && !string.IsNullOrEmpty(data[p].ToString()));
+                && pks.All(p => data[p] != null && data[p].Type != JTokenType.Null && !string.IsNullOrEmpty(data[p].ToString()));
             var result = hasPk ? _svc.Update(db, table, data) : _svc.Insert(db, table, data);
             var msg = hasPk ? "更新成功" : "新增成功";
-            return ApiResult.Ok(new { result }, msg).WithActions(BuildActions(msg, gridId, close: true));
+            // data 与业务端点同形：直接放结果（自增 Id / 受影响行数）；dyn-actions 仍挂信封顶层
+            return ApiResult.Ok(result, msg).WithActions(BuildActions(msg, gridId, close: true));
         }
         catch (Exception ex)
         {
@@ -83,18 +89,22 @@ public class DynPlatformDataController : ControllerBase
         }
     }
 
-    /// <summary>删除（id=主键值，URL 传参配合 DynTable 行操作 {{Id}} 模板）；返回提示 + 表格刷新动作</summary>
+    /// <summary>
+    /// 删除（统一契约）：body = { table, keys: {Id: 值}, gridId? }，空 query。
+    /// </summary>
     [HttpPost("delete")]
-    public ApiResult Delete(string table, string id, string gridId)
+    public ApiResult Delete([FromBody] JObject req)
     {
-        if (string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(id)) return ApiResult.Fail("缺少 table 或 id");
+        var table = req?["table"]?.ToString();
+        var gridId = req?["gridId"]?.ToString();
+        var keys = req?["keys"] as JObject;
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (keys == null || keys.Count == 0) return ApiResult.Fail("缺少 keys（统一契约：body 必须是 {table, keys:{Id:...}}）");
         using var db = _dbs.PlatformDb();
         try
         {
-            var pks = _svc.PrimaryKeys(db, table);
-            if (pks.Count == 0) return ApiResult.Fail("表没有主键");
-            var result = _svc.Delete(db, table, new JObject { [pks[0]] = id });
-            return ApiResult.Ok(new { result }, "删除成功").WithActions(BuildActions("删除成功", gridId, close: false));
+            var result = _svc.Delete(db, table, keys);
+            return ApiResult.Ok(result, "删除成功").WithActions(BuildActions("删除成功", gridId, close: false));
         }
         catch (Exception ex)
         {

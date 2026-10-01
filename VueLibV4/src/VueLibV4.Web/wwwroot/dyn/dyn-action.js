@@ -414,12 +414,26 @@ defineAction('postback',async function(ctx){
   // useEventPayload 默认true
   const usePayload = o.useEventPayload!==false;
   let body;
-  if(usePayload){
+  if(o.body && typeof o.body==='object'){
+    // 统一契约通道：显式声明请求体（{{占位}} 已由 buildCtx→applyTpl 用 data-* 行参数替换）
+    // 例：{"body":{"table":"X","keys":{"Id":"{{Id}}"}}}
+    body = dyn.deepClone(o.body);
+  }else if(usePayload){
     body = { event:o.event||'', data:Object.assign({},ctx.model||{}) };
   }else{
     body = dyn.deepClone(ctx.model||{});
   }
-  const qs = o.params?new URLSearchParams(o.params).toString():'';
+  // wrap：把默认扁平 body 包成 dyndata 统一契约（表单类提交无法逐字段列 body 模板时用）
+  // 例：{"wrap":{"table":"DesktopShortcut","dataField":"data","gridId":"grid_x"}}
+  if(o.wrap && typeof o.wrap==='object' && o.wrap.table && !(o.body&&typeof o.body==='object')){
+    const wrapped = { table:o.wrap.table };
+    if(o.wrap.gridId) wrapped.gridId = o.wrap.gridId;
+    wrapped[o.wrap.dataField||'data'] = body;
+    body = wrapped;
+  }
+  // params 仍可走 query（body 显式声明时通常无需 params→query）
+  const queryParams = o.body ? null : o.params;
+  const qs = queryParams?new URLSearchParams(queryParams).toString():'';
   const fullUrl = qs?(url+(url.indexOf('?')>=0?'&':'?')+qs):url;
   try{
     if(!window.axios) throw new Error("Axios未加载");
@@ -491,7 +505,14 @@ defineAction('updateel',async ctx=>{
     const ok = await dyn.confirmAsync(o.confirm===true?'确定执行该操作吗？':o.confirm);
     if(!ok) return false;
   }
-  const body = Object.assign({},dyn.deepClone(ctx.model||{}),o.params||{});
+  let body = Object.assign({},dyn.deepClone(ctx.model||{}),o.params||{});
+  // wrap：表单 model 包成 dyndata 统一契约 {table,data,gridId?}（旧管理页保存按钮零业务 JS 的统一写法）
+  if(o.wrap && typeof o.wrap==='object' && o.wrap.table){
+    const wrapped = { table:o.wrap.table };
+    if(o.wrap.gridId) wrapped.gridId = o.wrap.gridId;
+    wrapped[o.wrap.dataField||'data'] = body;
+    body = wrapped;
+  }
   // 片段参数链：目标 pane 从【触发方】上下文 fork（o.params 是 L0 入参，不自动灌入请求之外的地方）
   const forkCtx = typeof dyn.params==='function' ? dyn.params(ctx.element) : null;
   const bootInfo = { parentCtx:forkCtx, local:o.params||{} };

@@ -75,7 +75,7 @@
             };
         },
         methods: {
-            // 加载列表：两种接口风格 POST body 同构 {table,page,size,filter,project}
+            // 加载列表：统一契约 POST body {table,page,size,filter,project}
             loadData: function () {
                 var self = this;
                 if (!this.table || !this.loadUrl) return Promise.resolve(null);
@@ -88,6 +88,13 @@
                         self.model.loading = false;
                         self.model.rows = (data && data.rows) || [];
                         self.model.total = (data && data.total) || 0;
+                        // 服务端告警回流：未知筛选字段/不支持的 op 等（失败变吵，不允许静默全量）
+                        if (data && Array.isArray(data.warnings) && data.warnings.length) {
+                            data.warnings.forEach(function (w) {
+                                console.warn('[ListApp][dyndata warning] ' + w);
+                                if (window.DynDebug && DynDebug.note) DynDebug.note(w, { source: 'list', table: self.table });
+                            });
+                        }
                         return data;
                     })
                     .catch(function () { self.model.loading = false; return null; });

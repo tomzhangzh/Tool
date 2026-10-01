@@ -75,7 +75,8 @@ const DYN_MODULES = [
   "dyn-action.js",
   "dyn-designer-dialog.js",
   "dyn-template.js",
-  "dyn-dsl.js"
+  "dyn-dsl.js",
+  "dyn-debug.js"
 ];
 
 const DynLib = {
@@ -84,7 +85,14 @@ const DynLib = {
   _libs:{},
   _ready:false,
   _queue:[],
-  script(rel){ return BASE+rel+(rel.indexOf('?')>=0?'&':'?')+'v='+this.version; },
+  // 版本号优先取服务端烘焙的内容哈希（window.DYN_ASSET_HASHES，_Layout 内联）：
+  // 改任意 wwwroot/dyn/**/*.js → 哈希变化 → URL 变化 → 浏览器缓存自动失效，无需手工 bump。
+  // 清单缺失（片段独立加载等极端场景）才回退 this.version 固定版本号。
+  script(rel){
+    const hashes = global.DYN_ASSET_HASHES || {};
+    const v = hashes[rel] || this.version;
+    return BASE+rel+(rel.indexOf('?')>=0?'&':'?')+'v='+v;
+  },
   lib(rel){ return BASE+'../lib/'+rel; },
   use(name){ return this._libs[name]?global[name]:null; },
   /**
