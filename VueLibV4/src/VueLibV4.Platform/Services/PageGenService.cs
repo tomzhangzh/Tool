@@ -171,6 +171,10 @@ public class PageGenService : IPageGenService
         // 按 schema 智能分类（控件/操作符/进哪些屏）
         var columns = BuildColumns(schema, dictTypes);
 
+        // 显示名字典：表字段层 → 通用列名层 → NiceLabel 英文。必须在"用户覆盖"之前应用，
+        // 下方 fieldOverrides 会用向导里用户确认/手改过的 label 覆盖这里。
+        ApplySchemaLabels(columns, table, project);
+
         // 字段选择：req["fields"] 为对象数组（{ name, label, control, op, inFilter, inList, inDetail, ... }）。
         // 只取 name 参与筛选；并用前端显式选择（控件/标签/操作符/屏归属）覆盖智能分类，尊重用户勾选。
         var fieldNames = new List<string>();
@@ -216,10 +220,7 @@ public class PageGenService : IPageGenService
             if (projectId == null) { try { projectId = _projects.Query(x => true).First()?.Id; } catch { } }
         }
 
-        // 显示名字典：表字段层 → 通用列名层 → NiceLabel 英文（在用户覆盖之前应用，向导里改过的 label 已在上方覆盖进来）
-        ApplySchemaLabels(columns, table, project);
-
-        // 回写（默认开启，前端 rememberLabels=false 可关）：只写表字段层，且只回写最终选用字段的最终 label。
+        // 回写（默认开启，前端 rememberLabels 可关）：只写表字段层，回写最终选用字段的最终 label（含用户手改）。
         // 护栏在服务层：projectId<=0/表名为空一律跳过，通用层永不被写。
         var rememberLabels = req["rememberLabels"]?.Type != JTokenType.Boolean || (bool)req["rememberLabels"]!;
         if (rememberLabels && projectId != null)
