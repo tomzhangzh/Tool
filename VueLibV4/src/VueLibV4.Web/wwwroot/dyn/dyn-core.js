@@ -335,6 +335,22 @@ function collectNestedApps(el){
 }
 
 /**
+ * 绑定 data-dyn-watch-params：参数变化时在挂载点派发 dyn-param-changed（bubbles），
+ * detail:{key,value,oldValue}。注销句柄挂 el.__dynParamStop，unmount 时自动失效（ctx 销毁/watch stop）。
+ */
+function bindParamWatchers(el,paramCtx){
+  const attr = el.getAttribute('data-dyn-watch-params');
+  if(!attr||!paramCtx) return;
+  const keys = attr.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!keys.length) return;
+  el.__dynParamStop = paramCtx.watch(keys,(key,value,oldValue)=>{
+    try{
+      el.dispatchEvent(new CustomEvent('dyn-param-changed',{bubbles:true,detail:{key,value,oldValue}}));
+    }catch(e){}
+  });
+}
+
+/**
  * @description 掩码直接嵌套的dyn-init-createApp节点，mount时递归处理子App
  * @param {HTMLElement} el
  * @param {Array} out 输出子节点列表 {child,host,uid}
@@ -408,6 +424,9 @@ async function mountCore(el,parentEl){
     }catch(e){ console.error("[DynCore] dynconfig执行异常",e); }
   }
   const srcModel = readModelScript(el)||parseModel(el)||{};
+  // 统一参数上下文：必须在 maskNested/删 script 之前建立（L1 要读直接子级 dynparams 脚本）。
+  // 嵌套 App 掩码期间 DOM 祖先链断开，父上下文用显式 parentEl 接回。
+  const paramCtx = global.DynParams ? global.DynParams.ensure(el,parentEl) : null;
   // 优先绑定共享scope
   const bindScopeId = el.getAttribute(CONST.ATTR_USE_SCOPE);
   let useSharedModel = null;
@@ -426,7 +445,10 @@ async function mountCore(el,parentEl){
     setup(){
       // 直连模式：把页面模型 provide 给容器插槽里的裸标签组件（<dyn-el-input modelname="x"/> 可免写 :parentmodelinfo）
       Vue.provide('dynSlotParentModel', reactiveModel);
+      // 统一参数上下文：App 内组件树 inject 同一个 ctx（无需 DOM 反查，跨 createApp 走 fork 链）
+      if(paramCtx) Vue.provide('dynParams', paramCtx);
       const exposed = { model:reactiveModel,element:el,dyn:global.dyn };
+      if(paramCtx) exposed.$params = paramCtx.view;
       if(cfgScript&&typeof cfgScript.setup==='function'){
         const extra = cfgScript.setup({model:reactiveModel,element:el})||{};
         Object.keys(extra).forEach(k=>{ if(k!=='model') exposed[k]=extra[k]; });
@@ -446,6 +468,8 @@ async function mountCore(el,parentEl){
   app.config.compilerOptions.isCustomElement = tag=>tag==='dyn-host';
   // 官方注入点：模板中可写 <dyn-inject-host> 作为 updateEl 的安全目标
   app.component('dyn-inject-host',DynInjectHost);
+  // 模板 {{$params.xxx}} 响应式参数视图（setup 已暴露同名，这里兜底 optionAPI/全局）
+  if(paramCtx) app.config.globalProperties.$params = paramCtx.view;
   let mounted = false;
   try{
     // 先登记台账（含挂载中状态），失败时 rollbackMasked 统一清理
@@ -493,6 +517,13 @@ async function mountCore(el,parentEl){
     }catch(e){
       console.error('[DynCore] 嵌套App挂载失败',item.uid,e);
     }
+  }
+  // 跟随型参数：data-dyn-watch-params="a,b" —— 共享/继承层变化时派发 dyn-param-changed 事件，
+  // Block/脚本既可在 dynconfig 里用 P.watch 编程订阅，也可在模板侧 addEventListener 声明式接线。
+  if(paramCtx){
+    bindParamWatchers(el,paramCtx);
+    const reqAttr = el.getAttribute('data-dyn-require-params');
+    if(reqAttr) paramCtx.require(reqAttr.split(',').map(s=>s.trim()).filter(Boolean));
   }
   // mount完成后（含ajax载入片段），自动扫描执行容器内 data-dyn-init-* 初始化动作
   if(global.dyn&&typeof dyn.initActions==='function'){
@@ -542,6 +573,8 @@ async function mountConfig(cfg,target,model){
   const scopeHost = target.closest&&target.closest('['+CONST.ATTR_SHARED_SCOPE+']');
   const reactiveModel = scopeHost ? (getScopeModel(target)||Vue.reactive(model||{})) : Vue.reactive(model||{});
   target.setAttribute(CONST.ATTR_MODE,'createApp');
+  // 统一参数上下文（mountConfig 根：从最近祖先 fork；无祖先挂页面根，URL 层仍可用）
+  const paramCtx = global.DynParams ? global.DynParams.ensure(target,null) : null;
   const component = {
     // 注意：data 键不能以 _ 开头——Vue3 不会把 _/$ 前缀属性代理到组件实例，模板将恒取到 undefined
     template:'<dyn-dynamic-com :jsonconfig="pageCfg" :parentmodelinfo="model"></dyn-dynamic-com>',
@@ -549,12 +582,16 @@ async function mountConfig(cfg,target,model){
     setup(){
       // 直连模式：页面模型 provide 给插槽裸标签组件
       Vue.provide('dynSlotParentModel', reactiveModel);
-      return { model:reactiveModel, element:target, dyn:global.dyn };
+      if(paramCtx) Vue.provide('dynParams', paramCtx);
+      const exposed = { model:reactiveModel, element:target, dyn:global.dyn };
+      if(paramCtx) exposed.$params = paramCtx.view;
+      return exposed;
     }
   };
   const app = Vue.createApp(component);
   app.config.compilerOptions.isCustomElement = tag=>tag==='dyn-host';
   app.component('dyn-inject-host',DynInjectHost);
+  if(paramCtx) app.config.globalProperties.$params = paramCtx.view;
   registerApp(target,app,null);
   global.DynCom.setupApp(app);
   await global.DynCom.ensureRegistered(app);
@@ -566,6 +603,11 @@ async function mountConfig(cfg,target,model){
     target.__dynProxy=null;
     rollbackMasked(target,[],app);
     throw e;
+  }
+  if(paramCtx){
+    bindParamWatchers(target,paramCtx);
+    const reqAttr = target.getAttribute('data-dyn-require-params');
+    if(reqAttr) paramCtx.require(reqAttr.split(',').map(s=>s.trim()).filter(Boolean));
   }
   if(global.dyn&&typeof dyn.initActions==='function') dyn.initActions(target);
   if(global.DynBlocks && typeof global.DynBlocks.scan==='function'){
@@ -603,12 +645,24 @@ function warnIfUnsafeInject(el){
  * @returns {object|undefined} boot=true 时返回 DynBlocks.scan 句柄表（若存在 DynBlocks）
  */
 function html(el, htmlStr, boot) {
+  el = resolve(el);
+  if(!el) return undefined;
   if(boot === undefined) boot = true;
   if(boot){
     // 片段替换前先释放旧内容中的 App（重复 updateEl/open 防实例泄漏）。
     // boot=false 的链路调用方已自行 unmount（render/reload/mount）。
     unmount(el);
     if(_injectWarned && !_injectWarned.has(el)) warnIfUnsafeInject(el);
+  }
+  // 统一参数链接入：片段挂载点从最近上下文 fork（嵌套App/服务端片段/弹窗片段同一约定）。
+  // 已存在上下文（如 mount 链路自建）则保留；boot=true 重复注入时旧 fork 已随 unmount 销毁，这里重建。
+  // bootInfo.parentCtx 显式指定调用方上下文（updateel 目标 pane 可能与按钮不在同一子树）。
+  if(global.DynParams && !el.__dynParams){
+    try{
+      const bi = arguments[3]||{};
+      if(bi.parentCtx) bi.parentCtx.fork(el,bi.local||{});
+      else global.DynParams.attach(el);
+    }catch(e){}
   }
   el.innerHTML = "";
   const temp = document.createElement('div');
@@ -734,6 +788,12 @@ function unmount(el){
     el.__dynModel=null;
     el.__dynProxy=null;
     removeApp(el);
+  }
+  // 3) 参数上下文释放（App 根或片段 fork 挂载点都可能挂着）：注销 watch + 注销 ctxId
+  if(global.DynParams && el.__dynParams){
+    try{ if(typeof el.__dynParamStop==='function') el.__dynParamStop(); }catch(e){}
+    try{ el.__dynParams.destroy(); }catch(e){}
+    el.__dynParams = null;
   }
 }
 
@@ -907,6 +967,9 @@ const dyn = {
   resolve,findAncestor,closestDynInit,
   mount,mountConfig,normalize,unmount,render,
   getApp:getAppByEl,getClosestApp,getProxy,getModel,getScopeModel,
+  /** 统一参数上下文：dyn.params(el).get('x') / .commit / .fork / .watch / .inspect */
+  params:function(el){ return global.DynParams?global.DynParams.fromEl(el):null; },
+  attachParams:function(el,parentEl){ return global.DynParams?global.DynParams.ensure(el,parentEl):null; },
   fetchPartial,serializeForm,collectParams,
   reload,setDynCfg,getVueModel,
   getByPath,setPathVal,deepClone,html

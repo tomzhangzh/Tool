@@ -78,8 +78,18 @@
     var extIdDetail = extId + "-detail";
     var title = Model.Name;
     var showDesignEntry = Convert.ToBoolean(ViewData["ShowDesignEntry"] ?? false);
+
+    // 页面级统一参数声明（L1 静态层）：左树 app 与右侧 DetailApp 经父链共享
+    var pageParams = new JObject
+    {
+        ["tableName"] = tableName,
+        ["keyField"] = keyField,
+        ["parentField"] = parentField,
+        ["titleField"] = titleField,
+        ["project"] = project
+    };
 }
-<div class="tr-root">
+<div class="tr-root" data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)">
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
         ["Title"] = title, ["Code"] = "tree-detail", ["TableName"] = tableName,
         ["ShowBack"] = true, ["ShowDesign"] = showDesignEntry, ["PageId"] = Model.Id.ToString()

@@ -45,8 +45,18 @@
     var extIdFilter = extId + "-filter";
     var extIdList = extId + "-list";
     var title = Model.Name;
+
+    // 页面级统一参数声明（L1 静态层）：Block 经父链即可读 $params.tableName 等；URL 同名参数仍可覆盖。
+    var pageParams = new JObject
+    {
+        ["tableName"] = tableName,
+        ["keyField"] = keyField,
+        ["project"] = project,
+        ["modalPageId"] = modalPageId,
+        ["childFkField"] = childFkField
+    };
 }
-<div class="flc-root">
+<div class="flc-root" data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)">
     @* 头部在任何 app 之外，纯原生元素 *@
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
         ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
@@ -105,6 +115,11 @@
                 holder.style.padding = '0px';
                 holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
                 document.body.appendChild(holder);
+                // 统一参数链：弹窗片段从列表 Block 上下文 fork，rowId/preFill 作为 L0 入参层，
+                // DetailApp 用 dyn.params(element).get('rowId') 取值，不再只依赖 URL query 烘值。
+                if (window.DynParams && lEl.__dynParams) {
+                    lEl.__dynParams.fork(holder, { rowId: rowId || '', preFill: preFill || null });
+                }
 
                 window.dyn.getLayer().then(function (layer) {
                     var idx = layer.open({

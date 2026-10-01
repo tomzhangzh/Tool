@@ -59,8 +59,16 @@
     var extIdList = extId + "-list";
     var extIdDetail = extId + "-detail";
     var title = Model.Name;
+
+    // 页面级统一参数声明（L1 静态层）：三个 Block 经父链共享，URL 同名参数可就近覆盖
+    var pageParams = new JObject
+    {
+        ["tableName"] = tableName,
+        ["keyField"] = keyField,
+        ["project"] = project
+    };
 }
-<div class="tsb-root">
+<div class="tsb-root" data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)">
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
         ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
     })

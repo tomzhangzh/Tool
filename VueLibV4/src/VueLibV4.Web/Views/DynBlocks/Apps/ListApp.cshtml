@@ -52,16 +52,22 @@
     // ===== 自读配置（独立 app，无任何根依赖） =====
     var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
     var __handle = null;
+    // 统一参数链取值：blk-config 已适配进 L1，URL/上层 fork/共享层可就近覆盖；__cfg 兜底保证老页面。
+    var __P = (window.dyn && dyn.params) ? dyn.params(element) : null;
+    function __pv(key, dft) {
+        var v = __P ? __P.get(key) : undefined;
+        return v === undefined ? (__cfg[key] === undefined ? dft : __cfg[key]) : v;
+    }
 
     var dynConfig = {
         data: function () {
             return {
                 columns: __cfg.columns || [],
-                keyField: __cfg.keyField || 'Id',
-                table: __cfg.table || '',
-                loadUrl: __cfg.loadUrl || '',
-                deleteUrl: __cfg.deleteUrl || '',
-                project: __cfg.project || ''
+                keyField: __pv('keyField', 'Id'),
+                table: __pv('table', ''),
+                loadUrl: __pv('loadUrl', ''),
+                deleteUrl: __pv('deleteUrl', ''),
+                project: __pv('project', '')
             };
         },
         methods: {

@@ -66,6 +66,7 @@ const DYN_MODULES = [
   "dyn-load-com.js",
   "dyn-com.js",
   "dyn-core.js",
+  "dyn-params.js",
   "dyn-call.js",
   "dyn-rpc.js",
   "dyn-validator.js",
@@ -78,7 +79,7 @@ const DYN_MODULES = [
 ];
 
 const DynLib = {
-  version:"4.3.5",
+  version:"4.4.1",
   base:BASE,
   _libs:{},
   _ready:false,

@@ -40,7 +40,10 @@
         });
         return { opMap: opMap, initModel: initModel };
     }
-    var __init = __buildInit(__def);
+    // 统一参数链：fork/URL/共享层可用 filterInit 预置查询值（如 ?courseId=27 进来默认带条件），与 cfg 默认值浅合并
+    var __P = (window.dyn && dyn.params) ? dyn.params(element) : null;
+    var __paramInit = (__P && __P.get('filterInit')) || {};
+    var __init = __buildInit(Object.assign({}, __def, __paramInit));
 
     var dynConfig = {
         data: function () {

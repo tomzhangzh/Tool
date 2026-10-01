@@ -35,6 +35,12 @@
     // ===== 自读配置（独立 app，无任何根依赖） =====
     var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
     var __handle = null;
+    // 统一参数链取值：弹窗 fork 的 {rowId,preFill}、URL、共享层均可就近提供；__cfg 兜底（服务端烘值老链路）。
+    var __P = (window.dyn && dyn.params) ? dyn.params(element) : null;
+    function __pv(key, dft) {
+        var v = __P ? __P.get(key) : undefined;
+        return v === undefined ? (__cfg[key] === undefined ? dft : __cfg[key]) : v;
+    }
 
     var dynConfig = {
         data: function () {
@@ -44,12 +50,12 @@
                 form: JSON.parse(JSON.stringify(initForm)),
                 formError: '',
                 loading: false,
-                table: __cfg.table || '',
-                addUrl: __cfg.addUrl || '',
-                editUrl: __cfg.editUrl || '',
-                deleteUrl: __cfg.deleteUrl || '',
-                keyField: __cfg.keyField || 'Id',
-                project: __cfg.project || '',
+                table: __pv('table', ''),
+                addUrl: __pv('addUrl', ''),
+                editUrl: __pv('editUrl', ''),
+                deleteUrl: __pv('deleteUrl', ''),
+                keyField: __pv('keyField', 'Id'),
+                project: __pv('project', ''),
                 initForm: initForm
             };
         },
@@ -157,9 +163,9 @@
                 .reg('newForm', function (p) { self.newForm((p && p.preFill) || {}); return null; })
                 .reg('editForm', function (p) { self.editForm((p && p.row) || {}); return null; });
 
-            // 编辑态：片段弹窗由模板把 rowId 放进配置，Block 自拉回填（mounted 内部行为，不外发事件）
-            var rowId = __cfg.rowId;
-            var preFill = __cfg.preFill || {};
+            // 编辑态：统一参数链取 rowId（弹窗 fork 入参 / 服务端烘进 blk-config / URL 均可），自拉回填
+            var rowId = __pv('rowId', null);
+            var preFill = __pv('preFill', null) || __cfg.preFill || {};
             if (rowId !== null && rowId !== undefined && rowId !== '') {
                 var getUrl = DynBlocks.getUrl(this.addUrl, this.table, rowId, this.project);
                 DynCall.get(getUrl, {}, { silent: true })

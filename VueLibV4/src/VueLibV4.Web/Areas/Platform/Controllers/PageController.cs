@@ -160,6 +160,14 @@ public class PageController : Controller
         return View(string.Format(Demo, "Rpc"));
     }
 
+    /// <summary>统一参数上下文 Demo：多来源合并/就近优先、片段继承、Tabs 共享层 commit（快照型 vs 跟随型）</summary>
+    [HttpGet("/Platform/Page/Demo/TabsParams")]
+    public IActionResult DemoTabsParams()
+    {
+        ViewData["Title"] = "统一参数上下文 Tabs 传参 Demo - VueLibV4";
+        return View(string.Format(Demo, "TabsParams"));
+    }
+
     /// <summary>Mac 风格桌面 Demo（仿 macOS / portfolio.zxh.me 拟物风格，独立 _LayoutMac 布局）</summary>
     [HttpGet("/Platform/Page/MacDesktopDemo")]
     public IActionResult DemoMac()

@@ -1,0 +1,223 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "统一参数上下文 Tabs 传参 Demo - VueLibV4";
+}
+@* 统一参数上下文演示：
+    一套取值语法 dyn.params(el).get(key)，多来源合并（显式入参/本地声明/Model/上层继承/URL），就近优先。
+    场景：tab1 保存拿到数据库 newId → ctx.commit('courseId', newId) →
+      tab2（快照型，挂载时取值）不变；tab3（跟随型，$params 响应式 + watch）自动更新；
+      懒加载 tab 重挂时天然读到最新共享值；服务端片段自带 dynparams 声明层同时继承共享层。 *@
+<div id="tabsRoot" class="tp-root"
+     data-dyn-params='{"pageName":"Tabs参数Demo"}'
+     data-dyn-shared-params='{"courseId":0,"studentId":0}'>
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">统一参数上下文 · Tabs 传参 Demo</span>
+        <el-tag size="small" type="success">一套语法 / 多来源合并 / 就近优先 / 共享层 commit</el-tag>
+    </div>
+
+    <div class="tp-tip">
+        URL 层：当前地址可带 <code>?demoId=abc&amp;courseId=0</code>。共享实体层初始
+        <code>courseId=0</code>，模拟"主记录未保存"。
+    </div>
+
+    <div class="tp-tabs">
+        <button class="tp-tab is-active" data-pane="edit">Tab1 编辑保存（产生 newId）</button>
+        <button class="tp-tab" data-pane="snap">Tab2 快照型（懒加载）</button>
+        <button class="tp-tab" data-pane="follow">Tab3 跟随型（懒加载）</button>
+        <button class="tp-tab" data-pane="frag">Tab4 服务端片段 dynparams</button>
+        <span style="flex:1"></span>
+        <button class="tp-btn" id="btnRemountSnap">重挂 Tab2（模拟切回重拉）</button>
+        <button class="tp-btn" id="btnInspect">dyn.params().inspect()</button>
+    </div>
+
+    <div class="tp-panes">
+        @* ===== Tab1：编辑保存（编排者自身，负责显式 commit） ===== *@
+        <section class="tp-pane" data-pane="edit">
+            <div id="editApp" data-dyn-mode="createApp" data-dyn-init-createapp="{}" class="tp-card">
+                <div class="tp-row">
+                    当前共享 <code>courseId</code> =
+                    <b class="tp-hot">{{ $params.courseId }}</b>
+                    <span class="tp-muted">（模板中 $params.courseId 响应式直读）</span>
+                </div>
+                <div class="tp-row">
+                    URL 层 demoId = <b>{{ $params.demoId || '（URL 未带）' }}</b>；
+                    页面声明层 pageName = <b>{{ $params.pageName }}</b>
+                </div>
+                <div class="tp-row">
+                    <el-input v-model="name" placeholder="课程名称（模拟表单）" style="width:240px" size="small"></el-input>
+                    <el-button type="primary" size="small" @@click="onSave()">保存（模拟接口返回数据库 newId）</el-button>
+                    <el-button size="small"
+                               data-dyn-click-setparams='{"courseId":88888}'
+                               dyn-click="ActionHelper.Toast('已通过 ActionHelper.setparams 声明式 commit')">
+                        声明式 setparams：courseId=88888
+                    </el-button>
+                    <el-button size="small"
+                               data-dyn-click-setparams='{"studentId":"$params.courseId"}'
+                               dyn-click="ActionHelper.Toast('studentId 已复制当前 courseId（$params 整串 token 保留类型）')">
+                        setparams：studentId = $params.courseId
+                    </el-button>
+                </div>
+                <div class="tp-row tp-ok" v-if="tip">{{ tip }}</div>
+                <script type="text/plain" tag="dynconfig">
+                    var dynConfig = {
+                        data: function () { return { name: '', tip: '' }; },
+                        methods: {
+                            // 编排者显式映射：保存返回的实体 Id → 共享层具名参数 courseId。
+                            // Block 自身不发全局参数；跨 tab 语义只在编排处接线，避免裸 id 撞名混乱。
+                            onSave: function () {
+                                var P = dyn.params(element);
+                                var newId = 1000 + Math.floor(Math.random() * 9000);
+                                P.commit('courseId', newId, { by: 'tab1.onSave(模拟数据库回填)' });
+                                this.tip = '保存成功，已 commit：courseId = ' + newId +
+                                    '。已挂载的跟随型 tab 自动更新；快照型 tab 保持挂载值，重挂后取新值。';
+                            }
+                        }
+                    };
+                </script>
+            </div>
+        </section>
+
+        @* ===== Tab2/3/4：懒加载片段宿主（updateEl/动态注入的落点） ===== *@
+        <section class="tp-pane" data-pane="snap" style="display:none">
+            <div id="paneSnap" class="tp-host"></div>
+        </section>
+        <section class="tp-pane" data-pane="follow" style="display:none">
+            <div id="paneFollow" class="tp-host"></div>
+        </section>
+        <section class="tp-pane" data-pane="frag" style="display:none">
+            <div id="paneFrag" class="tp-host"></div>
+        </section>
+    </div>
+
+    <pre id="inspectOut" class="tp-inspect" style="display:none"></pre>
+</div>
+
+<style>
+    .tp-root { padding: 0 16px 24px; }
+    .tp-tip { margin: 8px 0; color: #606266; font-size: 13px; background: #f4f4f5; border-radius: 4px; padding: 8px 12px; }
+    .tp-tabs { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #e4e7ed; margin: 10px 0 14px; flex-wrap: wrap; }
+    .tp-tab { border: 1px solid #dcdfe6; background: #fff; color: #606266; padding: 7px 16px; border-radius: 6px 6px 0 0;
+        cursor: pointer; font-size: 13px; margin-bottom: -1px; }
+    .tp-tab.is-active { color: #409eff; border-color: #409eff #409eff #fff; font-weight: 600; }
+    .tp-btn { border: 1px solid #dcdfe6; background: #fff; color: #606266; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .tp-card { background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; padding: 16px; }
+    .tp-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; color: #303133; flex-wrap: wrap; }
+    .tp-hot { color: #409eff; font-size: 16px; }
+    .tp-muted { color: #909399; font-size: 12px; }
+    .tp-ok { color: #67c23a; }
+    .tp-host { min-height: 80px; }
+    .tp-frag { background: #fff; border: 1px solid #e4e7ed; border-left: 3px solid #409eff; border-radius: 8px; padding: 14px 16px; font-size: 13px; }
+    .tp-frag + .tp-frag { margin-top: 10px; }
+    .tp-inspect { background: #1e1e1e; color: #9cdcfe; padding: 12px; border-radius: 6px; font-size: 12px;
+        max-height: 320px; overflow: auto; margin-top: 12px; }
+    code { background: #f4f4f5; padding: 1px 5px; border-radius: 3px; color: #c7254e; font-size: 12px; }
+</style>
+
+@section Scripts {
+<script>
+(function () {
+    // ===== 三个"服务端渲染片段"（这里用字符串模拟；真实场景是 fetchPartial/updateEl 拉回的 HTML） =====
+    // 片段规则与真实片段完全一致：
+    //   - 片段根 App 自动从注入点继承参数链（无需 URL query）；
+    //   - 可携带 <script type="application/json" tag="dynparams"> 作为本片段 L1 静态层；
+    //   - 模板内 {{$params.xxx}} 为响应式视图，脚本内 dyn.params(element).get() 为命令式取值。
+
+    // Tab2 快照型：data() 挂载时取值并冻结，之后共享层变化不影响本实例
+    var FRAG_SNAP =
+        '<div class="tp-frag" data-dyn-mode="createApp" data-dyn-init-createapp="{}">' +
+        '  <div><b>Tab2 · 快照型子表</b>（挂载瞬间取值，之后上游变化与我无关）</div>' +
+        '  <div style="margin-top:8px">挂载时 courseId = <b class="tp-hot">{{ snapId }}</b></div>' +
+        '  <div style="margin-top:6px;color:#909399">父链继承 pageName = {{ $params.pageName }}；URL demoId = {{ $params.demoId || "（无）" }}</div>' +
+        '  <div style="margin-top:6px;color:#909399">挂载时间：{{ mountedAt }}</div>' +
+        '  <script type="text/plain" tag="dynconfig">' +
+        '    var P = dyn.params(element);' +
+        '    var dynConfig = { data: function () {' +
+        '      return { snapId: P.get("courseId"), mountedAt: new Date().toLocaleTimeString() };' +
+        '    } };' +
+        '<\/script>' +
+        '</div>';
+
+    // Tab3 跟随型：模板直读响应式 $params + data-dyn-watch-params 事件触发"自动重新加载"
+    var FRAG_FOLLOW =
+        '<div class="tp-frag" data-dyn-mode="createApp" data-dyn-init-createapp="{}" data-dyn-watch-params="courseId">' +
+        '  <div><b>Tab3 · 跟随型子表</b>（共享层变化，模板自动更新并可自动重载）</div>' +
+        '  <div style="margin-top:8px">实时 courseId = <b class="tp-hot">{{ $params.courseId }}</b></div>' +
+        '  <div style="margin-top:6px">重载日志：<span style="color:#67c23a">{{ reloadLog }}</span></div>' +
+        '  <script type="text/plain" tag="dynconfig">' +
+        '    var dynConfig = {' +
+        '      data: function () {' +
+        '        var P0 = dyn.params(element);' +
+        '        return { reloadLog: "挂载即加载 @@ " + new Date().toLocaleTimeString() + "，courseId=" + P0.get("courseId") };' +
+        '      },' +
+        '      mounted: function () {' +
+        '        var self = this;' +
+        // 声明式跟随：参数变化派发 dyn-param-changed，编排/Block 自行决定是否重新加载
+        '        element.addEventListener("dyn-param-changed", function (e) {' +
+        '          if (e.detail.key === "courseId") {' +
+        '            self.reloadLog = "courseId 变为 " + e.detail.value + " → 自动重新加载 @@ " + new Date().toLocaleTimeString();' +
+        '          }' +
+        '        });' +
+        '      }' +
+        '    };' +
+        '<\/script>' +
+        '</div>';
+
+    // Tab4 服务端片段：自带 L1 dynparams（Razor 可 @@Model.Id 烘值），同时继承共享层
+    var FRAG_SRV =
+        '<div class="tp-frag" data-dyn-mode="createApp" data-dyn-init-createapp="{}">' +
+        '  <script type="application/json" tag="dynparams">{"mode":"edit","bizKey":"SRV-2026-001"}<\/script>' +
+        '  <div><b>Tab4 · 服务端渲染片段</b>（自带 dynparams L1 声明层）</div>' +
+        '  <div style="margin-top:8px">本片段 L1：mode = <b>{{ $params.mode }}</b>，bizKey = <b>{{ $params.bizKey }}</b></div>' +
+        '  <div style="margin-top:6px">同时继承共享层：courseId = <b class="tp-hot">{{ $params.courseId }}</b></div>' +
+        '  <div style="margin-top:6px;color:#909399">就近优先：若上层同名键变化，本片段 L1 仍赢（局部覆盖语义）。</div>' +
+        '</div>';
+
+    DynLib.ready(function () {
+        var loaded = { snap: false, follow: false, frag: false };
+
+        function loadPane(name) {
+            var host = document.getElementById('pane' + name.charAt(0).toUpperCase() + name.slice(1));
+            if (!host) return; // Tab1 是内联 App，无片段宿主
+            var frag = name === 'snap' ? FRAG_SNAP : name === 'follow' ? FRAG_FOLLOW : FRAG_SRV;
+            // 片段注入统一走 dyn.html(boot=true)：自动 unmount 旧实例、fork 调用方参数链、initActions 引导内嵌 App
+            dyn.html(host, frag);
+            loaded[name] = true;
+        }
+        loaded.edit = true; // Tab1 随页面直接挂载，不走懒加载
+
+        // Tab 切换（首次切入懒加载；已挂载实例保留 —— 快照/跟随语义差异由此可见）
+        document.querySelectorAll('.tp-tab').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('.tp-tab').forEach(function (b) { b.classList.remove('is-active'); });
+                btn.classList.add('is-active');
+                var name = btn.getAttribute('data-pane');
+                document.querySelectorAll('.tp-pane').forEach(function (p) {
+                    p.style.display = p.getAttribute('data-pane') === name ? '' : 'none';
+                });
+                if (!loaded[name]) loadPane(name);
+            });
+        });
+
+        // 重挂快照 tab：实例销毁重建，data() 重新取当前共享层值（模拟"切走销毁、切回重拉片段"）
+        document.getElementById('btnRemountSnap').addEventListener('click', function () {
+            loadPane('snap');
+            document.querySelectorAll('.tp-tab').forEach(function (b) {
+                b.classList.toggle('is-active', b.getAttribute('data-pane') === 'snap');
+            });
+            document.querySelectorAll('.tp-pane').forEach(function (p) {
+                p.style.display = p.getAttribute('data-pane') === 'snap' ? '' : 'none';
+            });
+        });
+
+        // 调试：查看每个键的值与获胜层（L0/L1/shared/L2/L4）
+        document.getElementById('btnInspect').addEventListener('click', function () {
+            var P = dyn.params(document.getElementById('editApp'));
+            var out = document.getElementById('inspectOut');
+            out.style.display = '';
+            out.textContent = JSON.stringify(P.inspect(['courseId', 'studentId', 'pageName', 'demoId', 'mode', 'bizKey']), null, 2);
+        });
+    });
+})();
+</script>
+}

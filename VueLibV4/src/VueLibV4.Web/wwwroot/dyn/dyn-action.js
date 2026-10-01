@@ -124,6 +124,24 @@ function applyTpl(val,params){
 }
 
 /**
+ * 统一参数占位解析：动作 options 里的 "$params.x" / "$model.x" / "$result.x" 整串 token，
+ * 以及行内 "{{$params.x}}" 插值，按触发元素所属的 ParamContext 就近解析。
+ * 必须在 ctx.$result 赋值【之后】调用（链路上一步结果可能已更新）；幂等。
+ * 注意：只替换作者显式写出的 token，绝不把上下文全量灌入请求体。
+ */
+function resolveCtxTokens(ctx){
+  try{
+    if(!ctx||!ctx.options) return;
+    const pctx = typeof dyn.params==='function' ? dyn.params(ctx.element) : null;
+    if(pctx && typeof pctx.resolveValue==='function'){
+      ctx.options = pctx.resolveValue(ctx.options, ctx.$result);
+      ctx.params = ctx.options.params || ctx.params || {};
+      if(ctx.options.url) ctx.url = ctx.options.url;
+    }
+  }catch(e){ console.warn('[DynAction] 参数占位解析异常',e); }
+}
+
+/**
  * @description 大小写不敏感查找动作
  * @param {string} name
  * @returns {Function|null}
@@ -177,31 +195,34 @@ function wrapCompositeAction(originalFn){
     }catch(err){
       success = false;
       console.error("[composite action error]",err);
-      // 失败执行 $onFail
+      // 失败执行 $onFail（$result=err，步骤可用 "$result.message" 占位）
       const failSteps = normActionSteps(o.$onFail);
       for(const step of failSteps){
         const fn = resolveAction(step.action);
         if(!fn) continue;
         const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+        subCtx.$result = err; resolveCtxTokens(subCtx);
         await fn(subCtx);
       }
     }
     if(success){
-      // 成功执行 $onSuccess
+      // 成功执行 $onSuccess（$result=动作返回值，如保存接口返回的 newId："$result.data.Id"）
       const succSteps = normActionSteps(o.$onSuccess);
       for(const step of succSteps){
         const fn = resolveAction(step.action);
         if(!fn) continue;
         const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+        subCtx.$result = res; resolveCtxTokens(subCtx);
         await fn(subCtx);
       }
     }
-    // 后置动作链，无论成功失败
+    // 后置动作链，无论成功失败（$result=成功返回值）
     const afterSteps = normActionSteps(o.$after);
     for(const step of afterSteps){
       const fn = resolveAction(step.action);
       if(!fn) continue;
       const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+      subCtx.$result = success?res:undefined; resolveCtxTokens(subCtx);
       await fn(subCtx);
     }
     return res;
@@ -280,6 +301,7 @@ async function runPipe(steps,el,eventName,$event){
     if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',s.action),'warning'); continue; }
     const c = buildCtx(el,eventName||'pipe',$event,s.options||{},s.action);
     c.$step = i; c.$result = last;
+    resolveCtxTokens(c); // $result 已就绪，重解析 "$result.xxx" 占位
     const r = await wrapCompositeAction(fn)(c);
     if(r===false) break;
     last = r;
@@ -342,6 +364,9 @@ function buildCtx(el,eventName,$event,options,actionName){
   }
   const optCopy = applyTpl(options,params);
   optCopy.params = Object.assign({},params,optCopy.params||{});
+  // 记录 params 中来自元素 data-* 属性的键（如 data-v-app/data-trae-ref），
+  // 供 setparams 等动作区分"用户显式声明"与"buildCtx 自动收集"，避免污染
+  optCopy.__elParams = params;
   const sharedModel = dyn.getScopeModel(el);
   const localModel = dyn.getModel(dyn.closestDynInit(el));
   const finalModel = sharedModel ?? localModel;
@@ -350,7 +375,7 @@ function buildCtx(el,eventName,$event,options,actionName){
   const app = (typeof dyn.getClosestApp === 'function' && dyn.getClosestApp(el)) || dyn.getApp(el);
   // 该 Vue 版本 app._instance 为 null，但 dyn-core 挂载后已把 proxy 写入 app.__dynProxy / el.__dynProxy
   const appVm = app && (app.__dynProxy || (app._instance && app._instance.proxy)) || null;
-  return {
+  const ctx = {
     element:el,el:el,
     event:eventName,$event:$event,targetInfo:$event,
     action:actionName,
@@ -363,6 +388,9 @@ function buildCtx(el,eventName,$event,options,actionName){
     $callStack:[],
     $abort:false
   };
+  // 统一参数占位解析（$params./$model.；$result 在链路赋值后由调用方再解析一次）
+  resolveCtxTokens(ctx);
+  return ctx;
 }
 
 // ---------------------- 内置动作定义 ----------------------
@@ -464,6 +492,9 @@ defineAction('updateel',async ctx=>{
     if(!ok) return false;
   }
   const body = Object.assign({},dyn.deepClone(ctx.model||{}),o.params||{});
+  // 片段参数链：目标 pane 从【触发方】上下文 fork（o.params 是 L0 入参，不自动灌入请求之外的地方）
+  const forkCtx = typeof dyn.params==='function' ? dyn.params(ctx.element) : null;
+  const bootInfo = { parentCtx:forkCtx, local:o.params||{} };
   const text = await dyn.fetchPartial(url,body,o.method||'POST','text');
   let parsed = null;
   try{ parsed = JSON.parse(text); }catch(e){ parsed = null; }
@@ -477,11 +508,11 @@ defineAction('updateel',async ctx=>{
       runJsonActions({actions:parsed[CONST.DATA_DYN_ACTIONS]},targetEl);
     }
     if(typeof parsed.data==='string'&&parsed.data.indexOf('<')>=0){
-      return await dyn.html(targetEl,parsed.data);
+      return await dyn.html(targetEl,parsed.data,true,bootInfo);
     }
     return parsed;
   }
-  return await dyn.html(targetEl,text);
+  return await dyn.html(targetEl,text,true,bootInfo);
 });
 // 语义别名：Submit=提交并刷新区块；ReloadTarget=刷新指定区块
 defineAction('submit',ctx=>_actions.updateel(ctx));
@@ -540,6 +571,11 @@ defineAction('open',async ctx=>{
     holder.style.padding='0px';
     holder.style.display='none';
     document.body.appendChild(holder);
+    // 弹窗片段继承调用方参数链：holder fork 到触发上下文（o.params 为 L0 入参层），
+    // 片段内 Block/App 无需关心 URL query，按 dyn.params(el).get() 同一约定取值。
+    if(typeof dyn.params==='function'){
+      try{ dyn.params(triggerEl).fork(holder, o.params||{}); }catch(e){}
+    }
     const holderContent = (global.layui && global.layui.$) ? global.layui.$(holder) : holder;
 
     const idx = layer.open({
@@ -815,6 +851,45 @@ defineAction('evaljs',async ctx=>{
   }catch(e){ dyn.showMessage("evaljs执行异常:"+e.message,'error'); }
 });
 
+/** setparams：统一参数上下文写值。
+ *  scope:'shared'（默认）→ ctx.commit，链式各 fork/兄弟 tab 立即可见（tab1 保存回传 newId 的官方通道）；
+ *  scope:'local'        → ctx.set，仅本上下文及子孙可见（局部覆盖）。
+ * 写法：
+ *   {action:'setparams', options:{courseId:"$result.data.Id"}}          —— 除保留键外全部入栈
+ *   {action:'setparams', options:{scope:'local', params:{rowId:27}}}    —— 显式 params 包
+ * 保留键：scope/params/key/value；单键写法 {key:'courseId', value:27}。
+ */
+defineAction('setparams',async ctx=>{
+  const o = ctx.options||{};
+  const pctx = typeof dyn.params==='function' ? dyn.params(ctx.element) : null;
+  if(!pctx){ console.warn('[setparams] 参数上下文不可用'); return false; }
+  const RESERVED = ['scope','params','key','value','__elParams'];
+  const elParams = o.__elParams || {};
+  // o.params 中排除 buildCtx 自动收集的元素 data-* 键（data-v-app/data-trae-ref 等），
+  // 剩下的才是用户在动作配置里显式声明的 params
+  const explicitPairs = {};
+  let hasExplicit = false;
+  if(o.params && typeof o.params==='object'){
+    Object.keys(o.params).forEach(k=>{
+      if(!(k in elParams)){ explicitPairs[k]=o.params[k]; hasExplicit=true; }
+    });
+  }
+  const pairs = Object.assign({},
+    o.key ? {[o.key]:o.value} : null,
+    hasExplicit ? explicitPairs : null
+  );
+  // 平铺形式：既没有 key，也没有显式 params 对象时，保留字以外的 options 键全部作为参数
+  if(!o.key && !hasExplicit){
+    Object.keys(o).forEach(k=>{ if(RESERVED.indexOf(k)<0) pairs[k]=o[k]; });
+  }
+  const scope = o.scope==='local' ? 'local' : 'shared';
+  Object.keys(pairs).forEach(k=>{
+    if(scope==='local') pctx.set(k,pairs[k]);
+    else pctx.commit(k,pairs[k],{by:'setparams:'+ctx.action});
+  });
+  return pairs;
+});
+
 defineAction('setattr',ctx=>{
   const o = ctx.options||{};
   const el = o.selector?document.querySelector(o.selector):ctx.element;
@@ -918,6 +993,7 @@ defineAction('chain',async ctx=>{
     if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',actName),'error'); return run(i+1); }
     const subCtx = buildCtx(ctx.element,'chain',ctx.$event,opt,actName);
     subCtx.$step = i; subCtx.$result = last; subCtx.$chain = steps;
+    resolveCtxTokens(subCtx); // $result 已就绪，重解析 "$result.xxx" 占位
     subCtx.$callStack = [...ctx.$callStack];
     const r = await fn(subCtx);
     if(r===false) return last;
