@@ -395,6 +395,112 @@
         return info;
     }
 
+    // ============================================================
+    // DynParams 逐层透视：每个参数按 L0→L4 优先级列出【所有】提供层，
+    // 第一行=获胜值（绿底✓），其余=被谁覆盖（暗灰+来源 ctx/元素）
+    // ============================================================
+    function shortParamVal(v) {
+        if (v === undefined) return 'undefined';
+        if (v === null) return 'null';
+        var s;
+        try { s = typeof v === 'string' ? v : JSON.stringify(v); } catch (e) { s = String(v); }
+        if (s == null) s = String(v);
+        return s.length > 80 ? s.slice(0, 80) + '…' : s;
+    }
+
+    function paramsLayersSection(P) {
+        if (!global.DynParams || !P) return '';
+        var chain = [];
+        var cc = P, guard = 0;
+        while (cc && guard++ < 30) { chain.push(cc); cc = cc.parent; }
+        if (!chain.length) return '';
+
+        // 参数白名单：runtime/local/shared/URL 出现的键才透视（L2 model 的业务字段不刷屏，
+        // 但白名单键在 model 层也有值时照常作为候选展示覆盖关系）
+        var keySet = {};
+        function addKeys(o) { try { Object.keys(o || {}).forEach(function (k) { keySet[k] = 1; }); } catch (e) { } }
+        var urlMap = {};
+        try { new URLSearchParams(location.search).forEach(function (v, k) { urlMap[k] = v; }); } catch (e) { }
+        addKeys(urlMap);
+        chain.forEach(function (node) { addKeys(node.runtime); addKeys(node.local); addKeys(node.shared); });
+        var keys = Object.keys(keySet);
+        if (!keys.length) return '';
+        keys.sort(function (a, b) {
+            var ia = WATCH_KEYS.indexOf(a), ib = WATCH_KEYS.indexOf(b);
+            if (ia >= 0 && ib >= 0) return ia - ib;
+            if (ia >= 0) return -1;
+            if (ib >= 0) return 1;
+            return a < b ? -1 : a > b ? 1 : 0;
+        });
+        var shown = keys.slice(0, 40);
+
+        function committedBy(k) {
+            for (var i = 0; i < chain.length; i++) {
+                try { var m = chain[i]._provenance && chain[i]._provenance[k]; if (m && m.by) return m.by; } catch (e) { }
+            }
+            return null;
+        }
+
+        var html = '<div class="dyndb-card dyndb-params2"><div class="dyndb-card-h"><b>DynParams 参数层</b>'
+            + '<span class="dyndb-id">ctx ' + esc(P.id) + ' · 链深 ' + chain.length + '</span></div>';
+        html += '<div class="dyndb-pllegend" title="数字越小优先级越高；L3 不是独立存储，而是父链 ctx 的各层（候选行标 ↑继承）">'
+            + '<span class="dyndb-layer dyndb-l0">L0</span>调用点/运行时'
+            + '<span class="dyndb-layer dyndb-l1">L1</span>容器静态'
+            + '<span class="dyndb-layer dyndb-shared">sh</span>共享实体'
+            + '<span class="dyndb-layer dyndb-l2">L2</span>业务Model'
+            + '<span class="dyndb-layer dyndb-l34">L3</span>父链继承'
+            + '<span class="dyndb-layer dyndb-l34">L4</span>URL兜底'
+            + '</div>';
+
+        shown.forEach(function (k) {
+            var cands = [];
+            var sharedSeen = {};
+            chain.forEach(function (node) {
+                var v, inherited = node !== chain[0];
+                try { v = node.runtime[k]; } catch (e) { v = undefined; }
+                if (v !== undefined) cands.push({ tag: 'L0', cls: 'dyndb-l0', value: v, who: node.id, whoEl: node.el, inherited: inherited });
+                try { v = node.local[k]; } catch (e) { v = undefined; }
+                if (v !== undefined) cands.push({ tag: 'L1', cls: 'dyndb-l1', value: v, who: node.id, whoEl: node.el, inherited: inherited });
+                // shared 全链同一引用，每键只展示一次（就近节点）
+                try { v = node.shared ? node.shared[k] : undefined; } catch (e) { v = undefined; }
+                if (v !== undefined && !sharedSeen[k]) {
+                    sharedSeen[k] = 1;
+                    cands.push({ tag: 'sh', cls: 'dyndb-shared', value: v, who: node.id, whoEl: node.el, inherited: inherited, by: committedBy(k) });
+                }
+                var m = node.el && node.el.__dynModel;
+                if (m && typeof m === 'object' && !Array.isArray(m)) {
+                    try { v = m[k]; } catch (e) { v = undefined; }
+                    if (v !== undefined) cands.push({ tag: 'L2', cls: 'dyndb-l2', value: v, who: node.id, whoEl: node.el, inherited: inherited });
+                }
+            });
+            if (Object.prototype.hasOwnProperty.call(urlMap, k))
+                cands.push({ tag: 'L4', cls: 'dyndb-l34', value: urlMap[k], who: 'URL query' });
+            if (!cands.length) return;
+
+            html += '<div class="dyndb-pkey"><span class="dyndb-pkey-name">' + esc(k) + '</span>';
+            cands.forEach(function (cd, i) {
+                var isWin = i === 0;   // 候选收集顺序严格复刻 resolveOne
+                var whoTxt = cd.who === 'URL query' ? 'URL query'
+                    : cd.who + (cd.whoEl && cd.whoEl.nodeType === 1 ? ' · ' + elDesc(cd.whoEl) : '');
+                html += '<div class="dyndb-prow ' + (isWin ? 'is-win' : 'is-lost') + '">'
+                    + '<span class="dyndb-pcheck">' + (isWin ? '✓' : '·') + '</span>'
+                    + (cd.inherited ? '<span class="dyndb-layer dyndb-l34" title="来自父链 ctx（L3）">↑L3</span>' : '')
+                    + '<span class="dyndb-layer ' + cd.cls + '">' + cd.tag + '</span>'
+                    + '<span class="dyndb-pval">' + esc(shortParamVal(cd.value)) + '</span>'
+                    + '<span class="dyndb-pwho">' + esc(whoTxt) + '</span>'
+                    + (cd.by ? '<span class="dyndb-pby">commit:' + esc(cd.by) + '</span>' : '')
+                    + (isWin ? '' : '<span class="dyndb-pcovered">被覆盖</span>')
+                    + '</div>';
+            });
+            html += '</div>';
+        });
+        if (keys.length > shown.length)
+            html += '<div class="dyndb-line dyndb-na">…另有 ' + (keys.length - shown.length)
+                + ' 个参数；Console 执行 DynParams.fromEl(__sel).inspect() 看全部</div>';
+        html += '</div>';
+        return html;
+    }
+
     function inspectorSection(state) {
         if (picking) {
             return '<div class="dyndb-card dyndb-pick">'
@@ -454,6 +560,8 @@
             });
             html += '</div>';
         }
+
+        // DynParams 逐层透视已移至「DynParams」Tab（本卡聚焦 App/组件/数据）
 
         // —— DynDynamicCom 的两个关键 props：jsonconfig（组件配置树）/ parentmodelinfo（父模型） ——
         if (dynComp) {
@@ -541,6 +649,7 @@
         picking = true;
         hoverEl = null;
         if (panelEl) panelEl.classList.add('dyndb-picking');
+        if (activeTab !== 'view') switchTab('view');   // 拾取提示卡在查看 Tab
         document.addEventListener('mousemove', onPickMove, true);
         document.addEventListener('click', onPickClick, true);
         document.addEventListener('keydown', onPickKey, true);
@@ -593,7 +702,8 @@
     //  打断用户在 JSON 块里的文本选择。拆成三个容器：inspector 只在拾取/换选/手动
     //  刷新时重算，轮询只更新 Blocks/Notes；inspector 按"选中元素+拾取态+是否仍在文档"缓存。
     // ============================================================
-    var inspEl = null, blocksEl = null, notesEl = null, liveBarEl = null;
+    var inspEl = null, blocksEl = null, notesEl = null, paramsEl = null, liveBarEl = null;
+    var activeTab = 'view';
     // inspState：结构性缓存（describe DOM 链 + vnode 组件树遍历，很贵），只在换选/强制刷新时重算；
     // 数据实时性不靠轮询——buildInspState 时对 dynComp 的 parentmodelinfo/jsonconfig 及 app $data
     // 注册 $watch，值一变立即重绘（editForm 换 form 引用、表单逐字段修改都能捕获）。
@@ -665,6 +775,39 @@
         if (!inspEl) return;
         setLiveStale(false);
         inspEl.innerHTML = inspectorSection(inspState);
+        drawParams();   // 参数层 Tab 与查看卡共享同一份选中态，顺带刷新
+    }
+
+    /** DynParams Tab：渲染选中元素所属参数上下文的逐层透视（无选中时给引导） */
+    function drawParams() {
+        if (!paramsEl) return;
+        if (picking) {
+            paramsEl.innerHTML = '<div class="dyndb-card"><div class="dyndb-line dyndb-na">🎯 拾取中…点击页面元素后，这里显示它的 L0–L4 参数层</div></div>';
+            return;
+        }
+        if (!selectedEl || !document.contains(selectedEl)) {
+            paramsEl.innerHTML = '<div class="dyndb-card"><div class="dyndb-line dyndb-na">先用 🎯拾取 选择一个元素，再看它的 DynParams 参数层</div></div>';
+            return;
+        }
+        try {
+            var P = global.DynParams ? DynParams.fromEl(selectedEl) : null;
+            paramsEl.innerHTML = P ? paramsLayersSection(P)
+                : '<div class="dyndb-card"><div class="dyndb-line dyndb-na">DynParams 未加载</div></div>';
+        } catch (e) {
+            paramsEl.innerHTML = '<div class="dyndb-card"><div class="dyndb-bad">参数层渲染异常: ' + esc(e.message) + '</div></div>';
+        }
+    }
+
+    function switchTab(tab) {
+        if (tab !== 'view' && tab !== 'params') return;
+        activeTab = tab;
+        [].slice.call(panelEl.querySelectorAll('.dyndb-tab')).forEach(function (b) {
+            b.classList.toggle('is-active', b.getAttribute('data-tab') === tab);
+        });
+        [].slice.call(panelEl.querySelectorAll('.dyndb-pane')).forEach(function (p) {
+            p.style.display = p.getAttribute('data-pane') === tab ? '' : 'none';
+        });
+        if (tab === 'params') drawParams();
     }
 
     function drawInspector(force) {
@@ -675,6 +818,7 @@
             global.__selComp = null; global.__selComps = [];
             setLiveStale(false);
             inspEl.innerHTML = inspectorSection(null);
+            drawParams();
             return;
         }
         buildInspState(force);
@@ -722,6 +866,12 @@
             + '.dyndb-btn{background:#3c3c3c;color:#ddd;border:1px solid #555;border-radius:4px;padding:1px 8px;cursor:pointer;font:12px Consolas}'
             + '.dyndb-btn:hover{background:#4a4a4a}'
             + '.dyndb-body{overflow:auto;padding:8px 10px}.dyndb-panel.dyndb-collapsed .dyndb-body{display:none}'
+            + '.dyndb-tabbar{display:flex;gap:2px;padding:4px 6px 0;background:#252526;border-bottom:1px solid #3a3a3a}'
+            + '.dyndb-panel.dyndb-collapsed .dyndb-tabbar{display:none}'
+            + '.dyndb-tab{background:transparent;color:#9a9a9a;border:1px solid transparent;border-bottom:none;'
+            + 'border-radius:5px 5px 0 0;padding:3px 12px;cursor:pointer;font:12px Consolas}'
+            + '.dyndb-tab:hover{color:#ddd;background:#2f2f33}'
+            + '.dyndb-tab.is-active{color:#4ec9b0;background:#1e1e1e;border-color:#3a3a3a;font-weight:bold}'
             + '.dyndb-sec-h{color:#569cd6;font-weight:bold;margin:8px 0 4px;border-bottom:1px solid #3a3a3a;padding-bottom:2px}'
             + '.dyndb-live-dot{color:#4ec9b0;font-size:10px;margin-left:6px;font-weight:normal;opacity:.85}'
             + '.dyndb-livebar{margin:0 0 6px;padding:4px 8px;background:#3a2f10;border:1px solid #b58900;'
@@ -735,6 +885,23 @@
             + '.dyndb-l0{background:#4e2a1e;color:#f48771}.dyndb-l1{background:#143d2e;color:#4ec9b0}'
             + '.dyndb-l2{background:#2d2350;color:#c586c0}.dyndb-l34{background:#4a3a10;color:#d7ba7d}'
             + '.dyndb-shared{background:#0e3a4a;color:#569cd6}'
+            + '.dyndb-pllegend{margin:4px 0 6px;padding:4px 6px;background:#222;border:1px solid #333;border-radius:4px;'
+            + 'font-size:10px;color:#aaa;line-height:2}'
+            + '.dyndb-pllegend .dyndb-layer{margin:0 3px 0 8px}'
+            + '.dyndb-pkey{margin:5px 0 3px;padding-top:4px;border-top:1px dashed #333}'
+            + '.dyndb-pkey-name{color:#dcdcaa;font-weight:bold}'
+            + '.dyndb-prow{display:flex;align-items:center;gap:5px;margin:1px 0 1px 8px;font-size:11px;line-height:1.5;border-radius:3px;padding:0 4px}'
+            + '.dyndb-prow.is-win{background:#1f3328}'
+            + '.dyndb-prow.is-lost{color:#7a7a7a}'
+            + '.dyndb-pcheck{width:12px;flex:none;color:#4ec9b0;font-weight:bold}'
+            + '.is-lost .dyndb-pcheck{color:#666}'
+            + '.dyndb-prow .dyndb-layer{margin-left:0;flex:none;padding:0 4px}'
+            + '.dyndb-pval{color:#ce9178;word-break:break-all}'
+            + '.is-lost .dyndb-pval{color:#8f8478}'
+            + '.dyndb-pwho{margin-left:auto;color:#6a9955;font-size:10px;flex:none;max-width:170px;overflow:hidden;'
+            + 'text-overflow:ellipsis;white-space:nowrap}'
+            + '.dyndb-pby{color:#c586c0;font-size:10px;flex:none}'
+            + '.dyndb-pcovered{color:#999;font-size:10px;border:1px solid #555;border-radius:3px;padding:0 4px;flex:none}'
             + '.dyndb-chain{color:#808080}.dyndb-bad{color:#f48771;font-weight:bold}'
             + '.dyndb-note{border-left:3px solid #f48771;padding:2px 6px;margin:3px 0;background:#2a2020}'
             + '.dyndb-time{color:#808080}.dyndb-src{color:#c586c0}'
@@ -799,11 +966,20 @@
             + '<button class="dyndb-btn" data-act="refresh">刷新</button>'
             + '<button class="dyndb-btn" data-act="clear">清空</button>'
             + '<button class="dyndb-btn" data-act="hide">－</button></div>'
+            + '<div class="dyndb-tabbar">'
+            + '<button class="dyndb-tab is-active" data-tab="view">App / 组件</button>'
+            + '<button class="dyndb-tab" data-tab="params">DynParams</button>'
+            + '</div>'
             + '<div class="dyndb-body">'
+            + '<div class="dyndb-pane" data-pane="view">'
             + '<div class="dyndb-livebar" data-act="live-refresh" style="display:none">● 数据有更新（正在选择文本，点击刷新）</div>'
             + '<div class="dyndb-insp-slot"></div>'
             + '<div class="dyndb-blocks-slot"></div>'
             + '<div class="dyndb-notes-slot"></div>'
+            + '</div>'
+            + '<div class="dyndb-pane" data-pane="params" style="display:none">'
+            + '<div class="dyndb-params-slot"></div>'
+            + '</div>'
             + '</div>';
         document.body.appendChild(panelEl);
         bodyEl = panelEl.querySelector('.dyndb-body');
@@ -811,9 +987,12 @@
         inspEl = panelEl.querySelector('.dyndb-insp-slot');
         blocksEl = panelEl.querySelector('.dyndb-blocks-slot');
         notesEl = panelEl.querySelector('.dyndb-notes-slot');
+        paramsEl = panelEl.querySelector('.dyndb-params-slot');
 
         panelEl.addEventListener('click', function (e) {
             var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+            var tab = e.target && e.target.getAttribute && e.target.getAttribute('data-tab');
+            if (tab) { switchTab(tab); return; }
             if (act === 'pick') { startPicking(); return; }
             if (act === 'live-refresh') { drawInspector(true); return; }
             if (act === 'refresh') { draw(); return; }
