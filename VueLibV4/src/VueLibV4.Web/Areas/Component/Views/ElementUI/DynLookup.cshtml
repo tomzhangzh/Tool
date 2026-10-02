@@ -12,7 +12,7 @@
 <el-dialog v-model="dialogVisible" :title="jc.options.comoptions.title || '选择'"
            :width="jc.options.comoptions.width || '800px'"
            :close-on-click-modal="false" destroy-on-close>
-    <iframe v-if="dialogVisible" :src="dialogUrl" style="width:100%;height:500px;border:0;"></iframe>
+    <div ref="dialogBody" class="dyn-lookup-body" style="min-height:400px;"></div>
 </el-dialog>
 
 @section setupScripts{
@@ -20,6 +20,7 @@ DVALUE = null;
 
 const dialogVisible = ref(false);
 const displayText = ref('');
+const dialogBody = ref(null);
 
 const lookupUrl = computed(() => jc.options.comoptions.url || '');
 const lookupTitle = computed(() => jc.options.comoptions.title || '选择');
@@ -29,10 +30,8 @@ const mappings = computed(() => jc.options.comoptions.mappings || {});
 function buildUrl() {
     if (!lookupUrl.value) return '';
     let url = lookupUrl.value;
-    const params = {};
-    Object.keys(mappings.value).forEach(k => {});
-    // 支持 {{model.xxx}} 模板
     const urlParams = jc.options.comoptions.urlParams || {};
+    const params = {};
     Object.keys(urlParams).forEach(k => {
         let v = urlParams[k];
         if (typeof v === 'string' && v.indexOf('{{model.') === 0) {
@@ -46,49 +45,52 @@ function buildUrl() {
     return url;
 }
 
-const dialogUrl = computed(() => buildUrl());
-
-function openDialog() {
+async function openDialog() {
     if (!lookupUrl.value) {
         console.warn('[Lookup] 未配置 url');
         return;
     }
     dialogVisible.value = true;
+    await nextTick();
+    if (!dialogBody.value) return;
+    // 走 dyn.mount：异步加载 HTML 片段，递归挂载成 Vue app
+    dialogBody.value.setAttribute('data-dyn-url', buildUrl());
+    dialogBody.value.__dynLoaded = false;
+    dialogBody.value.innerHTML = '<div style="padding:20px;color:#909399;">加载中...</div>';
+    if (window.dyn && dyn.mount) {
+        try {
+            await dyn.mount(dialogBody.value);
+        } catch (e) {
+            dialogBody.value.innerHTML = '<div style="color:#f56c6c;padding:20px;">加载失败: ' + e.message + '</div>';
+        }
+    }
 }
 
-// 监听弹窗回传消息
+// 全局监听选择回传
 window.addEventListener('message', onMessage);
 function onMessage(ev) {
     if (!ev.data || ev.data.type !== 'dyn-lookup-return') return;
     const row = ev.data.data || {};
-    // 1. 把 valueField 写到自己的 model
+    pickRow(row);
+}
+
+// 也支持直接调用（弹窗内 Vue 组件通过 inject 调用）
+function pickRow(row) {
+    if (!row) return;
     if (modelinfo.value !== undefined) {
         modelinfo.value = row[valueField.value];
     }
-    // 2. 按映射规则写其他字段
     Object.keys(mappings.value).forEach(srcField => {
         const targetPath = mappings.value[srcField];
-        if (row[srcField] !== undefined && props.parentmodelinfo) {
-            if (window._ && _.set) {
-                _.set(props.parentmodelinfo, targetPath, row[srcField]);
-            }
+        if (row[srcField] !== undefined && props.parentmodelinfo && window._ && _.set) {
+            _.set(props.parentmodelinfo, targetPath, row[srcField]);
         }
     });
-    // 3. 显示文本
-    displayText.value = row[mappings.__displayField || 'Name'] || row[valueField.value] || '';
+    displayText.value = row.Name || row.title || row[valueField.value] || '';
     dialogVisible.value = false;
 }
 
-// 初始化时显示已有的值
 onMounted(() => {
-    if (modelinfo.value && props.parentmodelinfo) {
-        const displayField = mappings.value.__displayField || 'Name';
-        const displayPath = Object.keys(mappings.value).find(k => mappings.value[k] === displayField);
-        if (displayPath) {
-            displayText.value = getByPath(parentModel.value, displayField) || modelinfo.value;
-        } else {
-            displayText.value = modelinfo.value;
-        }
-    }
+    if (modelinfo.value) displayText.value = modelinfo.value;
 });
 }
