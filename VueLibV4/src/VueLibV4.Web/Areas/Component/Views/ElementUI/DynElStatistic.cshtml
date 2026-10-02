@@ -1,0 +1,29 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<el-card shadow="hover" v-bind="comBind" v-on="getComlisteners()" style="min-width:200px;">
+    <div style="display:flex;align-items:center;gap:16px;">
+        <div v-if="jc.options.comoptions.icon"
+             :style="{ fontSize: '32px', color: jc.options.comoptions.iconColor || '#409eff' }">
+            {{ jc.options.comoptions.icon }}
+        </div>
+        <div>
+            <div style="color:#909399;font-size:13px;margin-bottom:4px;">{{ jc.options.comoptions.title || '' }}</div>
+            <el-statistic :value="statValue"
+                          :precision="jc.options.comoptions.precision || 0"
+                          :prefix="jc.options.comoptions.prefix || ''"
+                          :suffix="jc.options.comoptions.suffix || ''">
+            </el-statistic>
+            <div v-if="jc.options.comoptions.subTitle" style="color:#909399;font-size:12px;margin-top:4px;">
+                {{ jc.options.comoptions.subTitle }}
+            </div>
+        </div>
+    </div>
+</el-card>
+
+@section setupScripts{
+DVALUE = 0;
+const statValue = computed(() => {
+    if (modelinfo.value !== undefined && modelinfo.value !== null) return Number(modelinfo.value) || 0;
+    return Number(jc.options.comoptions.defaultValue || 0);
+});
+}

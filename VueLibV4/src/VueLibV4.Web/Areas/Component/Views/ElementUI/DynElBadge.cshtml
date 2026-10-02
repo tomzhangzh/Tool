@@ -1,0 +1,16 @@
+@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+
+<el-badge :value="badgeValue" v-bind="comBind" v-on="getComlisteners()"
+          :type="jc.options.comoptions.type || 'danger'"
+          :max="jc.options.comoptions.max || 99"
+          :is-dot="jc.options.comoptions.isDot === true">
+    <el-button>{{ jc.options.comoptions.buttonText || '查看消息' }}</el-button>
+</el-badge>
+
+@section setupScripts{
+DVALUE = 0;
+const badgeValue = computed(() => {
+    if (modelinfo.value !== undefined && modelinfo.value !== null) return Number(modelinfo.value) || 0;
+    return Number(jc.options.comoptions.defaultValue || 0);
+});
+}

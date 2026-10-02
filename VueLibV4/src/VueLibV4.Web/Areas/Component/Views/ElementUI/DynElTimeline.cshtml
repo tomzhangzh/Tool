@@ -1,0 +1,25 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<el-timeline v-bind="comBind" v-on="getComlisteners()">
+    <el-timeline-item v-for="(item, idx) in items" :key="idx"
+                      :timestamp="item.time || ''"
+                      :type="item.type || 'primary'"
+                      :hollow="item.hollow || false"
+                      :icon="item.icon || ''">
+        {{ item.content || '' }}
+    </el-timeline-item>
+</el-timeline>
+
+@section setupScripts{
+DVALUE = null;
+const items = computed(() => {
+    const raw = jc.options.comoptions.items || [];
+    return raw.map(it => ({
+        time: it.time || '',
+        content: it.content || '',
+        type: it.type || 'primary',
+        icon: it.icon || ''
+    }));
+});
+Object.assign(comExtra, { items });
+}
