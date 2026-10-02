@@ -1,6 +1,6 @@
 @{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
 
-<!-- 隐藏的数据桥组件：不渲染 UI，仅在页面加载时发请求并回填 model -->
+<!-- 隐藏的 RPC 调用器：发请求到服务端，结果可赋值 model / 执行 JS / 触发动作 -->
 <div v-if="false"></div>
 
 @section setupScripts{
@@ -8,31 +8,71 @@ DVALUE = null;
 
 const rpcUrl = computed(() => jc.options.comoptions.url || '');
 const rpcMethod = computed(() => jc.options.comoptions.method || 'GET');
-const rpcTarget = computed(() => jc.options.comoptions.targetModel || '');
 const rpcAutoLoad = computed(() => jc.options.comoptions.autoLoad !== false);
 const rpcParams = computed(() => jc.options.comoptions.params || {});
+const rpcTarget = computed(() => jc.options.comoptions.targetModel || '');
+const onSuccessJs = computed(() => jc.options.comoptions.onSuccessJs || '');
+const onSuccessAction = computed(() => jc.options.comoptions.onSuccessAction || '');
+
+function writeModel(path, val) {
+    if (!path || !props.parentmodelinfo) return;
+    if (window._ && _.set) { _.set(props.parentmodelinfo, path, val); return; }
+    const parts = path.split('.');
+    let obj = props.parentmodelinfo;
+    for (let i = 0; i < parts.length - 1; i++) {
+        if (typeof obj[parts[i]] !== 'object' || obj[parts[i]] === null) obj[parts[i]] = {};
+        obj = obj[parts[i]];
+    }
+    obj[parts[parts.length - 1]] = val;
+}
 
 async function doLoad() {
     if (!rpcUrl.value) return;
     try {
+        let url = rpcUrl.value;
+        const params = {};
+        Object.keys(rpcParams.value || {}).forEach(k => {
+            let v = rpcParams.value[k];
+            if (typeof v === 'string' && v.indexOf('{{model.') === 0) {
+                const path = v.replace(/\{\{model\./, '').replace(/\}\}/, '');
+                v = getByPath(parentModel.value, path);
+            }
+            params[k] = v;
+        });
         const opt = { method: rpcMethod.value };
         if (rpcMethod.value.toUpperCase() === 'POST') {
             opt.headers = { 'Content-Type': 'application/json' };
-            opt.body = JSON.stringify(rpcParams.value);
-        } else {
-            const qs = new URLSearchParams(rpcParams.value).toString();
-            if (qs) {
-                const sep = rpcUrl.value.includes('?') ? '&' : '?';
-                rpcUrl.value = rpcUrl.value + sep + qs;
+            opt.body = JSON.stringify(params);
+        } else if (Object.keys(params).length) {
+            const qs = new URLSearchParams(params).toString();
+            url += (url.includes('?') ? '&' : '?') + qs;
+        }
+        const res = await fetch(url, opt);
+        const data = await res.json();
+        const result = (data && data.data !== undefined) ? data.data : data;
+
+        // 1. 赋值给 model
+        if (rpcTarget.value) writeModel(rpcTarget.value, result);
+
+        // 2. 执行 JS 代码
+        if (onSuccessJs.value) {
+            try {
+                const fn = new Function('result', 'model', 'getByPath',
+                    onSuccessJs.value);
+                fn(result, props.parentmodelinfo, getByPath);
+            } catch (e) {
+                console.warn('[RpcLoader] JS执行失败:', e);
             }
         }
-        const res = await fetch(rpcUrl.value, opt);
-        const data = await res.json();
-        if (rpcTarget.value && data) {
-            const val = data.data !== undefined ? data.data : data;
-            // 通过 comInnerInfo 或 parentmodelinfo 写入目标 model
-            if (props.parentmodelinfo) {
-                props.parentmodelinfo[rpcTarget.value] = val;
+        // 3. 触发 ActionHelper 动作
+        if (onSuccessAction.value && window.DynAction && typeof window.DynAction.run === 'function') {
+            try {
+                await window.DynAction.run(onSuccessAction.value, { result: result }, {
+                    element: null,
+                    model: props.parentmodelinfo
+                });
+            } catch (e) {
+                console.warn('[RpcLoader] 动作执行失败:', e);
             }
         }
     } catch (e) {
@@ -40,10 +80,6 @@ async function doLoad() {
     }
 }
 
-onMounted(() => {
-    if (rpcAutoLoad.value) doLoad();
-});
-
-// 暴露手动刷新方法
+onMounted(() => { if (rpcAutoLoad.value) doLoad(); });
 Object.assign(comExtra, { doLoad });
 }
