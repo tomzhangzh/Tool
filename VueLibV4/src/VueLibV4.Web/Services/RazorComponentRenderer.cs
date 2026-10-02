@@ -110,6 +110,22 @@ public class RazorComponentRenderer
             style = null;
         }
 
+        // B2. _BaseLayout 系列视图不包 <template>（body 即模板，其后跟 comconfig）。
+        // 旧逻辑要求 body 中存在字面量 <template>，导致无裸 template 标签的组件
+        // （如 DynElEmpty/DynRpcLoader/DynModelWatcher/DynHtmlBox）模板被提成空串。
+        // 兜底：有 comconfig 但模板为空时，取 comconfig <script> 之前的全部输出。
+        if (string.IsNullOrWhiteSpace(template) && !string.IsNullOrWhiteSpace(script))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(html,
+                @"<script[^>]*tag\s*=\s*['""]comconfig['""][^>]*>",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (m.Success)
+            {
+                var prefix = html.Substring(0, m.Index).Trim();
+                if (!string.IsNullOrWhiteSpace(prefix)) template = prefix;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(template) && string.IsNullOrWhiteSpace(script))
         {
             return null;

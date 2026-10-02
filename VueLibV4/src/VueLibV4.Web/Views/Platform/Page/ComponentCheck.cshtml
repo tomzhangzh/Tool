@@ -1,0 +1,503 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "组件长廊质检 - VueLibV4";
+}
+
+<div id="component-check-app">
+    <div class="ck-bar">
+        <div class="ck-bar-left">
+            <span class="ck-title">组件长廊质检</span>
+            <el-tag size="small" type="info">共 {{ results.length }} 个启用组件</el-tag>
+            <el-tag size="small" type="success">{{ count.pass }} 通过</el-tag>
+            <el-tag size="small" type="warning">{{ count.warn }} 警告</el-tag>
+            <el-tag size="small" type="danger">{{ count.fail }} 失败</el-tag>
+            <el-tag size="small" type="info" v-if="count.skip">{{ count.skip }} 跳过</el-tag>
+            <el-divider direction="vertical"></el-divider>
+            <span class="ck-sub">属性栏</span>
+            <el-tag size="small" type="success">{{ propCount.pass }} 可配置</el-tag>
+            <el-tag size="small" type="warning">{{ propCount.warn }} 异常</el-tag>
+            <el-tag size="small" type="danger">{{ propCount.fail }} 失败</el-tag>
+            <el-tag size="small" type="info">{{ propCount.none }} 无属性</el-tag>
+            <el-tag size="small" v-if="running" type="primary">质检中 {{ doneCount }}/{{ results.length }}</el-tag>
+        </div>
+        <div class="ck-bar-right">
+            <el-radio-group v-model="filter" size="small" :disabled="running">
+                <el-radio-button label="all">全部</el-radio-button>
+                <el-radio-button label="fail">失败</el-radio-button>
+                <el-radio-button label="warn">警告</el-radio-button>
+                <el-radio-button label="pass">通过</el-radio-button>
+                <el-radio-button label="skip">跳过</el-radio-button>
+            </el-radio-group>
+            <el-button size="small" type="primary" :loading="running" @@click="run">重新质检</el-button>
+            <el-button size="small" @@click="copyReport">复制报告</el-button>
+        </div>
+    </div>
+    <el-progress v-if="running || doneCount>0" :percentage="percent" :status="count.fail ? (percent===100 ? 'exception' : undefined) : (percent===100 ? 'success' : undefined)" :stroke-width="6" style="margin:10px 16px 0;width:calc(100% - 32px);"></el-progress>
+
+    <div class="ck-grid">
+        <div v-for="(r, idx) in filtered" :key="r.name" class="ck-card" :class="'ck-' + r.status">
+            <div class="ck-card-head">
+                <span class="ck-dot" :class="'ck-dot-' + r.status"></span>
+                <b class="ck-label">{{ r.label }}</b>
+                <span class="ck-name">{{ r.name }}</span>
+                <span class="ck-spacer"></span>
+                <el-tag size="small" effect="plain">{{ r.category }}</el-tag>
+                <span class="ck-cost" v-if="r.costMs != null">{{ r.costMs }}ms</span>
+            </div>
+            <div class="ck-split">
+                <div class="ck-pane">
+                    <div class="ck-pane-title">
+                        <span class="ck-mini-dot" :class="'ck-dot-' + r.status"></span>组件
+                        <span class="ck-cost" v-if="r.costMs != null">{{ r.costMs }}ms</span>
+                    </div>
+                    <div class="ck-host" :id="'ck-host-' + r.name"></div>
+                    <div v-if="r.status === 'pending' || r.status === 'running'" class="ck-placeholder">…</div>
+                    <div v-if="r.errors.length && r.status !== 'skip'" class="ck-errors ck-errors-sm">
+                        <div v-for="(e, ei) in r.errors" :key="ei" class="ck-error-line">{{ e }}</div>
+                    </div>
+                </div>
+                <div class="ck-pane ck-pane-prop">
+                    <div class="ck-pane-title">
+                        <span class="ck-mini-dot" :class="'ck-dot-' + r.propStatus"></span>属性栏
+                        <span class="ck-cost" v-if="r.propItemCount != null">{{ r.propItemCount }} 项</span>
+                        <span class="ck-cost" v-else-if="r.propCostMs != null">{{ r.propCostMs }}ms</span>
+                    </div>
+                    <div class="ck-host" :id="'ck-prophost-' + r.name"></div>
+                    <div v-if="r.propStatus === 'pending' || r.propStatus === 'running'" class="ck-placeholder">…</div>
+                    <div v-if="r.propStatus === 'none'" class="ck-placeholder">无扩展属性（设计器显示"暂无"）</div>
+                    <div v-if="r.propStatus === 'skip'" class="ck-placeholder">跳过</div>
+                    <div v-if="r.propErrors.length" class="ck-errors ck-errors-sm">
+                        <div v-for="(e, ei) in r.propErrors" :key="ei" class="ck-error-line">{{ e }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="ck-meta">
+                <span class="ck-viewpath" :title="r.viewPath">{{ r.viewPath || '(无视图,DB定义)' }}</span>
+            </div>
+            <div v-if="r.status === 'skip' && r.errors.length" class="ck-skip-note">
+                <span v-for="(e, ei) in r.errors" :key="ei">{{ e }}</span>
+            </div>
+        </div>
+    </div>
+    <div v-if="!results.length" class="ck-empty">正在加载组件清单…</div>
+</div>
+
+<style>
+    body { margin:0; background:#f0f2f5; font-family:'PingFang SC','Microsoft YaHei',sans-serif; }
+    .ck-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; background:#fff; border-bottom:1px solid #e4e7ed; flex-wrap:wrap; }
+    .ck-bar-left { display:flex; align-items:center; gap:8px; margin-right:auto; }
+    .ck-bar-right { display:flex; align-items:center; gap:8px; }
+    .ck-title { font-weight:600; font-size:15px; color:#303133; }
+    .ck-sub { font-size:12px; color:#909399; margin-left:4px; }
+    .ck-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(600px,1fr)); gap:12px; padding:16px; }
+    .ck-card { background:#fff; border:1px solid #e4e7ed; border-radius:8px; padding:12px; border-left-width:4px; }
+    .ck-split { display:flex; gap:10px; }
+    .ck-pane { flex:1; min-width:0; border:1px solid #f0f2f5; border-radius:6px; padding:8px; background:#fafbfc; }
+    .ck-pane-prop { background:#fcfcfd; }
+    .ck-pane-title { display:flex; align-items:center; gap:6px; font-size:11px; color:#909399; margin-bottom:6px; }
+    .ck-pane-title .ck-cost { margin-left:auto; }
+    .ck-mini-dot { width:7px; height:7px; border-radius:50%; background:#dcdfe6; display:inline-block; }
+    .ck-mini-dot.ck-dot-pass { background:#67c23a; }
+    .ck-mini-dot.ck-dot-warn { background:#e6a23c; }
+    .ck-mini-dot.ck-dot-fail { background:#f56c6c; }
+    .ck-mini-dot.ck-dot-none, .ck-mini-dot.ck-dot-skip { background:#c0c4cc; }
+    .ck-mini-dot.ck-dot-running { background:#409eff; animation:ckblink 1s infinite; }
+    .ck-pass { border-left-color:#67c23a; }
+    .ck-warn { border-left-color:#e6a23c; }
+    .ck-fail { border-left-color:#f56c6c; }
+    .ck-pending, .ck-running { border-left-color:#dcdfe6; }
+    .ck-skip { border-left-color:#909399; opacity:.75; }
+    .ck-dot-skip { background:#909399; }
+    .ck-card-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+    .ck-label { color:#303133; }
+    .ck-name { color:#909399; font-size:11px; }
+    .ck-spacer { flex:1; }
+    .ck-cost { color:#c0c4cc; font-size:11px; }
+    .ck-dot { width:9px; height:9px; border-radius:50%; background:#dcdfe6; display:inline-block; }
+    .ck-dot-pass { background:#67c23a; }
+    .ck-dot-warn { background:#e6a23c; }
+    .ck-dot-fail { background:#f56c6c; }
+    .ck-dot-running { background:#409eff; animation:ckblink 1s infinite; }
+    @@keyframes ckblink { 50% { opacity:.3; } }
+    .ck-card-body { min-height:60px; position:relative; }
+    .ck-host .el-button { margin:2px; }
+    .ck-placeholder { color:#c0c4cc; font-size:12px; padding:18px 0; text-align:center; }
+    .ck-meta { margin-top:8px; padding-top:6px; border-top:1px dashed #f0f2f5; }
+    .ck-viewpath { color:#b1b6bd; font-size:10px; word-break:break-all; }
+    .ck-errors { margin-top:8px; background:#fef0f0; border-radius:4px; padding:6px 8px; max-height:150px; overflow:auto; }
+    .ck-skip-note { margin-top:8px; background:#f4f4f5; color:#909399; border-radius:4px; padding:6px 8px; font-size:11px; }
+    .ck-error-line { color:#f56c6c; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-all; font-family:Consolas,Monaco,monospace; }
+    .ck-empty { text-align:center; color:#909399; padding:60px; }
+</style>
+
+@section Scripts {
+<script>
+DynLib.ready(function () {
+    // 无可见 DOM 但设计如此的隐藏/逻辑组件，空渲染不判警告
+    var INVISIBLE_OK = { DynModelWatcher:1, DynRpcLoader:1 };
+    // 纯布局/承载型组件：无槽位内容或未配置远程地址时本来就没有可见输出
+    var EMPTY_OK = { DynElRow:1, DynElCol:1, DynElContainer:1, DynGridContainer:1, DynForm:1, DynHtmlBox:1 };
+    // 基础设施组件不参与"按默认配置挂载"质检：
+    //  DynElFormItem —— 全局内部组件，无独立视图/定义（设计器槽位专用）
+    //  DynDynamicCom —— 通用渲染器，其默认配置渲染自身，挂载必然递归
+    var SKIP_MOUNT = {
+        DynElFormItem: '全局内部组件（表单项槽位），无独立定义',
+        DynDynamicCom: '通用渲染器底座，默认配置指向自身，不适用独立挂载'
+    };
+    var MOUNT_TIMEOUT = 10000;
+    var SETTLE_MS = 600;
+
+    // 通用测试模型：给绑定型组件提供常见字段，避免 undefined 引发的次生错误
+    var TEST_MODEL = {
+        Id: 1, id: 1, Name: '测试名称', name: '测试名称', title: '测试标题', label: '测试',
+        value: 1, Value: 1, Status: 1, status: 1, count: 3, Count: 3, price: 100,
+        startTime: '2026-10-01 08:00:00', endTime: '2026-10-02 18:00:00',
+        provinceId: 'bj', customerId: 1, customerName: '测试客户', customerAddress: '测试地址', customerPhone: '13800000000',
+        selectedIds: [1], list: [], remark: '质检备注'
+    };
+
+    function sleep(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+
+    var app = Vue.createApp({
+        data: function () {
+            return {
+                results: [],
+                running: false,
+                doneCount: 0,
+                filter: 'all',
+                probes: null
+            };
+        },
+        computed: {
+            count: function () {
+                var c = { pass:0, warn:0, fail:0, skip:0, pending:0, running:0 };
+                this.results.forEach(function (r) { c[r.status] = (c[r.status] || 0) + 1; });
+                return c;
+            },
+            percent: function () {
+                if (!this.results.length) return 0;
+                return Math.round(this.doneCount * 100 / this.results.length);
+            },
+            propCount: function () {
+                var c = { pass:0, warn:0, fail:0, none:0, skip:0 };
+                this.results.forEach(function (r) { c[r.propStatus] = (c[r.propStatus] || 0) + 1; });
+                return c;
+            },
+            filtered: function () {
+                if (this.filter === 'all') return this.results;
+                var f = this.filter;
+                return this.results.filter(function (r) { return r.status === f; });
+            }
+        },
+        mounted: function () {
+            this.loadMeta();
+        },
+        methods: {
+            loadMeta: function () {
+                var self = this;
+                fetch('/api/platform/componentmeta/all')
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        var list = (res && res.data) || [];
+                        list = list.filter(function (c) { return c.IsActive !== false; });
+                        // 按分类排序，卡片观感稳定
+                        list.sort(function (a, b) {
+                            return (a.Category || '').localeCompare(b.Category || '') || a.Id - b.Id;
+                        });
+                        self.results = list.map(function (c) {
+                            var cfg = null, parseError = '';
+                            try {
+                                cfg = typeof c.DefaultConfigJson === 'string' ? JSON.parse(c.DefaultConfigJson) : c.DefaultConfigJson;
+                            } catch (e) { parseError = 'DefaultConfigJson 解析失败: ' + e.message; }
+                            return {
+                                name: c.ComponentName,
+                                label: c.Label || c.ComponentName,
+                                category: c.Category || '其他',
+                                viewPath: c.ViewPath || '',
+                                loadUrl: c.LoadUrl || ('/api/component/define/' + c.ComponentName),
+                                cfg: cfg,
+                                // cfgBase：出厂配置基线，重跑时重置用户在属性栏里的试验性修改
+                                cfgBase: cfg ? JSON.parse(JSON.stringify(cfg)) : null,
+                                // PropertyConfigJson 原始串：设计器右侧"组件属性"折叠区就是渲染它
+                                propRaw: c.PropertyConfigJson || '',
+                                status: 'pending',
+                                errors: parseError ? [parseError] : [],
+                                costMs: null,
+                                propStatus: 'pending',
+                                propErrors: [],
+                                propCostMs: null,
+                                propItemCount: null
+                            };
+                        });
+                        self.run();
+                    })
+                    .catch(function (e) { dyn.showMessage('组件清单加载失败: ' + e.message, 'error'); });
+            },
+
+            // ---- 错误探针：挂载窗口期内把错误归到当前组件 ----
+            // 注意：Vue 3.5 UMD 全局没有 Vue.config（Vue2 时代 API），组件错误在无 app 级
+            // errorHandler 时会 logError(console.error) 并 rethrow，故用 console.error +
+            // window error/unhandledrejection 三层即可完整捕获。
+            installProbes: function () {
+                var bucket = [];
+                var prevConsoleError = console.error;
+                console.error = function () {
+                    var parts = Array.prototype.map.call(arguments, function (a) {
+                        try {
+                            if (a instanceof Error) return a.message + (a.stack ? '\n' + a.stack.split('\n').slice(0, 4).join('\n') : '');
+                            return typeof a === 'string' ? a : (a && a.message) || JSON.stringify(a);
+                        } catch (e) { return String(a); }
+                    });
+                    bucket.push(parts.join(' '));
+                    prevConsoleError.apply(console, arguments);
+                };
+                var onErr = function (ev) {
+                    var msg = (ev.error && ev.error.message) || ev.message || 'unknown error';
+                    bucket.push('window.onerror: ' + msg);
+                };
+                var onRej = function (ev) {
+                    var r = ev.reason;
+                    bucket.push('unhandledrejection: ' + ((r && r.message) || String(r)));
+                };
+                window.addEventListener('error', onErr);
+                window.addEventListener('unhandledrejection', onRej);
+                return {
+                    bucket: bucket,
+                    restore: function () {
+                        console.error = prevConsoleError;
+                        window.removeEventListener('error', onErr);
+                        window.removeEventListener('unhandledrejection', onRej);
+                    }
+                };
+            },
+
+            checkDefine: function (r) {
+                return fetch(r.loadUrl, { headers: { 'Accept': 'application/json' } })
+                    .then(function (resp) {
+                        if (!resp.ok) return { ok:false, msg:'define HTTP ' + resp.status };
+                        return resp.json().then(function (j) {
+                            if (j && j.success === false) return { ok:false, msg:'define 返回失败: ' + (j.message || '') };
+                            var d = j && j.data;
+                            var tpl = d && (d.templateContent || d.TemplateContent || '');
+                            if (!tpl || !String(tpl).trim()) return { ok:false, msg:'定义模板为空（ViewPath 不可达且无 DB 回退内容）' };
+                            return { ok:true };
+                        });
+                    })
+                    .catch(function (e) { return { ok:false, msg:'define 请求异常: ' + e.message }; });
+            },
+
+            // 属性栏阶段：完整复刻设计器 RightPanel 的 comProps 渲染路径
+            mountProps: function (r) {
+                var self = this;
+                r.propStatus = 'running';
+                r.propErrors = [];
+                var raw = (r.propRaw || '').trim();
+                // 与 RightPanel.comProps 的空值判定一致：null/空串/"[]" 都显示"暂无扩展属性"
+                if (!raw || raw === '[]') { r.propStatus = 'none'; return Promise.resolve(); }
+
+                var propCfg;
+                try {
+                    propCfg = JSON.parse(raw);
+                } catch (e) {
+                    r.propErrors.push('PropertyConfigJson 解析失败: ' + e.message);
+                    r.propStatus = 'fail';
+                    return Promise.resolve();
+                }
+                if (!propCfg || !propCfg.component) { r.propStatus = 'none'; return Promise.resolve(); }
+
+                // RightPanel 的同款注入：属性编辑器统一 small + 左右 label
+                propCfg.options = propCfg.options || {};
+                propCfg.options.comoptions = propCfg.options.comoptions || {};
+                if (!propCfg.options.comoptions.size) propCfg.options.comoptions.size = 'small';
+                propCfg.options.labeloptions = propCfg.options.labeloptions || {};
+                if (!propCfg.options.labeloptions.labelposition) propCfg.options.labeloptions.labelposition = 'left';
+                if (!propCfg.options.labeloptions.labelwidth) propCfg.options.labeloptions.labelwidth = '90px';
+
+                // 属性条目读写的就是组件自身配置（RightPanel 传 model.current）；用深拷贝避免污染本体挂载
+                var parentModel;
+                try { parentModel = JSON.parse(JSON.stringify(r.cfg || {})); }
+                catch (e) { parentModel = {}; }
+
+                var probes, timer;
+                return Vue.nextTick().then(function () { return sleep(20); }).then(function () {
+                    probes = self.installProbes();
+                    var host = document.getElementById('ck-prophost-' + r.name);
+                    if (!host) throw new Error('属性栏容器不存在');
+                    var t0 = performance.now();
+                    var mountP = window.dyn && dyn.mount
+                        ? Promise.resolve(dyn.mount(propCfg, host, parentModel))
+                        : Promise.reject(new Error('dyn 运行时未就绪'));
+                    var timeoutP = new Promise(function (_, reject) {
+                        timer = setTimeout(function () { reject(new Error('属性栏挂载超时(' + MOUNT_TIMEOUT + 'ms)')); }, MOUNT_TIMEOUT);
+                    });
+                    return Promise.race([mountP, timeoutP]).then(function () {
+                        clearTimeout(timer);
+                        r.propCostMs = Math.round(performance.now() - t0);
+                    });
+                }).then(function () { return sleep(SETTLE_MS); }).then(function () {
+                    if (probes) Array.prototype.push.apply(r.propErrors, probes.bucket);
+                    if (r.propErrors.length) { r.propStatus = 'fail'; return; }
+                    var host = document.getElementById('ck-prophost-' + r.name);
+                    // 属性条目都走 _FormItemLayout → el-form-item；再兜底统计实际可交互控件
+                    var items = host ? host.querySelectorAll('.el-form-item') : [];
+                    var editors = host ? host.querySelectorAll('input, textarea, select, .el-select, .el-switch, .el-input-number, .el-radio-group, .el-checkbox-group, .el-date-editor, .el-color-picker') : [];
+                    if (!items.length && !editors.length) {
+                        r.propStatus = 'warn';
+                        r.propErrors.push('PropertyConfigJson 存在但未渲染出任何属性编辑项（设计器属性栏将无法配置）');
+                    } else {
+                        r.propItemCount = items.length || editors.length;
+                        r.propStatus = 'pass';
+                    }
+                }, function (e) {
+                    if (probes) Array.prototype.push.apply(r.propErrors, probes.bucket);
+                    r.propErrors.push((e && e.message) || String(e));
+                    r.propStatus = 'fail';
+                }).then(function () {
+                    if (probes) probes.restore();
+                    var seen = {};
+                    r.propErrors = r.propErrors.filter(function (x) { if (seen[x]) return false; seen[x] = 1; return true; });
+                });
+            },
+
+            mountOne: function (r) {
+                var self = this;
+                r.status = 'running';
+                r.errors = r.errors.length ? r.errors.slice() : [];
+                r.propStatus = 'pending';
+                r.propErrors = [];
+                // 基础设施组件：不挂载，直接标记跳过
+                if (SKIP_MOUNT[r.name]) {
+                    r.errors = [SKIP_MOUNT[r.name]];
+                    r.costMs = null;
+                    r.propStatus = 'skip';
+                    return Vue.nextTick().then(function () { r.status = 'skip'; });
+                }
+                var compOut = null;
+                return Vue.nextTick()
+                    .then(function () { return sleep(30); })
+                    .then(function () {
+                        if (!r.cfg) return { status:'fail', errors:r.errors.concat(['无可用 DefaultConfigJson，跳过挂载']) };
+                        var chain = Promise.resolve();
+                        // 1) 定义端点检查
+                        chain = chain.then(function () { return self.checkDefine(r); }).then(function (dr) {
+                            if (!dr.ok) r.errors.push(dr.msg);
+                        });
+                        // 2) 隔离真实挂载
+                        var probes, timer, done;
+                        chain = chain.then(function () {
+                            probes = self.installProbes();
+                            var host = document.getElementById('ck-host-' + r.name);
+                            if (!host) throw new Error('挂载容器不存在');
+                            var t0 = performance.now();
+                            var mountP = window.dyn && dyn.mount
+                                ? Promise.resolve(dyn.mount(r.cfg, host, TEST_MODEL))
+                                : Promise.reject(new Error('dyn 运行时未就绪'));
+                            var timeoutP = new Promise(function (_, reject) {
+                                timer = setTimeout(function () { reject(new Error('挂载超时(' + MOUNT_TIMEOUT + 'ms)')); }, MOUNT_TIMEOUT);
+                            });
+                            return Promise.race([mountP, timeoutP]).then(function () {
+                                clearTimeout(timer);
+                                r.costMs = Math.round(performance.now() - t0);
+                            });
+                        });
+                        // 3) 等待 onMounted 内异步渲染（Mermaid setTimeout 等）后收口
+                        chain = chain.then(function () { return sleep(SETTLE_MS); });
+                        return chain.then(function () {
+                            if (probes) Array.prototype.push.apply(r.errors, probes.bucket);
+                            var status;
+                            if (r.errors.length) status = 'fail';
+                            else {
+                                var host = document.getElementById('ck-host-' + r.name);
+                                var hasUi = host && (host.innerText.trim() !== '' || host.querySelectorAll('*').length > 2);
+                                // 图片类组件无可读文本：图片加载成功（naturalWidth>0）即视为有可见内容
+                                var hasImg = host && Array.prototype.some.call(host.querySelectorAll('img'), function (im) { return im.complete && im.naturalWidth > 0; });
+                                status = (hasUi || hasImg || INVISIBLE_OK[r.name] || EMPTY_OK[r.name]) ? 'pass' : 'warn';
+                                if (status === 'warn') r.errors.push('挂载无异常但没有任何可见内容（空渲染）');
+                            }
+                            return { status: status };
+                        }, function (e) {
+                            if (probes) Array.prototype.push.apply(r.errors, probes.bucket);
+                            r.errors.push((e && e.message) || String(e));
+                            return { status: 'fail' };
+                        }).then(function (out) {
+                            if (probes) probes.restore();
+                            return out;
+                        });
+                    })
+                    .then(function (out) {
+                        // 去重错误信息
+                        var seen = {};
+                        r.errors = r.errors.filter(function (x) { if (seen[x]) return false; seen[x] = 1; return true; });
+                        compOut = out;
+                        // 4) 属性栏阶段（独立探针、独立 host，错误不互相污染）
+                        return self.mountProps(r);
+                    })
+                    .then(function () {
+                        // 5) 汇总：本体与属性栏取最差状态（none 视为通过）
+                        var rank = { pass:1, none:1, warn:2, fail:3, skip:0, pending:0, running:0 };
+                        var pr = rank[r.propStatus] || 0;
+                        var cr = rank[compOut.status] || 0;
+                        r.status = pr > cr ? r.propStatus : compOut.status;
+                    });
+            },
+
+            run: function () {
+                var self = this;
+                if (this.running) return;
+                this.running = true;
+                this.doneCount = 0;
+                // 重跑：清掉旧挂载的 DOM 与子应用（本体 + 属性栏两个 host），并把配置恢复到出厂基线
+                this.results.forEach(function (r) {
+                    ['ck-host-', 'ck-prophost-'].forEach(function (prefix) {
+                        var host = document.getElementById(prefix + r.name);
+                        if (host && window.dyn && dyn.unmount) { try { dyn.unmount(host); } catch (e) {} }
+                        if (host) host.innerHTML = '';
+                    });
+                    if (r.cfgBase) r.cfg = JSON.parse(JSON.stringify(r.cfgBase));
+                    r.status = 'pending';
+                    r.costMs = null;
+                    r.propStatus = 'pending';
+                    r.propErrors = [];
+                    r.propCostMs = null;
+                    r.propItemCount = null;
+                });
+                var seq = Promise.resolve();
+                this.results.forEach(function (r) {
+                    seq = seq.then(function () { return self.mountOne(r); })
+                               .then(function () { self.doneCount++; });
+                });
+                seq.then(function () { self.running = false; });
+            },
+
+            copyReport: function () {
+                var lines = ['组件长廊质检 ' + new Date().toLocaleString(),
+                    '总数 ' + this.results.length + ' / 通过 ' + this.count.pass + ' / 警告 ' + this.count.warn + ' / 失败 ' + this.count.fail + ' / 跳过 ' + (this.count.skip || 0), ''];
+                this.results.forEach(function (r) {
+                    var tag = { pass:'[PASS]', warn:'[WARN]', fail:'[FAIL]', skip:'[SKIP]', pending:'[--]', running:'[..]' }[r.status];
+                    lines.push(tag + ' ' + r.name + ' (' + r.category + ')' + (r.costMs != null ? ' ' + r.costMs + 'ms' : ''));
+                    r.errors.forEach(function (e) { lines.push('    组件: ' + e.replace(/\n/g, '\n    ')); });
+                    var ptag = { pass:'属性栏通过', warn:'属性栏警告', fail:'属性栏失败', none:'无扩展属性', skip:'属性栏跳过' }[r.propStatus] || r.propStatus;
+                    if (r.propStatus === 'none' || r.propStatus === 'skip') {
+                        lines.push('    [' + ptag + ']');
+                    } else {
+                        lines.push('    [' + ptag + (r.propItemCount != null ? ' ' + r.propItemCount + ' 项' : '') + ']');
+                    }
+                    r.propErrors.forEach(function (e) { lines.push('    属性栏: ' + e.replace(/\n/g, '\n    ')); });
+                });
+                var text = lines.join('\n');
+                var done = function () { dyn.showMessage('质检报告已复制', 'success'); };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done, function () { window.prompt('复制报告:', text); });
+                } else { window.prompt('复制报告:', text); }
+            }
+        }
+    });
+    DynCom.setupApp(app);
+    DynCom.ensureRegistered(app).then(function () {
+        var proxy = app.mount('#component-check-app');
+        // 调试/自动化出口：供外部读取质检结构化结果
+        window.__ckGet = function () { return proxy; };
+    });
+});
+</script>
+}

@@ -64,7 +64,7 @@ VALUES
  '{"component":"DynElDivider","modelname":"","options":{"comoptions":{},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),
 
 ('DynElImage','图片','基础','ElementUI','/api/component/define/DynElImage','/Areas/Component/Views/ElementUI/Image.cshtml','🌄',0,'[]','[]','[]','[]',
- '{"component":"DynElImage","modelname":"","options":{"comoptions":{"src":""},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),
+ '{"component":"DynElImage","modelname":"","options":{"comoptions":{"src":"/img/sample-image.jpg"},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{"width":"240px","height":"160px","borderRadius":"8px"},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),
 
 ('DynElProgress','进度条','基础','ElementUI','/api/component/define/DynElProgress','/Areas/Component/Views/ElementUI/Progress.cshtml','📊',0,'[]','[]','[]','[]',
  '{"component":"DynElProgress","modelname":"","options":{"comoptions":{"percentage":0},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),

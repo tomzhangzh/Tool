@@ -254,3 +254,10 @@ WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElDateRang
 -- ViewPath 修正：旧种子指向已删除/已移走的视图文件，回退会渲染空定义
 UPDATE ComponentMeta SET ViewPath='/Areas/Component/Views/ElementUI/DynElSelect.cshtml' WHERE ComponentName='DynElSelect' AND (ViewPath IS NULL OR ViewPath LIKE '%/Select.cshtml');
 UPDATE ComponentMeta SET ViewPath='/Areas/Component/Views/ElementUI/DynElRadioGroup.cshtml' WHERE ComponentName='DynElRadioGroup' AND (ViewPath IS NULL OR ViewPath LIKE '%/Radio.cshtml');
+
+-- DynElImage 默认配置补本地示例图：仅当仍是出厂形态（空 src 或官方外链 logo）时更新，不覆盖用户自定义配置
+UPDATE ComponentMeta
+SET DefaultConfigJson='{"component":"DynElImage","modelname":"","options":{"comoptions":{"src":"/img/sample-image.jpg"},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{"width":"240px","height":"160px","borderRadius":"8px"},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}'
+WHERE ComponentName='DynElImage'
+  AND (DefaultConfigJson LIKE '%"src":""%'
+       OR DefaultConfigJson LIKE '%element-plus.org/images/element-plus-logo.svg%');

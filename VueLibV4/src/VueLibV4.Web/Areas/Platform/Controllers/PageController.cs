@@ -103,6 +103,15 @@ public class PageController : Controller
         return View(string.Format(Page, "MetaDsl"));
     }
 
+    /// <summary>组件长廊质检：逐个真实挂载全部启用组件，校验 define/渲染/运行时错误，红绿黄灯报告</summary>
+    [HttpGet("/Platform/Page/ComponentCheck")]
+    public IActionResult ComponentCheck()
+    {
+        ViewData["Title"] = "组件长廊质检 - VueLibV4";
+        ViewData["ApiBase"] = "/api";
+        return View(string.Format(Page, "ComponentCheck"));
+    }
+
     [HttpGet("/Platform/Page/Demo/ActionHelper")]
     public IActionResult DemoActionHelper()
     {

@@ -9,28 +9,29 @@ var __plugin = {
 const Vue = global.Vue;
 if(!Vue){ console.error("[DynCore] 请先引入Vue3 UMD"); return; }
 
-// 全局 Vue 错误上报：Vue 组件内错误不会冒泡到 window.onerror，统一捕获后发后端
-try {
-  if (Vue.config && !Vue.config.__dynErrorHooked) {
-    Vue.config.__dynErrorHooked = true;
-    // 链式接管：保留宿主页面/其他库设置的 errorHandler，不能直接覆盖
-    const __prevErrorHandler = Vue.config.errorHandler;
-    Vue.config.errorHandler = function (err, instance, info) {
-      console.error('[Vue error]', err, info);
-      try {
-        var msg = (err && err.message ? err.message : String(err)) + ' [' + (info || '') + ']';
-        fetch('/api/log/frontend-error', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg, stack: err && err.stack || '', url: location.href })
-        }).catch(function(){});
-      } catch(e){}
-      if (typeof __prevErrorHandler === 'function') {
-        try { __prevErrorHandler.call(this, err, instance, info); } catch (e) {}
-      }
-    };
-  }
-} catch(e) { console.warn('[DynCore] Vue errorHandler 挂载跳过:', e); }
+// Vue 错误上报：Vue 组件内错误不会冒泡到 window.onerror。
+// 注意 Vue 3.5 UMD 全局已不存在 Vue.config（Vue2 时代 API），必须挂到【每个 app 实例】
+// 的 app.config.errorHandler；所有 dyn 应用在 createApp 后统一经 hookAppError 挂接。
+function hookAppError(app){
+  if(!app || !app.config || app.config.__dynErrorHooked) return;
+  app.config.__dynErrorHooked = true;
+  // 链式：保留宿主/其他代码在该 app 上设置的 errorHandler
+  const __prevErrorHandler = app.config.errorHandler;
+  app.config.errorHandler = function (err, instance, info) {
+    console.error('[Vue error]', err, info);
+    try {
+      var msg = (err && err.message ? err.message : String(err)) + ' [' + (info || '') + ']';
+      fetch('/api/log/frontend-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, stack: err && err.stack || '', url: location.href })
+      }).catch(function(){});
+    } catch(e){}
+    if (typeof __prevErrorHandler === 'function') {
+      try { __prevErrorHandler.call(this, err, instance, info); } catch (e) {}
+    }
+  };
+}
 
 /**
  * @typedef DynScopeModel
@@ -576,6 +577,7 @@ async function mountCore(el,parentEl){
   mergeExtOptions(component,extCfgs);
 
   const app = Vue.createApp(component);
+  hookAppError(app);
   // 掩码占位符 dyn-host 是原生自定义元素，禁止 Vue 尝试解析为组件
   app.config.compilerOptions.isCustomElement = tag=>tag==='dyn-host';
   // 官方注入点：模板中可写 <dyn-inject-host> 作为 updateEl 的安全目标
@@ -701,6 +703,7 @@ async function mountConfig(cfg,target,model){
     }
   };
   const app = Vue.createApp(component);
+  hookAppError(app);
   app.config.compilerOptions.isCustomElement = tag=>tag==='dyn-host';
   app.component('dyn-inject-host',DynInjectHost);
   if(paramCtx) app.config.globalProperties.$params = paramCtx.view;

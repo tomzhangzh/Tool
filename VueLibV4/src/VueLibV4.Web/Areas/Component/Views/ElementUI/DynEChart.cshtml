@@ -87,11 +87,22 @@
             new ResizeObserver(resizeChart).observe(chartEl.value);
         }
     });
-    onBeforeUnmount(function () { if (chart) { chart.dispose(); chart = null; } });
-    // model 数据变化 → 重绘
-    watch(function () { return modelinfo.value; }, function () { renderChart(); }, { deep: true });
-    // 配置变化（chartType/option/title 等）→ 重绘（设计器实时预览、类型切换）
-    watch(function () { return JSON.stringify(jc.options?.comoptions || {}); }, function () { renderChart(); }, { deep: true });
+    // 注意：modelinfo 由 _BaseLayout 在本段 setupScripts【之后】定义（TDZ），
+    // watch 的取值函数在注册时会立即执行一次，直接写 watch(() => modelinfo.value)
+    // 会抛 Cannot access 'modelinfo' before initialization。延迟到 nextTick
+    // （setup 已全部执行完）再注册，并在卸载时手动 stop（延迟注册的 watcher
+    // 不会被实例自动回收）。
+    const chartWatchStops = [];
+    onBeforeUnmount(function () {
+        chartWatchStops.forEach(function (stop) { try { stop(); } catch (e) {} });
+        if (chart) { chart.dispose(); chart = null; }
+    });
+    nextTick(function () {
+        // model 数据变化 → 重绘
+        chartWatchStops.push(watch(function () { return modelinfo.value; }, function () { renderChart(); }, { deep: true }));
+        // 配置变化（chartType/option/title 等）→ 重绘（设计器实时预览、类型切换）
+        chartWatchStops.push(watch(function () { return JSON.stringify(jc.options?.comoptions || {}); }, function () { renderChart(); }, { deep: true }));
+    });
 
     // 暴露到模板：chartEl(ref 绑定)/chartStyle/渲染方法（DynCom 组件私有成员必须挂 comExtra）
     Object.assign(comExtra, { chartEl, chartStyle, renderChart, resizeChart });
