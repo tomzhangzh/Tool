@@ -1,1 +1,11 @@
-﻿
+﻿@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+
+<el-rate v-bind="comBind" v-on="getComlisteners()"
+         :model-value="modelinfo"
+         @update:model-value="v => modelinfo = v"
+         :max="jc.options.comoptions.max || 5"
+         :allow-half="jc.options.comoptions.allowHalf === true"
+         :disabled="jc.options.comoptions.disabled === false ? false : !!jc.options.comoptions.disabled">
+</el-rate>
+
+@section setupScripts{ DVALUE = 3; }
