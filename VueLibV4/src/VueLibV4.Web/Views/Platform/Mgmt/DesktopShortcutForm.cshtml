@@ -3,7 +3,7 @@
    成功与失败的闭环全部由服务端动作驱动，片段零业务 JS。 *@
 @inject IDesktopSolutionService _solutions
 <div id="scFormFragment" class="p-4">
-    <div data-dyn-init-createapp>
+    <div dyn-init="createapp">
         <el-form label-width="92px" size="small">
             <el-form-item label="编码" required>
                 <el-input v-model="model.Code" maxlength="64" placeholder="唯一编码，如 student-manage"></el-input>
@@ -58,7 +58,7 @@
         <div class="flex justify-end gap-2 mt-3">
             <el-button size="small" dyn-click="ActionHelper.close">取消</el-button>
             <el-button type="primary" size="small"
-                       data-dyn-click-submit='{"url":"/api/dyndata/save?table=DesktopShortcut&gridId=grid_shortcut","target":"#scFormFragment"}'>保存</el-button>
+                       dyn-click='submit({"url":"/api/dyndata/save?table=DesktopShortcut&gridId=grid_shortcut","target":"#scFormFragment"})'>保存</el-button>
         </div>
 
 
@@ -114,6 +114,6 @@
             mounted: function () { this.loadEmojis(); }
         };
         </script>
-        <div style="display:none" data-dyn-init-setwin='{"width":"700px","height":"520px"}'>调整窗口</div>
+        <div style="display:none" dyn-init='setwin({"width":"700px","height":"520px"})'>调整窗口</div>
     </div>
 </div>

@@ -9,7 +9,7 @@
    因此：不显式指定 Layout；样式写在 root 之后（两种模式都生效）；依赖 CodeMirror/DynDsl 由宿主页面（设计器）提供。
    注意：CodeMirror 5 不能在 display:none 容器内创建（会抛 Cannot read properties of undefined (reading 'map')），
        因此第二个编辑器（DefaultConfigJson）改为首次切换到该 Tab 时才创建。 *@
-<div class="meta-dsl-root" data-dyn-init-createapp data-component-id="@ViewBag.ComponentId">
+<div class="meta-dsl-root" dyn-init="createapp" data-component-id="@ViewBag.ComponentId">
 
   @* ===== 顶部操作栏 ===== *@
   <div class="shrink-0" style="height:52px;background:#fff;border-bottom:1px solid #e4e7ed;display:flex;align-items:center;justify-content:space-between;padding:0 16px;">

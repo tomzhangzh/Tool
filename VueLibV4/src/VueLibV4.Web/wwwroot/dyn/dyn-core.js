@@ -312,21 +312,32 @@ function holderEl(){
  * @param {HTMLElement} el
  * @returns {Array<HTMLElement>}
  */
+/** 节点是否为"待引导 App 根"：dyn-init 管道里含 CreateApp 步（initActions 摘除后即失效） */
+function isPendingCreateApp(node){
+  if(!node || !node.hasAttribute || !node.hasAttribute('dyn-init')) return false;
+  const expr = node.getAttribute('dyn-init')||'';
+  return expr.split('|').some(function(tok){
+    return /^\s*(ActionHelper\.)?createapp\s*(\(|$)/i.test(tok.trim());
+  });
+}
+
 function collectNestedApps(el){
   const out = [];
   if(!el.querySelectorAll) return out;
   // 同时识别两种根标记：
   //  data-dyn-mode="createApp"（已引导/远程片段）
-  //  data-dyn-init-createapp（initActions 尚未扫到、mode 还没打上的待引导节点）
+  //  dyn-init="CreateApp"（initActions 尚未扫到、mode 还没打上的待引导节点）
   const all = [].slice.call(el.querySelectorAll(
-    '['+CONST.ATTR_MODE+'="createApp"],[data-dyn-init-createapp]'
-  ));
+    '['+CONST.ATTR_MODE+'="createApp"],[dyn-init]'
+  )).filter(function(node){
+    return node.getAttribute(CONST.ATTR_MODE)==='createApp' || isPendingCreateApp(node);
+  });
   all.forEach(node=>{
     if(node.__dynApp||node.__dynMounting) return;
     let p = node.parentNode, nearest = null;
     while(p && p!==el){
       if(p.nodeType===1 && p.getAttribute &&
-         (p.getAttribute(CONST.ATTR_MODE)==='createApp' || p.hasAttribute('data-dyn-init-createapp'))){ nearest=p; break; }
+         (p.getAttribute(CONST.ATTR_MODE)==='createApp' || isPendingCreateApp(p))){ nearest=p; break; }
       p = p.parentNode;
     }
     if(!nearest) out.push(node);
@@ -351,7 +362,7 @@ function bindParamWatchers(el,paramCtx){
 }
 
 /**
- * @description 掩码直接嵌套的dyn-init-createApp节点，mount时递归处理子App
+ * @description 掩码直接嵌套的待引导App节点（dyn-init="CreateApp" 或 mode=createApp），mount时递归处理子App
  * @param {HTMLElement} el
  * @param {Array} out 输出子节点列表 {child,host,uid}
  */
@@ -599,7 +610,7 @@ async function mountCore(el,parentEl){
     const reqAttr = el.getAttribute('data-dyn-require-params');
     if(reqAttr) paramCtx.require(reqAttr.split(',').map(s=>s.trim()).filter(Boolean));
   }
-  // mount完成后（含ajax载入片段），自动扫描执行容器内 data-dyn-init-* 初始化动作
+  // mount完成后（含ajax载入片段），自动扫描执行容器内 dyn-init 初始化动作管道
   if(global.dyn&&typeof dyn.initActions==='function'){
     dyn.initActions(el);
   }
@@ -713,7 +724,7 @@ function warnIfUnsafeInject(el){
  * 脚本内可以直接访问变量 el（当前容器DOM）
  * @param {HTMLElement} el 目标容器
  * @param {string} htmlStr html字符串
- * @param {boolean} [boot=true] 是否立即扫描挂载 data-dyn-init-* 容器。
+ * @param {boolean} [boot=true] 是否立即扫描执行 dyn-init 初始化动作。
  *   updateEl/open 直接注入时为 true；render/reload 之后还要走 mountCore 的链路必须传 false，
  *   否则内嵌 App 被提前挂载，会与 mountCore 的掩码递归冲突产生孤儿 App。
  * @returns {object|undefined} boot=true 时返回 DynBlocks.scan 句柄表（若存在 DynBlocks）

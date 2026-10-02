@@ -181,14 +181,14 @@
   <!-- ===== 页头 ===== -->
   <div class="header">
     <h1>Dyn<span class="dot">.</span> V4 Demo</h1>
-    <p>短语法动作系统 · 仅一套语法 · 组合动作 $before / $onSuccess / $onFail / $after</p>
-    <span class="tagline">data-dyn-{event}-{action} = &quot;{...}&quot;</span>
+    <p>管道动作系统 · 仅一套语法 · 组合动作 $before / $onSuccess / $onFail / $after</p>
+    <span class="tagline">dyn-click = &quot;action({...})|next(...)&quot;（动作管道，多步用 | 连接）</span>
   </div>
 
   <!-- ===== 共享 scope 状态栏（在 createApp 容器内，Vue 插值可渲染） ===== -->
   <div data-dyn-shared-scope="scope-demo" data-dyn-scope-json='{"count":0,"msg":"hello scope","price":100,"num":2,"total":0}'>
 
-    <div data-dyn-init-createapp='{}' data-dyn-use-scope="scope-demo">
+    <div dyn-init="createapp" data-dyn-use-scope="scope-demo">
 
       <div class="status-bar">
         <span class="kv-item"><span class="k">AppA.count</span><span class="v hot">{{model.count}}</span></span>
@@ -202,13 +202,13 @@
       <div class="card">
         <h3><span class="idx">1</span> calc · 安全表达式运算</h3>
         <p class="desc">不使用 eval，仅支持简单赋值运算，直接读写共享 model</p>
-        <code class="syntax">data-dyn-click-calc='{"expr":"count += 1"}'</code>
+        <code class="syntax">dyn-click='calc({"expr":"count += 1"})'</code>
         <div class="row">
-          <button class="btn" data-dyn-click-calc='{"expr":"count += 1"}'>count += 1</button>
-          <button class="btn green" data-dyn-click-calc='{"expr":"count -= 1"}'>count -= 1</button>
-          <button class="btn orange" data-dyn-click-calc='{"expr":"count += 5"}'>count += 5</button>
-          <button class="btn purple" data-dyn-click-calc='{"expr":"total = price * num"}'>total = price * num</button>
-      <button class="btn purple" data-dyn-click-evaljs='{"code":"ctx.model.count = ctx.model.count + 1"}'>count +1</button
+          <button class="btn" dyn-click='calc({"expr":"count += 1"})'>count += 1</button>
+          <button class="btn green" dyn-click='calc({"expr":"count -= 1"})'>count -= 1</button>
+          <button class="btn orange" dyn-click='calc({"expr":"count += 5"})'>count += 5</button>
+          <button class="btn purple" dyn-click='calc({"expr":"total = price * num"})'>total = price * num</button>
+      <button class="btn purple" dyn-click='evaljs({"code":"ctx.model.count = ctx.model.count + 1"})'>count +1</button
         </div>
       </div>
 
@@ -216,11 +216,11 @@
       <div class="card">
         <h3><span class="idx">2</span> setvar · toast 提示</h3>
         <p class="desc">设置变量值、弹出轻提示</p>
-        <code class="syntax">data-dyn-click-setvar='{"path":"msg","value":"来自按钮设置"}'</code>
+        <code class="syntax">dyn-click='setvar({"path":"msg","value":"来自按钮设置"})'</code>
         <div class="row">
-          <button class="btn" data-dyn-click-setvar='{"path":"msg","value":"来自按钮设置"}'>修改 msg</button>
-          <button class="btn green" data-dyn-click-toast='{"message":"这是 toast 消息","type":"success"}'>弹出 toast</button>
-          <button class="btn orange" data-dyn-click-notify='{"title":"通知标题","message":"这是 notify 通知","type":"success"}'>弹出 notify</button>
+          <button class="btn" dyn-click='setvar({"path":"msg","value":"来自按钮设置"})'>修改 msg</button>
+          <button class="btn green" dyn-click='toast({"message":"这是 toast 消息","type":"success"})'>弹出 toast</button>
+          <button class="btn orange" dyn-click='notify({"title":"通知标题","message":"这是 notify 通知","type":"success"})'>弹出 notify</button>
         </div>
       </div>
 
@@ -228,15 +228,15 @@
       <div class="card">
         <h3><span class="idx">3</span> 组合动作 · confirm 前置确认</h3>
         <p class="desc">$before 先确认，用户点"确定"才执行 postback；失败走 $onFail，无论成败最后走 $after</p>
-        <code class="syntax">data-dyn-click-postback='{"$before":[{"action":"confirm","options":{"message":"确定提交？"}}],"url":"/api/mock/save","message":"保存成功"}'</code>
+        <code class="syntax">dyn-click='postback({"$before":[{"action":"confirm","options":{"message":"确定提交？"}}],"url":"/api/mock/save","message":"保存成功"})'</code>
         <div class="row">
-          <button class="btn red" data-dyn-click-postback='{
+          <button class="btn red" dyn-click='postback({
             "$before":[{"action":"confirm","options":{"message":"确定要模拟提交吗？"}}],
             "url":"/api/mock/save",
             "message":"模拟提交成功",
             "$onFail":[{"action":"toast","options":{"message":"提交失败"}}],
             "$after":[{"action":"toast","options":{"message":"流程执行结束"}}]
-          }'>confirm + postback 组合</button>
+          })'>confirm + postback 组合</button>
           <span class="note">取消确认将中止请求</span>
         </div>
       </div>
@@ -245,15 +245,15 @@
       <div class="card">
         <h3><span class="idx">4</span> chain · 动作链</h3>
         <p class="desc">按顺序执行多个动作，前一步结果可作为 $result 传递</p>
-        <code class="syntax">data-dyn-click-chain='{"steps":[{"action":"calc","options":{"expr":"count += 1"}},{"action":"toast","options":{"message":"chain 完成"}}]}'</code>
+        <code class="syntax">dyn-click='chain({"steps":[{"action":"calc","options":{"expr":"count += 1"}},{"action":"toast","options":{"message":"chain 完成"}}]})'</code>
         <div class="row">
-          <button class="btn" data-dyn-click-chain='{
+          <button class="btn" dyn-click='chain({
             "steps":[
               {"action":"calc","options":{"expr":"count += 1"}},
               {"action":"delay","options":{"ms":300}},
               {"action":"toast","options":{"message":"chain 执行完毕"}}
             ]
-          }'>执行 chain 链（+1 后提示）</button>
+          })'>执行 chain 链（+1 后提示）</button>
         </div>
       </div>
 
@@ -261,15 +261,15 @@
       <div class="card">
         <h3><span class="idx">5</span> open · 弹窗 + onopen/onclose + reloadSelf</h3>
         <p class="desc">打开弹窗加载远程片段；关闭后自动刷新触发按钮所在容器</p>
-        <code class="syntax">data-dyn-click-open='{"url":"/mock/dialog.html","title":"编辑","reloadSelf":true,"onopen":[...]}'</code>
+        <code class="syntax">dyn-click='open({"url":"/mock/dialog.html","title":"编辑","reloadSelf":true,"onopen":[...]})'</code>
         <div class="row">
-          <button class="btn purple" data-dyn-click-open='{
+          <button class="btn purple" dyn-click='open({
             "url":"/mock/dialog.html",
             "title":"测试弹窗",
             "reloadSelf":true,
             "onopen":[{"action":"toast","options":{"message":"弹窗已打开"}}],
             "onclose":[{"action":"toast","options":{"message":"弹窗已关闭，正在刷新容器"}}]
-          }'>打开弹窗（关闭自动刷新）</button>
+          })'>打开弹窗（关闭自动刷新）</button>
           <span class="note">/mock/dialog.html 需后端提供，否则显示加载失败</span>
         </div>
       </div>
@@ -278,9 +278,9 @@
       <div class="card">
         <h3><span class="idx">6</span> switch · 条件分支</h3>
         <p class="desc">按 model 值匹配分支执行对应动作，支持 default 兜底</p>
-        <code class="syntax">data-dyn-click-switch='{"expr":"model.count","cases":[...],"default":{...}}'</code>
+        <code class="syntax">dyn-click='switch({"expr":"model.count","cases":[...],"default":{...}})'</code>
         <div class="row">
-          <button class="btn orange" data-dyn-click-switch='{
+          <button class="btn orange" dyn-click='switch({
             "expr":"model.count",
             "cases":[
               {"value":"0","action":"toast","options":{"message":"count 等于 0"}},
@@ -288,7 +288,7 @@
               {"value":"5","action":"toast","options":{"message":"count 等于 5"}}
             ],
             "default":{"action":"toast","options":{"message":"count 是其他值："}}
-          }'>判断 count 当前值</button>
+          })'>判断 count 当前值</button>
         </div>
       </div>
 
@@ -296,9 +296,9 @@
       <div class="card">
         <h3><span class="idx">7</span> triggerevent · 事件总线</h3>
         <p class="desc">通过 bus 发布事件，DynLib.ready 里可订阅</p>
-        <code class="syntax">data-dyn-click-triggerevent='{"name":"my-bus-event","payload":{"val":999}}'</code>
+        <code class="syntax">dyn-click='triggerevent({"name":"my-bus-event","payload":{"val":999}})'</code>
         <div class="row">
-          <button class="btn ghost" data-dyn-click-triggerevent='{"name":"my-bus-event","payload":{"val":999}}'>触发总线事件 my-bus-event</button>
+          <button class="btn ghost" dyn-click='triggerevent({"name":"my-bus-event","payload":{"val":999}})'>触发总线事件 my-bus-event</button>
         </div>
       </div>
 
@@ -306,16 +306,16 @@
       <div class="card">
         <h3><span class="idx">8</span> init · 初始化动作</h3>
         <p class="desc">页面就绪 / ajax 片段加载完成后自动执行，只执行一次</p>
-        <code class="syntax">data-dyn-init-toast='{"message":"页面初始化完成"}'</code>
-        <div data-dyn-init-toast='{"message":"【init】页面初始化完成"}'></div>
-        <div data-dyn-init-setvar='{"path":"msg","value":"scope 已就绪"}'></div>
+        <code class="syntax">dyn-init='toast({"message":"页面初始化完成"})'</code>
+        <div dyn-init='toast({"message":"【init】页面初始化完成"})'></div>
+        <div dyn-init='setvar({"path":"msg","value":"scope 已就绪"})'></div>
         <span class="tag">msg 已由 init 自动改写</span>
       </div>
 
     </div>
   </div>
 
-  <div class="footer">Dyn V4 · 仅短语法 · axios UMD · 无 jQuery</div>
+  <div class="footer">Dyn V4 · 仅管道语法 · axios UMD · 无 jQuery</div>
 </div>
 
 

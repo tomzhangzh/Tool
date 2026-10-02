@@ -34,7 +34,7 @@
     <div class="tp-panes">
         @* ===== Tab1：编辑保存（编排者自身，负责显式 commit） ===== *@
         <section class="tp-pane" data-pane="edit">
-            <div id="editApp" data-dyn-mode="createApp" data-dyn-init-createapp="{}" class="tp-card">
+            <div id="editApp" data-dyn-mode="createApp" dyn-init="createapp" class="tp-card">
                 <div class="tp-row">
                     当前共享 <code>courseId</code> =
                     <b class="tp-hot">{{ $params.courseId }}</b>
@@ -48,13 +48,11 @@
                     <el-input v-model="name" placeholder="课程名称（模拟表单）" style="width:240px" size="small"></el-input>
                     <el-button type="primary" size="small" @@click="onSave()">保存（模拟接口返回数据库 newId）</el-button>
                     <el-button size="small"
-                               data-dyn-click-setparams='{"courseId":88888}'
-                               dyn-click="ActionHelper.Toast('已通过 ActionHelper.setparams 声明式 commit')">
+                               dyn-click='setparams({"courseId":88888})|ActionHelper.Toast("已通过 setparams 声明式 commit")'>
                         声明式 setparams：courseId=88888
                     </el-button>
                     <el-button size="small"
-                               data-dyn-click-setparams='{"studentId":"$params.courseId"}'
-                               dyn-click="ActionHelper.Toast('studentId 已复制当前 courseId（$params 整串 token 保留类型）')">
+                               dyn-click='setparams({"studentId":"$params.courseId"})|ActionHelper.Toast("studentId 已复制当前 courseId（$params 整串 token 保留类型）")'>
                         setparams：studentId = $params.courseId
                     </el-button>
                 </div>
@@ -125,7 +123,7 @@
 
     // Tab2 快照型：data() 挂载时取值并冻结，之后共享层变化不影响本实例
     var FRAG_SNAP =
-        '<div class="tp-frag" data-dyn-mode="createApp" data-dyn-init-createapp="{}">' +
+        '<div class="tp-frag" data-dyn-mode="createApp" dyn-init="createapp">' +
         '  <div><b>Tab2 · 快照型子表</b>（挂载瞬间取值，之后上游变化与我无关）</div>' +
         '  <div style="margin-top:8px">挂载时 courseId = <b class="tp-hot">{{ snapId }}</b></div>' +
         '  <div style="margin-top:6px;color:#909399">父链继承 pageName = {{ $params.pageName }}；URL demoId = {{ $params.demoId || "（无）" }}</div>' +
@@ -140,7 +138,7 @@
 
     // Tab3 跟随型：模板直读响应式 $params + data-dyn-watch-params 事件触发"自动重新加载"
     var FRAG_FOLLOW =
-        '<div class="tp-frag" data-dyn-mode="createApp" data-dyn-init-createapp="{}" data-dyn-watch-params="courseId">' +
+        '<div class="tp-frag" data-dyn-mode="createApp" dyn-init="createapp" data-dyn-watch-params="courseId">' +
         '  <div><b>Tab3 · 跟随型子表</b>（共享层变化，模板自动更新并可自动重载）</div>' +
         '  <div style="margin-top:8px">实时 courseId = <b class="tp-hot">{{ $params.courseId }}</b></div>' +
         '  <div style="margin-top:6px">重载日志：<span style="color:#67c23a">{{ reloadLog }}</span></div>' +
@@ -165,7 +163,7 @@
 
     // Tab4 服务端片段：自带 L1 dynparams（Razor 可 @@Model.Id 烘值），同时继承共享层
     var FRAG_SRV =
-        '<div class="tp-frag" data-dyn-mode="createApp" data-dyn-init-createapp="{}">' +
+        '<div class="tp-frag" data-dyn-mode="createApp" dyn-init="createapp">' +
         '  <script type="application/json" tag="dynparams">{"mode":"edit","bizKey":"SRV-2026-001"}<\/script>' +
         '  <div><b>Tab4 · 服务端渲染片段</b>（自带 dynparams L1 声明层）</div>' +
         '  <div style="margin-top:8px">本片段 L1：mode = <b>{{ $params.mode }}</b>，bizKey = <b>{{ $params.bizKey }}</b></div>' +

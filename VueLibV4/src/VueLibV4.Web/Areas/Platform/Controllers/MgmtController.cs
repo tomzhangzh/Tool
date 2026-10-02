@@ -7,7 +7,7 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
 /// M5 平台管理页视图控制器：
-/// 每个管理页 = 列表页（_Layout 全页，data-dyn-init-createapp + script[tag=dynconfig]）
+/// 每个管理页 = 列表页（_Layout 全页，dyn-init="createapp" + script[tag=dynconfig]）
 ///           + 表单片段（PartialView，layer fragment 弹窗，服务端预载行 JSON）。
 /// 页面范式：ActionHelper 动作管道 + DynTable 免模型表格，数据走 /api/dyndata（project=__platform__），页面零手写业务请求。
 /// </summary>

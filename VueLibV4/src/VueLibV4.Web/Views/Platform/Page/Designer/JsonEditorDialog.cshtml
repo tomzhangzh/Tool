@@ -1,5 +1,5 @@
-﻿@* JSON 编辑弹窗：独立 dyn app，通过共享 scope 读写 model.current *@
-<div data-dyn-init-createapp data-dyn-use-scope="designer">
+@* JSON 编辑弹窗：独立 dyn app，通过共享 scope 读写 model.current *@
+<div dyn-init="createapp" data-dyn-use-scope="designer">
   <el-dialog v-model="visible" title="组件配置 JSON" width="700px" :close-on-click-modal="false" append-to-body>
     <el-input
       v-model="jsonText"

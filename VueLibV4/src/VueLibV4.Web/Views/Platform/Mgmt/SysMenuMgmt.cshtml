@@ -3,14 +3,14 @@
 }
 @*
   系统菜单管理（M5 范式）：
-  · data-dyn-init-createapp 自举根应用；script[tag=dynconfig] 声明页面数据/方法
+  · dyn-init="createapp" 自举根应用；script[tag=dynconfig] 声明页面数据/方法
   · 左侧 el-tree 菜单树（父菜单=文件夹图标；桌面/停用 tag）；右侧表单编辑区（同页编辑，不弹窗）
   · 数据走专用 API /api/platform/sysmenu/*（tree/get/save/delete）
   · TargetType：FullScreen=全屏 / Iframe=内嵌 iframe / NewWindow=新窗口
   · IsAddToDesktop=true 的节点 → 桌面快捷方式（桌面页直接读 desktoplist）
   · PermissionCode 预留权限编码（后续对接权限模块）
 *@
-<div data-dyn-init-createapp class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
+<div dyn-init="createapp" class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
 
     <el-card shadow="never" style="flex:1;display:flex;min-height:0;padding:0;">
         <div style="display:flex;gap:0;height:100%;">

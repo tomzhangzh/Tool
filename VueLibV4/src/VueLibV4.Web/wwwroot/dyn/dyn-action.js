@@ -1,5 +1,6 @@
 /* dyn-action.js V4 动作系统；依赖 dyn-core.js，提供事件委托、动作链、bus事件总线、dyn-actions后端执行 */
-/* 仅短语法：data-dyn-{event}-{action}="{}"；组合动作 $before/$onSuccess/$onFail/$after；postback 使用 axios UMD */
+/* 唯一绑定协议（管道）：dyn-click="Toast('保存成功')|Submit({...})"、dyn-init="CreateApp"；
+   组合动作 $before/$onSuccess/$onFail/$after 写在某步的 JSON 参数里；postback 使用 axios UMD */
 (function(global){
 'use strict';
 if(!global.dyn){
@@ -35,7 +36,6 @@ const DYN_LIB_CONFIG = global.DYN_LIB_CONFIG||{};
 const CONST = {
   ATTR_ACTION_REF: 'data-dyn-action-ref',
   ATTR_ACTION_CFG: 'data-dyn-action-cfg',
-  ATTR_INIT_PREFIX: 'data-dyn-init-',
   DATA_DYN_ACTIONS: 'dyn-actions',
   ACTION_EVENTS: ['click','dblclick','change','select'],
   // 字符串管道语法：dyn-click="ActionHelper.Submit|ActionHelper.Toast('保存成功')"
@@ -230,24 +230,6 @@ function wrapCompositeAction(originalFn){
 }
 
 /**
- * @description 解析原始配置字符串，容错JSON
- * @param {string} raw
- * @returns {object}
- */
-function parseActionOptions(raw){
-  if(!raw||!raw.trim()) return {};
-  const t = raw.trim();
-  const c = t.charAt(0);
-  if(c==='{'||c==='['){
-    try{ return JSON.parse(t); }catch(e){
-      console.warn("[parseActionOptions JSON解析失败 raw="+raw,e);
-      return {};
-    }
-  }
-  return {};
-}
-
-/**
  * @description 解析管道动作的单个括号参数：'保存成功' / "x" / {"a":1} / 123 / true
  * @param {string} raw
  * @returns {any}
@@ -316,7 +298,7 @@ async function runPipe(steps,el,eventName,$event){
  * @returns {object} 合并后配置，属性优先级高于隐藏块
  * @demo
  * <div style="display:none" data-dyn-action-cfg id="act1"></div>
- * <button data-dyn-click-toast data-dyn-action-ref="act1">按钮</button>
+ * <button dyn-click="Toast" data-dyn-action-ref="act1">按钮</button>
  */
 function resolveActionConfig(el, attrRaw){
   let baseCfg = {};
@@ -542,7 +524,7 @@ defineAction('reloadtarget',ctx=>_actions.updateel(ctx));
 /**
  * open 弹窗（原则4：统一 layui layer）
  *   mode:'iframe'（或 openwindow）→ layer type:2 直接打开 MVC 页面
- *   默认 mode:'fragment'          → 拉 HTML 片段注入 layer，自动 dyn.mount（data-dyn-init 动作生效）
+ *   默认 mode:'fragment'          → 拉 HTML 片段注入 layer，自动 dyn.mount（dyn-init 动作生效）
  *   onopen/onclose 动作钩子；reloadSelf 关闭后刷新触发容器
  */
 defineAction('open',async ctx=>{
@@ -1106,8 +1088,17 @@ function runJsonActions(res,rootEl){
   });
 }
 
+/** dyn-init 管道中是否包含 CreateApp 引导步（未被摘除时代表"待引导 App 根"） */
+function dynInitHasCreateApp(node){
+  if(!node || !node.hasAttribute || !node.hasAttribute(CONST.PIPE_INIT_ATTR)) return false;
+  const expr = node.getAttribute(CONST.PIPE_INIT_ATTR)||'';
+  return expr.split('|').some(function(tok){
+    return /^\s*(ActionHelper\.)?createapp\s*(\(|$)/i.test(tok.trim());
+  });
+}
+
 /**
- * @description 扫描dom执行 data-dyn-init-* 初始化动作
+ * @description 扫描dom执行初始化动作管道（唯一协议：dyn-init="CreateApp|Toast('就绪')"）
  * @param {HTMLElement} root
  */
 function initActions(root){
@@ -1121,31 +1112,18 @@ function initActions(root){
     // 挂载掩码暂存区（#dyn-holder）里的节点属于外层 App 的递归挂载链，
     // 此时提前引导会把子 App 挂到游离节点；外层还原后会由其 mountCore 自行 initActions
     if(el.closest && el.closest('#dyn-holder')) return;
-    // 最近的 createApp 祖先"尚未挂载完成"（有 mode 标记但无实例，含组合动作延迟启动的情况）：
+    // 最近的 createApp 祖先"尚未挂载完成"（mode 已打但无实例，或 dyn-init 管道还挂着 CreateApp 步）：
     // 本节点交给该祖先挂载完成后的递归 initActions，绝不能提前独立引导，否则会变成孤儿 App。
     // 祖先已挂载（__dynApp 存在）时则放行——那是 updateEl 注入进活 App 的片段，需要自举。
     if(el.closest){
-      const anc = el.closest('[data-dyn-mode="createApp"]');
-      if(anc && anc!==el && !anc.__dynApp) return;
+      const anc = el.closest('[data-dyn-mode="createApp"],[dyn-init]');
+      if(anc && anc!==el && !anc.__dynApp &&
+         (anc.getAttribute('data-dyn-mode')==='createApp' || dynInitHasCreateApp(anc))) return;
     }
-    const attrs = el.attributes?[].slice.call(el.attributes):[];
-    attrs.forEach(a=>{
-      if(a.name.indexOf(CONST.ATTR_INIT_PREFIX)===0){
-        const actNameRaw = a.name.substring(CONST.ATTR_INIT_PREFIX.length);
-        const optRaw = a.value;
-        const options = parseActionOptions(optRaw);
-        const fn = resolveAction(actNameRaw);
-        if(!fn) return;
-        // 执行后移除init属性，防止Vue挂载重建DOM后重复执行
-        el.removeAttribute(a.name);
-        const c = buildCtx(el, 'init', null, options, actNameRaw);
-        const wrappedFn = wrapCompositeAction(fn);
-        wrappedFn(c).catch(e=>console.error("[init-action异常]",e));
-      }
-    });
-    // 字符串管道初始化：dyn-init="ActionHelper.A|ActionHelper.B"
+    // 初始化管道：dyn-init="CreateApp" / dyn-init="Toast('就绪')|Setvar({...})"
     if(el.hasAttribute&&el.hasAttribute(CONST.PIPE_INIT_ATTR)){
       const steps = parsePipe(el.getAttribute(CONST.PIPE_INIT_ATTR)||'');
+      // 执行后移除init属性，防止Vue挂载重建DOM后重复执行
       el.removeAttribute(CONST.PIPE_INIT_ATTR);
       if(steps.length) runPipe(steps,el,'init',null).catch(e=>console.error("[init-pipe异常]",e));
     }
@@ -1254,24 +1232,10 @@ async function loadDbActionHelpers(){
 let _delegationBound = false;
 /** 已绑定的委托监听（事件名 + 处理函数），供 rebindActions 先解绑旧监听，避免 document 监听叠加 */
 const _delegationHandlers = [];
-/**
- * @description 根据动作注册表生成事件委托选择器（data-dyn-{event}-{actionName}）
- * @returns {string}
- */
-function generateSelector(){
-  const parts = [];
-  CONST.ACTION_EVENTS.forEach(ev=>{
-    Object.keys(_actions).forEach(actName=>{
-      parts.push('[data-dyn-'+ev+'-'+actName.toLowerCase()+']');
-    });
-  });
-  return parts.join(',');
-}
 
 /**
- * @description 重新绑定事件委托；新增自定义动作后调用 dyn.rebindActions() 刷新选择器。
- *   【重要】每次 rebind 前先解绑旧委托监听，防止多次 rebind 导致 document 上监听叠加
- *   （否则一次点击会触发多次同一动作，例如保存被重复执行插入多条数据）。
+ * @description 重新绑定事件委托。管道委托不依赖动作注册表，常规情况下无需调用；
+ *   保留 API 供未来按注册表过滤/外部需要时使用。每次 rebind 前先解绑旧监听，防止监听叠加。
  */
 function rebindActions(){
   _delegationHandlers.forEach(function(h){ try{ document.removeEventListener(h.ev, h.fn, true); }catch(e){ /*忽略*/ } });
@@ -1281,54 +1245,13 @@ function rebindActions(){
 }
 
 /**
- * @description document捕获模式事件委托，处理 data-dyn-{event}-{action} 短语法事件
+ * @description document捕获模式事件委托（唯一协议：管道属性 dyn-click/dblclick/change/select）
  */
 function bindDelegation(){
   if(_delegationBound) return;
   _delegationBound = true;
   const doBind = ()=>{
-    // 1) 短语法：data-dyn-{event}-{actionName}
-    CONST.ACTION_EVENTS.forEach(ev=>{
-      const prefix = 'data-dyn-'+ev+'-';
-      const handler = async e=>{
-        const sel = generateSelector();
-        if(!sel) return;
-        const target = e.target&&e.target.closest?e.target.closest(sel):null;
-        if(!target) return;
-        // 从元素属性中解析出动作名：data-dyn-click-{actionName}
-        let hitAttr = null;
-        let actNameRaw = null;
-        [].slice.call(target.attributes).forEach(a=>{
-          if(!hitAttr&&a.name.indexOf(prefix)===0){
-            hitAttr = a;
-            actNameRaw = a.name.substring(prefix.length);
-          }
-        });
-        if(!hitAttr||!actNameRaw) return;
-        const optRaw = hitAttr.value;
-        // 裸选择器值（如 data-dyn-click-updateel="#panel"）直接作为 target
-        const options = parseActionOptions(optRaw);
-        if(actNameRaw==='updateel'&&optRaw&&optRaw.trim()&&optRaw.trim().charAt(0)!=='{'){
-          options.target = optRaw.trim();
-        }
-        const fn = resolveAction(actNameRaw);
-        if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',actNameRaw),'warning'); return; }
-        const ctx = buildCtx(target, ev, e, options, actNameRaw);
-        const prevent = options.prevent!==false;
-        if(prevent){ e.preventDefault(); e.stopPropagation(); }
-        // 组合动作包装：$before/$onSuccess/$onFail/$after
-        const wrappedFn = wrapCompositeAction(fn);
-        try{
-          await wrappedFn(ctx);
-        }catch(err){
-          console.error("[DynAction]动作执行异常",actNameRaw,err);
-          dyn.showMessage("操作失败："+err.message,'error');
-        }
-      };
-      document.addEventListener(ev, handler, true);
-      _delegationHandlers.push({ev:ev, fn:handler});
-    });
-    // 2) 字符串管道语法：dyn-click="ActionHelper.Submit|ActionHelper.Toast('保存成功')"
+    // dyn-click="ActionHelper.Submit|ActionHelper.Toast('保存成功')"
     Object.keys(CONST.PIPE_EVENT_ATTR).forEach(ev=>{
       const attrName = CONST.PIPE_EVENT_ATTR[ev];
       const handler = async e=>{

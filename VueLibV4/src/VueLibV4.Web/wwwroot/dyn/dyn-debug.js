@@ -114,61 +114,105 @@
         return 'dyndb-shared';
     }
 
-    function blockSection(el, idx) {
-        var role = el.getAttribute('data-blk-role') || ('block#' + idx);
+    // ============================================================
+    //  Blocks 增量渲染：卡片只创建一次，轮询只更新变化的参数行/标记，
+    //  不再整块 innerHTML 重写（避免闪烁、避免打断文本选择）
+    // ============================================================
+    var blockCards = new Map();   // blockEl -> {card, rows:Map(key->rowEl), sig, chainTxt}
+
+    function blockChainText(P) {
+        var chain = [], c = P, guard = 0;
+        while (c && guard++ < 20) {
+            var tag = c.id;
+            var nLocal = Object.keys(c.local || {}).length;
+            var nShared = Object.keys(c.shared || {}).length;
+            if (nLocal) tag += ' [L1×' + nLocal + ']';
+            if (nShared) tag += ' [sh×' + nShared + ']';
+            chain.push(tag);
+            c = c.parent;
+        }
+        return chain.join(' → ');
+    }
+
+    function syncBlockCard(el, idx, host) {
+        var rec = blockCards.get(el);
         var h = el.__dynBlock;
         var intro = h && h.introspect ? h.introspect() : null;
-        var html = '<div class="dyndb-card">';
-        html += '<div class="dyndb-card-h"><b>' + esc(role) + '</b>'
-            + (el.id ? ' <span class="dyndb-id">#' + esc(el.id) + '</span>' : '')
-            + (intro && intro.destroyed ? ' <span class="dyndb-bad">destroyed</span>' : '')
-            + (!h ? ' <span class="dyndb-bad">未挂载 __dynBlock</span>' : '')
-            + '</div>';
+        var role = el.getAttribute('data-blk-role') || ('block#' + idx);
+        var sig = [role, el.id || '', !!(intro && intro.destroyed), !h,
+            (intro ? intro.commands : []).join(','), (intro ? intro.events : []).join(',')].join('|');
 
-        if (intro) {
-            html += '<div class="dyndb-line"><span class="dyndb-k">cmds</span> '
-                + (intro.commands.length ? intro.commands.map(esc).join(', ') : '<span class="dyndb-na">（无）</span>') + '</div>';
-            if (intro.events.length)
-                html += '<div class="dyndb-line"><span class="dyndb-k">events</span> ' + intro.events.map(esc).join(', ') + '</div>';
+        if (!rec) {
+            var card = document.createElement('div');
+            card.className = 'dyndb-card';
+            card.innerHTML = '<div class="dyndb-card-h" data-b-h></div>'
+                + '<div data-b-static></div>'
+                + '<div class="dyndb-params" data-b-params></div>'
+                + '<div class="dyndb-line dyndb-chain" data-b-chain></div>';
+            host.appendChild(card);
+            rec = { card: card, rows: new Map(), sig: null, chainTxt: null };
+            blockCards.set(el, rec);
+        }
+        // 静态部分（role/id/标记/cmds/events）：签名变了才重建
+        if (rec.sig !== sig) {
+            rec.sig = sig;
+            rec.card.querySelector('[data-b-h]').innerHTML =
+                '<b>' + esc(role) + '</b>'
+                + (el.id ? ' <span class="dyndb-id">#' + esc(el.id) + '</span>' : '')
+                + (intro && intro.destroyed ? ' <span class="dyndb-bad">destroyed</span>' : '')
+                + (!h ? ' <span class="dyndb-bad">未挂载 __dynBlock</span>' : '');
+            var st = '';
+            if (intro) {
+                st += '<div class="dyndb-line"><span class="dyndb-k">cmds</span> '
+                    + (intro.commands.length ? intro.commands.map(esc).join(', ') : '<span class="dyndb-na">（无）</span>') + '</div>';
+                if (intro.events.length)
+                    st += '<div class="dyndb-line"><span class="dyndb-k">events</span> ' + intro.events.map(esc).join(', ') + '</div>';
+            }
+            rec.card.querySelector('[data-b-static]').innerHTML = st;
         }
 
-        // 关键参数：值 + 获胜层
+        var paramsHost = rec.card.querySelector('[data-b-params]');
+        var chainEl = rec.card.querySelector('[data-b-chain]');
+        var seen = {};
         try {
             var P = global.DynParams && DynParams.fromEl(el);
             if (P) {
                 var insp = P.inspect(WATCH_KEYS);
-                var rows = WATCH_KEYS.filter(function (k) { return insp[k] && insp[k].value !== undefined; });
-                if (rows.length) {
-                    html += '<div class="dyndb-params">';
-                    rows.forEach(function (k) {
-                        var r = insp[k];
-                        html += '<div class="dyndb-line"><span class="dyndb-k">' + esc(k) + '</span> '
-                            + fmtVal(r.value)
-                            + ' <span class="dyndb-layer ' + layerClass(r.layer) + '">' + esc(r.layer || '?') + '</span></div>';
-                    });
-                    html += '</div>';
+                WATCH_KEYS.forEach(function (k) {
+                    var r = insp[k];
+                    if (!r || r.value === undefined) return;
+                    seen[k] = 1;
+                    var vs;
+                    try { vs = typeof r.value === 'string' ? r.value : JSON.stringify(r.value); } catch (e) { vs = String(r.value); }
+                    if (vs == null) vs = 'null';
+                    if (vs.length > 120) vs = vs.slice(0, 120) + '…';
+                    var row = rec.rows.get(k);
+                    if (!row) {
+                        row = document.createElement('div');
+                        row.className = 'dyndb-line';
+                        row.innerHTML = '<span class="dyndb-k"></span> <span class="dyndb-val dyndb-bpv"></span> '
+                            + '<span class="dyndb-layer dyndb-bpl"></span>';
+                        row.querySelector('.dyndb-k').textContent = k;
+                        paramsHost.appendChild(row);
+                        rec.rows.set(k, row);
+                    }
+                    var vEl = row.querySelector('.dyndb-bpv');
+                    if (vEl.textContent !== vs) vEl.textContent = vs;
+                    var lEl = row.querySelector('.dyndb-bpl');
+                    var lt = r.layer || '?';
+                    if (lEl.textContent !== lt) lEl.textContent = lt;
+                    lEl.className = 'dyndb-layer dyndb-bpl ' + layerClass(r.layer);
+                });
+                var ct = blockChainText(P);
+                if (rec.chainTxt !== ct) {
+                    rec.chainTxt = ct;
+                    chainEl.innerHTML = '<span class="dyndb-k">ctx链</span> ' + esc(ct);
                 }
-                // 链拓扑：从本 ctx 向上
-                var chain = [];
-                var c = P;
-                var guard = 0;
-                while (c && guard++ < 20) {
-                    var nLocal = Object.keys(c.local || {}).length;
-                    var nShared = Object.keys(c.shared || {}).length;
-                    var tag = c.id;
-                    if (nLocal) tag += ' [L1×' + nLocal + ']';
-                    if (nShared) tag += ' [sh×' + nShared + ']';
-                    chain.push(tag);
-                    c = c.parent;
-                }
-                html += '<div class="dyndb-line dyndb-chain"><span class="dyndb-k">ctx链</span> '
-                    + esc(chain.join(' → ')) + '</div>';
             }
-        } catch (e) {
-            html += '<div class="dyndb-line dyndb-bad">inspect 异常: ' + esc(e.message) + '</div>';
-        }
-        html += '</div>';
-        return html;
+        } catch (e) { /* 参数读取偶发异常不影响静态部分 */ }
+        rec.rows.forEach(function (row, k) {
+            if (!seen[k]) { row.remove(); rec.rows.delete(k); }
+        });
     }
 
     // ============================================================
@@ -305,8 +349,13 @@
         var nodes = [];
         try {
             nodes = [].slice.call(document.querySelectorAll(
-                '[data-dyn-mode="createApp"],[data-dyn-init-createapp]'
-            ));
+                '[data-dyn-mode="createApp"],[dyn-init]'
+            )).filter(function (n) {
+                if (n.getAttribute('data-dyn-mode') === 'createApp') return true;
+                return (n.getAttribute('dyn-init') || '').split('|').some(function (tok) {
+                    return /^\s*(ActionHelper\.)?createapp\s*(\(|$)/i.test(tok.trim());
+                });
+            });
         } catch (e) { }
         // 兜底：非 dyn 标记挂载的裸 Vue app（如 PageGen 的 Vue.createApp）靠 Vue 标准标记
         // __vue_app__（prod 也会写）；inspect 是手动操作，3s 缓存内全量扫一次 * 可接受
@@ -573,17 +622,17 @@
             if (jc) {
                 var jcComp = jc.component || '(空)', jcModel = jc.modelname || '';
                 var jcKeys = jc && typeof jc === 'object' ? Object.keys(jc).slice(0, 12) : [];
-                html += '<div class="dyndb-dyncom"><div class="dyndb-dyncom-h">jsonconfig'
+                html += '<div class="dyndb-dyncom" data-flash="jc"><div class="dyndb-dyncom-h">jsonconfig'
                     + ' <span class="dyndb-dyncom-name">' + esc(String(jcComp)) + '</span>'
                     + (jcModel ? ' <span class="dyndb-id">model=' + esc(jcModel) + '</span>' : '') + '</div>';
                 html += '<div class="dyndb-line dyndb-na">键: ' + esc(jcKeys.join(', ')) + '</div>';
                 var jcStr = safeJson(jc, 1);
-                html += '<pre class="dyndb-json">' + esc(clip(jcStr, 3000)) + '</pre></div>';
+                html += '<pre class="dyndb-json" title="点击折叠/展开">' + esc(clip(jcStr, 3000)) + '</pre></div>';
             }
             if (pmi !== null && typeof pmi !== 'undefined') {
-                html += '<div class="dyndb-dyncom"><div class="dyndb-dyncom-h">parentmodelinfo</div>';
+                html += '<div class="dyndb-dyncom" data-flash="pmi"><div class="dyndb-dyncom-h">parentmodelinfo</div>';
                 var pmiStr = safeJson(pmi, 1);
-                html += '<pre class="dyndb-json">' + esc(clip(pmiStr, 1800)) + '</pre></div>';
+                html += '<pre class="dyndb-json" title="点击折叠/展开">' + esc(clip(pmiStr, 1800)) + '</pre></div>';
             }
         }
 
@@ -609,7 +658,7 @@
                     var s;
                     try { s = typeof v === 'string' ? v : JSON.stringify(v); } catch (e) { s = String(v); }
                     if (s && s.length > 160) s = s.slice(0, 160) + '…';
-                    html += '<div class="dyndb-line"><span class="dyndb-k">' + esc(k) + '</span> '
+                    html += '<div class="dyndb-line" data-dk="' + esc(k) + '"><span class="dyndb-k">' + esc(k) + '</span> '
                         + '<span class="dyndb-val">' + esc(s == null ? 'null' : s) + '</span></div>';
                 });
                 html += '</div>';
@@ -646,6 +695,7 @@
 
     function startPicking() {
         if (picking || !document.body) return;
+        if (pinned) setPinned(false);   // 重新拾取意味着要看新快照
         picking = true;
         hoverEl = null;
         if (panelEl) panelEl.classList.add('dyndb-picking');
@@ -702,23 +752,34 @@
     //  打断用户在 JSON 块里的文本选择。拆成三个容器：inspector 只在拾取/换选/手动
     //  刷新时重算，轮询只更新 Blocks/Notes；inspector 按"选中元素+拾取态+是否仍在文档"缓存。
     // ============================================================
-    var inspEl = null, blocksEl = null, notesEl = null, paramsEl = null, liveBarEl = null;
+    var inspEl = null, blocksEl = null, notesEl = null, paramsEl = null, liveBarEl = null,
+        traceEl = null, actionsEl = null;
     var activeTab = 'view';
+    var activePsub = 'layers';
     // inspState：结构性缓存（describe DOM 链 + vnode 组件树遍历，很贵），只在换选/强制刷新时重算；
     // 数据实时性不靠轮询——buildInspState 时对 dynComp 的 parentmodelinfo/jsonconfig 及 app $data
     // 注册 $watch，值一变立即重绘（editForm 换 form 引用、表单逐字段修改都能捕获）。
     var inspState = null;
     var liveUnwatch = [];
-    var liveStale = false;   // 数据已变但用户正在卡片里选文本，暂缓重绘
+    var liveStale = false;     // 数据已变但用户正在面板里选文本，暂缓重绘
+    var pendingFlash = null;   // {data:[],jc:[],pmi:[]} 下次渲染后高亮的变化键
+    var pinned = false;        // 钉住快照：暂停一切自动重绘
+    var notesSig = '';
+    var traceBuf = [];
+    var traceUnsub = null;
+    var traceQueued = false;
+    var actFilter = '';
+    var dragState = null;
+    var UI_KEY = 'DYN_DEBUG_UI';
 
     function teardownLive() {
         liveUnwatch.forEach(function (off) { try { off(); } catch (e) { } });
         liveUnwatch = [];
     }
 
-    function selectionInInsp() {
+    function selectionInPanel() {
         var s = document.getSelection();
-        return !!(s && !s.isCollapsed && s.anchorNode && inspEl && inspEl.contains(s.anchorNode));
+        return !!(s && !s.isCollapsed && s.anchorNode && panelEl && panelEl.contains(s.anchorNode));
     }
 
     function setLiveStale(v) {
@@ -726,28 +787,64 @@
         if (liveBarEl) liveBarEl.style.display = v ? 'block' : 'none';
     }
 
+    /** 顶层键 → 受限深度 JSON 签名（用于识别"哪个字段变了"，深层嵌套改动也能浅层捕获） */
+    function shallowSig(obj) {
+        var m = {};
+        try {
+            Object.keys(obj || {}).forEach(function (k) {
+                try { m[k] = safeJson(snapshot(obj[k], 0, null, 2)); } catch (e) { m[k] = '?'; }
+            });
+        } catch (e) { }
+        return m;
+    }
+    function sigDiff(base, now) {
+        var ks = {}, out = [];
+        try { Object.keys(base || {}).forEach(function (k) { ks[k] = 1; }); } catch (e) { }
+        try { Object.keys(now || {}).forEach(function (k) { ks[k] = 1; }); } catch (e) { }
+        Object.keys(ks).forEach(function (k) { if (base[k] !== now[k]) out.push(k); });
+        return out;
+    }
+    function addFlash(part, keys) {
+        if (pinned || !keys || !keys.length) return;
+        if (!pendingFlash) pendingFlash = { data: [], jc: [], pmi: [] };
+        keys.forEach(function (k) {
+            if (pendingFlash[part].length < 12 && pendingFlash[part].indexOf(k) < 0)
+                pendingFlash[part].push(k);
+        });
+    }
+
     /** 数据被 watch 回调触发：没在选文本就立即重绘；正在选则挂"有更新"提示，选择结束自动刷 */
     function onLiveDataChange() {
-        if (selectionInInsp()) { setLiveStale(true); return; }
+        if (pinned) return;
+        if (selectionInPanel()) { setLiveStale(true); return; }
         renderInspHtml();
     }
 
     /** 订阅选中组件/所属 App 的响应式变化（只在状态构建时注册一次，随换选/卸载注销） */
     function subscribeLive(state) {
         teardownLive();
+        state._base = { jc: null, pmi: null, data: null };
         try {
             var comp = state.dynComp && state.dynComp.proxy;
             if (comp && typeof comp.$watch === 'function') {
-                liveUnwatch.push(comp.$watch(function () { return comp.props.parentmodelinfo; }, onLiveDataChange, { deep: true }));
-                liveUnwatch.push(comp.$watch(function () { return comp.props.jsonconfig; }, onLiveDataChange, { deep: true }));
+                liveUnwatch.push(comp.$watch(function () { return comp.props.jsonconfig; }, function () {
+                    addFlash('jc', sigDiff(state._base.jc || {}, shallowSig(comp.props.jsonconfig)));
+                    onLiveDataChange();
+                }, { deep: true }));
+                liveUnwatch.push(comp.$watch(function () { return comp.props.parentmodelinfo; }, function () {
+                    addFlash('pmi', sigDiff(state._base.pmi || {}, shallowSig(comp.props.parentmodelinfo)));
+                    onLiveDataChange();
+                }, { deep: true }));
+                state._base.jc = shallowSig(comp.props.jsonconfig);
+                state._base.pmi = shallowSig(comp.props.parentmodelinfo);
             }
             var root = state.info.ownerProxy;
             if (root && typeof root.$watch === 'function') {
-                var keys = [];
-                try { keys = Object.keys(root.$data || {}).slice(0, 30); } catch (e) { }
-                keys.forEach(function (k) {
-                    liveUnwatch.push(root.$watch(function () { return root.$data[k]; }, onLiveDataChange));
-                });
+                liveUnwatch.push(root.$watch(function () { return root.$data; }, function () {
+                    addFlash('data', sigDiff(state._base.data || {}, shallowSig(root.$data)));
+                    onLiveDataChange();
+                }, { deep: true }));
+                state._base.data = shallowSig(root.$data);
             }
         } catch (e) { /* 个别代理 $watch 不可用：降级为手动刷新 */ }
     }
@@ -771,11 +868,55 @@
         return inspState;
     }
 
+    function flashNode(n) {
+        n.classList.remove('dyndb-flash');
+        void n.offsetWidth;
+        n.classList.add('dyndb-flash');
+        setTimeout(function () { n.classList.remove('dyndb-flash'); }, 1500);
+    }
+
+    /** 渲染后把 pendingFlash 应用为行闪烁/字段变更芯片，然后以本次内容重建 diff 基线 */
+    function applyFlashAndRebase() {
+        if (pendingFlash) {
+            var f = pendingFlash;
+            try {
+                [].slice.call(inspEl.querySelectorAll('[data-dk]')).forEach(function (row) {
+                    if (f.data.indexOf(row.getAttribute('data-dk')) >= 0) flashNode(row);
+                });
+                [['jc', 'jsonconfig'], ['pmi', 'parentmodelinfo']].forEach(function (pair) {
+                    var keys = f[pair[0]];
+                    if (!keys.length) return;
+                    var box = inspEl.querySelector('[data-flash="' + pair[0] + '"]');
+                    if (!box) return;
+                    flashNode(box);
+                    var chip = document.createElement('div');
+                    chip.className = 'dyndb-flash-chip';
+                    chip.textContent = '⚡ 变更字段: ' + keys.slice(0, 8).join(', ') + (keys.length > 8 ? ' …' : '');
+                    box.insertBefore(chip, box.firstChild);
+                });
+            } catch (e) { }
+            pendingFlash = null;
+        }
+        try {
+            if (inspState) {
+                var comp = inspState.dynComp && inspState.dynComp.proxy;
+                if (comp) {
+                    inspState._base.jc = shallowSig(comp.props.jsonconfig);
+                    inspState._base.pmi = shallowSig(comp.props.parentmodelinfo);
+                }
+                if (inspState.info && inspState.info.ownerProxy)
+                    inspState._base.data = shallowSig(inspState.info.ownerProxy.$data);
+            }
+        } catch (e) { }
+    }
+
     function renderInspHtml() {
-        if (!inspEl) return;
+        if (!inspEl || pinned) return;
         setLiveStale(false);
         inspEl.innerHTML = inspectorSection(inspState);
+        applyFlashAndRebase();
         drawParams();   // 参数层 Tab 与查看卡共享同一份选中态，顺带刷新
+        drawActions();  // 动作 Tab 同理
     }
 
     /** DynParams Tab：渲染选中元素所属参数上下文的逐层透视（无选中时给引导） */
@@ -798,8 +939,40 @@
         }
     }
 
+    // ---------------- 参数变更轨迹（DynParams.onTrace） ----------------
+    function pad2(n) { return ('0' + n).slice(-2); }
+    function fmtTraceTime(t) { return pad2(t.getHours()) + ':' + pad2(t.getMinutes()) + ':' + pad2(t.getSeconds()); }
+
+    function drawTrace() {
+        if (!traceEl) return;
+        if (!traceBuf.length) {
+            traceEl.innerHTML = '<div class="dyndb-card"><div class="dyndb-line dyndb-na">'
+                + '暂无轨迹：ctx.set（本层覆盖）/ ctx.commit（共享实体）/ fork 传参 都会记录（最近 100 条，新→旧）'
+                + '</div></div>';
+            return;
+        }
+        var html = '<div class="dyndb-card"><div class="dyndb-card-h"><b>参数变更轨迹</b>'
+            + '<span class="dyndb-id">' + traceBuf.length + ' 条</span></div>';
+        traceBuf.slice(0, 60).forEach(function (ev) {
+            html += '<div class="dyndb-tr dyndb-tr-' + esc(ev.kind) + '">'
+                + '<span class="dyndb-time">' + fmtTraceTime(ev.t) + '</span>'
+                + '<span class="dyndb-tag dyndb-act-' + (ev.kind === 'commit' ? 'db' : ev.kind === 'set' ? 'bi' : 'comp') + '">'
+                + esc(ev.kind) + '</span>'
+                + '<span class="dyndb-tr-ctx">' + esc(ev.ctxId || '') + '</span>'
+                + (ev.el ? '<span class="dyndb-id">' + esc(ev.el) + '</span>' : '')
+                + '<b class="dyndb-tr-key">' + esc(ev.key || '') + '</b>'
+                + '<span class="dyndb-tr-vals"><span class="dyndb-tr-old">' + esc(shortParamVal(ev.old)) + '</span>'
+                + ' → <span class="dyndb-val">' + esc(shortParamVal(ev.value)) + '</span></span>'
+                + (ev.by ? '<span class="dyndb-pby">by:' + esc(ev.by) + '</span>' : '')
+                + (ev.fromCtx ? '<span class="dyndb-id">fork↑' + esc(ev.fromCtx) + '</span>' : '')
+                + '</div>';
+        });
+        html += '</div>';
+        traceEl.innerHTML = html;
+    }
+
     function switchTab(tab) {
-        if (tab !== 'view' && tab !== 'params') return;
+        if (['view', 'params', 'actions'].indexOf(tab) < 0) return;
         activeTab = tab;
         [].slice.call(panelEl.querySelectorAll('.dyndb-tab')).forEach(function (b) {
             b.classList.toggle('is-active', b.getAttribute('data-tab') === tab);
@@ -807,11 +980,26 @@
         [].slice.call(panelEl.querySelectorAll('.dyndb-pane')).forEach(function (p) {
             p.style.display = p.getAttribute('data-pane') === tab ? '' : 'none';
         });
-        if (tab === 'params') drawParams();
+        if (pinned) return;
+        if (tab === 'params') { if (activePsub === 'trace') drawTrace(); else drawParams(); }
+        if (tab === 'actions') drawActions();
+    }
+
+    function switchPsub(name) {
+        if (name !== 'layers' && name !== 'trace') return;
+        activePsub = name;
+        [].slice.call(panelEl.querySelectorAll('.dyndb-psub')).forEach(function (b) {
+            b.classList.toggle('is-active', b.getAttribute('data-psub') === name);
+        });
+        [].slice.call(panelEl.querySelectorAll('.dyndb-psub-pane')).forEach(function (p) {
+            p.style.display = p.getAttribute('data-psub-pane') === name ? '' : 'none';
+        });
+        if (pinned) return;
+        if (name === 'trace') drawTrace(); else drawParams();
     }
 
     function drawInspector(force) {
-        if (!inspEl) return;
+        if (!inspEl || pinned) return;
         if (picking || !selectedEl || !document.contains(selectedEl)) {
             teardownLive();
             inspState = null;
@@ -819,6 +1007,7 @@
             setLiveStale(false);
             inspEl.innerHTML = inspectorSection(null);
             drawParams();
+            drawActions();
             return;
         }
         buildInspState(force);
@@ -827,32 +1016,538 @@
 
     /** 2s 轮询对 inspector 只做存在性兜底（元素被移除/弹窗关闭），数据变化由 $watch 负责 */
     function tickInspector() {
-        if (!inspEl || picking) return;
+        if (!inspEl || picking || pinned) return;
         if (!selectedEl || !document.contains(selectedEl)) drawInspector(false);
     }
 
     function drawBlocksNotes() {
-        if (!blocksEl || !notesEl) return;
+        if (!blocksEl || !notesEl || pinned) return;
         var blocks = [];
         try { blocks = [].slice.call(document.querySelectorAll('[data-blk-role]')); } catch (e) { }
-        blocksEl.innerHTML =
-            '<div class="dyndb-sec-h">Blocks（' + blocks.length + '）</div>'
-            + (blocks.length ? blocks.map(blockSection).join('')
-                : '<div class="dyndb-empty">当前页面没有已渲染的 Block</div>');
-        notesEl.innerHTML =
-            '<div class="dyndb-sec-h">Notes（' + notes.length + '）</div>'
-            + (notes.length ? notes.slice().reverse().map(function (n) {
-                var hh = ('0' + n.t.getHours()).slice(-2), mm = ('0' + n.t.getMinutes()).slice(-2), ss = ('0' + n.t.getSeconds()).slice(-2);
-                return '<div class="dyndb-note"><span class="dyndb-time">' + hh + ':' + mm + ':' + ss + '</span> '
-                    + (n.meta.source ? '<span class="dyndb-src">' + esc(n.meta.source) + '</span> ' : '')
-                    + esc(n.msg) + '</div>';
-            }).join('') : '<div class="dyndb-empty">暂无告警</div>');
+        if (!blocksEl.querySelector('.dyndb-blocks-host')) {
+            blocksEl.innerHTML = '<div class="dyndb-sec-h" data-b-count></div><div class="dyndb-blocks-host"></div>';
+        }
+        blocksEl.querySelector('[data-b-count]').textContent = 'Blocks（' + blocks.length + '）';
+        var host = blocksEl.querySelector('.dyndb-blocks-host');
+        blockCards.forEach(function (rec, el) {
+            if (!document.contains(el) || blocks.indexOf(el) < 0) {
+                rec.card.remove();
+                blockCards.delete(el);
+            }
+        });
+        if (blocks.length) {
+            var empty = host.querySelector('.dyndb-empty');
+            if (empty) empty.remove();
+            blocks.forEach(function (el, i) {
+                syncBlockCard(el, i, host);
+                var rec = blockCards.get(el);
+                var anchor = host.children[i] || null;
+                if (rec.card !== anchor) host.insertBefore(rec.card, anchor);
+            });
+        } else {
+            blockCards.forEach(function (rec) { rec.card.remove(); });
+            blockCards.clear();
+            if (!host.querySelector('.dyndb-empty')) {
+                var d = document.createElement('div');
+                d.className = 'dyndb-empty';
+                d.textContent = '当前页面没有已渲染的 Block';
+                host.appendChild(d);
+            }
+        }
+        // Notes 内容签名未变就不重绘（同样保护文本选择）
+        var last = notes[notes.length - 1];
+        var ns = notes.length + '|' + (last ? last.t.getTime() + '|' + last.msg + '|' + (last.meta.source || '') : '');
+        if (ns !== notesSig) {
+            notesSig = ns;
+            notesEl.innerHTML =
+                '<div class="dyndb-sec-h">Notes（' + notes.length + '）</div>'
+                + (notes.length ? notes.slice().reverse().map(function (n) {
+                    return '<div class="dyndb-note"><span class="dyndb-time">' + fmtTraceTime(n.t) + '</span> '
+                        + (n.meta.source ? '<span class="dyndb-src">' + esc(n.meta.source) + '</span> ' : '')
+                        + esc(n.msg) + '</div>';
+                }).join('') : '<div class="dyndb-empty">暂无告警</div>');
+        }
     }
 
     /** 手动刷新：inspector 强制重算（app 后挂载/状态变化后）+ Blocks/Notes */
     function draw() {
+        if (pinned) return;
         drawInspector(true);
         drawBlocksNotes();
+    }
+
+    // ============================================================
+    //  动作 Tab：元素（含祖先链）→ 动作绑定 → actionhelper + 参数 + 注册表
+    // ============================================================
+    var ACT_EVENTS = ['click', 'dblclick', 'change', 'select'];
+    var ACT_PIPE_ATTR = { click: 'dyn-click', dblclick: 'dyn-dblclick', change: 'dyn-change', select: 'dyn-select' };
+
+    /** 与 dyn-action.js parsePipe 同语义：ActionHelper.Xxx|Yyy('a')|Zzz({"k":1}) */
+    function parsePipeLocal(expr) {
+        if (!expr || typeof expr !== 'string') return [];
+        return expr.split('|').map(function (s) { return s.trim(); }).filter(Boolean).map(function (tok) {
+            var m = tok.match(/^([A-Za-z_$][\w$.]*)\s*(\(([\s\S]*)\))?\s*$/);
+            if (!m) return null;
+            var action = m[1].replace(/^ActionHelper\./i, '');
+            var options = {};
+            if (m[3] !== undefined && m[3].trim() !== '') {
+                var raw = m[3].trim(), arg;
+                if ((raw.charAt(0) === '{' || raw.charAt(0) === '[')
+                    || /^(true|false|null|-?\d+(\.\d+)?)$/.test(raw)) {
+                    try { arg = JSON.parse(raw); } catch (e) { arg = raw; }
+                } else if ((raw.charAt(0) === "'" && raw.charAt(raw.length - 1) === "'")
+                    || (raw.charAt(0) === '"' && raw.charAt(raw.length - 1) === '"')) {
+                    arg = raw.slice(1, -1);
+                } else arg = raw;
+                options = (arg && typeof arg === 'object' && !Array.isArray(arg)) ? arg : { value: arg };
+            }
+            return { action: action, options: options };
+        }).filter(Boolean);
+    }
+    function actionMetaOf(name) {
+        try { if (global.dyn && typeof dyn.getMeta === 'function') return dyn.getMeta(name); } catch (e) { }
+        return null;
+    }
+
+    /** 单个元素自身的全部动作绑定（唯一协议：管道属性 dyn-click 等 / dyn-init；另有隐藏配置引用） */
+    function nodeOwnBinds(node) {
+        var binds = [];
+        ACT_EVENTS.forEach(function (ev) {
+            var an = ACT_PIPE_ATTR[ev];
+            if (node.hasAttribute && node.hasAttribute(an)) {
+                var raw = node.getAttribute(an) || '';
+                binds.push({ ev: ev, kind: 'pipe', attr: an, raw: raw, steps: parsePipeLocal(raw) });
+            }
+        });
+        if (node.hasAttribute && node.hasAttribute('dyn-init')) {
+            var ir = node.getAttribute('dyn-init') || '';
+            binds.push({ ev: 'init', kind: 'pipe', attr: 'dyn-init', raw: ir, steps: parsePipeLocal(ir) });
+        }
+        if (node.hasAttribute && node.hasAttribute('data-dyn-action-ref')) {
+            var refId = node.getAttribute('data-dyn-action-ref') || '';
+            var cfg = null;
+            try { cfg = document.getElementById(refId); } catch (e) { }
+            var valid = !!(cfg && cfg.hasAttribute && cfg.hasAttribute('data-dyn-action-cfg'));
+            var parsed = null;
+            if (valid && !(cfg.__dynObj && typeof cfg.__dynObj === 'object')) {
+                try { parsed = JSON.parse((cfg.textContent || '').trim() || 'null'); } catch (e) { parsed = null; }
+            }
+            binds.push({ ev: 'cfg', kind: 'ref', attr: 'data-dyn-action-ref', raw: refId,
+                cfg: valid ? cfg : null, parsed: parsed });
+        }
+        return binds;
+    }
+
+    /**
+     * 收集元素自身→body 祖先链上的全部动作绑定。
+     * 事件委托按 closest 匹配：同一事件只有【最近】元素的绑定生效，祖先同名绑定标"被遮蔽"。
+     */
+    function collectActionBindings(el) {
+        var groups = [], effective = {}, node = el, guard = 0;
+        while (node && node.nodeType === 1 && guard++ < 40) {
+            var binds = nodeOwnBinds(node);
+            if (binds.length) {
+                binds.forEach(function (b) {
+                    if (b.ev !== 'cfg') { b.effective = !effective[b.ev]; effective[b.ev] = 1; }
+                });
+                groups.push({ el: node, self: node === el, binds: binds });
+            }
+            if (node.tagName === 'BODY') break;
+            node = node.parentElement;
+        }
+        return groups;
+    }
+
+    /** 元素当前是否可见（有尺寸且未被 display:none/visibility:hidden；不含视口判断） */
+    function elVisible(el) {
+        try {
+            if (!el || el.nodeType !== 1) return false;
+            var r = el.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) return false;
+            var st = global.getComputedStyle ? getComputedStyle(el) : null;
+            if (st && (st.display === 'none' || st.visibility === 'hidden')) return false;
+            return true;
+        } catch (e) { return false; }
+    }
+
+    var locateTimer = null;
+    /** 在页面上高亮定位元素：滚动到视口中央 + 黄色遮罩脉冲约 1.6s */
+    function locateEl(el) {
+        if (!el || !elVisible(el)) return false;
+        try { el.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (e) { }
+        setTimeout(function () {
+            var ov = ensureOverlay();
+            ov.classList.add('dyndb-locate');
+            moveOverlay(el);
+            clearTimeout(locateTimer);
+            locateTimer = setTimeout(function () {
+                ov.style.display = 'none';
+                ov.classList.remove('dyndb-locate');
+            }, 1700);
+        }, 50);
+        return true;
+    }
+
+    /** 全页扫描：所有自身带动作绑定的元素（调试面板自身除外；隐藏配置块 cfg 不算） */
+    function scanPageActionEls() {
+        var out = [];
+        try {
+            var all = document.querySelectorAll('*');
+            for (var i = 0; i < all.length; i++) {
+                var n = all[i];
+                if (panelEl && panelEl.contains(n)) continue;
+                if (n.hasAttribute && n.hasAttribute('data-dyn-action-cfg')) continue;
+                var binds = nodeOwnBinds(n);
+                if (binds.length) out.push({ el: n, visible: elVisible(n), binds: binds });
+            }
+        } catch (e) { }
+        return out;
+    }
+
+    function actionStepHtml(st) {
+        var meta = actionMetaOf(st.action);
+        var html = '<div class="dyndb-astep"><span class="dyndb-pcheck">▸</span>'
+            + '<b class="dyndb-aname">' + esc(st.action) + '</b>';
+        if (!meta) {
+            html += ' <span class="dyndb-tag dyndb-bad-tag" title="dyn.resolveAction 找不到该动作">未注册</span>';
+        } else if (meta.Id) {
+            html += ' <span class="dyndb-tag dyndb-act-db">DB·' + esc(String(meta.ActionType || 'script')) + '</span>'
+                + '<span class="dyndb-id" title="' + esc(meta.Name || st.action) + '">' + esc(meta.Name || st.action) + '</span>';
+        } else {
+            html += ' <span class="dyndb-tag dyndb-act-bi">内置</span>'
+                + (meta.doc ? '<span class="dyndb-id" title="' + esc(meta.doc) + '">ℹ</span>' : '');
+        }
+        ['$before', '$onSuccess', '$onFail', '$after'].forEach(function (k) {
+            if (st.options && st.options[k] !== undefined)
+                html += ' <span class="dyndb-tag dyndb-act-comp" title="组合动作钩子">' + k + '</span>';
+        });
+        if (st.options && Object.keys(st.options).length) {
+            html += '<pre class="dyndb-json dyndb-ajson" title="点击折叠/展开">'
+                + esc(clip(safeJson(st.options, 1), 900)) + '</pre>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    var pageActEls = [];          // scanPageActionEls 最近一次结果（索引稳定，供 locate/展开引用）
+    var pageActExpand = {};       // 索引 -> 是否展开详情
+    var pageActFilter = '';
+
+    /** 一个绑定的动作名链 chips（未注册动作红名） */
+    function bindChainHtml(b) {
+        if (b.kind === 'ref') {
+            if (!b.cfg) return '<span class="dyndb-bad">ref #' + esc(b.raw) + ' 缺失</span>';
+            return '<span class="dyndb-tag dyndb-act-comp">ref#' + esc(b.raw) + '</span>'
+                + '<span class="dyndb-id">隐藏配置</span>';
+        }
+        var parts = [];
+        (b.steps || []).forEach(function (st, i) {
+            if (i) parts.push('<span class="dyndb-chain-arrow">→</span>');
+            var meta = actionMetaOf(st.action);
+            parts.push('<span class="dyndb-achain-name' + (meta ? '' : ' is-unreg') + '" title="'
+                + (meta ? esc(meta.label || st.action) : '动作未注册') + '">' + esc(st.action) + '</span>');
+        });
+        return parts.join('');
+    }
+
+    function bindDetailHtml(b) {
+        var h = '';
+        if (b.steps && b.steps.length) b.steps.forEach(function (st) { h += actionStepHtml(st); });
+        if (b.kind === 'ref') {
+            if (!b.cfg) {
+                h += '<div class="dyndb-line dyndb-bad">找不到配置块 #' + esc(b.raw)
+                    + '（需带 data-dyn-action-cfg 标记）</div>';
+            } else {
+                var obj = (b.cfg.__dynObj && typeof b.cfg.__dynObj === 'object') ? b.cfg.__dynObj : b.parsed;
+                h += '<div class="dyndb-line dyndb-na">隐藏配置合并进各动作 options，键：'
+                    + (obj && typeof obj === 'object' ? esc(Object.keys(obj).join(', ')) : '（空）') + '</div>';
+                if (obj) h += '<pre class="dyndb-json dyndb-ajson" title="点击折叠/展开">'
+                    + esc(clip(safeJson(snapshot(obj, 0, null, 4), 1), 1200)) + '</pre>';
+            }
+        }
+        return h;
+    }
+
+    function registryListHtml(q, hostSel) {
+        // hostSel 仅用于注释占位；列表内容统一在此生成（过滤输入时复用）
+        var rows = [];
+        try { rows = (global.dyn && typeof dyn.actionList === 'function') ? dyn.actionList() : []; } catch (e) { }
+        var list = rows.filter(function (m) {
+            return !q || (m.name || '').toLowerCase().indexOf(q) >= 0
+                || (m.label || '').toLowerCase().indexOf(q) >= 0;
+        });
+        var lh = '';
+        if (!list.length) lh = '<div class="dyndb-empty">无匹配动作</div>';
+        list.slice(0, 80).forEach(function (m) {
+            lh += '<div class="dyndb-arow"><b>' + esc(m.name) + '</b> '
+                + '<span class="dyndb-tag ' + (m.Id ? 'dyndb-act-db' : 'dyndb-act-bi') + '">'
+                + (m.Id ? 'DB·' + esc(String(m.ActionType || 'script')) : '内置') + '</span>'
+                + (m.label && m.label !== m.name ? '<span class="dyndb-id"> ' + esc(m.label) + '</span>' : '') + '</div>';
+        });
+        if (list.length > 80) lh += '<div class="dyndb-empty">…另有 ' + (list.length - 80) + ' 条，请继续输入过滤</div>';
+        return lh;
+    }
+
+    /** 基于当前 pageActEls/pageActFilter/pageActExpand 生成清单行（全量重绘与输入局部刷新共用） */
+    function pageListView() {
+        var q = pageActFilter.toLowerCase();
+        var visibleCount = 0, shown = 0, capped = 0, html = '';
+        pageActEls.forEach(function (item, idx) { if (item.visible) visibleCount++; });
+        pageActEls.forEach(function (item, idx) {
+            if (q) {
+                var hit = elDesc(item.el).toLowerCase().indexOf(q) >= 0
+                    || item.binds.some(function (b) {
+                        if (b.kind === 'ref') return ('ref' + b.raw).toLowerCase().indexOf(q) >= 0;
+                        return (b.steps || []).some(function (s) { return s.action.toLowerCase().indexOf(q) >= 0; });
+                    });
+                if (!hit) return;
+            }
+            if (shown >= 100) { capped = 1; return; }
+            shown++;
+            var expanded = !!pageActExpand[idx];
+            html += '<div class="dyndb-prow2' + (item.visible ? '' : ' is-hidden-el') + '" data-act="locate" data-idx="' + idx + '"'
+                + (item.visible ? ' title="点击高亮定位该元素"' : ' title="元素当前不可见（弹窗未打开或 display:none）"') + '>'
+                + '<span class="dyndb-loc-ico">' + (item.visible ? '🎯' : '🚫') + '</span>'
+                + '<span class="dyndb-pel">' + esc(elDesc(item.el)) + '</span>'
+                + (item.visible ? '' : '<span class="dyndb-tag dyndb-act-lost">隐藏</span>')
+                + '<button class="dyndb-btn dyndb-aexp" data-act="aexpand" data-idx="' + idx + '">'
+                + (expanded ? '－' : '＋') + '</button></div>';
+            item.binds.forEach(function (b) {
+                html += '<div class="dyndb-abind' + (item.visible ? '' : ' is-dim') + '">'
+                    + '<span class="dyndb-tag dyndb-act-ev">' + esc(b.ev) + '</span>'
+                    + '<span class="dyndb-id">' + esc(b.kind === 'pipe' ? '管道' : '隐藏配置') + '</span>'
+                    + bindChainHtml(b) + '</div>';
+                if (expanded) html += bindDetailHtml(b);
+            });
+        });
+        if (!shown) html += '<div class="dyndb-empty">' + (pageActEls.length ? '无匹配元素' : '页面上没有动作绑定元素') + '</div>';
+        if (capped) html += '<div class="dyndb-empty">…仅显示前 100 个，请输入过滤条件</div>';
+        return { html: html, visibleCount: visibleCount };
+    }
+
+    function drawActions() {
+        if (!actionsEl || activeTab !== 'actions') return;
+        var regRows = [];
+        try { regRows = (global.dyn && typeof dyn.actionList === 'function') ? dyn.actionList() : []; } catch (e) { }
+
+        if (picking) {
+            actionsEl.innerHTML = '<div class="dyndb-card"><div class="dyndb-line dyndb-na">🎯 拾取中…清单已暂停刷新</div></div>';
+            return;
+        }
+
+        // —— 1) 全页动作元素清单（每次重扫；弹窗/注入片段出现后点"重扫"） ——
+        pageActEls = scanPageActionEls();
+        var view = pageListView();
+        var html = '<div class="dyndb-card dyndb-insp"><div class="dyndb-card-h"><b>页面动作元素</b>'
+            + '<span class="dyndb-id" data-pagecount>' + pageActEls.length + ' 个（可见 ' + view.visibleCount + '）</span>'
+            + '<button class="dyndb-btn dyndb-float" data-act="rescan">重扫</button></div>'
+            + '<div class="dyndb-line dyndb-na">点击行在页面上高亮定位元素；隐藏元素（弹窗未开/display:none）不可定位，可展开看参数</div>'
+            + '<input class="dyndb-ainput" data-act="actpage-filter" placeholder="过滤元素 / 动作名…" value="' + esc(pageActFilter) + '">'
+            + '<div data-pagelist>' + view.html + '</div></div>';
+
+        // —— 2) 拾取元素的祖先动作链（辅助；委托遮蔽关系在这里看） ——
+        if (selectedEl && document.contains(selectedEl)) {
+            var groups = collectActionBindings(selectedEl);
+            html += '<div class="dyndb-card"><div class="dyndb-card-h"><b>拾取元素动作链</b>'
+                + '<span class="dyndb-id">' + esc(elDesc(selectedEl)) + '</span>'
+                + '<button class="dyndb-btn dyndb-float" data-act="pick">换一个</button></div>';
+            if (!groups.length) {
+                html += '<div class="dyndb-line dyndb-na">该元素及其祖先上没有动作绑定</div>';
+            }
+            groups.forEach(function (g) {
+                html += '<div class="dyndb-agroup' + (g.self ? ' is-self' : '') + '"><div class="dyndb-agroup-h">'
+                    + (g.self ? '<b>本元素</b> ' : '<span class="dyndb-id">祖先 ↑ </span>')
+                    + esc(elDesc(g.el)) + '</div>';
+                g.binds.forEach(function (b) {
+                    html += '<div class="dyndb-abind"><span class="dyndb-tag dyndb-act-ev">' + esc(b.ev) + '</span>'
+                        + '<span class="dyndb-id">' + esc(b.kind === 'pipe' ? '管道' : '隐藏配置') + '</span>'
+                        + bindChainHtml(b);
+                    if (b.ev !== 'cfg')
+                        html += b.effective
+                            ? ' <span class="dyndb-tag dyndb-act-eff" title="closest 命中的最近绑定，实际生效">生效</span>'
+                            : ' <span class="dyndb-tag dyndb-act-lost" title="后代元素上有同事件的更近绑定，本绑定不会触发">被遮蔽</span>';
+                    html += '</div>';
+                    if (b.kind === 'ref') html += bindDetailHtml(b);
+                    else if (b.steps && b.steps.length) b.steps.forEach(function (st) { html += actionStepHtml(st); });
+                });
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+
+        // —— 3) 已注册动作注册表浏览 ——
+        html += '<div class="dyndb-card"><div class="dyndb-card-h"><b>已注册动作（' + regRows.length + '）</b>'
+            + '<span class="dyndb-id">内置 + 数据库动作助手</span></div>'
+            + '<input class="dyndb-ainput" data-act="act-filter" placeholder="过滤动作名 / 说明…" value="' + esc(actFilter) + '">'
+            + '<div data-actlist>' + registryListHtml(actFilter.toLowerCase()) + '</div></div>';
+        actionsEl.innerHTML = html;
+    }
+
+    // ---------------- 钉住快照 / 复制上下文 ----------------
+    function setPinned(v) {
+        pinned = v;
+        if (panelEl) panelEl.classList.toggle('dyndb-pinned', v);
+        var b = panelEl && panelEl.querySelector('[data-act="pin"]');
+        if (b) {
+            b.textContent = v ? '🔓' : '📌';
+            b.classList.toggle('is-on', v);
+            b.title = v ? '解除钉住，恢复实时刷新' : '钉住当前快照（暂停自动刷新）';
+        }
+        if (v) {
+            // 钉住瞬间把其他 Tab 也渲染成当前快照，之后全部冻结
+            setLiveStale(false);
+            drawParams(); drawActions();
+            if (activePsub === 'trace') drawTrace();
+        } else {
+            draw();
+        }
+    }
+
+    function fallbackCopy(t) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = t;
+            ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand('copy');
+            ta.remove();
+            return ok;
+        } catch (e) { return false; }
+    }
+    function copyText(t) {
+        if (navigator.clipboard && navigator.clipboard.writeText)
+            return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return fallbackCopy(t); });
+        return Promise.resolve(fallbackCopy(t));
+    }
+    function flashHeadBtn(act, txt) {
+        var b = panelEl && panelEl.querySelector('[data-act="' + act + '"]');
+        if (!b) return;
+        var old = b.textContent;
+        b.textContent = txt;
+        setTimeout(function () { b.textContent = old; }, 1200);
+    }
+
+    function buildContextPayload() {
+        var payload = { time: new Date().toISOString(), url: location.href };
+        if (!selectedEl) { payload.note = '未拾取元素'; return payload; }
+        payload.element = elDesc(selectedEl);
+        if (inspState) {
+            var info = inspState.info;
+            payload.teleported = !!info.teleported;
+            payload.domChain = info.chain.filter(function (c) { return c.self || c.badges.length; })
+                .slice(0, 15).map(function (c) { return { el: c.desc, self: c.self, badges: c.badges }; });
+            payload.componentChain = inspState.comps.map(componentName);
+            var dc = inspState.dynComp;
+            if (dc) {
+                var props = dc.props || {};
+                try { payload.jsonconfig = snapshot(props.jsonconfig, 0, null, 8); } catch (e) { }
+                try { payload.parentmodelinfo = snapshot(props.parentmodelinfo, 0, null, 6); } catch (e) { }
+            }
+            if (info.ownerProxy) {
+                payload.app = {
+                    name: appDataInfo(info.ownerProxy, info.ownerRoot).name,
+                    data: snapshot(info.ownerProxy.$data || {}, 0, null, 5)
+                };
+            }
+        }
+        try {
+            var P = global.DynParams && DynParams.fromEl(selectedEl);
+            if (P) payload.params = P.inspect();
+        } catch (e) { }
+        try {
+            payload.actions = collectActionBindings(selectedEl).map(function (g) {
+                return {
+                    el: elDesc(g.el), self: g.self,
+                    binds: g.binds.map(function (b) {
+                        return {
+                            event: b.ev, kind: b.kind, attr: b.attr, effective: !!b.effective,
+                            steps: (b.steps || []).map(function (s) { return { action: s.action, options: s.options }; }),
+                            refTarget: b.kind === 'ref' ? b.raw : undefined,
+                            refResolved: b.kind === 'ref' ? !!b.cfg : undefined
+                        };
+                    })
+                };
+            });
+        } catch (e) { }
+        return payload;
+    }
+    function copyContext() {
+        var text = safeJson(buildContextPayload(), 2);
+        copyText(text).then(function (ok) { flashHeadBtn('copy', ok ? '已复制✓' : '复制失败'); });
+    }
+
+    // ---------------- 面板 UI：位置/尺寸记忆、Alt 切 Tab、JSON 折叠 ----------------
+    function loadUi() {
+        try { return JSON.parse(localStorage.getItem(UI_KEY) || '{}') || {}; } catch (e) { return {}; }
+    }
+    function saveUi(patch) {
+        try { localStorage.setItem(UI_KEY, JSON.stringify(Object.assign(loadUi(), patch))); } catch (e) { }
+    }
+
+    function initPanelUi() {
+        var ui = loadUi();
+        if (ui.width) panelEl.style.width = ui.width + 'px';
+        if (ui.height) panelEl.style.height = ui.height + 'px';
+        if (ui.left != null && ui.top != null) {
+            panelEl.style.left = ui.left + 'px';
+            panelEl.style.top = ui.top + 'px';
+            panelEl.style.right = 'auto';
+            panelEl.style.bottom = 'auto';
+        }
+        // 头部拖拽移动（点按钮不拖）
+        var head = panelEl.querySelector('.dyndb-head');
+        head.addEventListener('mousedown', function (e) {
+            if (e.target.closest && e.target.closest('button')) return;
+            if (e.button !== 0) return;
+            e.preventDefault();
+            var r = panelEl.getBoundingClientRect();
+            dragState = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+            function mv(ev) {
+                if (!dragState) return;
+                var l = Math.min(Math.max(ev.clientX - dragState.dx, 0), window.innerWidth - 120);
+                var t = Math.min(Math.max(ev.clientY - dragState.dy, 0), window.innerHeight - 40);
+                panelEl.style.right = 'auto'; panelEl.style.bottom = 'auto';
+                panelEl.style.left = l + 'px'; panelEl.style.top = t + 'px';
+            }
+            function up() {
+                document.removeEventListener('mousemove', mv);
+                document.removeEventListener('mouseup', up);
+                if (dragState) {
+                    dragState = null;
+                    var r2 = panelEl.getBoundingClientRect();
+                    saveUi({ left: Math.round(r2.left), top: Math.round(r2.top) });
+                }
+            }
+            document.addEventListener('mousemove', mv);
+            document.addEventListener('mouseup', up);
+        });
+        // 尺寸变化（CSS resize 手柄）防抖持久化；一旦显式拖高就解除 max-height 限制
+        if (global.ResizeObserver) {
+            var rzT = null;
+            new ResizeObserver(function () {
+                clearTimeout(rzT);
+                rzT = setTimeout(function () {
+                    if (panelEl.style.height) panelEl.style.maxHeight = 'none';
+                    var r = panelEl.getBoundingClientRect();
+                    saveUi({ width: Math.round(r.width), height: Math.round(r.height) });
+                }, 300);
+            }).observe(panelEl);
+        }
+        // Alt+1/2/3 切换三个 Tab
+        document.addEventListener('keydown', function (e) {
+            if (!e.altKey || picking) return;
+            var t = { '1': 'view', '2': 'params', '3': 'actions' }[e.key];
+            if (t) { e.preventDefault(); switchTab(t); }
+        });
+        // JSON 块点击折叠/展开（正在拖选文本时不触发，避免干扰复制）
+        panelEl.addEventListener('click', function (e) {
+            var pre = e.target && e.target.closest ? e.target.closest('pre.dyndb-json') : null;
+            if (!pre || !panelEl.contains(pre)) return;
+            var s = document.getSelection();
+            if (s && !s.isCollapsed) return;
+            pre.classList.toggle('is-collapsed');
+        });
     }
 
     function injectCss() {
@@ -947,7 +1642,71 @@
             + 'border:2px solid #4ec9b0;background:rgba(78,201,176,.12);border-radius:2px;'
             + 'box-shadow:0 0 0 99999px rgba(0,0,0,.15)}'
             + '.dyndb-panel.dyndb-picking{box-shadow:0 0 0 2px #b58900,0 6px 24px rgba(0,0,0,.45)}'
-            + '.dyndb-panel.dyndb-picking *{cursor:crosshair !important}';
+            + '.dyndb-panel.dyndb-picking *{cursor:crosshair !important}'
+            /* —— 面板增强：resize / 钉住 / 折叠 JSON —— */
+            + '.dyndb-panel{resize:both;min-width:340px;min-height:180px}'
+            + '.dyndb-head{cursor:move}'
+            + '.dyndb-head .dyndb-btn{cursor:pointer}'
+            + '.dyndb-btn.is-on{background:#143d2e;color:#4ec9b0;border-color:#2d6e4e}'
+            + '.dyndb-panel.dyndb-pinned{border-color:#b58900;box-shadow:0 0 0 1px #b58900,0 6px 24px rgba(0,0,0,.45)}'
+            + '.dyndb-json.is-collapsed{max-height:34px;overflow:hidden;cursor:pointer;position:relative}'
+            + '.dyndb-json{cursor:pointer}'
+            + '@keyframes dyndb-flash{0%{background-color:#6b5a10}70%{background-color:#4a3f10}100%{background-color:transparent}}'
+            + '.dyndb-flash{animation:dyndb-flash 1.5s ease-out;border-radius:3px}'
+            + 'div.dyndb-flash{padding:2px 4px;margin:-2px -4px}'
+            + '.dyndb-flash-chip{color:#e6c65a;font-size:10px;margin:2px 0;font-weight:bold}'
+            /* —— DynParams 子 Tab（参数层/轨迹） —— */
+            + '.dyndb-psubbar{display:flex;align-items:center;gap:4px;margin:2px 0 6px}'
+            + '.dyndb-psub{background:#2a2a2e;color:#9a9a9a;border:1px solid #444;border-radius:4px;'
+            + 'padding:2px 10px;cursor:pointer;font:11px Consolas}'
+            + '.dyndb-psub:hover{color:#ddd;background:#333337}'
+            + '.dyndb-psub.is-active{color:#4ec9b0;border-color:#2d6e4e;background:#143d2e}'
+            + '.dyndb-psub-clear{margin-left:auto}'
+            + '.dyndb-tr{display:flex;align-items:center;gap:6px;padding:2px 4px;margin:2px 0;'
+            + 'border-left:3px solid #555;font-size:11px;flex-wrap:wrap}'
+            + '.dyndb-tr-set{border-left-color:#f48771}'
+            + '.dyndb-tr-commit{border-left-color:#569cd6}'
+            + '.dyndb-tr-fork{border-left-color:#c586c0}'
+            + '.dyndb-tr-ctx{color:#4ec9b0;flex:none}'
+            + '.dyndb-tr-key{color:#dcdcaa;flex:none}'
+            + '.dyndb-tr-vals{min-width:0;word-break:break-all}'
+            + '.dyndb-tr-old{color:#7a7a7a;text-decoration:line-through}'
+            /* —— 动作 Tab —— */
+            + '.dyndb-agroup{border:1px solid #3a3a3a;border-radius:4px;margin:6px 0;overflow:hidden}'
+            + '.dyndb-agroup.is-self{border-color:#2d6e4e}'
+            + '.dyndb-agroup-h{padding:3px 7px;background:#2b2b2f;color:#9cdcfe;font-size:11px}'
+            + '.dyndb-abind{padding:3px 7px 1px;background:#26262a;display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
+            + '.dyndb-astep{padding:2px 7px 2px 22px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
+            + '.dyndb-aname{color:#dcdcaa}'
+            + '.dyndb-act-ev{background:#0e3a4a;color:#569cd6;border:1px solid #1f5a70;margin-left:0}'
+            + '.dyndb-act-bi{background:#143d2e;color:#4ec9b0;border:1px solid #2d6e4e}'
+            + '.dyndb-act-db{background:#2d2350;color:#c586c0;border:1px solid #5a3d7a}'
+            + '.dyndb-act-comp{background:#4a3a10;color:#d7ba7d;border:1px solid #6e5a2d}'
+            + '.dyndb-act-eff{background:#1f3328;color:#4ec9b0;border:1px solid #2d6e4e}'
+            + '.dyndb-act-lost{background:#333;color:#888;border:1px solid #555;text-decoration:line-through}'
+            + '.dyndb-bad-tag{background:#4e2a1e;color:#f48771;border:1px solid #7a3a2a}'
+            + '.dyndb-ajson{margin:2px 0 4px 22px;max-height:150px}'
+            /* —— 页面动作元素清单 —— */
+            + '.dyndb-prow2{display:flex;align-items:center;gap:6px;padding:3px 6px;margin:3px 0 1px;'
+            + 'background:#222936;border:1px solid #33405a;border-radius:4px;cursor:pointer;flex-wrap:wrap}'
+            + '.dyndb-prow2:hover{background:#2a3548;border-color:#4ec9b0}'
+            + '.dyndb-prow2.is-hidden-el{background:#252525;border-color:#3a3a3a;cursor:default;opacity:.75}'
+            + '.dyndb-loc-ico{flex:none;font-size:12px}'
+            + '.dyndb-pel{color:#9cdcfe;word-break:break-all;min-width:0}'
+            + '.dyndb-aexp{margin-left:auto;flex:none;padding:0 7px;line-height:18px}'
+            + '.dyndb-abind.is-dim{opacity:.65}'
+            + '.dyndb-achain-name{color:#dcdcaa;margin:0 2px}'
+            + '.dyndb-achain-name.is-unreg{color:#f48771;border-bottom:1px dashed #f48771;font-weight:bold}'
+            + '.dyndb-pick-overlay.dyndb-locate{border-color:#dcdcaa;background:rgba(220,220,170,.18);'
+            + 'box-shadow:0 0 0 99999px rgba(0,0,0,.25),0 0 0 4px rgba(220,220,170,.5);'
+            + 'animation:dyndb-locate-pulse .55s ease-in-out 0s 3 alternate;pointer-events:none}'
+            + '@keyframes dyndb-locate-pulse{from{opacity:.55}to{opacity:1}}'
+            + '.dyndb-ainput{width:calc(100% - 16px);margin:4px 8px;padding:3px 6px;background:#1a1a1a;'
+            + 'color:#ddd;border:1px solid #444;border-radius:4px;font:11px Consolas;box-sizing:border-box}'
+            + '.dyndb-ainput:focus{outline:none;border-color:#2d6e4e}'
+            + '.dyndb-arow{padding:2px 8px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+            + '.dyndb-arow:hover{background:#2a2d33}'
+            + '.dyndb-arow b{color:#ce9178;font-weight:normal}';
         var st = document.createElement('style');
         st.id = 'dyndb-style';
         st.textContent = css;
@@ -963,12 +1722,15 @@
             '<div class="dyndb-head" data-act="toggle"><b>dyn-debug</b>'
             + '<span class="dyndb-spacer"></span>'
             + '<button class="dyndb-btn" data-act="pick">🎯拾取</button>'
+            + '<button class="dyndb-btn" data-act="pin" title="钉住当前快照（暂停自动刷新）">📌</button>'
+            + '<button class="dyndb-btn" data-act="copy" title="复制完整上下文 JSON（元素链/配置/数据/参数/动作）">📋</button>'
             + '<button class="dyndb-btn" data-act="refresh">刷新</button>'
             + '<button class="dyndb-btn" data-act="clear">清空</button>'
             + '<button class="dyndb-btn" data-act="hide">－</button></div>'
             + '<div class="dyndb-tabbar">'
             + '<button class="dyndb-tab is-active" data-tab="view">App / 组件</button>'
             + '<button class="dyndb-tab" data-tab="params">DynParams</button>'
+            + '<button class="dyndb-tab" data-tab="actions">动作</button>'
             + '</div>'
             + '<div class="dyndb-body">'
             + '<div class="dyndb-pane" data-pane="view">'
@@ -978,7 +1740,16 @@
             + '<div class="dyndb-notes-slot"></div>'
             + '</div>'
             + '<div class="dyndb-pane" data-pane="params" style="display:none">'
-            + '<div class="dyndb-params-slot"></div>'
+            + '<div class="dyndb-psubbar">'
+            + '<button class="dyndb-psub is-active" data-psub="layers">参数层</button>'
+            + '<button class="dyndb-psub" data-psub="trace">轨迹</button>'
+            + '<button class="dyndb-btn dyndb-psub-clear" data-act="clear-trace">清空轨迹</button>'
+            + '</div>'
+            + '<div class="dyndb-psub-pane" data-psub-pane="layers"><div class="dyndb-params-slot"></div></div>'
+            + '<div class="dyndb-psub-pane" data-psub-pane="trace" style="display:none"><div class="dyndb-trace-slot"></div></div>'
+            + '</div>'
+            + '<div class="dyndb-pane" data-pane="actions" style="display:none">'
+            + '<div class="dyndb-actions-slot"></div>'
             + '</div>'
             + '</div>';
         document.body.appendChild(panelEl);
@@ -988,30 +1759,106 @@
         blocksEl = panelEl.querySelector('.dyndb-blocks-slot');
         notesEl = panelEl.querySelector('.dyndb-notes-slot');
         paramsEl = panelEl.querySelector('.dyndb-params-slot');
+        traceEl = panelEl.querySelector('.dyndb-trace-slot');
+        actionsEl = panelEl.querySelector('.dyndb-actions-slot');
 
         panelEl.addEventListener('click', function (e) {
-            var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
+            var actEl = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+            var act = actEl && actEl.getAttribute('data-act');
             var tab = e.target && e.target.getAttribute && e.target.getAttribute('data-tab');
+            var psub = e.target && e.target.getAttribute && e.target.getAttribute('data-psub');
             if (tab) { switchTab(tab); return; }
+            if (psub) { switchPsub(psub); return; }
             if (act === 'pick') { startPicking(); return; }
             if (act === 'live-refresh') { drawInspector(true); return; }
-            if (act === 'refresh') { draw(); return; }
+            if (act === 'locate') {
+                var li = +actEl.getAttribute('data-idx');
+                locateEl(pageActEls[li] && pageActEls[li].el);
+                return;
+            }
+            if (act === 'aexpand') {
+                var ei = +actEl.getAttribute('data-idx');
+                pageActExpand[ei] = !pageActExpand[ei];
+                drawActions();
+                return;
+            }
+            if (act === 'rescan') { pageActExpand = {}; drawActions(); return; }
+            if (act === 'pin') { setPinned(!pinned); return; }
+            if (act === 'copy') { copyContext(); return; }
+            if (act === 'clear-trace') {
+                try { if (global.DynParams && DynParams._clearTrace) DynParams._clearTrace(); } catch (e2) { }
+                traceBuf = []; drawTrace();
+                return;
+            }
+            if (act === 'refresh') { if (pinned) setPinned(false); else draw(); return; }
             if (act === 'clear') { DynDebug.clear(); return; }
             if (act === 'hide') { panelEl.style.display = 'none'; remountBtn(); return; }
-            if (act === 'toggle' && e.target.classList.contains('dyndb-head')) {
+            if (act === 'toggle' && actEl.classList.contains('dyndb-head')) {
                 collapsed = !collapsed;
                 panelEl.classList.toggle('dyndb-collapsed', collapsed);
             }
         });
+        // 动作页过滤：只刷清单行，输入框不重建（不失焦、不重扫）
+        panelEl.addEventListener('input', function (e) {
+            if (e.target && e.target.getAttribute && e.target.getAttribute('data-act') === 'actpage-filter') {
+                pageActFilter = e.target.value || '';
+                var ph = actionsEl && actionsEl.querySelector('[data-pagelist]');
+                if (ph) ph.innerHTML = pageListView().html;
+                return;
+            }
+        });
+        // 动作注册表过滤：只刷列表，输入框不重建（不失焦）
+        panelEl.addEventListener('input', function (e) {
+            if (e.target && e.target.getAttribute && e.target.getAttribute('data-act') === 'act-filter') {
+                actFilter = e.target.value || '';
+                var host = actionsEl && actionsEl.querySelector('[data-actlist]');
+                if (!host) return;
+                var q = actFilter.toLowerCase();
+                var rows = [];
+                try { rows = (global.dyn && typeof dyn.actionList === 'function') ? dyn.actionList() : []; } catch (e2) { }
+                var list = rows.filter(function (m) {
+                    return !q || (m.name || '').toLowerCase().indexOf(q) >= 0
+                        || (m.label || '').toLowerCase().indexOf(q) >= 0;
+                });
+                var lh = '';
+                if (!list.length) lh = '<div class="dyndb-empty">无匹配动作</div>';
+                list.slice(0, 80).forEach(function (m) {
+                    lh += '<div class="dyndb-arow"><b>' + esc(m.name) + '</b> '
+                        + '<span class="dyndb-tag ' + (m.Id ? 'dyndb-act-db' : 'dyndb-act-bi') + '">'
+                        + (m.Id ? 'DB·' + esc(String(m.ActionType || 'script')) : '内置') + '</span>'
+                        + (m.label && m.label !== m.name ? '<span class="dyndb-id"> ' + esc(m.label) + '</span>' : '') + '</div>';
+                });
+                if (list.length > 80) lh += '<div class="dyndb-empty">…另有 ' + (list.length - 80) + ' 条，请继续输入过滤</div>';
+                host.innerHTML = lh;
+            }
+        });
+
+        initPanelUi();
+
+        // 参数轨迹：先拉环形缓冲，再订阅实时事件（打开轨迹子页时 150ms 防抖刷新）
+        try { traceBuf = (global.DynParams && DynParams.trace) ? DynParams.trace() : []; } catch (e) { traceBuf = []; }
+        if (global.DynParams && DynParams.onTrace) {
+            traceUnsub = DynParams.onTrace(function (ev) {
+                traceBuf.unshift(ev);
+                if (traceBuf.length > 100) traceBuf.pop();
+                if (activeTab === 'params' && activePsub === 'trace' && !pinned && !traceQueued) {
+                    traceQueued = true;
+                    setTimeout(function () { traceQueued = false; drawTrace(); }, 150);
+                }
+            });
+        }
 
         // 2s 轮询只刷 Blocks/Notes + 元素存活兜底；inspector 的数据变化走 $watch 实时推送
-        timer = setInterval(function () { drawBlocksNotes(); tickInspector(); }, 2000);
+        timer = setInterval(function () {
+            if (pinned) return;
+            drawBlocksNotes(); tickInspector();
+        }, 2000);
         // 选中文本期间数据有更新会挂起刷新；选择一结束（复制完）自动补刷到最新
         document.addEventListener('selectionchange', function () {
-            if (liveStale && !selectionInInsp()) renderInspHtml();
+            if (liveStale && !selectionInPanel()) renderInspHtml();
         });
         draw();
-        console.info('%c[dyn-debug] 已启用：?dyndebug=1（Block 参数获胜层/告警浮层）', 'color:#4ec9b0');
+        console.info('%c[dyn-debug] 已启用：?dyndebug=1（拾取查看/参数层/动作绑定/轨迹；Alt+1/2/3 切 Tab）', 'color:#4ec9b0');
     }
 
     function remountBtn() {

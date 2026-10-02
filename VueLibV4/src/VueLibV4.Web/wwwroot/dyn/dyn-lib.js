@@ -1,5 +1,5 @@
 /* dyn-lib.js V4 资源加载控制器 */
-/* 就绪后自动执行 dyn.initActions(document.body)，扫描 data-dyn-init-* 初始化动作 */
+/* 初始化动作统一走 dyn-init 管道（dyn-init="CreateApp|Toast('就绪')"），由挂载链扫描执行 */
 (function(global){
 'use strict';
 
@@ -132,7 +132,7 @@ const DynLib = {
     this._queue.push(cb);
   },
   _fireReady(){
-    // // 就绪后自动扫描并执行页面 data-dyn-init-* 初始化动作（含ajax载入片段由mountCore触发）
+    // // 就绪后自动扫描并执行页面 dyn-init 初始化动作（含ajax载入片段由mountCore触发）
     // try{
     //   if(global.dyn && typeof dyn.initActions === 'function'){
     //     dyn.initActions(document.body);

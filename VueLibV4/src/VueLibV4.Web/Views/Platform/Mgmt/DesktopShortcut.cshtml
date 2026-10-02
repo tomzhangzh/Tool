@@ -3,19 +3,19 @@
 }
 @*
   M5 管理页范式（桌面快捷方式）：
-  · data-dyn-init-createapp 自举根应用；script[tag=dynconfig] 声明页面数据/方法（零独立 JS 文件）
+  · dyn-init="createapp" 自举根应用；script[tag=dynconfig] 声明页面数据/方法（零独立 JS 文件）
   · filter（含 op/value）+ pageInfo 都是 data 的一部分；筛选区 v-model 直接写 filter.xxx.value
   · 列表：原生 el-table，请求 /api/dyndata/search（body={table,page,size,filter,project}，project=__platform__ 走平台库）
-  · 交互全走动作系统（零业务 JS）：
-      新增/编辑 = data-dyn-click-open（fragment 弹窗；行 id 经 :data-Id 属性 + {{Id}} 插值传入；onclose 动作数组刷新列表）
-      删除     = data-dyn-click-postback（confirm 声明式确认 + $onSuccess 动作刷新列表）
+  · 交互全走动作管道（零业务 JS）：
+      新增/编辑 = dyn-click="open({...})"（fragment 弹窗；行 id 经 :data-Id 属性 + {{Id}} 插值传入；onclose 动作数组刷新列表）
+      删除     = dyn-click="postback({...})"（confirm 声明式确认 + $onSuccess 动作刷新列表）
 *@
 @inject IDesktopSolutionService _solutions;
-<div data-dyn-init-createapp class="p-4 space-y-3" style="height:100vh;display:flex;flex-direction:column;box-sizing:border-box;">
+<div dyn-init="createapp" class="p-4 space-y-3" style="height:100vh;display:flex;flex-direction:column;box-sizing:border-box;">
     <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-gray-700">桌面快捷方式管理</h3>
         <el-button type="success" size="small"
-                   data-dyn-click-open='{"url":"/Platform/Mgmt/DesktopShortcutForm","title":"新增快捷方式","width":"700px","height":"85vh","mode":"fragment","onclose":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]}'>+ 新增</el-button>
+                   dyn-click='open({"url":"/Platform/Mgmt/DesktopShortcutForm","title":"新增快捷方式","width":"700px","height":"85vh","mode":"fragment","onclose":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]})'>+ 新增</el-button>
     </div>
 
     @* 筛选区：直接绑定 filter.xxx.value（filter 为 data 的一部分，不再二次组装） *@
@@ -52,10 +52,10 @@
                 <template #default="{row}">
                     <el-button link type="primary" size="small"
                                :data-id="row.Id"
-                               data-dyn-click-open='{"url":"/Platform/Mgmt/DesktopShortcutForm","title":"编辑快捷方式","width":"700px","height":"85vh","mode":"fragment","params":{"id":"{{id}}"},"onclose":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]}'>编辑</el-button>
+                               dyn-click='open({"url":"/Platform/Mgmt/DesktopShortcutForm","title":"编辑快捷方式","width":"700px","height":"85vh","mode":"fragment","params":{"id":"{{id}}"},"onclose":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]})'>编辑</el-button>
                     <el-button link type="danger" size="small"
                                :data-id="row.Id"
-                               data-dyn-click-postback='{"url":"/api/dyndata/delete","body":{"table":"DesktopShortcut","keys":{"Id":"{{id}}"},"project":"__platform__"},"confirm":"确定删除该快捷方式吗？","message":"删除成功","$onSuccess":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]}'>删除</el-button>
+                               dyn-click='postback({"url":"/api/dyndata/delete","body":{"table":"DesktopShortcut","keys":{"Id":"{{id}}"},"project":"__platform__"},"confirm":"确定删除该快捷方式吗？","message":"删除成功","$onSuccess":[{"action":"evaljs","options":{"code":"ctx.vm.onQuery()"}}]})'>删除</el-button>
                 </template>
             </el-table-column>
         </el-table>

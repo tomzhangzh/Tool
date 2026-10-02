@@ -36,6 +36,27 @@
   var _registry = Object.create(null);
   var _rootCtx = null;
 
+  // ---------------- 变更轨迹（dyn-debug Trace 用；无订阅者时仅保留环形缓冲） ----------------
+  var _trace = [];
+  var _traceListeners = [];
+  var TRACE_MAX = 100;
+  function elBrief(el) {
+    try {
+      if (!el || el.nodeType !== 1) return '';
+      var s = el.tagName.toLowerCase();
+      if (el.id) s += '#' + el.id;
+      return s;
+    } catch (e) { return ''; }
+  }
+  function pushTrace(ev) {
+    ev.t = new Date();
+    _trace.push(ev);
+    if (_trace.length > TRACE_MAX) _trace.shift();
+    _traceListeners.slice().forEach(function (fn) {
+      try { fn(ev); } catch (e) { }
+    });
+  }
+
   // ---------------- 小工具 ----------------
 
   function parseJson(str, dft) {
@@ -228,12 +249,20 @@
     };
 
     /** 本层私有覆盖（影响本层及子孙，兄弟不可见） */
-    ctx.set = function (key, value) { runtime[key] = value; return ctx; };
+    ctx.set = function (key, value) {
+      var old; try { old = runtime[key]; } catch (e) { }
+      runtime[key] = value;
+      pushTrace({ kind: 'set', key: key, old: old, value: value, ctxId: ctx.id, el: elBrief(el) });
+      return ctx;
+    };
 
     /** 发布到共享实体层（链式各 fork 立即可见，跟随型模板自动更新） */
     ctx.commit = function (key, value, meta) {
+      var old; try { old = shared[key]; } catch (e) { }
       shared[key] = value;
       if (meta && isPlain(meta)) ctx._provenance[key] = meta;
+      pushTrace({ kind: 'commit', key: key, old: old, value: value, by: meta && meta.by || null,
+        ctxId: ctx.id, el: elBrief(el) });
       return ctx;
     };
     ctx._provenance = Vue.reactive({});
@@ -242,7 +271,14 @@
     ctx.fork = function (scopeEl, localParams) {
       if (!scopeEl) return ctx;
       if (scopeEl.__dynParams) return scopeEl.__dynParams;
-      return createContext(scopeEl, { parent: ctx, local: localParams || {}, shared: shared });
+      var child = createContext(scopeEl, { parent: ctx, local: localParams || {}, shared: shared });
+      try {
+        Object.keys(localParams || {}).forEach(function (k) {
+          pushTrace({ kind: 'fork', key: k, old: undefined, value: localParams[k],
+            ctxId: child.id, el: elBrief(scopeEl), fromCtx: ctx.id });
+        });
+      } catch (e) { }
+      return child;
     };
 
     /** 合并快照（JSON 安全值的普通对象，用于请求/调试） */
@@ -413,7 +449,20 @@
     byId: function (id) { return _registry[id] || null; },
     root: rootContext,
     parseJson: parseJson,
-    getPath: getPath
+    getPath: getPath,
+    /** 参数变更轨迹：最近 100 条 set/commit/fork 事件（新→旧） */
+    trace: function () { return _trace.slice().reverse(); },
+    /** 订阅轨迹事件，返回取消函数 */
+    onTrace: function (fn) {
+      if (typeof fn !== 'function') return function () { };
+      _traceListeners.push(fn);
+      return function () {
+        var i = _traceListeners.indexOf(fn);
+        if (i >= 0) _traceListeners.splice(i, 1);
+      };
+    },
+    /** 内部使用：清空轨迹 */
+    _clearTrace: function () { _trace.length = 0; }
   };
 
   global.DynParams = DynParams;

@@ -10,7 +10,7 @@
 @*
   设计器四分区（平台原生约定）：
   root          data-dyn-shared-scope="designer" + data-dyn-scope-json  → 全局共享 reactive model
-    TopBar / LeftPanel / Canvas / RightPanel  各为独立 partial，根元素各自 data-dyn-init-createapp data-dyn-use-scope="designer"
+    TopBar / LeftPanel / Canvas / RightPanel  各为独立 partial，根元素各自 dyn-init="createapp" data-dyn-use-scope="designer"
                   → 每个分区一个独立 VueApp，但 model 指向同一份共享 scope
   embed=1（弹窗模式）：由 DynDesignerDialog 打开 iframe：
     子页加载完 → postMessage {type:'dyn-designer-ready'}

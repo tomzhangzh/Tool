@@ -8,7 +8,7 @@
   · 运行入口：/Platform/Page/DynWebPage?id={Id}（可直接挂到系统菜单）
   · 数据走 /api/platform/dynwebpage/*（all / get / save / delete）+ /api/platform/dyntemplate/all（模板）
 *@
-<div data-dyn-init-createapp class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
+<div dyn-init="createapp" class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
 
     <el-card shadow="never" style="flex:1;display:flex;flex-direction:column;min-height:0;padding:0;">
         <template #header>

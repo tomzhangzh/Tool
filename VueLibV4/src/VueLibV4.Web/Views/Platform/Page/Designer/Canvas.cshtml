@@ -1,6 +1,6 @@
 @* 中间画布：标尺(@@scena/ruler) + DynRender 递归渲染 + overlay 选中浮层 + drop 指示线 + 底部路径 *@
 <main class="flex-1 relative flex flex-col min-h-0 bg-gray-100 overflow-hidden"
-      data-dyn-init-createapp data-dyn-use-scope="designer">
+      dyn-init="createapp" data-dyn-use-scope="designer">
   <!-- 标尺区：左上角 + 水平标尺（手写 canvas 标尺，随 zoom / 画布滚动同步） -->
   <div v-if="model.showRuler" class="flex shrink-0 z-20 bg-gray-100 border-b border-gray-300" style="height:20px;">
     <div class="dyn-ruler-corner shrink-0" style="width:20px;height:20px;background:#f3f4f6;border-right:1px solid #e5e7eb;"></div>

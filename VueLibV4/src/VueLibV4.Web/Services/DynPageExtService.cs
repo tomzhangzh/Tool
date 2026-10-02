@@ -111,7 +111,7 @@ public class DynPageExtService : IDynPageExtService
       this.loadData() 等内部状态与方法；methods/computed 同名时扩展优先（可覆盖）；
       data 浅合并；created/mounted 等生命周期在 Block 自身之后串联执行。
     · cshtml 内 JS 的 @ 必须写 @@。
-    · 不需要 JS 时，按钮也可直接用 data-dyn-click-open/post/... 声明式动作链（纯 HTML）。
+    · 不需要 JS 时，按钮也可直接用 dyn-click="open({...})/postback({...})" 声明式动作管道（纯 HTML）。
   ========================================================================
 *@
 @{
@@ -140,9 +140,9 @@ public class DynPageExtService : IDynPageExtService
     };
     </script>;
 
-    @* ③ 零 JS 的写法：声明式动作链按钮（打开另一个页面弹窗） *@
+    @* ③ 零 JS 的写法：声明式动作管道按钮（打开另一个页面弹窗） *@
     @* Slots["list:toolbar"] = @<button type="button" class="el-button el-button--small"
-           data-dyn-click-open="/Platform/Page/DynWebPage?id=0" data-dyn-click-mode="fragment">打开页面</button>; *@
+           dyn-click='open({"url":"/Platform/Page/DynWebPage?id=0","mode":"fragment"})'>打开页面</button>; *@
 }
 """.Replace("[[CODE]]", code).Replace("[[NAME]]", nameJs);
     }
