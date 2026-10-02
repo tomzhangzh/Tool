@@ -1,0 +1,11 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<el-empty v-bind="comBind" v-on="getComlisteners()"
+          :description="jc.options.comoptions.description || '暂无数据'"
+          :image-size="jc.options.comoptions.imageSize || 100">
+    <template v-if="jc.options.comoptions.buttonText">
+        <el-button type="primary" size="small">{{ jc.options.comoptions.buttonText }}</el-button>
+    </template>
+</el-empty>
+
+@section setupScripts{ DVALUE = null; }

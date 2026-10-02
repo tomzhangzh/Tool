@@ -1,0 +1,20 @@
+@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+
+<el-descriptions v-bind="comBind" v-on="getComlisteners()"
+                 :title="jc.options.comoptions.title || ''"
+                 :column="jc.options.comoptions.column || 2"
+                 :border="jc.options.comoptions.border !== false"
+                 :direction="jc.options.comoptions.direction || 'horizontal'">
+    <el-descriptions-item v-for="(item, idx) in items" :key="idx" :label="item.label">
+        {{ item.value }}
+    </el-descriptions-item>
+</el-descriptions>
+
+@section setupScripts{
+DVALUE = null;
+const items = computed(() => {
+    const raw = jc.options.comoptions.items || [];
+    return raw.map(it => ({ label: it.label || '', value: it.value || '' }));
+});
+Object.assign(comExtra, { items });
+}

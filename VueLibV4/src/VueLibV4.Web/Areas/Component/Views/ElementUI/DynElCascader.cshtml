@@ -1,0 +1,12 @@
+@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+
+<el-cascader v-model="modelinfo" v-bind="comBind" v-on="getComlisteners()"
+             :options="jc.options.comoptions.options || []"
+             :props="jc.options.comoptions.props || { label: 'label', value: 'value', children: 'children' }"
+             :placeholder="jc.options.comoptions.placeholder || '请选择'"
+             :clearable="jc.options.comoptions.clearable !== false"
+             :filterable="jc.options.comoptions.filterable === true"
+             :separator="jc.options.comoptions.separator || ' / '">
+</el-cascader>
+
+@section setupScripts{ DVALUE = null; }
