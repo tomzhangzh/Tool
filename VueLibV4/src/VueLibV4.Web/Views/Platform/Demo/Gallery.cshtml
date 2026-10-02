@@ -1,0 +1,98 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "组件画廊 - VueLibV4";
+}
+<div id="gallery-app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">组件画廊</span>
+        <el-tag size="small" type="success">{{ components.length }} 个组件</el-tag>
+    </div>
+    <div class="main">
+        <div v-for="group in groups" :key="group.name" class="group">
+            <h3>{{ group.name }}（{{ group.items.length }}）</h3>
+            <div class="grid">
+                <div v-for="comp in group.items" :key="comp.componentName" class="card">
+                    <div class="card-head">
+                        <b>{{ comp.label }}</b>
+                        <span class="muted">{{ comp.componentName }}</span>
+                    </div>
+                    <div class="card-body">
+                        <dyn-dynamic-com v-if="comp.config" :jsonconfig="comp.config"></dyn-dynamic-com>
+                    </div>
+                    <div v-if="comp.error" class="err">{{ comp.error }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; margin-right: auto; }
+    .main { padding: 16px; }
+    .group h3 { margin: 16px 0 10px; color: #303133; font-size: 15px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+    .card { background: #fff; border: 1px solid #e4e7ed; border-radius: 8px; padding: 12px; }
+    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed #ebeef5; }
+    .card-head .muted { color: #909399; font-size: 11px; }
+    .card-body { min-height: 40px; }
+    .err { color: #f56c6c; font-size: 12px; margin-top: 8px; }
+</style>
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var app = Vue.createApp({
+                data: function () {
+                    return { components: [] };
+                },
+                computed: {
+                    groups: function () {
+                        var cats = {};
+                        this.components.forEach(function (c) {
+                            var cat = c.category || '其他';
+                            if (!cats[cat]) cats[cat] = [];
+                            cats[cat].push(c);
+                        });
+                        return Object.keys(cats).sort().map(function (k) {
+                            return { name: k, items: cats[k] };
+                        });
+                    }
+                },
+                mounted: function () {
+                    this.load();
+                },
+                methods: {
+                    go: function (url) { window.location.href = url; },
+                    load: function () {
+                        var self = this;
+                        fetch('/api/platform/componentmeta/all')
+                            .then(function (r) { return r.json(); })
+                            .then(function (res) {
+                                var list = (res && res.data) || res || [];
+                                self.components = list
+                                    .filter(function (c) { return c.IsActive !== false; })
+                                    .map(function (c) {
+                                        var cfg = null;
+                                        try {
+                                            cfg = typeof c.DefaultConfigJson === 'string'
+                                                ? JSON.parse(c.DefaultConfigJson) : c.DefaultConfigJson;
+                                        } catch (e) { cfg = null; }
+                                        return {
+                                            componentName: c.ComponentName,
+                                            label: c.Label,
+                                            category: c.Category || '其他',
+                                            config: cfg
+                                        };
+                                    });
+                            });
+                    }
+                }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function(){
+                app.mount('#gallery-app');
+            });
+        });
+    </script>
+}

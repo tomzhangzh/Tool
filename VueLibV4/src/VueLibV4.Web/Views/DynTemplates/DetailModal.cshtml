@@ -55,12 +55,12 @@
     var extSlots = await Html.LoadPageExtAsync(Model);
 }
 <div class="tsb-modal" style="padding:4px 2px;">
-    <div class="tsb-mhead" style="display:flex;align-items:center;gap:8px;padding-bottom:10px;">
+    @* <div class="tsb-mhead" style="display:flex;align-items:center;gap:8px;padding-bottom:10px;">
         <span style="font-size:14px;font-weight:600;color:#303133;">@title</span>
         <span class="el-tag el-tag--small el-tag--info el-tag--plain">@tableName</span>
         @if (!string.IsNullOrEmpty(rowId)) { <span class="el-tag el-tag--small el-tag--warning el-tag--plain">编辑 #@rowId</span> }
         else { <span class="el-tag el-tag--small el-tag--success el-tag--plain">新增</span> }
-    </div>
+    </div> *@
 
     @await Html.PartialAsync("~/Views/DynBlocks/Apps/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
         ["ExtId"] = extIdDetail, ["BlkConfig"] = DynPageViewHelper.SafeJson(detailCfg), ["ExtSlots"] = extSlots

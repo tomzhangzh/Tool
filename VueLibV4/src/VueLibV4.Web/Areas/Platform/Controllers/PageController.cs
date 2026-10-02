@@ -135,6 +135,13 @@ public class PageController : Controller
         return View(string.Format(Demo, "Crud"));
     }
 
+    [HttpGet("/Platform/Page/Demo/Gallery")]
+    public IActionResult DemoGallery()
+    {
+        ViewData["Title"] = "组件画廊 - VueLibV4";
+        return View(string.Format(Demo, "Gallery"));
+    }
+
     [HttpGet("/Platform/Page/Demo/TemplateImport")]
     public IActionResult DemoTemplateImport()
     {
