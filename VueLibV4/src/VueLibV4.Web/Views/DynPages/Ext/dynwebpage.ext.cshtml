@@ -7,13 +7,13 @@
 
     // ① 页面参数卡片：每个分组各自折叠、默认全部展开
     Slots["detail:body-extra"] = @<text>
-    <el-collapse v-if="pp.visible" v-model="pp.active" class="pp-collapse">
+    <el-collapse v-if="pp.visible" v-model="pp.active" class="pp-collapse" style="margin-left:120px;">
         <el-collapse-item v-if="pp.tplCfg" name="base" :title="'基础参数'">
             <dyn-dynamic-com :jsonconfig="pp.tplCfg" :parentmodelinfo="pageParams"></dyn-dynamic-com>
         </el-collapse-item>
         <el-collapse-item v-for="slot in pp.slots" :key="slot.slot" :name="slot.slot"
                           :title="'🧩 ' + slot.slotName">
-            <div class="pp-sec__desc">{{ slot.block.description || '' }}</div>
+            <div style="font-size:10px;color:#c0c4cc;margin:0 0 8px;line-height:1.4;">{{ slot.block.description || '' }}</div>
             <dyn-dynamic-com v-if="slot.block.paramCfg" :jsonconfig="slot.block.paramCfg"
                              :parentmodelinfo="pageParams.blocks[slot.slot]"></dyn-dynamic-com>
         </el-collapse-item>
