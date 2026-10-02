@@ -41,4 +41,15 @@ public class PageGenController : ControllerBase
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少表名");
         return ApiResult.Ok(_pageGen.GetTableFieldMeta(table, project));
     }
+
+    /// <summary>
+    /// 预览（不落库）：复用 Generate 同一套规则，返回筛选/列表/详情三份配置 JSON，
+    /// 前端用 dyn-dynamic-com 真实渲染预览抽屉。
+    /// </summary>
+    [HttpPost("preview")]
+    public ApiResult Preview([FromBody] JObject req)
+    {
+        var r = _pageGen.Preview(req);
+        return ApiResult.Ok(new { filter = r.FilterCfg, list = r.ListCfg, detail = r.DetailCfg });
+    }
 }

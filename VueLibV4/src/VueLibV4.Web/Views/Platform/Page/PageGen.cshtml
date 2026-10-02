@@ -3,133 +3,228 @@
     ViewData["Title"] = "页面生成向导 - VueLibV4";
     var extId = "Ctrl" + Guid.NewGuid().ToString("N");
 }
-<div id="@extId">   
-    <div class="bar">
+<div id="@extId">
+    <div class="pg-topbar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
-        <span class="title">页面生成向导（三屏：筛选区 + 列表区 + 详情区）</span>
+        <span class="pg-title">🧩 页面生成向导</span>
+        <el-tag size="small" type="info">三屏：筛选区 · 列表区 · 详情区</el-tag>
     </div>
 
-    <div class="main">
-        <el-card shadow="never" class="step-card">
-            <template #header><b>1. 选择项目与业务表</b></template>
-            <el-form :inline="true" label-width="80px">
-                <el-form-item label="项目">
-                    <el-select v-model="form.project" placeholder="选择项目（空=默认业务库）" clearable style="width:240px" @@change="loadTables">
-                        <el-option v-for="p in projects" :key="p.Id" :label="p.Name + '（' + p.Code + '）'" :value="p.Code"></el-option>
-                    </el-select>
-                </el-form-item>
-                <el-form-item label="业务表">
-                    <el-select v-model="form.table" placeholder="选择表" style="width:240px" @@change="loadColumns">
-                        <el-option v-for="t in tables" :key="t" :label="t" :value="t"></el-option>
-                    </el-select>
-                </el-form-item>
-            </el-form>
-        </el-card>
+    <div class="pg-body">
+        <!-- 步骤条 -->
+        <el-steps :active="step" align-center class="pg-steps">
+            <el-step title="选择数据表" description="项目与业务表"></el-step>
+            <el-step title="配置字段" description="勾选三屏归属 / 标签 / 控件"></el-step>
+            <el-step title="确认生成" description="页面信息与预览"></el-step>
+        </el-steps>
 
-        <el-card shadow="never" class="step-card" v-loading="loadingCols">
-            <template #header><b>2. 配置字段（勾选三屏归属 / 标签 / 控件 / 查询操作符）</b></template>
-            <el-table :data="fields" border size="small">
-                <el-table-column label="字段" prop="name" width="150"></el-table-column>
-                <el-table-column label="类型" width="100">
-                    <template #default="s"><el-tag size="small" type="info">{{ s.row.dataType }}</el-tag></template>
-                </el-table-column>
-                <el-table-column label="标签" width="140">
-                    <template #default="s"><el-input v-model="s.row.label" size="small"></el-input></template>
-                </el-table-column>
-                <el-table-column label="筛选" width="55" align="center">
-                    <template #default="s"><el-checkbox v-model="s.row.inFilter"></el-checkbox></template>
-                </el-table-column>
-                <el-table-column label="列表" width="55" align="center">
-                    <template #default="s"><el-checkbox v-model="s.row.inList"></el-checkbox></template>
-                </el-table-column>
-                <el-table-column label="详情" width="55" align="center">
-                    <template #default="s"><el-checkbox v-model="s.row.inDetail"></el-checkbox></template>
-                </el-table-column>
-                <el-table-column label="操作符" width="110">
-                    <template #default="s">
-                        <el-select v-model="s.row.op" size="small" :disabled="!s.row.inFilter">
-                            <el-option label="like 包含" value="like"></el-option>
-                            <el-option label="= 等于" value="eq"></el-option>
-                            <el-option label="> 大于" value="gt"></el-option>
-                            <el-option label=">= 大于等于" value="ge"></el-option>
-                            <el-option label="< 小于" value="lt"></el-option>
-                            <el-option label="<= 小于等于" value="le"></el-option>
+        <!-- 第 1 步：选表 -->
+        <div v-show="step === 0" class="pg-pane">
+            <el-card shadow="never" class="pg-hero">
+                <el-form label-position="top" class="pg-hero-form">
+                    <el-form-item label="项目（空 = 默认业务库）">
+                        <el-select v-model="form.project" placeholder="选择项目" clearable filterable style="width:100%" @@change="loadTables">
+                            <el-option v-for="p in projects" :key="p.Id" :label="p.Name + '（' + p.Code + '）'" :value="p.Code"></el-option>
                         </el-select>
-                    </template>
-                </el-table-column>
-                <el-table-column label="控件" width="130">
-                    <template #default="s">
-                        <el-select v-model="s.row.control" size="small">
-                            <el-option label="文本框" value="input"></el-option>
-                            <el-option label="多行文本" value="textarea"></el-option>
-                            <el-option label="数字" value="number"></el-option>
-                            <el-option label="开关" value="switch"></el-option>
-                            <el-option label="日期" value="date"></el-option>
-                            <el-option label="下拉选择" value="select"></el-option>
-                            <el-option label="Emoji图标" value="emoji"></el-option>
-                            <el-option label="JSON设计器" value="json"></el-option>
+                    </el-form-item>
+                    <el-form-item label="业务表" required>
+                        <el-select v-model="form.table" placeholder="选择要生成的表" filterable style="width:100%" @@change="loadColumns">
+                            <el-option v-for="t in tables" :key="t" :label="t" :value="t"></el-option>
                         </el-select>
-                    </template>
-                </el-table-column>
-                <el-table-column label="列表宽度" width="100">
-                    <template #default="s"><el-input-number v-model="s.row.width" :min="60" :max="500" :step="10" size="small" controls-position="right" style="width:90px"></el-input-number></template>
-                </el-table-column>
-                <el-table-column label="可排序" width="70" align="center">
-                    <template #default="s"><el-checkbox v-model="s.row.sortable"></el-checkbox></template>
-                </el-table-column>
-            </el-table>
-        </el-card>
+                    </el-form-item>
+                    <div class="pg-actions">
+                        <el-button type="primary" :disabled="!form.table" @@click="next">下一步：配置字段 →</el-button>
+                    </div>
+                </el-form>
+            </el-card>
+        </div>
 
-        <el-card shadow="never" class="step-card">
-            <template #header><b>3. 页面信息与生成</b></template>
-            <el-form :inline="true" label-width="90px">
-                <el-form-item label="页面编码">
-                    <el-input v-model="form.code" placeholder="如 student" style="width:200px"></el-input>
-                </el-form-item>
-                <el-form-item label="页面名称">
-                    <el-input v-model="form.name" placeholder="如 学生管理" style="width:200px"></el-input>
-                </el-form-item>
-                <el-form-item label="页面形态">
-                    <el-select v-model="form.layout" style="width:260px">
-                        <el-option label="标准：筛选列表 + 编辑弹窗（filterlist-crud）" value=""></el-option>
-                        <el-option label="布局壳：筛选+列表+明细同屏（list-master-detail，额外生成壳页面）" value="list-master-detail"></el-option>
-                    </el-select>
-                </el-form-item>
-                <el-form-item>
-                    <el-checkbox v-model="form.rememberLabels" title="把本次确认的字段显示名记到【本表】字典（不写跨表通用词）；下次为同一张表生成页面时自动预填">
-                        记住字段名到本表字典
-                    </el-checkbox>
-                </el-form-item>
-                <el-form-item>
-                    <el-button type="primary" :loading="generating" @@click="generate">生成三屏页面</el-button>
-                </el-form-item>
-            </el-form>
-        </el-card>
+        <!-- 第 2 步：配字段（左配置 + 抽屉预览） -->
+        <div v-show="step === 1" class="pg-one-col">
+            <el-card shadow="never" class="pg-fields" v-loading="loadingCols">
+                <template #header>
+                    <div class="pg-card-head">
+                        <span>字段配置 <el-tag size="small" type="info">{{ fields.length }} 列</el-tag></span>
+                        <span class="pg-head-right">
+                            <span class="pg-hint">筛选默认只带 Name/Code/Category；布尔列在筛选里用下拉</span>
+                            <el-button size="small" type="primary" plain @@click="loadPreview">👁 预览三屏</el-button>
+                        </span>
+                    </div>
+                </template>
+                <div class="pg-table-wrap">
+                    <el-table :data="fields" size="small" border stripe>
+                        <el-table-column label="字段" width="150">
+                            <template #default="s">
+                                <div class="pg-fname">
+                                    <el-tag size="small" :type="s.row.isPk ? 'danger' : 'info'" effect="plain">{{ s.row.dataType }}</el-tag>
+                                    <span class="pg-fn">{{ s.row.name }}</span>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="中文标签" min-width="130">
+                            <template #default="s"><el-input v-model="s.row.label" size="small"></el-input></template>
+                        </el-table-column>
+                        <el-table-column label="筛选" width="52" align="center">
+                            <template #default="s"><el-checkbox v-model="s.row.inFilter"></el-checkbox></template>
+                        </el-table-column>
+                        <el-table-column label="列表" width="52" align="center">
+                            <template #default="s"><el-checkbox v-model="s.row.inList"></el-checkbox></template>
+                        </el-table-column>
+                        <el-table-column label="详情" width="52" align="center">
+                            <template #default="s"><el-checkbox v-model="s.row.inDetail"></el-checkbox></template>
+                        </el-table-column>
+                        <el-table-column label="查询" width="120">
+                            <template #default="s">
+                                <el-select v-model="s.row.op" size="small" :disabled="!s.row.inFilter">
+                                    <el-option label="包含" value="like"></el-option>
+                                    <el-option label="等于" value="eq"></el-option>
+                                    <el-option label="大于" value="gt"></el-option>
+                                    <el-option label="小于" value="lt"></el-option>
+                                </el-select>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="控件" width="120">
+                            <template #default="s">
+                                <el-select v-model="s.row.control" size="small" :disabled="s.row.isBool">
+                                    <el-option label="文本" value="input"></el-option>
+                                    <el-option label="多行" value="textarea"></el-option>
+                                    <el-option label="数字" value="number"></el-option>
+                                    <el-option label="开关" value="switch"></el-option>
+                                    <el-option label="下拉" value="select"></el-option>
+                                    <el-option label="日期" value="date"></el-option>
+                                    <el-option label="图标" value="emoji"></el-option>
+                                    <el-option label="JSON" value="json"></el-option>
+                                </el-select>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+                <div class="pg-actions between">
+                    <el-button @@click="step = 0">← 上一步</el-button>
+                    <el-button type="primary" @@click="next">下一步：确认 →</el-button>
+                </div>
+            </el-card>
+        </div>
+
+        <!-- 右侧抽屉：真实仿真三屏预览（配置由后端 /pagegen/preview 生成，与最终生成同源） -->
+        <el-drawer v-model="previewVisible" title="三屏预览（后端生成配置，DynCom 真实渲染）" direction="rtl" size="55%">
+            <div v-loading="previewing" class="pg-drawer-body">
+                <div class="pg-layout-opts">
+                    <span class="pg-lo-label">筛选布局</span>
+                    <el-radio-group v-model="filterCols" size="small" @@change="loadPreview">
+                        <el-radio-button :value="3">3 列</el-radio-button>
+                        <el-radio-button :value="4">4 列</el-radio-button>
+                    </el-radio-group>
+                    <span class="pg-lo-label">详情布局</span>
+                    <el-radio-group v-model="detailCols" size="small" @@change="loadPreview">
+                        <el-radio-button :value="1">1 列</el-radio-button>
+                        <el-radio-button :value="2">2 列</el-radio-button>
+                    </el-radio-group>
+                </div>
+                <div class="pg-d-region">
+                    <div class="pg-d-h">🔍 筛选区</div>
+                    <dyn-dynamic-com v-if="previewFilterCfg && previewFilterCfg.component"
+                                     :jsonconfig="previewFilterCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
+                    <el-button size="small" type="primary" style="margin-top:8px">查询</el-button>
+                    <el-button size="small">重置</el-button>
+                </div>
+                <div class="pg-d-region">
+                    <div class="pg-d-h">📋 列表区（列由后端 listCfg 定义）</div>
+                    <el-table :data="mockRows()" size="small" border>
+                        <el-table-column v-for="f in inList()" :key="f.name" :label="f.label" min-width="110">
+                            <template #default="s">{{ s.row[f.name] }}</template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+                <div class="pg-d-region">
+                    <div class="pg-d-h">📝 详情区（弹窗，后端 detailCfg 真实渲染）</div>
+                    <dyn-dynamic-com v-if="previewDetailCfg && previewDetailCfg.component"
+                                     :jsonconfig="previewDetailCfg" :parentmodelinfo="detailModel"></dyn-dynamic-com>
+                </div>
+            </div>
+        </el-drawer>
+
+        <!-- 第 3 步：确认生成 -->
+        <div v-show="step === 2" class="pg-pane">
+            <el-card shadow="never" class="pg-hero">
+                <el-form label-width="100px">
+                    <el-form-item label="页面编码">
+                        <el-input v-model="form.code" placeholder="如 student" style="width:260px"></el-input>
+                    </el-form-item>
+                    <el-form-item label="页面名称">
+                        <el-input v-model="form.name" placeholder="如 学生管理" style="width:260px"></el-input>
+                    </el-form-item>
+                    <el-form-item label="页面形态">
+                        <el-select v-model="form.layout" style="width:320px">
+                            <el-option label="标准：筛选列表 + 编辑弹窗" value=""></el-option>
+                            <el-option label="同屏：筛选+列表+明细（master-detail）" value="list-master-detail"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item label="筛选布局">
+                        <el-radio-group v-model="filterCols">
+                            <el-radio :value="3">每行 3 列</el-radio>
+                            <el-radio :value="4">每行 4 列</el-radio>
+                        </el-radio-group>
+                    </el-form-item>
+                    <el-form-item label="详情布局">
+                        <el-radio-group v-model="detailCols">
+                            <el-radio :value="1">一列</el-radio>
+                            <el-radio :value="2">两列（JSON/长文本自动占满）</el-radio>
+                        </el-radio-group>
+                    </el-form-item>
+                    <el-form-item label="记住字段名">
+                        <el-checkbox v-model="form.rememberLabels">把本次中文标签记到【本表】字典，下次自动预填</el-checkbox>
+                    </el-form-item>
+                </el-form>
+                <div class="pg-actions between">
+                    <el-button @@click="step = 1">← 上一步</el-button>
+                    <el-button type="success" size="large" :loading="generating" @@click="generate">🚀 生成三屏页面</el-button>
+                </div>
+            </el-card>
+        </div>
     </div>
 </div>
 
 <style>
     body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
-    .bar .title { font-weight: 600; }
-    .main { padding: 16px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+    .pg-topbar { display: flex; align-items: center; gap: 10px; padding: 10px 18px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .pg-title { font-weight: 600; font-size: 16px; }
+    .pg-body { padding: 20px; max-width: 1280px; margin: 0 auto; }
+    .pg-steps { margin-bottom: 24px; background: #fff; padding: 20px; border-radius: 8px; }
+    .pg-pane { max-width: 620px; margin: 0 auto; }
+    .pg-hero { border-radius: 8px; }
+    .pg-hero-form { max-width: 420px; }
+    .pg-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .pg-actions.between { justify-content: space-between; margin-top: 16px; }
+    .pg-one-col { max-width: 1100px; margin: 0 auto; }
+    .pg-head-right { display: flex; align-items: center; gap: 12px; }
+    .pg-card-head { display: flex; justify-content: space-between; align-items: center; }
+    .pg-hint { font-size: 12px; color: #909399; font-weight: normal; }
+    .pg-table-wrap { overflow-x: auto; }
+    .pg-fname { display: flex; align-items: center; gap: 6px; }
+    .pg-fn { font-size: 12px; color: #303133; }
+    .pg-drawer-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 18px; }
+    .pg-d-region { border: 1px solid #ebeef5; border-radius: 6px; padding: 12px; }
+    .pg-d-h { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #409eff; }
+    .pg-layout-opts { display: flex; align-items: center; gap: 8px; padding: 4px 2px; }
+    .pg-lo-label { font-size: 12px; color: #606266; }
+    .pg-empty { color: #c0c4cc; font-size: 12px; }
 </style>
 
 @section Scripts {
 <script>
     DynLib.ready(function () {
-        // 字段中文名由后端 DynSchemaLabel 字典统一提供（表字段层 → 通用列名层 → 英文拆词），
-        // 用户在向导里改过的名字在生成时按"记住字段名"勾选回写到本表字典。
+        // 字段中文名由后端 DynSchemaLabel 字典统一提供（表字段层 → 通用列名层 → 英文拆词）
         var DICT_HINTS = { Gender: 'gender', ClassName: 'classname' };
 
         var app = Vue.createApp({
             data: function () {
                 return {
-                    projects: [],
-                    tables: [],
-                    fields: [],
-                    loadingCols: false,
-                    generating: false,
+                    step: 0, previewVisible: false, detailCols: 2, filterCols: 4,
+                    projects: [], tables: [], fields: [],
+                    loadingCols: false, generating: false, previewing: false,
+                    previewFilterCfg: null, previewDetailCfg: null,
+                    filterModel: {}, detailModel: {},
                     form: { project: '', table: '', code: '', name: '', layout: '', rememberLabels: true }
                 };
             },
@@ -138,9 +233,99 @@
                 fetch('/api/platform/dynproject/all', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
                     if (res && res.code === 0) self.projects = res.data || [];
                 });
+                self.loadTables(); // 进来就加载默认业务库的表，不必先选项目
             },
             methods: {
                 go: function (url) { window.location.href = url; },
+                loadPreview: function () {
+                    var self = this;
+                    if (!self.form.table) { layui.layer.msg('请先选择业务表', { icon: 0 }); return; }
+                    self.previewVisible = true;
+                    self.previewing = true;
+                    self.previewFilterCfg = null; self.previewDetailCfg = null;
+                    self.filterModel = {}; self.detailModel = {};
+                    var payload = {
+                        project: self.form.project || '',
+                        table: self.form.table,
+                        pk: 'Id',
+                        filterCols: self.filterCols,
+                        detailCols: self.detailCols,
+                        fields: self.fields.map(function (f) {
+                            return {
+                                name: f.name, label: f.label, control: f.control, op: f.op,
+                                inFilter: f.inFilter, inList: f.inList, inDetail: f.inDetail
+                            };
+                        })
+                    };
+                    fetch('/api/business/pagegen/preview', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (res && res.code === 0 && res.data) {
+                            self.previewFilterCfg = res.data.filter;
+                            self.previewDetailCfg = res.data.detail;
+                        } else {
+                            layui.layer.msg((res && res.msg) || '预览失败', { icon: 2 });
+                        }
+                    }).catch(function (e) {
+                        layui.layer.msg('预览请求失败：' + e.message, { icon: 2 });
+                    }).finally(function () { self.previewing = false; });
+                },
+                next: function () { this.step = Math.min(this.step + 1, 2); },
+                inFilter: function () { return this.fields.filter(function (f) { return f.inFilter; }); },
+                inList: function () { return this.fields.filter(function (f) { return f.inList; }); },
+                inDetail: function () { return this.fields.filter(function (f) { return f.inDetail; }); },
+                mockRows: function () {
+                    // 抽屉列表区的仿真数据：按列类型造两行
+                    var self = this;
+                    var cols = self.inList().map(function (f) { return f.name; });
+                    if (cols.length === 0) return [];
+                    var rows = [];
+                    for (var r = 1; r <= 2; r++) {
+                        var o = {};
+                        cols.forEach(function (c) {
+                            var f = self.fields.find(function (x) { return x.name === c; });
+                            if (!f) { o[c] = ''; return; }
+                            if (f.isBool) o[c] = (r % 2 === 0) ? '是' : '否';
+                            else if (f.control === 'number') o[c] = (r * 100 + 5).toString();
+                            else if (f.control === 'date') o[c] = '2026-10-0' + r;
+                            else o[c] = f.label + ' ' + r;
+                        });
+                        rows.push(o);
+                    }
+                    return rows;
+                },
+                // 把字段按所选控件转成 DynEl 组件配置树，交给 dyn-dynamic-com 真实渲染
+                buildComConfig: function (f) {
+                    var self = this;
+                    var base = function (component, comoptions) {
+                        return {
+                            component: component,
+                            modelname: 'preview.' + f.name,
+                            options: {
+                                comoptions: comoptions || {},
+                                comlisteners: {},
+                                labeloptions: { label: f.label, required: false, show: true },
+                                itemoptions: { style: {}, class: '' }
+                            },
+                            validators: [], childrenctrls: [], slots: {}, extendinfo: {}
+                        };
+                    };
+                    if (f.isBool)
+                        return base('DynElSelect', { placeholder: '全部', clearable: true, optionValues: [
+                            { label: '全部', value: '' }, { label: '是', value: '1' }, { label: '否', value: '0' }
+                        ]});
+                    switch (f.control) {
+                        case 'number': return base('DynElInputNumber', { min: null, max: null, step: 1 });
+                        case 'switch': return base('DynElSwitch', {});
+                        case 'date': return base('DynElDatePicker', { type: 'date', valueFormat: 'YYYY-MM-DD' });
+                        case 'select': return base('DynElSelect', { placeholder: '请选择', optionValues: [
+                            { label: '选项 A', value: 'A' }, { label: '选项 B', value: 'B' }
+                        ]});
+                        case 'textarea': case 'json': return base('DynElInput', { type: 'textarea', rows: 2, placeholder: f.control === 'json' ? 'JSON 编辑器' : '多行文本' });
+                        default: return base('DynElInput', { placeholder: '请输入' + f.label, clearable: true });
+                    }
+                },
                 loadTables: function () {
                     var self = this;
                     self.tables = []; self.form.table = ''; self.fields = [];
@@ -160,12 +345,9 @@
                 },
                 loadColumns: function () {
                     var self = this;
-                    self.fields = [];
-                    self.loadingCols = true;
+                    self.fields = []; self.loadingCols = true;
                     if (!self.form.code) self.form.code = (self.form.table || '').toLowerCase();
                     if (!self.form.name) self.form.name = self.form.table + '管理';
-                    // 字段元数据 + 推荐控件由后端 PageGenService 统一推断（GetTableFieldMeta），
-                    // 保证第二步预填的控件/屏归属与最终生成完全一致；用户可手动修改覆盖。
                     var url = '/api/business/pagegen/fields?table=' + encodeURIComponent(self.form.table)
                         + (self.form.project ? '&project=' + encodeURIComponent(self.form.project) : '');
                     fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
@@ -175,20 +357,20 @@
                                 var name = m.FieldName || '';
                                 var isPk = m.IsPrimaryKey === true;
                                 var dt = (m.DbType || '').toUpperCase();
+                                var isBool = /^(Is|Has|Enable|Active)/i.test(name);
+                                // 精简筛选默认列：只 Name/Code/Title/Category 进筛选区，其他用户自己勾
+                                var defaultFilter = /^(Name|Code|Title|Category)$/i.test(name);
                                 return {
-                                    name: name,
-                                    dataType: dt,
-                                    isPk: isPk,
+                                    name: name, dataType: dt, isPk: isPk, isBool: isBool,
                                     label: m.Label || name,
-                                    inFilter: m.InFilter === true,
+                                    inFilter: defaultFilter,
                                     inList: m.InList !== false,
                                     inDetail: m.InDetail !== false,
                                     op: (dt && /TEXT|CHAR|CLOB/.test(dt) && m.Control !== 'number') ? 'like' : 'eq',
-                                    control: m.Control || self.inferControl(name, dt),
-                                    suggestComponent: m.SuggestComponent || '',
-                                    width: null,
-                                    sortable: /INT|DECIMAL|NUMERIC|REAL|DOUBLE|FLOAT/.test(dt),
-                                    dictType: DICT_HINTS[name] || null
+                                    control: isBool ? 'switch' : (m.Control || self.inferControl(name, dt)),
+                                    width: null, sortable: /INT|DECIMAL|NUMERIC|REAL|DOUBLE|FLOAT/.test(dt),
+                                    dictType: DICT_HINTS[name] || null,
+                                    _filterVal: ''
                                 };
                             });
                         }
@@ -205,10 +387,9 @@
                         project: self.form.project || null,
                         rememberLabels: self.form.rememberLabels !== false,
                         layout: self.form.layout || '',
-                        table: self.form.table,
-                        pk: pkField,
-                        code: self.form.code,
-                        name: self.form.name,
+                        table: self.form.table, pk: pkField,
+                        code: self.form.code, name: self.form.name,
+                        filterCols: self.filterCols, detailCols: self.detailCols,
                         fields: chosen.map(function (f) {
                             return {
                                 name: f.name, label: f.label, dataType: f.dataType,
@@ -236,10 +417,9 @@
             }
         });
         DynCom.setupApp(app);
-        DynCom.ensureRegistered(app).then(function () { 
-            const container = document.querySelector('#@extId');            
-            app.mount(container);
-         });
+        DynCom.ensureRegistered(app).then(function () {
+            app.mount(document.querySelector('#@extId'));
+        });
     });
 </script>
 }

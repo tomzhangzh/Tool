@@ -52,6 +52,12 @@ public interface IPageGenService : IScopeDependency
     /// 与 Generate 共用 BuildColumns 推断逻辑，保证「第二步预览」与「最终生成」控件推断一致。
     /// </summary>
     List<GenFieldMeta> GetTableFieldMeta(string table, string? project = null);
+
+    /// <summary>
+    /// 只构造、不落库：复用与 Generate 完全相同的规则，返回三屏配置 JSON（筛选/列表/详情），
+    /// 供向导【预览抽屉】用 dyn-dynamic-com 真实渲染（下拉数据源、字典、外键、中文 label 与最终生成一致）。
+    /// </summary>
+    (JObject FilterCfg, JObject ListCfg, JObject DetailCfg) Preview(JObject req);
 }
 
 /// <summary>页面生成成功后的返回数据（Controller 转为 ApiResult.Ok 返回前端）</summary>
@@ -161,6 +167,9 @@ public class PageGenService : IPageGenService
         // 渲染方式：Front=全 DynCom；Back=列表走后端 Razor 局部视图（筛选/详情仍走 DynCom，最灵活）
         var renderMode = (req["renderMode"]?.ToString() ?? "Front").Trim();
         if (renderMode != "Back") renderMode = "Front";
+        // 布局列数：筛选区每行 3/4 列（默认4）；详情区 1/2 列（默认2）
+        int filterCols = req["filterCols"]?.Type == JTokenType.Integer ? (int)req["filterCols"]! : 4;
+        int detailCols = req["detailCols"]?.Type == JTokenType.Integer ? (int)req["detailCols"]! : 2;
         if (string.IsNullOrWhiteSpace(table)) return (false, "缺少表名", null);
         if (string.IsNullOrWhiteSpace(code)) return (false, "缺少页面编码", null);
         if (string.IsNullOrWhiteSpace(name)) name = code;
@@ -243,11 +252,11 @@ public class PageGenService : IPageGenService
         }
 
         // ---------- 生成三屏（ConfigJson=UI 渲染树 / DefaultJson=model 骨架） ----------
-        var filterCfg = BuildFilterCfg(fields, projectId);
+        var filterCfg = BuildFilterCfg(fields, projectId, filterCols);
         var filterDefault = BuildFilterDefaultJson(fields);
         var listCfg = BuildListCfg(fields);
         var listDefault = BuildListDefaultJson();
-        var detailCfg = BuildDetailCfg(pk, fields, projectId);
+        var detailCfg = BuildDetailCfg(pk, fields, projectId, detailCols);
         var detailDefault = BuildDetailDefaultJson(pk, fields);
 
         // ---------- 落库三屏（幂等：同 code 更新） ----------
@@ -437,6 +446,77 @@ public class PageGenService : IPageGenService
             InList = c.InList,
             InDetail = c.InDetail
         }).ToList();
+    }
+
+    /// <summary>
+    /// 预览构造（不落库、不回写 label）：与 Generate 走同一套 BuildColumns / ApplySchemaLabels /
+    /// fieldOverrides / BuildFilterCfg / BuildListCfg / BuildDetailCfg，保证预览即最终生成的样子。
+    /// </summary>
+    public (JObject FilterCfg, JObject ListCfg, JObject DetailCfg) Preview(JObject req)
+    {
+        var project = req["project"]?.ToString();
+        var table = (req["table"]?.ToString() ?? "").Trim();
+        var pk = (req["pk"]?.ToString() ?? "Id").Trim();
+
+        var dictTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (req["dictTypes"] is JObject dts)
+            foreach (var kv in dts) dictTypes[kv.Key.Trim()] = kv.Value?.ToString() ?? "";
+
+        var empty = new JObject();
+        if (string.IsNullOrWhiteSpace(table)) return (empty, empty, empty);
+        var schema = ReadTableSchema(table);
+        if (schema.Count == 0) return (empty, empty, empty);
+
+        var columns = BuildColumns(schema, dictTypes);
+        ApplySchemaLabels(columns, table, project);
+
+        var fieldNames = new List<string>();
+        var fieldOverrides = new Dictionary<string, JObject>(StringComparer.OrdinalIgnoreCase);
+        if (req["fields"] is JArray fa)
+        {
+            foreach (var t in fa)
+            {
+                if (t is JObject jo)
+                {
+                    var n = (jo["name"]?.ToString() ?? "").Trim();
+                    if (n.Length > 0) { fieldNames.Add(n); fieldOverrides[n] = jo; }
+                }
+                else
+                {
+                    var s = t?.ToString()?.Trim() ?? "";
+                    if (s.Length > 0) fieldNames.Add(s);
+                }
+            }
+        }
+        var fields = columns.Where(c => fieldNames.Count == 0 || fieldNames.Contains(c.Name)).ToList();
+        if (fieldOverrides.Count > 0)
+        {
+            foreach (var f in fields)
+            {
+                if (!fieldOverrides.TryGetValue(f.Name, out var ov)) continue;
+                var ctrl = ov["control"]?.ToString(); if (!string.IsNullOrWhiteSpace(ctrl)) f.Control = ctrl;
+                var lbl = ov["label"]?.ToString();     if (!string.IsNullOrWhiteSpace(lbl)) f.Label = lbl;
+                var op = ov["op"]?.ToString();         if (!string.IsNullOrWhiteSpace(op)) f.Op = op;
+                if (ov["inFilter"]?.Type == JTokenType.Boolean) f.InFilter = (bool)ov["inFilter"]!;
+                if (ov["inList"]?.Type == JTokenType.Boolean) f.InList = (bool)ov["inList"]!;
+                if (ov["inDetail"]?.Type == JTokenType.Boolean) f.InDetail = (bool)ov["inDetail"]!;
+            }
+        }
+
+        int? projectId = ResolveProjectId(project);
+        if (projectId == null)
+        {
+            try { projectId = _projects.Query(x => x.Code == "Platform").First()?.Id; } catch { }
+            if (projectId == null) { try { projectId = _projects.Query(x => true).First()?.Id; } catch { } }
+        }
+
+        int filterCols = req["filterCols"]?.Type == JTokenType.Integer ? (int)req["filterCols"]! : 4;
+        int detailCols = req["detailCols"]?.Type == JTokenType.Integer ? (int)req["detailCols"]! : 2;
+
+        var filterCfg = BuildFilterCfg(fields, projectId, filterCols);
+        var listCfg = BuildListCfg(fields);
+        var detailCfg = BuildDetailCfg(pk, fields, projectId, detailCols);
+        return (filterCfg, listCfg, detailCfg);
     }
 
     // ======================================================================
@@ -733,9 +813,11 @@ public class PageGenService : IPageGenService
     /// <summary>
     /// 生成筛选区(Filter)组件树。
     /// 规则：只生成条件输入控件，不内置「查询/重置」按钮（按钮统一放外层 List 页面，职责分离）。
+    /// filterCols：每行几列（3 或 4，默认 4），控制网格列数。
     /// </summary>
-    private static JObject BuildFilterCfg(List<GenColumn> fields, int? projectId)
+    private static JObject BuildFilterCfg(List<GenColumn> fields, int? projectId, int filterCols = 4)
     {
+        if (filterCols != 3 && filterCols != 4) filterCols = 4;
         var children = new JArray();
         foreach (var f in fields.Where(x => x.InFilter)) children.Add(FieldNode(f, true, projectId));
 
@@ -744,7 +826,7 @@ public class PageGenService : IPageGenService
             ["direction"] = "vertical", ["size"] = "small"
         });
         root["options"]!["labeloptions"] = new JObject { ["required"] = false, ["show"] = false, ["labelposition"] = "right", ["labelwidth"] = "120px" };
-        root["options"]!["itemoptions"]!["class"] = "grid grid-cols-4 gap-x-3 gap-y-2 items-center";
+        root["options"]!["itemoptions"]!["class"] = $"grid grid-cols-{filterCols} gap-x-3 gap-y-2 items-center";
         root["options"]!["comInnerInfo"] = new JObject { ["labelWidth"] = "100px" };
         root["childrenctrls"] = children;
         return root;
@@ -802,12 +884,11 @@ public class PageGenService : IPageGenService
     ///  - 数据库 NOT NULL 且无默认值 → 自动追加 required 校验。
     ///  - 审计字段（CreateTime/UpdateTime）已在分类阶段排除，不进详情区。
     /// </summary>
-    private static JObject BuildDetailCfg(string pk, List<GenColumn> fields, int? projectId)
+    private static JObject BuildDetailCfg(string pk, List<GenColumn> fields, int? projectId, int detailCols = 2)
     {
+        if (detailCols != 1 && detailCols != 2) detailCols = 2;
         var children = new JArray();
         var detailFields = fields.Where(x => x.InDetail).ToList();
-        // 字段数量 >10 判定为「多字段」场景（两列布局 + 长内容跨列）
-        var many = detailFields.Count > 10;
 
         // 主键隐藏域（新增空→insert；编辑有值→update）
         var hidden = BaseNode("DynElInput", pk, new JObject { ["placeholder"] = "" }, "", false);
@@ -817,8 +898,8 @@ public class PageGenService : IPageGenService
         foreach (var f in detailFields)
         {
             var node = FieldNode(f, false, projectId);
-            // 长文本 / JSON 内容较宽，默认占满两列
-            if (f.Control is "textarea" or "json")
+            // 长文本 / JSON 内容较宽：两列布局时占满两列；一列布局时本身就占满，无需跨列
+            if (detailCols == 2 && f.Control is "textarea" or "json")
                 node["options"]!["itemoptions"]!["class"] = "col-span-2";
             // 数据库 NOT NULL 且无默认值 → 必填校验
             if (f.NotNull && !f.HasDefault)
@@ -831,7 +912,7 @@ public class PageGenService : IPageGenService
 
         var root = BaseNode("DynGridContainer", "", new JObject { ["direction"] = "vertical", ["size"] = "small" });
         root["options"]!["labeloptions"] = new JObject { ["required"] = false, ["show"] = false, ["labelposition"] = "right", ["labelwidth"] = "120px" };
-        root["options"]!["itemoptions"]!["class"] = "grid grid-cols-2 gap-x-3 gap-y-2 items-start";
+        root["options"]!["itemoptions"]!["class"] = $"grid grid-cols-{detailCols} gap-x-3 gap-y-2 items-start";
         root["options"]!["comInnerInfo"] = new JObject { ["labelWidth"] = "110px" };
         root["childrenctrls"] = children;
         return root;
