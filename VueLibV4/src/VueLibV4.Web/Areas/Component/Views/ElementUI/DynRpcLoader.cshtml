@@ -121,10 +121,11 @@ function loadWithDelay() {
 
 onMounted(() => {
     if (rpcAutoLoad.value) loadWithDelay();
-    // 暴露给其他组件通过事件调用
-    if (window.DynBus) {
-        window.DynBus.on('rpc:' + (jc.options.modelname || jc.id), loadWithDelay);
-    }
+});
+
+// 卸载后取消待发请求定时器（window.DynBus 事件总线在本仓不存在，原订阅为死代码，已移除）
+onBeforeUnmount(() => {
+    if (_timer) { clearTimeout(_timer); _timer = null; }
 });
 
 Object.assign(comExtra, { doLoad, loadWithDelay, lastResult, lastError, showDebug });

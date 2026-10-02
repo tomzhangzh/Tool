@@ -63,8 +63,13 @@
                 }).catch(function(){});
             } catch(e){}
         }
+        // 链式接管：保留页面上已有的 onerror（如调试脚本/第三方库），不能直接覆盖
+        var _prevOnError = window.onerror;
         window.onerror = function (msg, src, line, col, err) {
             report({ message: String(msg), filename: src, lineno: line, colno: col, stack: err && err.stack });
+            if (typeof _prevOnError === 'function') {
+                return _prevOnError.apply(window, arguments);
+            }
         };
         window.addEventListener('unhandledrejection', function (e) {
             report({ message: 'UnhandledPromiseRejection: ' + (e.reason && e.reason.message || e.reason), stack: e.reason && e.reason.stack });

@@ -31,6 +31,10 @@ async function doLoad() {
         if (qs) url += (url.includes('?') ? '&' : '?') + qs;
 
         // 走框架自己的 dyn.mount：fetch HTML → 注入 → 递归挂载成 Vue app
+        // 已挂载时 dyn.mount 会直接短路返回旧 app，必须先卸载才能真正按新 url 重新加载
+        if (window.dyn && dyn.unmount && boxRef.value.__dynApp) {
+            dyn.unmount(boxRef.value);
+        }
         boxRef.value.setAttribute('data-dyn-url', url);
         boxRef.value.__dynLoaded = false;
         if (window.dyn && dyn.mount) {
@@ -45,8 +49,17 @@ async function doLoad() {
 
 onMounted(() => {
     doLoad();
-    if (boxRefreshModel.value && parentModel.value) {
-        watch(() => getByPath(parentModel.value, boxRefreshModel.value), () => doLoad());
+});
+// refreshOnModelChange：在 setup 顶层注册（父模型常为异步加载，onMounted 时可能尚不存在）
+if (boxRefreshModel.value) {
+    watch(() => {
+        const m = parentModel.value;
+        return m ? getByPath(m, boxRefreshModel.value) : undefined;
+    }, () => doLoad());
+}
+onBeforeUnmount(() => {
+    if (boxRef.value && window.dyn && dyn.unmount) {
+        try { dyn.unmount(boxRef.value); } catch (e) { }
     }
 });
 

@@ -30,19 +30,22 @@ public class ExceptionLoggingMiddleware
         }
         catch (Exception ex)
         {
-            await LogAsync(ctx, ex);
+            LogInBackground(ex, ctx);
             throw; // 继续抛给框架处理（返回 500）
         }
     }
 
-    private async Task LogAsync(HttpContext ctx, Exception ex)
+    private void LogInBackground(Exception ex, HttpContext ctx)
     {
         try
         {
+            // 所有 HttpContext 相关读取必须在请求线程上提前拷贝：
+            // Task.Run 写库时响应可能已结束，再碰 ctx.User/Request 会得到 ObjectDisposed/不一致状态
             var traceId = Activity.Current?.TraceId.ToString()?.Substring(0, 16) ?? "";
             var path = ctx.Request.Path.Value ?? "";
             var method = ctx.Request.Method;
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "";
+            var userName = ctx.User?.Identity?.Name ?? "";
             var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
             // 异步写库，不 await
@@ -61,10 +64,12 @@ public class ExceptionLoggingMiddleware
                     cmd.CommandText = @"INSERT INTO SysLog (LogLevel,Category,Message,Exception,TraceId,UserName,Path,Method,Ip,CreateTime)
                                         VALUES ('Error',@cat,@msg,@ex,@tid,@un,@path,@m,@ip,@t)";
                     cmd.Parameters.AddWithValue("@cat", "Global");
-                    cmd.Parameters.AddWithValue("@msg", (ex.Message ?? "").Substring(0, Math.Min(2000, ex.Message?.Length ?? 0)));
-                    cmd.Parameters.AddWithValue("@ex", ex.ToString().Substring(0, Math.Min(4000, ex.ToString().Length)));
+                    var exMsg = ex.Message ?? "";
+                    cmd.Parameters.AddWithValue("@msg", exMsg.Substring(0, Math.Min(2000, exMsg.Length)));
+                    var exText = ex.ToString() ?? "";
+                    cmd.Parameters.AddWithValue("@ex", exText.Substring(0, Math.Min(4000, exText.Length)));
                     cmd.Parameters.AddWithValue("@tid", traceId);
-                    cmd.Parameters.AddWithValue("@un", ctx.User?.Identity?.Name ?? "");
+                    cmd.Parameters.AddWithValue("@un", userName);
                     cmd.Parameters.AddWithValue("@path", path);
                     cmd.Parameters.AddWithValue("@m", method);
                     cmd.Parameters.AddWithValue("@ip", ip);

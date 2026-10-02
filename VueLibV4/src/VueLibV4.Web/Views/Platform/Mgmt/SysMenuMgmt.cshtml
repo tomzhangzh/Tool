@@ -280,29 +280,51 @@
             saveOrder: function (evt) {
                 var self = this;
                 if (!evt) return;
-                // 收集拖拽后同层所有节点的新排序号
+                // 一个层容器对应的父菜单 Id：.el-tree-node__children → 其父 .el-tree-node 的 data-key；根容器 → null
+                function parentIdOf(listEl) {
+                    if (!listEl || !listEl.classList) return null;
+                    if (!listEl.classList.contains('el-tree-node__children')) return null;
+                    var parentNode = listEl.parentElement;
+                    var keyEl = parentNode && parentNode.querySelector(':scope > .el-tree-node__content [data-key]');
+                    var k = keyEl ? keyEl.getAttribute('data-key') : '';
+                    return k ? Number(k) : null;
+                }
+                // 收集拖拽后同层所有节点的新排序号与所属父 Id
                 function collect(listEl) {
+                    var parentId = parentIdOf(listEl);
                     var nodes = listEl.querySelectorAll(':scope > .el-tree-node');
                     var out = [];
                     for (var i = 0; i < nodes.length; i++) {
                         var keyEl = nodes[i].querySelector(':scope > .el-tree-node__content [data-key]')
                                  || nodes[i].querySelector('[data-key]');
                         var key = keyEl ? keyEl.getAttribute('data-key') : '';
-                        if (key) out.push({ Id: Number(key), SortNo: (i + 1) * 100 });
+                        if (key) out.push({ Id: Number(key), SortNo: (i + 1) * 100, ParentId: parentId });
                     }
                     return out;
                 }
-                var updates = collect(evt.from);
-                if (evt.to && evt.to !== evt.from) updates = updates.concat(collect(evt.to));
+                // 防环：被拖节点不能放进自己的子孙层（沿目标容器向上的所有父 Id 都不能是它自己）
+                var dragKeyEl = evt.item && evt.item.querySelector(':scope > .el-tree-node__content [data-key]');
+                var dragId = dragKeyEl ? Number(dragKeyEl.getAttribute('data-key')) : 0;
+                if (dragId && evt.to && evt.to.classList && evt.to.classList.contains('el-tree-node__children')) {
+                    var ancestor = evt.to.parentElement;
+                    while (ancestor && ancestor.classList && ancestor.classList.contains('el-tree-node')) {
+                        var aKeyEl = ancestor.querySelector(':scope > .el-tree-node__content [data-key]');
+                        if (aKeyEl && Number(aKeyEl.getAttribute('data-key')) === dragId) {
+                            dyn.showMessage('不能把菜单拖到自己的子级中', 'warning');
+                            this.loadTree();
+                            return;
+                        }
+                        ancestor = ancestor.parentElement ? ancestor.parentElement.closest('.el-tree-node') : null;
+                    }
+                }
+                var merged = {};
+                collect(evt.from).forEach(function (u) { merged[u.Id] = u; });
+                // 目标层数据后合并：跨父拖拽时被拖节点只存在于 evt.to，其 ParentId 以目标层为准
+                if (evt.to && evt.to !== evt.from) collect(evt.to).forEach(function (u) { merged[u.Id] = u; });
+                var updates = Object.keys(merged).map(function (k) { return merged[k]; });
                 if (!updates.length) { this.loadTree(); return; }
-                // 去重（同一节点可能在两个 list 里出现）
-                var seen = {};
-                var ops = updates.filter(function (u) {
-                    if (seen[u.Id]) return false;
-                    seen[u.Id] = true;
-                    return true;
-                }).map(function (u) {
-                    return { op: 'update', data: { Id: u.Id, SortNo: u.SortNo } };
+                var ops = updates.map(function (u) {
+                    return { op: 'update', data: { Id: u.Id, SortNo: u.SortNo, ParentId: u.ParentId } };
                 });
                 // 调用批量接口，事务提交
                 fetch('/api/dyndata/batch', {

@@ -27,13 +27,18 @@ const valueField = computed(() => jc.options.comoptions.valueField || 'Id');
 const mappings = computed(() => jc.options.comoptions.mappings || {});
 
 const LK_PREFIX = String.fromCharCode(123, 123) + 'model.';
-const LK_SUFFIX = String.fromCharCode(125, 125);
+const LK_SUFFIX = String.fromCharCode(123, 125);
+// 每实例一次打开的令牌与来源 origin：postMessage 必须同时匹配，防止多实例串写/同文档伪造
+let lkToken = '';
+let lkOrigin = '';
 async function openDialog() {
     if (!lookupUrl.value) {
         console.warn('[Lookup] 未配置 url');
         return;
     }
     dialogVisible.value = true;
+    lkToken = 'lk-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    try { lkOrigin = new URL(lookupUrl.value, window.location.href).origin; } catch (e) { lkOrigin = window.location.origin; }
     await nextTick();
     if (!dialogBody.value) return;
     let url = lookupUrl.value;
@@ -47,6 +52,8 @@ async function openDialog() {
         }
         params[k] = v;
     });
+    // 约定：远程选择页通过该 query 取令牌，postMessage 回填时原样带回 { type:'dyn-lookup-return', token, data }
+    params.__lkToken = lkToken;
     const qs = new URLSearchParams(params).toString();
     if (qs) url += (url.includes('?') ? '&' : '?') + qs;
     dialogBody.value.setAttribute('data-dyn-url', url);
@@ -63,21 +70,30 @@ function pickRow(row) {
     if (modelinfo.value !== undefined) modelinfo.value = row[valueField.value];
     Object.keys(mappings.value).forEach(srcField => {
         const targetPath = mappings.value[srcField];
-        if (row[srcField] !== undefined && props.parentmodelinfo && window._ && _.set) {
-            _.set(props.parentmodelinfo, targetPath, row[srcField]);
+        if (row[srcField] !== undefined && targetPath) {
+            setByPath(parentModel.value, targetPath, row[srcField]);
         }
     });
     displayText.value = row.Name || row.title || row[valueField.value] || '';
     dialogVisible.value = false;
 }
 
-window.addEventListener('message', onMessage);
 function onMessage(ev) {
     if (!ev.data || ev.data.type !== 'dyn-lookup-return') return;
+    if (!lkToken || ev.data.token !== lkToken) return;
+    if (ev.origin !== lkOrigin) return;
     pickRow(ev.data.data || {});
 }
+window.addEventListener('message', onMessage);
 
 onMounted(() => { if (modelinfo.value) displayText.value = modelinfo.value; });
+onBeforeUnmount(() => {
+    window.removeEventListener('message', onMessage);
+    lkToken = '';
+    if (dialogBody.value && window.dyn && dyn.unmount) {
+        try { dyn.unmount(dialogBody.value); } catch (e) { }
+    }
+});
 
 Object.assign(comExtra, { dialogVisible, displayText, dialogBody, openDialog });
 }

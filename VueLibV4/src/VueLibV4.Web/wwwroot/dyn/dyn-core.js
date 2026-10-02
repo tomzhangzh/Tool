@@ -13,6 +13,8 @@ if(!Vue){ console.error("[DynCore] 请先引入Vue3 UMD"); return; }
 try {
   if (Vue.config && !Vue.config.__dynErrorHooked) {
     Vue.config.__dynErrorHooked = true;
+    // 链式接管：保留宿主页面/其他库设置的 errorHandler，不能直接覆盖
+    const __prevErrorHandler = Vue.config.errorHandler;
     Vue.config.errorHandler = function (err, instance, info) {
       console.error('[Vue error]', err, info);
       try {
@@ -23,6 +25,9 @@ try {
           body: JSON.stringify({ message: msg, stack: err && err.stack || '', url: location.href })
         }).catch(function(){});
       } catch(e){}
+      if (typeof __prevErrorHandler === 'function') {
+        try { __prevErrorHandler.call(this, err, instance, info); } catch (e) {}
+      }
     };
   }
 } catch(e) { console.warn('[DynCore] Vue errorHandler 挂载跳过:', e); }

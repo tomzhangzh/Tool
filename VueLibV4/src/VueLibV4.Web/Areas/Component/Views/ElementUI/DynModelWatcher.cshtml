@@ -83,5 +83,10 @@ onMounted(() => {
     }
 });
 
+// 组件卸载后待触发的防抖定时器必须取消，否则会对已销毁实例执行动作
+onBeforeUnmount(() => {
+    if (_timer) { clearTimeout(_timer); _timer = null; }
+});
+
 Object.assign(comExtra, { doTrigger, triggerCount, lastValue, showDebug });
 }

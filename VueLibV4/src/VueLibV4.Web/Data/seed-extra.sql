@@ -185,3 +185,72 @@ INSERT OR IGNORE INTO DynSchemaLabel (ProjectId, TableName, ColumnName, Label) V
  (0,'','ActionType','动作类型'),
  (0,'','Script','脚本内容'),
  (0,'','Language','脚本语言');
+
+-- ============ 2025-10-02 新增组件：live 库手工注册回流（幂等补齐，旧库增量） ============
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElBadge','徽章','基础','ElementUI','/api/component/define/DynElBadge','/Areas/Component/Views/ElementUI/DynElBadge.cshtml','📊',0,'[]','[]','[]','[]','{"component": "DynElBadge", "modelname": "", "options": {"comoptions": {"type": "danger", "max": 99, "isDot": false, "defaultValue": 5, "buttonText": "消息通知"}, "comlisteners": {}, "labeloptions": {"label": "", "required": false, "show": false}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElBadge');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElCascader','级联选择','表单','ElementUI','/api/component/define/DynElCascader','/Areas/Component/Views/ElementUI/DynElCascader.cshtml','📦',0,'[]','[]','[]','[]','{"component": "DynElCascader", "modelname": "", "options": {"comoptions": {"placeholder": "请选择地区", "clearable": true, "options": [{"value": "sh", "label": "上海", "children": [{"value": "pd", "label": "浦东新区"}, {"value": "hp", "label": "静安区"}]}, {"value": "bj", "label": "北京", "children": [{"value": "hd", "label": "海淀区"}, {"value": "cy", "label": "朝阳区"}]}]}, "comlisteners": {}, "labeloptions": {"label": "地区", "required": false, "show": true, "labelwidth": "80px"}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElCascader');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElDescriptions','描述列表','数据','ElementUI','/api/component/define/DynElDescriptions','/Areas/Component/Views/ElementUI/DynElDescriptions.cshtml','📦',0,'[]','[]','[]','[]','{"component": "DynElDescriptions", "modelname": "", "options": {"comoptions": {"title": "详细信息", "column": 2, "border": true, "items": [{"label": "姓名", "value": "张三"}, {"label": "部门", "value": "技术部"}, {"label": "职位", "value": "工程师"}, {"label": "入职日期", "value": "2024-01-01"}]}, "comlisteners": {}, "labeloptions": {"label": "", "required": false, "show": false}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElDescriptions');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElEmpty','空状态','基础','ElementUI','/api/component/define/DynElEmpty','/Areas/Component/Views/ElementUI/DynElEmpty.cshtml','📦',0,'[]','[]','[]','[]','{"component": "DynElEmpty", "modelname": "", "options": {"comoptions": {"description": "暂无数据", "imageSize": 80}, "comlisteners": {}, "labeloptions": {"label": "", "required": false, "show": false}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElEmpty');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElPopover','气泡提示','基础','ElementUI','/api/component/define/DynElPopover','/Areas/Component/Views/ElementUI/DynElPopover.cshtml','📦',0,'[]','[]','[]','[]','{"component": "DynElPopover", "modelname": "", "options": {"comoptions": {"title": "帮助", "content": "这是一段帮助说明文字", "triggerText": "查看说明"}, "comlisteners": {}, "labeloptions": {"label": "", "required": false, "show": false}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElPopover');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElStatistic','统计数字','数据','ElementUI','/api/component/define/DynElStatistic','/Areas/Component/Views/ElementUI/DynElStatistic.cshtml','📊',0,'[]','[]','[]','[]','{"component": "DynElStatistic", "modelname": "", "options": {"comoptions": {"title": "今日订单", "defaultValue": 128, "precision": 0, "prefix": "", "suffix": "单", "subTitle": "环比昨日 +12%", "icon": "📦", "iconColor": "#409eff"}, "comlisteners": {}, "labeloptions": {"label": "", "required": false, "show": false}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElStatistic');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElTimeline','时间线','数据','ElementUI','/api/component/define/DynElTimeline','/Areas/Component/Views/ElementUI/DynElTimeline.cshtml','📊',0,'[]','[]','[]','[]','{"component": "DynElTimeline", "modelname": "", "options": {"comoptions": {"items": [{"time": "2024-01-01 10:00", "content": "提交申请", "type": "primary"}, {"time": "2024-01-01 11:30", "content": "部门经理审批通过", "type": "success"}, {"time": "2024-01-02 09:00", "content": "财务审核中", "type": "warning"}]}, "comlisteners": {}, "labeloptions": {"label": "审批记录", "required": false, "show": true, "labelwidth": "80px"}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElTimeline');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElTransfer','穿梭框','表单','ElementUI','/api/component/define/DynElTransfer','/Areas/Component/Views/ElementUI/DynElTransfer.cshtml','📊',0,'[]','[]','[]','[]','{"component": "DynElTransfer", "modelname": "selectedIds", "options": {"comoptions": {"titles": ["待选角色", "已选角色"], "filterable": true, "props": {"key": "key", "label": "label"}, "sourceType": "static", "optionValues": [{"key": 1, "label": "管理员"}, {"key": 2, "label": "开发"}, {"key": 3, "label": "测试"}, {"key": 4, "label": "访客"}]}, "comlisteners": {}, "labeloptions": {"label": "分配角色", "required": false, "show": true, "labelwidth": "100px"}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElTransfer');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElUpload','文件上传','表单','ElementUI','/api/component/define/DynElUpload','/Areas/Component/Views/ElementUI/DynElUpload.cshtml','📎',0,'[]','[]','[]','[]','{"component": "DynElUpload", "modelname": "", "options": {"comoptions": {"uploadType": "file", "buttonText": "点击上传", "accept": "", "limit": 1}, "comlisteners": {}, "labeloptions": {"label": "文件上传", "required": false, "show": true, "labelwidth": "80px"}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElUpload');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynHtmlBox','HTML嵌入','容器','ElementUI','/api/component/define/DynHtmlBox','/Areas/Component/Views/ElementUI/DynHtmlBox.cshtml','🌐',0,'[]','[]','[]','[]','{"component": "DynHtmlBox", "modelname": "", "options": {"comoptions": {"url": "", "params": {}, "refreshOnModelChange": "", "minHeight": "100px"}, "comlisteners": {}, "labeloptions": {"label": "HTML嵌入", "required": false, "show": true, "labelwidth": "80px"}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynHtmlBox');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynLookup','弹窗选择器','表单','ElementUI','/api/component/define/DynLookup','/Areas/Component/Views/ElementUI/DynLookup.cshtml','🔍',0,'[]','[]','[]','[]','{"component": "DynLookup", "modelname": "customerId", "options": {"comoptions": {"url": "/Platform/Page/DynWebPage?id=12", "title": "选择客户", "width": "800px", "placeholder": "点击选择", "valueField": "Id", "urlParams": {"projectId": "{{model.projectId}}"}, "mappings": {"Name": "customerName", "Address": "customerAddress", "Phone": "customerPhone"}}, "comlisteners": {}, "labeloptions": {"label": "选择客户", "required": false, "show": true, "labelwidth": "100px"}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynLookup');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynMarkdown','Markdown 渲染','容器','ElementUI','/api/component/define/DynMarkdown','/Areas/Component/Views/ElementUI/DynMarkdown.cshtml','📝',0,NULL,NULL,NULL,NULL,'{"component": "DynMarkdown", "modelname": "", "options": {"comoptions": {"source": "# 标题\n\n在这里写 **Markdown** 内容...", "html": true}, "comlisteners": {}, "labeloptions": {"label": "Markdown", "required": false, "show": false}, "itemoptions": {}}, "validators": [], "slots": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynMarkdown');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynMermaid','Mermaid 图表','容器','ElementUI','/api/component/define/DynMermaid','/Areas/Component/Views/ElementUI/DynMermaid.cshtml','📊',0,NULL,NULL,NULL,NULL,'{"component": "DynMermaid", "modelname": "", "options": {"comoptions": {"code": "flowchart LR\n    A[开始] --> B{判断}\n    B -->|是| C[处理]\n    B -->|否| D[结束]\n    C --> D", "theme": "default"}, "comlisteners": {}, "labeloptions": {"label": "Mermaid", "required": false, "show": false}, "itemoptions": {}}, "validators": [], "slots": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynMermaid');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynModelWatcher','联动监听器(隐藏)','其他','ElementUI','/api/component/define/DynModelWatcher','/Areas/Component/Views/ElementUI/DynModelWatcher.cshtml','🔌',0,'[]','[]','[]','[]','{"component": "DynModelWatcher", "modelname": "", "options": {"comoptions": {"watchModel": "provinceId", "onChangeJs": "// newVal 是新值, oldVal 是旧值, model 是整个表单\nconsole.log(''province changed:'', newVal);", "onChangeAction": ""}, "comlisteners": {}, "labeloptions": {"label": "监听器", "required": false, "show": false}, "itemoptions": {"style": {"display": "none"}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynModelWatcher');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynRpcLoader','数据桥(隐藏)','其他','ElementUI','/api/component/define/DynRpcLoader','/Areas/Component/Views/ElementUI/DynRpcLoader.cshtml','🔌',0,'[]','[]','[]','[]','{"component": "DynRpcLoader", "modelname": "", "options": {"comoptions": {"url": "/api/user/current", "method": "GET", "autoLoad": true, "params": {}, "targetModel": "", "onSuccessJs": "// result 是接口返回数据, model 是表单 model\nconsole.log(''loaded:'', result);", "onSuccessAction": ""}, "comlisteners": {}, "labeloptions": {"label": "RPC调用", "required": false, "show": false}, "itemoptions": {"style": {"display": "none"}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynRpcLoader');
+
+INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
+SELECT 'DynElDateRange','日期范围','表单','ElementUI','/api/component/define/DynElDateRange','/Areas/Component/Views/ElementUI/DynElDateRange.cshtml','📅',0,'[]','["DynElFormItem"]','["default"]','[]','{"component":"DynElDateRange","modelname":"","options":{"comoptions":{"startModel":"","endModel":"","pickerType":"datetimerange","valueFormat":"YYYY-MM-DD HH:mm:ss","startPlaceholder":"开始日期","endPlaceholder":"结束日期"},"comlisteners":{},"labeloptions":{"label":"日期范围","required":false,"show":true},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1
+WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynElDateRange');
+
+-- ViewPath 修正：旧种子指向已删除/已移走的视图文件，回退会渲染空定义
+UPDATE ComponentMeta SET ViewPath='/Areas/Component/Views/ElementUI/DynElSelect.cshtml' WHERE ComponentName='DynElSelect' AND (ViewPath IS NULL OR ViewPath LIKE '%/Select.cshtml');
+UPDATE ComponentMeta SET ViewPath='/Areas/Component/Views/ElementUI/DynElRadioGroup.cshtml' WHERE ComponentName='DynElRadioGroup' AND (ViewPath IS NULL OR ViewPath LIKE '%/Radio.cshtml');
