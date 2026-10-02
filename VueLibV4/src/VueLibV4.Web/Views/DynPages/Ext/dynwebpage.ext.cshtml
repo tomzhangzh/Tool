@@ -27,6 +27,7 @@
             return {
                 // 本地参数模型（与 ParamsJson 结构对应），任何变更同步序列化回 form.ParamsJson
                 pageParams: {
+                    ProjectId: null,
                     TableName: '', KeyField: 'Id', ChildFkField: '', ModalPageId: null,
                     blocks: { filter: { settingId: null }, list: { settingId: null, loadUrl: '', deleteUrl: '' } }
                 },
@@ -51,6 +52,7 @@
         methods: {
             ppLoad: function () {
                 var self = this;
+                this.pageParams.ProjectId = this.form && this.form.ProjectId || null;
                 var tid = Number(this.form && this.form.TemplateId);
                 if (!tid || tid <= 0) { this.pp.visible = false; return; }
                 var pageId = Number(this.form && this.form.Id) || 0;
