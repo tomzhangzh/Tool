@@ -38,6 +38,7 @@
             // 模板/主键变化 → 重新拉 schema 并回填
             'form.Id': function () { this.ppLoad(); },
             'form.TemplateId': function () { this.ppLoad(); },
+            'form.ProjectId': function () { this.ppLoad(); },
             // 参数变更 → 序列化回 ParamsJson
             pageParams: {
                 deep: true,
