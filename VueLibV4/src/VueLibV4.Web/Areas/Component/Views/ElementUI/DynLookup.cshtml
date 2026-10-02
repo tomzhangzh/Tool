@@ -4,7 +4,7 @@
     <el-input v-model="displayText" :placeholder="jc.options.comoptions.placeholder || '点击选择'"
               readonly style="flex:1;">
         <template #append>
-            <el-button @click="openDialog" :icon="'Search'"></el-button>
+            <el-button @@click="openDialog" :icon="'Search'"></el-button>
         </template>
     </el-input>
 </div>
@@ -26,6 +26,8 @@ const lookupUrl = computed(() => jc.options.comoptions.url || '');
 const valueField = computed(() => jc.options.comoptions.valueField || 'Id');
 const mappings = computed(() => jc.options.comoptions.mappings || {});
 
+const LK_PREFIX = String.fromCharCode(123, 123) + 'model.';
+const LK_SUFFIX = String.fromCharCode(125, 125);
 async function openDialog() {
     if (!lookupUrl.value) {
         console.warn('[Lookup] 未配置 url');
@@ -39,8 +41,8 @@ async function openDialog() {
     const params = {};
     Object.keys(urlParams).forEach(k => {
         let v = urlParams[k];
-        if (typeof v === 'string' && v.indexOf('{{model.') === 0) {
-            const path = v.replace(/\{\{model\./, '').replace(/\}\}/, '');
+        if (typeof v === 'string' && v.indexOf(LK_PREFIX) === 0) {
+            const path = v.replace(LK_PREFIX, '').replace(LK_SUFFIX, '');
             v = getByPath(parentModel.value, path);
         }
         params[k] = v;

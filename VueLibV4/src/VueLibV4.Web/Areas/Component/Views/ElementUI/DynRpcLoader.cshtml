@@ -19,13 +19,15 @@ function writeModel(path, val) {
     if (window._ && _.set) { _.set(props.parentmodelinfo, path, val); return; }
     const parts = path.split('.');
     let obj = props.parentmodelinfo;
-    for (let i = 0; i < parts.length - 1; i++) {
-        if (typeof obj[parts[i]] !== 'object' || obj[parts[i]] === null) obj[parts[i]] = {};
-        obj = obj[parts[i]];
-    }
+    parts.slice(0, -1).forEach(function (p) {
+        if (typeof obj[p] !== 'object' || obj[p] === null) obj[p] = {};
+        obj = obj[p];
+    });
     obj[parts[parts.length - 1]] = val;
 }
 
+const RPC_PREFIX = String.fromCharCode(123, 123) + 'model.';
+const RPC_SUFFIX = String.fromCharCode(125, 125);
 async function doLoad() {
     if (!rpcUrl.value) return;
     try {
@@ -33,8 +35,8 @@ async function doLoad() {
         const params = {};
         Object.keys(rpcParams.value || {}).forEach(k => {
             let v = rpcParams.value[k];
-            if (typeof v === 'string' && v.indexOf('{{model.') === 0) {
-                const path = v.replace(/\{\{model\./, '').replace(/\}\}/, '');
+            if (typeof v === 'string' && v.indexOf(RPC_PREFIX) === 0) {
+                const path = v.replace(RPC_PREFIX, '').replace(RPC_SUFFIX, '');
                 v = getByPath(parentModel.value, path);
             }
             params[k] = v;
@@ -80,6 +82,9 @@ async function doLoad() {
     }
 }
 
-onMounted(() => { if (rpcAutoLoad.value) doLoad(); });
+onMounted(() => {
+    if (rpcAutoLoad.value) doLoad();
+});
+
 Object.assign(comExtra, { doLoad });
 }

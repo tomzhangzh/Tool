@@ -12,6 +12,8 @@ const boxUrl = computed(() => jc.options.comoptions.url || '');
 const boxParams = computed(() => jc.options.comoptions.params || {});
 const boxRefreshModel = computed(() => jc.options.comoptions.refreshOnModelChange || '');
 
+const HB_PREFIX = String.fromCharCode(123, 123) + 'model.';
+const HB_SUFFIX = String.fromCharCode(125, 125);
 async function doLoad() {
     if (!boxUrl.value || !boxRef.value) return;
     try {
@@ -19,8 +21,8 @@ async function doLoad() {
         const params = {};
         Object.keys(boxParams.value || {}).forEach(k => {
             let v = boxParams.value[k];
-            if (typeof v === 'string' && v.indexOf('{{model.') === 0) {
-                const path = v.replace(/\{\{model\./, '').replace(/\}\}/, '');
+            if (typeof v === 'string' && v.indexOf(HB_PREFIX) === 0) {
+                const path = v.replace(HB_PREFIX, '').replace(HB_SUFFIX, '');
                 v = getByPath(parentModel.value, path);
             }
             params[k] = v;
