@@ -2,7 +2,7 @@
     Layout = "_Layout";
     ViewData["Title"] = "能力桥 RPC Demo - VueLibV4";
 }
-<div id="app">
+<div id="rpc-demo-app">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">能力桥 RPC Demo</span>
@@ -36,19 +36,17 @@
                 </div>
             </el-card>
 
-            <el-card shadow="never" class="block" v-for="ex in examples" :key="ex.key">
-                <template #header>
-                    <div class="card-head">
-                        <b>{{ ex.title }}</b>
-                        <el-button size="small" type="primary" :loading="ex.loading" @@click="run(ex)">▶ 运行</el-button>
-                    </div>
-                </template>
+            <div class="block ex-card" v-for="ex in examples" :key="ex.key">
+                <div class="card-head">
+                    <b>{{ ex.title }}</b>
+                    <el-button size="small" type="primary" :loading="ex.loading" @@click="run(ex)">▶ 运行</el-button>
+                </div>
                 <el-tag size="small" :type="ex.tagType">{{ ex.tag }}</el-tag>
                 <span class="ex-desc">{{ ex.desc }}</span>
                 <pre class="code-pre">{{ ex.code }}</pre>
                 <div v-if="ex.error" class="result err">{{ ex.error }}</div>
                 <pre v-if="ex.result !== null" class="result ok">{{ ex.result }}</pre>
-            </el-card>
+            </div>
         </div>
 
         <!-- 右列：调用规范 -->
@@ -275,7 +273,7 @@
                         });
                     }
                 }
-            }).mount('#app');
+            }).mount('#rpc-demo-app');
         });
     </script>
 }
