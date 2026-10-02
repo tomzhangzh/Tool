@@ -91,6 +91,19 @@ public class DynCommonController : ControllerBase
         return ApiResult.Ok(rows.Select(d => new { value = d.DictCode, label = d.DictName }).ToList());
     }
 
+    // ---------------- 工程表列表（下拉数据源） ----------------
+
+    [HttpGet("tables")]
+    public ApiResult Tables(string project)
+    {
+        using var db = _projects.Resolve(project);
+        var tables = db.DbMaintenance.GetTableInfoList()
+            .Select(t => t.Name)
+            .OrderBy(n => n)
+            .ToList();
+        return ApiResult.Ok(tables.Select(t => new { value = t, label = t }).ToList());
+    }
+
     // ---------------- 工程表分页记录（查找带回） ----------------
 
     [HttpGet("tablelist")]
