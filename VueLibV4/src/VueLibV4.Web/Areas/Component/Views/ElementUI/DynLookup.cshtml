@@ -4,7 +4,7 @@
     <el-input v-model="displayText" :placeholder="jc.options.comoptions.placeholder || '点击选择'"
               readonly style="flex:1;">
         <template #append>
-            <el-button @click="openDialog">选择</el-button>
+            <el-button @click="openDialog" :icon="'Search'"></el-button>
         </template>
     </el-input>
 </div>
@@ -23,12 +23,17 @@ const displayText = ref('');
 const dialogBody = ref(null);
 
 const lookupUrl = computed(() => jc.options.comoptions.url || '');
-const lookupTitle = computed(() => jc.options.comoptions.title || '选择');
 const valueField = computed(() => jc.options.comoptions.valueField || 'Id');
 const mappings = computed(() => jc.options.comoptions.mappings || {});
 
-function buildUrl() {
-    if (!lookupUrl.value) return '';
+async function openDialog() {
+    if (!lookupUrl.value) {
+        console.warn('[Lookup] 未配置 url');
+        return;
+    }
+    dialogVisible.value = true;
+    await nextTick();
+    if (!dialogBody.value) return;
     let url = lookupUrl.value;
     const urlParams = jc.options.comoptions.urlParams || {};
     const params = {};
@@ -42,44 +47,18 @@ function buildUrl() {
     });
     const qs = new URLSearchParams(params).toString();
     if (qs) url += (url.includes('?') ? '&' : '?') + qs;
-    return url;
-}
-
-async function openDialog() {
-    if (!lookupUrl.value) {
-        console.warn('[Lookup] 未配置 url');
-        return;
-    }
-    dialogVisible.value = true;
-    await nextTick();
-    if (!dialogBody.value) return;
-    // 走 dyn.mount：异步加载 HTML 片段，递归挂载成 Vue app
-    dialogBody.value.setAttribute('data-dyn-url', buildUrl());
+    dialogBody.value.setAttribute('data-dyn-url', url);
     dialogBody.value.__dynLoaded = false;
     dialogBody.value.innerHTML = '<div style="padding:20px;color:#909399;">加载中...</div>';
     if (window.dyn && dyn.mount) {
-        try {
-            await dyn.mount(dialogBody.value);
-        } catch (e) {
-            dialogBody.value.innerHTML = '<div style="color:#f56c6c;padding:20px;">加载失败: ' + e.message + '</div>';
-        }
+        try { await dyn.mount(dialogBody.value); }
+        catch (e) { dialogBody.value.innerHTML = '<div style="color:#f56c6c;padding:20px;">加载失败: ' + e.message + '</div>'; }
     }
 }
 
-// 全局监听选择回传
-window.addEventListener('message', onMessage);
-function onMessage(ev) {
-    if (!ev.data || ev.data.type !== 'dyn-lookup-return') return;
-    const row = ev.data.data || {};
-    pickRow(row);
-}
-
-// 也支持直接调用（弹窗内 Vue 组件通过 inject 调用）
 function pickRow(row) {
     if (!row) return;
-    if (modelinfo.value !== undefined) {
-        modelinfo.value = row[valueField.value];
-    }
+    if (modelinfo.value !== undefined) modelinfo.value = row[valueField.value];
     Object.keys(mappings.value).forEach(srcField => {
         const targetPath = mappings.value[srcField];
         if (row[srcField] !== undefined && props.parentmodelinfo && window._ && _.set) {
@@ -90,7 +69,11 @@ function pickRow(row) {
     dialogVisible.value = false;
 }
 
-onMounted(() => {
-    if (modelinfo.value) displayText.value = modelinfo.value;
-});
+window.addEventListener('message', onMessage);
+function onMessage(ev) {
+    if (!ev.data || ev.data.type !== 'dyn-lookup-return') return;
+    pickRow(ev.data.data || {});
+}
+
+onMounted(() => { if (modelinfo.value) displayText.value = modelinfo.value; });
 }

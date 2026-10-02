@@ -259,17 +259,6 @@ var comConfig = {
                     .catch(function (e) { console.warn('[ajax options]', e); });
             }
         }
-        // ========== 联动：parentValuePath 变化时自动重新加载 options ==========
-        (function setupCascadeWatch() {
-            var s = (jc.options && jc.options.comoptions) || {};
-            if (s.parentValuePath) {
-                watch(function () {
-                    return getByPath(parentModel.value, s.parentValuePath);
-                }, function (nv, ov) {
-                    if (nv !== ov) loadComOptions();
-                });
-            }
-        })();
         // ========== 新增：属性穿透相关 ==========
         /**
          * 合并父容器穿透配置
@@ -581,6 +570,12 @@ var comConfig = {
                             // 暴露组件校验方法到根元素，供父级（DetailTemplate 等）保存前聚合校验调用
                 rootEl.__dynValidate = validate;
 }
+            // 联动：parentValuePath 变化时自动重新加载 options
+            var _cascadePath = (jc.options && jc.options.comoptions && jc.options.comoptions.parentValuePath) || '';
+            if (_cascadePath) {
+                watch(function () { return getByPath(parentModel.value, _cascadePath); },
+                    function (nv, ov) { if (nv !== ov) loadComOptions(); });
+            }
   			// 设计模式下，容器组件初始化 Sortable
             // 注意：DynDynamicCom 透明包装层（transparentMode）与真实容器组件挂在同一根元素、
             // 都能看到同一个 .dyn-children-wrap，若两层都初始化会在同一元素上重复绑定 Sortable，

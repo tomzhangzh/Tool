@@ -1,4 +1,4 @@
-@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
 <el-card shadow="hover" v-bind="comBind" v-on="getComlisteners()" style="min-width:200px;">
     <div style="display:flex;align-items:center;gap:16px;">
@@ -21,9 +21,6 @@
 </el-card>
 
 @section setupScripts{
-DVALUE = 0;
-const statValue = computed(() => {
-    if (modelinfo.value !== undefined && modelinfo.value !== null) return Number(modelinfo.value) || 0;
-    return Number(jc.options.comoptions.defaultValue || 0);
-});
+DVALUE = null;
+const statValue = ref(Number(jc.options.comoptions.defaultValue || 0));
 }
