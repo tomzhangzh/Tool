@@ -1,0 +1,13 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<template>
+<el-alert v-bind="comBind" v-on="getComlisteners()"
+          :title="jc.options?.comoptions.title || '提示'"
+          :type="jc.options?.comoptions.type || 'info'"
+          :description="jc.options?.comoptions.description || ''"
+          :closable="jc.options?.comoptions.closable !== false"
+          show-icon>
+</el-alert>
+</template>
+
+@section setupScripts{ DVALUE = null; }

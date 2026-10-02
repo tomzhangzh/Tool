@@ -3,7 +3,7 @@
 }
 
 <div class="dyn-codemirror-box"
-     :style="{ height: jc.options.comoptions.height || '220px', border: '1px solid #dcdfe6', borderRadius: '4px', overflow: 'hidden' }">
+     :style="{ height: jc.options.comoptions.height || '220px', minWidth: '300px', border: '1px solid #dcdfe6', borderRadius: '4px', overflow: 'hidden' }">
     <textarea ref="cmHostRef" class="dyn-codemirror-host" style="width:100%;height:100%;box-sizing:border-box;"></textarea>
 </div>
 
@@ -52,5 +52,5 @@
     }
     onMounted(function () { initCodeMirror(); });
     watch([cmLanguage, cmReadOnly], function () { initCodeMirror(); });
-    const comExtra = { cmHostRef };
+    Object.assign(comExtra, { cmHostRef });
 }

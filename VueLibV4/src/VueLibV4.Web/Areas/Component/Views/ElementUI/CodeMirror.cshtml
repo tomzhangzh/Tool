@@ -52,5 +52,5 @@
     }
     onMounted(function () { initCodeMirror(); });
     watch([cmLanguage, cmReadOnly], function () { initCodeMirror(); });
-    const comExtra = { cmHostRef };
+    Object.assign(comExtra, { cmHostRef });
 }

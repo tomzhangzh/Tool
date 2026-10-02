@@ -1,0 +1,10 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<template>
+<el-divider v-bind="comBind" v-on="getComlisteners()"
+            :content-position="jc.options?.comoptions.contentPosition || 'center'">
+    {{ jc.options?.comoptions.content || '' }}
+</el-divider>
+</template>
+
+@section setupScripts{ DVALUE = null; }
