@@ -798,6 +798,9 @@ public class PageGenService : IPageGenService
                 co["rows"] = 3; co["placeholder"] = "请输入" + f.Label; break;
             case "DynElInputNumber":
                 co["step"] = 1; break;
+            case "DynElSwitch":
+                // 库里布尔/标志位多为 int(0/1)，el-switch 默认认 true/false，必须显式绑定值
+                co["activeValue"] = 1; co["inactiveValue"] = 0; break;
             case "DynElSelect":
                 // 数据源：字典 / 外键表(projectId 用于拉取下拉) / 静态占位
                 if (!string.IsNullOrWhiteSpace(f.DictType)) { co["sourceType"] = "dict"; co["dictType"] = f.DictType; }
@@ -857,7 +860,16 @@ public class PageGenService : IPageGenService
             if (f.Name == "CreateTime" || f.Name == "UpdateTime") continue; // 时间列由下方显式追加，避免重复
             var col = new JObject { ["field"] = f.Name, ["label"] = f.Label };
             col["width"] = f.CellTag ? 100 : (f.Control == "textarea" ? 220 : 160);
-            if (f.CellTag) col["cellType"] = "tag";
+            if (f.CellTag)
+            {
+                col["cellType"] = "tag";
+                // int(0/1) 标志位映射成 是/否 tag
+                col["options"] = new JArray
+                {
+                    new JObject { ["value"] = 1, ["label"] = "是", ["type"] = "success" },
+                    new JObject { ["value"] = 0, ["label"] = "否", ["type"] = "info" }
+                };
+            }
             columns.Add(col);
         }
         columns.Add(new JObject { ["field"] = "CreateTime", ["label"] = "创建时间", ["width"] = 190 });

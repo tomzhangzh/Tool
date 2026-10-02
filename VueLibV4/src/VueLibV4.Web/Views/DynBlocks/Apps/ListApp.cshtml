@@ -72,7 +72,9 @@
                 // URL 是基础设施：默认统一端点，数据域由 project 决定；cfg 显式 URL 仅旧配置兼容
                 loadUrl: __pv('loadUrl', DynBlocks.URLS.search),
                 deleteUrl: __pv('deleteUrl', DynBlocks.URLS.delete),
-                project: __pv('project', '')
+                project: __pv('project', ''),
+                // 列级 dictType → 平台字典映射缓存 {dictType:[{value,label}]}
+                dictMap: {}
             };
         },
         methods: {
@@ -103,12 +105,29 @@
             onPage: function (p) { this.model.page = p; this.loadData(); },
             onSize: function (s) { this.model.size = s; this.model.page = 1; this.loadData(); },
 
+            // 收集列级 dictType，并发拉平台字典做 value→label 映射
+            loadDicts: function () {
+                var types = [], self = this;
+                (this.columns || []).forEach(function (c) {
+                    if (c.dictType && types.indexOf(c.dictType) < 0) types.push(c.dictType);
+                });
+                types.forEach(function (t) {
+                    fetch('/api/dyncommon/dicts?type=' + encodeURIComponent(t))
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) { if (res && res.code === 0) self.dictMap[t] = res.data; })
+                        .catch(function () {});
+                });
+            },
+
             // ---------------- 列值呈现 ----------------
             cellOption: function (col, row) {
                 var v = row ? row[col.field] : null;
-                if (col.options && col.options.length) {
-                    for (var i = 0; i < col.options.length; i++) {
-                        if (String(col.options[i].value) === String(v)) return col.options[i];
+                // 列优先写死 options，其次用 dictType 从平台字典动态映射
+                var list = col.options;
+                if ((!list || !list.length) && col.dictType) list = this.dictMap[col.dictType];
+                if (list && list.length) {
+                    for (var i = 0; i < list.length; i++) {
+                        if (String(list[i].value) === String(v)) return list[i];
                     }
                 }
                 return null;
@@ -153,6 +172,7 @@
         },
         mounted: function () {
             var self = this;
+            this.loadDicts();
             __handle = DynBlocks.createBlockHandle(element);
             __handle
                 .reg('loadData', function (p) {
