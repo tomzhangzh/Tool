@@ -1,0 +1,94 @@
+@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+
+<div class="dyn-lookup" style="display:flex;gap:8px;align-items:center;width:100%;">
+    <el-input v-model="displayText" :placeholder="jc.options.comoptions.placeholder || '点击选择'"
+              readonly style="flex:1;">
+        <template #append>
+            <el-button @click="openDialog">选择</el-button>
+        </template>
+    </el-input>
+</div>
+
+<el-dialog v-model="dialogVisible" :title="jc.options.comoptions.title || '选择'"
+           :width="jc.options.comoptions.width || '800px'"
+           :close-on-click-modal="false" destroy-on-close>
+    <iframe v-if="dialogVisible" :src="dialogUrl" style="width:100%;height:500px;border:0;"></iframe>
+</el-dialog>
+
+@section setupScripts{
+DVALUE = null;
+
+const dialogVisible = ref(false);
+const displayText = ref('');
+
+const lookupUrl = computed(() => jc.options.comoptions.url || '');
+const lookupTitle = computed(() => jc.options.comoptions.title || '选择');
+const valueField = computed(() => jc.options.comoptions.valueField || 'Id');
+const mappings = computed(() => jc.options.comoptions.mappings || {});
+
+function buildUrl() {
+    if (!lookupUrl.value) return '';
+    let url = lookupUrl.value;
+    const params = {};
+    Object.keys(mappings.value).forEach(k => {});
+    // 支持 {{model.xxx}} 模板
+    const urlParams = jc.options.comoptions.urlParams || {};
+    Object.keys(urlParams).forEach(k => {
+        let v = urlParams[k];
+        if (typeof v === 'string' && v.indexOf('{{model.') === 0) {
+            const path = v.replace(/\{\{model\./, '').replace(/\}\}/, '');
+            v = getByPath(parentModel.value, path);
+        }
+        params[k] = v;
+    });
+    const qs = new URLSearchParams(params).toString();
+    if (qs) url += (url.includes('?') ? '&' : '?') + qs;
+    return url;
+}
+
+const dialogUrl = computed(() => buildUrl());
+
+function openDialog() {
+    if (!lookupUrl.value) {
+        console.warn('[Lookup] 未配置 url');
+        return;
+    }
+    dialogVisible.value = true;
+}
+
+// 监听弹窗回传消息
+window.addEventListener('message', onMessage);
+function onMessage(ev) {
+    if (!ev.data || ev.data.type !== 'dyn-lookup-return') return;
+    const row = ev.data.data || {};
+    // 1. 把 valueField 写到自己的 model
+    if (modelinfo.value !== undefined) {
+        modelinfo.value = row[valueField.value];
+    }
+    // 2. 按映射规则写其他字段
+    Object.keys(mappings.value).forEach(srcField => {
+        const targetPath = mappings.value[srcField];
+        if (row[srcField] !== undefined && props.parentmodelinfo) {
+            if (window._ && _.set) {
+                _.set(props.parentmodelinfo, targetPath, row[srcField]);
+            }
+        }
+    });
+    // 3. 显示文本
+    displayText.value = row[mappings.__displayField || 'Name'] || row[valueField.value] || '';
+    dialogVisible.value = false;
+}
+
+// 初始化时显示已有的值
+onMounted(() => {
+    if (modelinfo.value && props.parentmodelinfo) {
+        const displayField = mappings.value.__displayField || 'Name';
+        const displayPath = Object.keys(mappings.value).find(k => mappings.value[k] === displayField);
+        if (displayPath) {
+            displayText.value = getByPath(parentModel.value, displayField) || modelinfo.value;
+        } else {
+            displayText.value = modelinfo.value;
+        }
+    }
+});
+}
