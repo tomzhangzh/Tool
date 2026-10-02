@@ -34,7 +34,7 @@
                              v-loading="treeLoading"
                              @@node-click="onNodeClick">
                         <template #default="{ data }">
-                            <span class="flex items-center gap-1 text-sm">
+                            <span class="flex items-center gap-1 text-sm" :data-key="data.Id">
                                 <span>{{ (data.children && data.children.length) ? (data.Icon || '📁') : (data.Icon || '📄') }}</span>
                                 <span>{{ data.Name }}</span>
                                 <el-tag v-if="data.IsAddToDesktop" size="small" type="warning" style="margin-left:4px">桌面</el-tag>

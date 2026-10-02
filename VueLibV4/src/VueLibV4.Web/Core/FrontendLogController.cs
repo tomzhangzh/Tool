@@ -43,7 +43,12 @@ public class FrontendLogController : ControllerBase
             var cs = _config.GetConnectionString("PlatformDb");
             if (string.IsNullOrWhiteSpace(cs)) return Ok(new { code = 0 });
 
-            using var conn = new SqliteConnection(cs);
+            // 相对路径基于程序目录解析（与 Seeder.OpenSqlite 一致）
+            var bld = new SqliteConnectionStringBuilder(cs);
+            if (!Path.IsPathRooted(bld.DataSource))
+                bld.DataSource = Path.Combine(AppContext.BaseDirectory, bld.DataSource.Replace('/', Path.DirectorySeparatorChar));
+
+            using var conn = new SqliteConnection(bld.ConnectionString);
             conn.Open();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"INSERT INTO SysLog (LogLevel,Category,Message,Exception,Path,Method,Ip,CreateTime)

@@ -8,13 +8,13 @@
    依赖：dyn-lib.js（含 CodeMirror / ElementPlus / dyn-dsl.js）*@
 <div id="@extId">
     <div class="bar">
-        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        @* <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button> *@
         <b class="title">DSL 编辑器（类 Markdown）</b>
         <el-tag size="small" type="info" effect="plain">>> 容器 / - 组件 / comoptions.* / labeloptions.*</el-tag>
         <el-button size="small" @@click="loadSample">示例</el-button>
-        <el-button size="small" @@click="formatDsl">格式化DSL</el-button>
+        @* <el-button size="small" @@click="formatDsl">格式化DSL</el-button>
         <el-button size="small" type="warning" @@click="jsonToDsl">JSON→DSL</el-button>
-        <el-button size="small" type="primary" @@click="applyDsl">DSL→应用</el-button>
+        <el-button size="small" type="primary" @@click="applyDsl">DSL→应用</el-button> *@
     </div>
 
     <div class="main">
@@ -57,11 +57,11 @@
     .col-editor, .col-right { display: flex; flex-direction: column; min-height: 0; gap: 8px; }
     .col-right { display: grid; grid-template-rows: 1fr 1.2fr; }
     .pane-head { font-size: 12px; font-weight: 600; color: #606266; padding: 6px 10px; background: #f5f7fa; border: 1px solid #e4e7ed; border-bottom: none; border-radius: 6px 6px 0 0; }
-    .editor-box { flex: 1; min-height: 0; background: #fff; border: 1px solid #e4e7ed; border-radius: 0 0 6px 6px; overflow: auto; }
+    .editor-box { flex: 1; min-height: 0; background: #fff; border: 1px solid #e4e7ed; border-radius: 0 0 6px 6px; position: relative; }
     .cm-host { width: 100%; height: 100%; box-sizing: border-box; }
-    /* CodeMirror 高度随内容自动增长（viewportMargin:Infinity 已渲染全部行） */
-    .editor-box .CodeMirror { height: auto; min-height: 100%; }
-    .editor-box .CodeMirror-scroll { height: auto; overflow-y: hidden !important; }
+    /* CodeMirror 填满容器，不用 auto 高度（setValue 后不会塌陷） */
+    .editor-box .CodeMirror { height: 100%; font-size: 13px; line-height: 1.6; }
+    .editor-box .CodeMirror-gutters { top: 0; }
     /* CodeMirror lint 波浪线标记 */
     .CodeMirror .dyn-dsl-lint-error { text-decoration: underline wavy #f56c6c; background: rgba(245, 108, 108, .08); }
     .CodeMirror .dyn-dsl-lint-warn { text-decoration: underline wavy #e6a23c; background: rgba(230, 162, 60, .10); }
@@ -88,7 +88,7 @@
             // ============ 示例 DSL ============
             var SAMPLE_DSL = [
                 '// 表单容器：2列 Grid 布局，全局 size=small',
-                '>> DynGridContainer comoptions.gridTemplateColumns="1fr 1fr" comoptions.gap="16px" labeloptions.labelWidth="120px" comoptions.size="small"',
+                '>> DynGridContainer comoptions.gridTemplateColumns="1fr 1fr" class=p-5 comoptions.gap="16px" labeloptions.labelWidth="120px" comoptions.size="small"',
                 '  // 标题输入框',
                 '  - DynElInput modelname="title" label="标题" comoptions.placeholder="请输入标题" required=true',
                 '  // 排序数字',
@@ -158,12 +158,12 @@
                         this.parseAndRender();
                     },
                     formatDsl: function () {
-                        // 重新解析 → 反向导出，得到规整的 DSL
                         var self = this;
                         var hintIndex = window.DynDsl.getHintIndex();
                         var res = window.DynDsl.parseDsl(this._cm.getValue(), hintIndex ? hintIndex.byName : null);
                         if (res.errors.length) { this.errors = res.errors; return; }
                         this._cm.setValue(window.DynDsl.toDsl(res.cfg));
+                        var cm = this._cm; setTimeout(function(){ cm.refresh(); }, 0);
                         this.parseAndRender();
                     },
                     jsonToDsl: function () {
@@ -172,6 +172,7 @@
                             var obj = JSON.parse(this.jsonText);
                             if (!obj.component) { this.errors = [{ line: 0, msg: 'JSON 缺少 component' }]; return; }
                             this._cm.setValue(window.DynDsl.toDsl(obj));
+                            var cm = this._cm; setTimeout(function(){ cm.refresh(); }, 0);
                             this.parseAndRender();
                         } catch (e) {
                             console.error('[Dsl] JSON→DSL 解析失败:', e);
@@ -192,7 +193,8 @@
                             mode: 'dsl',
                             lineNumbers: true,
                             lineWrapping: true,
-                            viewportMargin: Infinity,
+                            indentUnit: 2,
+                            tabSize: 2,
                             placeholder: '>> DynGridContainer comoptions.gridTemplateColumns="1fr 1fr"\n  - DynElInput modelname="title" label="标题"'
                         });
                         self._cm = cm;

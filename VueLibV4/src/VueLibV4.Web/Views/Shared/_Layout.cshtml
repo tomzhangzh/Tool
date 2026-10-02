@@ -69,6 +69,11 @@
         window.addEventListener('unhandledrejection', function (e) {
             report({ message: 'UnhandledPromiseRejection: ' + (e.reason && e.reason.message || e.reason), stack: e.reason && e.reason.stack });
         });
+        // Vue 错误上报：Vue 组件内错误不会冒泡到 window.onerror，需要手动挂
+        window.addEventListener('app:error', function (e) {
+            var err = e.detail || {};
+            report({ message: '[Vue] ' + (err.message || 'Vue error'), stack: err.stack });
+        });
     })();
     </script>
 </body>

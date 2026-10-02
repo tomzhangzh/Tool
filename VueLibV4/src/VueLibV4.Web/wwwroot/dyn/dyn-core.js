@@ -9,6 +9,24 @@ var __plugin = {
 const Vue = global.Vue;
 if(!Vue){ console.error("[DynCore] 请先引入Vue3 UMD"); return; }
 
+// 全局 Vue 错误上报：Vue 组件内错误不会冒泡到 window.onerror，统一捕获后发后端
+try {
+  if (Vue.config && !Vue.config.__dynErrorHooked) {
+    Vue.config.__dynErrorHooked = true;
+    Vue.config.errorHandler = function (err, instance, info) {
+      console.error('[Vue error]', err, info);
+      try {
+        var msg = (err && err.message ? err.message : String(err)) + ' [' + (info || '') + ']';
+        fetch('/api/log/frontend-error', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, stack: err && err.stack || '', url: location.href })
+        }).catch(function(){});
+      } catch(e){}
+    };
+  }
+} catch(e) { console.warn('[DynCore] Vue errorHandler 挂载跳过:', e); }
+
 /**
  * @typedef DynScopeModel
  * @property {boolean} __dynScopeRoot 标记scope根对象，禁止整体替换

@@ -725,16 +725,18 @@ var __plugin = {
     if (!CodeMirror || CodeMirror.modes && CodeMirror.modes.dsl) return;
     CodeMirror.defineMode('dsl', function () {
       return {
-        startState: function () { return { inString: false, inComment: false }; },
+        startState: function () { return { inString: false, inComment: false, lineIndent: 0, prevWasContainer: false }; },
         token: function (stream, state) {
           if (state.inComment) {
             if (stream.sol()) state.inComment = false;
             else { stream.skipToEnd(); return 'comment'; }
           }
           if (stream.sol()) {
-            if (stream.match(/^\s*\/\//)) { state.inComment = true; stream.skipToEnd(); return 'comment'; }
-            if (stream.match(/^\s*>>\s+/)) { return 'keyword'; }
-            if (stream.match(/^\s*-\s+/)) { return 'keyword'; }
+            state.lineIndent = stream.indentation ? stream.indentation() : 0;
+            if (stream.match(/^ *\/\//)) { state.inComment = true; stream.skipToEnd(); return 'comment'; }
+            if (stream.match(/^ *>>\s+/)) { state.prevWasContainer = true; return 'keyword'; }
+            if (stream.match(/^ *-\s+/)) { state.prevWasContainer = false; return 'keyword'; }
+            state.prevWasContainer = false;
           }
           if (stream.match(/^"[^"]*"/)) return 'string';
           if (stream.match(/^'[^']*'/)) return 'string';
@@ -746,7 +748,14 @@ var __plugin = {
           if (stream.match(/^\s+/)) return null;
           stream.next();
           return null;
-        }
+        },
+        // 按回车自动缩进：上一行是 >> 容器 → +2 空格；上一行是 - 叶子 → 同级
+        indent: function (state) {
+          var base = (state && state.lineIndent) || 0;
+          if (state && state.prevWasContainer) return base + 2;
+          return base;
+        },
+        blankLine: function (state) { return (state && state.lineIndent) || 0; }
       };
     });
   }

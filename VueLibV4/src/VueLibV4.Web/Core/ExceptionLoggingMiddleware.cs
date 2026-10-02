@@ -52,7 +52,10 @@ public class ExceptionLoggingMiddleware
                 {
                     var cs = _config.GetConnectionString("PlatformDb");
                     if (string.IsNullOrWhiteSpace(cs)) return;
-                    using var conn = new SqliteConnection(cs);
+                    var bld = new SqliteConnectionStringBuilder(cs);
+                    if (!Path.IsPathRooted(bld.DataSource))
+                        bld.DataSource = Path.Combine(AppContext.BaseDirectory, bld.DataSource.Replace('/', Path.DirectorySeparatorChar));
+                    using var conn = new SqliteConnection(bld.ConnectionString);
                     conn.Open();
                     using var cmd = conn.CreateCommand();
                     cmd.CommandText = @"INSERT INTO SysLog (LogLevel,Category,Message,Exception,TraceId,UserName,Path,Method,Ip,CreateTime)

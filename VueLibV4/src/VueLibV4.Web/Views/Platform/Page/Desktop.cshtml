@@ -10,6 +10,7 @@
                  :class="{ selected: selectedId === m.Id, folder: isFolder(m) }"
                  @@click.stop="onIconClick(m, $event)" @@dblclick="openApp(m)"
                  :title="isFolder(m) ? '文件夹：点击展开子菜单' : (m.TargetType === 'NewWindow' ? '新窗口打开' : '双击打开')">
+                <span v-if="isFolder(m)" class="folder-badge">{{ (m.children || []).length }}</span>
                 <div class="icon">{{ m.Icon || (isFolder(m) ? '📁' : '📄') }}</div>
                 <div class="label">{{ m.Name }}</div>
             </div>
@@ -867,6 +868,23 @@
         background: rgba(255, 255, 255, 0.06);
         border: 1px dashed rgba(255, 255, 255, 0.25);
     }
+
+    .folder-badge {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        min-width: 16px;
+        height: 16px;
+        line-height: 16px;
+        text-align: center;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.75);
+        background: rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        padding: 0 4px;
+        pointer-events: none;
+    }
+    .desktop-icon { position: relative; }
 </style>
 
 @section Scripts {

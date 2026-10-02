@@ -151,6 +151,7 @@ function resolveCtxTokens(ctx){
  * @returns {Function|null}
  */
 function resolveAction(name){
+  if(!name) return null;
   if(_actions[name]) return _actions[name];
   const lower = name.toLowerCase();
   for(const k of Object.keys(_actions)){
