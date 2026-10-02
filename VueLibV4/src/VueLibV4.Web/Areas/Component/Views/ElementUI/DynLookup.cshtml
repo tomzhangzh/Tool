@@ -76,4 +76,6 @@ function onMessage(ev) {
 }
 
 onMounted(() => { if (modelinfo.value) displayText.value = modelinfo.value; });
+
+Object.assign(comExtra, { dialogVisible, displayText, dialogBody, openDialog });
 }
