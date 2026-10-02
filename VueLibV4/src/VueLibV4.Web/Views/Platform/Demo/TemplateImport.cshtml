@@ -1,8 +1,8 @@
-@{
+﻿@{
     Layout = "_Layout";
     ViewData["Title"] = "模板导入 Demo - VueLibV4";
 }
-<div id="app">
+<div id="demo-templateimport-app">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">Vue Template ⇄ DynCom JSON 双向转换 Demo</span>
@@ -101,7 +101,8 @@
                 }
             });
             DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#demo-templateimport-app'); });
         });
     </script>
 }
+

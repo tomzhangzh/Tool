@@ -1,8 +1,8 @@
-@{
+﻿@{
     Layout = "_Layout";
     ViewData["Title"] = "CodeMirror Demo - VueLibV4";
 }
-<div id="app">
+<div id="demo-codemirror-app">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">DynCodeMirror 组件 Demo（JSON 编辑 / 格式化 / 校验）</span>
@@ -135,7 +135,8 @@
                 }
             });
             DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#demo-codemirror-app'); });
         });
     </script>
 }
+

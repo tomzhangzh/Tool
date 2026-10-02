@@ -1,8 +1,8 @@
-@{
+﻿@{
     Layout = "_Layout";
     ViewData["Title"] = "组合组件 Demo - VueLibV4";
 }
-<div id="app">
+<div id="demo-combination-app">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">DynCombination 组合组件 Demo（开放属性 / 开放容器 / 开放插槽）</span>
@@ -83,7 +83,8 @@
                 }
             });
             DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#demo-combination-app'); });
         });
     </script>
 }
+

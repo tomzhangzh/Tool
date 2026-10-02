@@ -1,8 +1,8 @@
-@{
+﻿@{
     Layout = "_Layout";
     ViewData["Title"] = "免模型 CRUD Demo - VueLibV4";
 }
-<div id="app">
+<div id="demo-crud-app">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">免模型 CRUD Demo（无需 Model，仅凭表名即可增删改查）</span>
@@ -82,7 +82,8 @@
                 methods: { go: function (url) { window.location.href = url; } }
             });
             DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#demo-crud-app'); });
         });
     </script>
 }
+

@@ -1,8 +1,8 @@
-@{
+﻿@{
     Layout = "_Layout";
     ViewData["Title"] = "栅格布局 Demo - VueLibV4";
 }
-<div id="app">
+<div id="demo-grid-app">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">DynGridContainer 栅格容器 Demo（不包装 DOM，布局原样生效）</span>
@@ -95,7 +95,8 @@
                 methods: { go: function (url) { window.location.href = url; } }
             });
             DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#demo-grid-app'); });
         });
     </script>
 }
+

@@ -1,8 +1,8 @@
-@{
+﻿@{
     Layout = "_Layout";
     ViewData["Title"] = "动作助手 Demo - VueLibV4";
 }
-<div id="app">
+<div id="demo-actionhelper-app">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">DynActionHelper 动作助手 Demo</span>
@@ -96,7 +96,8 @@
                 mounted: function () { this.load(); }
             });
             DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function(){ app.mount('#app'); });
+            DynCom.ensureRegistered(app).then(function(){ app.mount('#demo-actionhelper-app'); });
         });
     </script>
 }
+
