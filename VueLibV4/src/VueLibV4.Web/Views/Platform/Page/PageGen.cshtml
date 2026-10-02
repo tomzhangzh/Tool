@@ -231,7 +231,10 @@
             mounted: function () {
                 var self = this;
                 fetch('/api/platform/dynproject/all', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
-                    if (res && res.code === 0) self.projects = res.data || [];
+                    var list = (res && res.code === 0) ? (res.data || []) : [];
+                    // 内置平台元数据库（ProjectDbResolver.PlatformProjectKey）：用于自举管理 ComponentMeta/PageSetting/Block/Template/WebPage 等表
+                    list.unshift({ Id: 0, Code: '__platform__', Name: '平台元数据库(内置)' });
+                    self.projects = list;
                 });
                 self.loadTables(); // 进来就加载默认业务库的表，不必先选项目
             },

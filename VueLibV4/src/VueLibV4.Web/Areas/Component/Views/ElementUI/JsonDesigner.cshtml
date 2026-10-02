@@ -1,10 +1,10 @@
 @{
     Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
 }
-<div class="dyn-json-designer">
-    <div class="dyn-json-designer__bar">
+<div class="dyn-json-designer" style="width:100%;">
+    <div class="dyn-json-designer__bar" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
         <el-button size="small" type="primary" plain v-on:click="openDesigner">🎨 打开设计器</el-button>
-        <span class="dyn-json-designer__tip">用可视化设计器编辑此 JSON 配置，也可直接修改下方文本</span>
+        <span class="dyn-json-designer__tip" style="color:#909399;font-size:12px;line-height:1;">用可视化设计器编辑此 JSON，也可直接修改下方文本</span>
     </div>
     <el-input type="textarea"
               v-model="modelinfo"
@@ -12,6 +12,7 @@
               :placeholder="jc.options.comoptions.placeholder || '{}'"
               :disabled="!!jc.options.comoptions.disabled"
               spellcheck="false"
+              style="width:100%;"
               class="dyn-json-designer__area"></el-input>
 </div>
 
