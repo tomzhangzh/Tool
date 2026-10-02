@@ -313,10 +313,13 @@ DynLib.ready(function () {
                 if (!propCfg.options.labeloptions.labelposition) propCfg.options.labeloptions.labelposition = 'left';
                 if (!propCfg.options.labeloptions.labelwidth) propCfg.options.labeloptions.labelwidth = '90px';
 
-                // 属性条目读写的就是组件自身配置（RightPanel 传 model.current）；用深拷贝避免污染本体挂载
-                var parentModel;
-                try { parentModel = JSON.parse(JSON.stringify(r.cfg || {})); }
-                catch (e) { parentModel = {}; }
+                // 属性条目读写的就是组件自身配置（RightPanel 传 model.current）。
+                // 关键：必须与左侧本体挂载共用【同一个 reactive 配置对象 r.cfg】，不能深拷贝——
+                // 否则右侧属性栏改的是副本，左侧组件渲染的是原对象，两边互不联动。
+                // 左侧 dyn.mount(r.cfg,...) 已把 r.cfg 经 data.pageCfg 纳入 Vue 响应式；
+                // mountConfig 内 Vue.reactive(model) 命中同一 reactiveMap 缓存，返回同一 proxy，
+                // 于是右侧属性表单写 parentmodelinfo.xxx === 左侧 pageCfg.xxx，双向打通。
+                var parentModel = r.cfg || {};
 
                 var probes, timer;
                 return Vue.nextTick().then(function () { return sleep(20); }).then(function () {
@@ -453,7 +456,13 @@ DynLib.ready(function () {
                         if (host && window.dyn && dyn.unmount) { try { dyn.unmount(host); } catch (e) {} }
                         if (host) host.innerHTML = '';
                     });
-                    if (r.cfgBase) r.cfg = JSON.parse(JSON.stringify(r.cfgBase));
+                    // 原地写回出厂基线：必须保持同一个 reactive proxy，不能整体替换 r.cfg
+                    if (r.cfgBase && r.cfg) {
+                        Object.keys(r.cfg).forEach(function (k) { delete r.cfg[k]; });
+                        Object.assign(r.cfg, JSON.parse(JSON.stringify(r.cfgBase)));
+                    } else if (r.cfgBase) {
+                        r.cfg = Vue.reactive(JSON.parse(JSON.stringify(r.cfgBase)));
+                    }
                     r.status = 'pending';
                     r.costMs = null;
                     r.propStatus = 'pending';
