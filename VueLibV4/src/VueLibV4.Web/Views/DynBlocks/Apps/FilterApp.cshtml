@@ -22,8 +22,12 @@
         <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
     </div>
     <div class="dyn-blk-filter__btns">
-        <button type="button" class="el-button el-button--primary el-button--small" @@click="query()">查询</button>
-        <button type="button" class="el-button el-button--small" @@click="reset()">重置</button>
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="query()">
+            <el-icon style="margin-right:4px"><Search /></el-icon>查询
+        </button>
+        <button type="button" class="el-button el-button--small" @@click="reset()">
+            <el-icon style="margin-right:4px"><Refresh /></el-icon>重置
+        </button>
         @(extSlots?.Render("filter:actions"))
     </div>
     <script type="text/plain" tag="dynconfig">

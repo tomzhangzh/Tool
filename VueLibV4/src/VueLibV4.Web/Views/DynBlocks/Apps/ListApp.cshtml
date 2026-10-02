@@ -22,7 +22,9 @@
 }
 <div id="@extId" data-dyn-mode="createApp" data-blk-role="list" class="dyn-blk-list" data-blk-config="@blkConfig">
     <div class="dyn-blk-list__toolbar">
-        <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">+ 新增</button>
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">
+            <el-icon style="margin-right:4px"><Plus /></el-icon>新增
+        </button>
         @(extSlots?.Render("list:toolbar"))
     </div>
     <el-table :data="model.rows" v-loading="model.loading" size="small" border>
@@ -37,11 +39,14 @@
                 <span v-else>{{ formatCell(col, scope.row) }}</span>
             </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
-                <button type="button" class="el-button el-button--small is-link" @@click="onEdit(scope.row)">编辑</button>
-                <button type="button" class="el-button el-button--small is-link" @@click="onAddChild(scope.row)">+子</button>
-                <button type="button" class="el-button el-button--small is-link is-text" @@click="onDelete(scope.row)">删除</button>
+                <button type="button" class="el-button el-button--primary el-button--small el-button--plain" @@click="onEdit(scope.row)">
+                    <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
+                </button>
+                <button type="button" class="el-button el-button--danger el-button--small el-button--plain" @@click="onDelete(scope.row)">
+                    <el-icon style="margin-right:2px"><Delete /></el-icon>删除
+                </button>
                 @(extSlots?.Render("list:row-actions"))
             </template>
         </el-table-column>

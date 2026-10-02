@@ -83,11 +83,13 @@
 
     @* 布局卡片是纯 HTML 容器（不是任何 app 的受管模板，避免外层 app 编译 Block 内部指令） *@
     <div class="flc-card">
+        <div class="flc-section-title"><span>筛选查询</span></div>
         @await Html.PartialAsync("~/Views/DynBlocks/Apps/FilterApp.cshtml", new ViewDataDictionary(ViewData) {
             ["ExtId"] = extIdFilter, ["BlkConfig"] = DynPageViewHelper.SafeJson(filterCfg), ["ExtSlots"] = extSlots
         })
     </div>
     <div class="flc-card">
+        <div class="flc-section-title"><span>数据列表</span></div>
         @await Html.PartialAsync("~/Views/DynBlocks/Apps/ListApp.cshtml", new ViewDataDictionary(ViewData) {
             ["ExtId"] = extIdList, ["BlkConfig"] = DynPageViewHelper.SafeJson(listCfg), ["ExtSlots"] = extSlots
         })
@@ -98,6 +100,8 @@
     .flc-root { min-height: 100vh; box-sizing: border-box; padding: 0 0 20px;
         background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .flc-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
+    .flc-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #303133; }
+    .flc-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #409eff; border-radius: 2px; margin-right: 8px; }
 </style>
 
 @section Scripts {
