@@ -1,62 +1,137 @@
 ﻿@model VueLibV4.Platform.Models.DynWebPage
 @using VueLibV4.Web.Core
-@*
-  ========================================================================
-  页面扩展视图（DynWebPage.ExtViewPath）—— 页面 Code：dynwebpage
-  ------------------------------------------------------------------------
-  · 本文件是真实 cshtml，可随意手工修改；Razor 运行时编译，保存即生效。
-  · 页面生成器只在文件不存在时生成骨架，永远不会覆盖你改过的内容。
-  · 原理：运行时模板先执行本视图，把 HTML/脚本片段填入 Slots 字典的具名槽位，
-    再由内置 Block 在自己的锚点处输出；脚本片段在 Block 的 VueApp 创建前合并。
-
-  可用槽位（{block角色}:{区域}）：
-    list:toolbar        列表工具栏（内置「+ 新增」之后）
-    list:row-actions    列表行操作列（编辑 / +子 / 删除 之后）
-    list:app-ext        合并进 list Block 的脚本（script[tag=dynconfig-ext]）
-    filter:actions      筛选按钮区（查询 / 重置 之后）
-    filter:app-ext      合并进 filter Block 的脚本
-    detail:body-extra   动态表单树之后的自定义表单区（与 detail Block 同 VueApp，可绑 form）
-    detail:footer       表单底部按钮区（取消 / 删除 / 保存 之后）
-    detail:app-ext      合并进 detail Block 的脚本
-    tree:tools          树形页左树工具区
-    tree:app-ext        合并进 tree Block 的脚本
-
-  脚本合并规则（dynconfig-ext）：
-    · 声明 var dynConfigExt = { methods/computed/data/mounted... }
-    · 脚本内 this 即对应 Block 的 Vue 实例：可直接访问 this.model / this.table /
-      this.loadData() 等内部状态与方法；methods/computed 同名时扩展优先（可覆盖）；
-      data 浅合并；created/mounted 等生命周期在 Block 自身之后串联执行。
-    · cshtml 内 JS 的 @ 必须写 @@。
-    · 不需要 JS 时，按钮也可直接用 dyn-click="open({...})/postback({...})" 声明式动作管道（纯 HTML）。
-  ========================================================================
-*@
+@using VueLibV4.Platform.Services
+@inject IDynTemplateService TemplateSvc
 @{
-    // 槽位字典由运行时注入（ViewData[DynExtSlots]）
     var Slots = ViewData["DynExtSlots"] as DynExtSlots ?? new DynExtSlots();
-}
 
-@* ===== 示例：删除外层 @if(false) 即启用 ===== *@
-@if (false)
-{
-    @* ① 往 list Block 工具栏追加按钮（需要配合 ② 的方法） *@
-    Slots["list:toolbar"] = @<button type="button"
-        class="el-button el-button--success el-button--small" @@click="onExtDemo()">
-        扩展按钮
-    </button>;
+    // ① 页面参数卡片：选模板后按 paramschema 渲染（模板级字段 + 每个积木槽位一组），折叠面板收纳
+    Slots["detail:body-extra"] = @<text>
+    <el-collapse v-if="pp.visible" class="pp-collapse">
+        <el-collapse-item :name="'pp'" :title="'⚙️ 页面参数（' + (pp.templateName || '选择模板后自动生成') + '）'">
+            <div v-if="pp.tplCfg" class="pp-sec">
+                <div class="pp-sec__title">基础参数</div>
+                <dyn-dynamic-com :jsonconfig="pp.tplCfg" :parentmodelinfo="pageParams"></dyn-dynamic-com>
+            </div>
 
-    @* ② 脚本合并进 list Block 的 VueApp *@
-    Slots["list:app-ext"] = @<script type="text/plain" tag="dynconfig-ext">
+            <div v-for="slot in pp.slots" :key="slot.slot" class="pp-sec">
+                <div class="pp-sec__title">🧩 {{ slot.slotName }}
+                    <span class="pp-sec__desc">{{ slot.block.description || '' }}</span>
+                </div>
+                <dyn-dynamic-com v-if="slot.block.paramCfg" :jsonconfig="slot.block.paramCfg"
+                                 :parentmodelinfo="pageParams.blocks[slot.slot]"></dyn-dynamic-com>
+            </div>
+        </el-collapse-item>
+    </el-collapse>
+    </text>;
+
+    // ② 脚本：拉 paramschema、维护 pageParams、双向写回 form.ParamsJson
+    Slots["detail:app-ext"] = @<script type="text/plain" tag="dynconfig-ext">
     var dynConfigExt = {
+        data: function () {
+            return {
+                // 本地参数模型（与 ParamsJson 结构对应），任何变更同步序列化回 form.ParamsJson
+                pageParams: {
+                    TableName: '', KeyField: 'Id', ChildFkField: '', ModalPageId: null,
+                    blocks: { filter: { settingId: null }, list: { settingId: null, loadUrl: '', deleteUrl: '' } }
+                },
+                pp: { visible: false, templateName: '', tplCfg: null, slots: [] }
+            };
+        },
+        watch: {
+            // 模板/主键变化 → 重新拉 schema 并回填
+            'form.Id': function () { this.ppLoad(); },
+            'form.TemplateId': function () { this.ppLoad(); },
+            // 参数变更 → 序列化回 ParamsJson
+            pageParams: {
+                deep: true,
+                handler: function () { this.ppSync(); }
+            }
+        },
+        mounted: function () {
+            var self = this;
+            // 编辑行异步回填后 form.TemplateId 才到位，watch 已能捕捉；这里兜底加载一次
+            this.ppLoad();
+        },
         methods: {
-            onExtDemo: function () {
-                // this 即 list Block 实例：this.model.rows / this.table / this.loadData() 都能用
-                dyn.showMessage('页面管理 扩展：当前表 ' + this.table + '，共 ' + (this.model.total || 0) + ' 条', 'success');
+            ppLoad: function () {
+                var self = this;
+                var tid = Number(this.form && this.form.TemplateId);
+                if (!tid || tid <= 0) { this.pp.visible = false; return; }
+                var pageId = Number(this.form && this.form.Id) || 0;
+                fetch('/api/platform/dynwebpage/paramschema?templateId=' + tid + '&pageId=' + pageId)
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (!res || res.code !== 0 || !res.data) { self.pp.visible = false; return; }
+                        var d = res.data;
+                        self.pp.visible = true;
+                        self.pp.templateName = d.template ? d.template.name : '';
+                        self.pp.tplCfg = self.__parse(d.template && d.template.configJson);
+                        // 槽位：paramConfigJson 是字符串，解析成对象
+                        self.pp.slots = (d.slots || []).map(function (s) {
+                            return {
+                                slot: s.slot, slotName: s.slotName, required: s.required,
+                                block: {
+                                    name: s.block.name,
+                                    description: s.block.description,
+                                    paramCfg: self.__parse(s.block.paramConfigJson)
+                                }
+                            };
+                        });
+                        // 用已保存值回填 pageParams
+                        self.__fillParams(d);
+                    })
+                    .catch(function () { self.pp.visible = false; });
+            },
+            __fillParams: function (d) {
+                var p = d.params || {};
+                var pp = this.pageParams;
+                pp.TableName = p.TableName || '';
+                pp.KeyField = p.KeyField || 'Id';
+                pp.ChildFkField = p.ChildFkField || '';
+                pp.ModalPageId = p.ModalPageId || null;
+                // blocks：每个槽位 values.settingId / model
+                (d.slots || []).forEach(function (s) {
+                    var v = s.values || {};
+                    if (!pp.blocks[s.slot]) pp.blocks[s.slot] = {};
+                    pp.blocks[s.slot].settingId = v.settingId || null;
+                    var m = v.model || {};
+                    Object.keys(m).forEach(function (k) { pp.blocks[s.slot][k] = m[k]; });
+                });
+            },
+            __parse: function (s) {
+                if (!s) return null;
+                try { return JSON.parse(s); } catch (e) { return null; }
+            },
+            ppSync: function () {
+                if (!this.pp.visible) return;
+                var pp = this.pageParams;
+                var out = {
+                    TableName: pp.TableName, KeyField: pp.KeyField,
+                    ChildFkField: pp.ChildFkField, ModalPageId: pp.ModalPageId,
+                    blocks: {}
+                };
+                var self = this;
+                Object.keys(pp.blocks).forEach(function (slot) {
+                    var b = pp.blocks[slot] || {};
+                    var entry = { settingId: b.settingId || null, model: {} };
+                    Object.keys(b).forEach(function (k) {
+                        if (k === 'settingId') return;
+                        if (b[k] !== '' && b[k] !== null && b[k] !== undefined) entry.model[k] = b[k];
+                    });
+                    out.blocks[slot] = entry;
+                });
+                this.form.ParamsJson = JSON.stringify(out);
             }
         }
     };
     </script>;
-
-    @* ③ 零 JS 的写法：声明式动作管道按钮（打开另一个页面弹窗） *@
-    @* Slots["list:toolbar"] = @<button type="button" class="el-button el-button--small"
-           dyn-click='open({"url":"/Platform/Page/DynWebPage?id=0","mode":"fragment"})'>打开页面</button>; *@
 }
+
+<style>
+    .pp-collapse { margin-top: 14px; border: 1px solid #ebeef5; border-radius: 6px; }
+    .pp-sec { background: #fafbfc; border: 1px solid #ebeef5; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+    .pp-sec:last-child { margin-bottom: 0; }
+    .pp-sec__title { font-size: 12px; font-weight: 600; color: #606266; margin-bottom: 8px; }
+    .pp-sec__desc { font-weight: 400; font-size: 11px; color: #a8abb2; margin-left: 6px; }
+</style>
