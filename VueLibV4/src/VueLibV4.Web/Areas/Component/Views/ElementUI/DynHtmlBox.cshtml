@@ -1,0 +1,52 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<div ref="boxRef" class="dyn-html-box"
+     :style="{ minHeight: jc.options.comoptions.minHeight || '100px', ...(jc.options.itemoptions && jc.options.itemoptions.style) }">
+</div>
+
+@section setupScripts{
+DVALUE = null;
+const boxRef = ref(null);
+
+const boxUrl = computed(() => jc.options.comoptions.url || '');
+const boxParams = computed(() => jc.options.comoptions.params || {});
+const boxRefreshModel = computed(() => jc.options.comoptions.refreshOnModelChange || '');
+
+async function doLoad() {
+    if (!boxUrl.value || !boxRef.value) return;
+    try {
+        let url = boxUrl.value;
+        const params = {};
+        Object.keys(boxParams.value || {}).forEach(k => {
+            let v = boxParams.value[k];
+            if (typeof v === 'string' && v.indexOf('{{model.') === 0) {
+                const path = v.replace(/\{\{model\./, '').replace(/\}\}/, '');
+                v = getByPath(parentModel.value, path);
+            }
+            params[k] = v;
+        });
+        const qs = new URLSearchParams(params).toString();
+        if (qs) url += (url.includes('?') ? '&' : '?') + qs;
+
+        // 走框架自己的 dyn.mount：fetch HTML → 注入 → 递归挂载成 Vue app
+        boxRef.value.setAttribute('data-dyn-url', url);
+        boxRef.value.__dynLoaded = false;
+        if (window.dyn && dyn.mount) {
+            await dyn.mount(boxRef.value);
+        }
+    } catch (e) {
+        if (boxRef.value) {
+            boxRef.value.innerHTML = '<div style="color:#909399;padding:12px;">加载失败: ' + e.message + '</div>';
+        }
+    }
+}
+
+onMounted(() => {
+    doLoad();
+    if (boxRefreshModel.value && parentModel.value) {
+        watch(() => getByPath(parentModel.value, boxRefreshModel.value), () => doLoad());
+    }
+});
+
+Object.assign(comExtra, { doLoad });
+}

@@ -259,6 +259,17 @@ var comConfig = {
                     .catch(function (e) { console.warn('[ajax options]', e); });
             }
         }
+        // ========== 联动：parentValuePath 变化时自动重新加载 options ==========
+        (function setupCascadeWatch() {
+            var s = (jc.options && jc.options.comoptions) || {};
+            if (s.parentValuePath) {
+                watch(function () {
+                    return getByPath(parentModel.value, s.parentValuePath);
+                }, function (nv, ov) {
+                    if (nv !== ov) loadComOptions();
+                });
+            }
+        })();
         // ========== 新增：属性穿透相关 ==========
         /**
          * 合并父容器穿透配置
