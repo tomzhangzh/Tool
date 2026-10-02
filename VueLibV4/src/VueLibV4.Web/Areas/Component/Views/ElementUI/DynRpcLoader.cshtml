@@ -1,0 +1,49 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+
+<!-- 隐藏的数据桥组件：不渲染 UI，仅在页面加载时发请求并回填 model -->
+<div v-if="false"></div>
+
+@section setupScripts{
+DVALUE = null;
+
+const rpcUrl = computed(() => jc.options.comoptions.url || '');
+const rpcMethod = computed(() => jc.options.comoptions.method || 'GET');
+const rpcTarget = computed(() => jc.options.comoptions.targetModel || '');
+const rpcAutoLoad = computed(() => jc.options.comoptions.autoLoad !== false);
+const rpcParams = computed(() => jc.options.comoptions.params || {});
+
+async function doLoad() {
+    if (!rpcUrl.value) return;
+    try {
+        const opt = { method: rpcMethod.value };
+        if (rpcMethod.value.toUpperCase() === 'POST') {
+            opt.headers = { 'Content-Type': 'application/json' };
+            opt.body = JSON.stringify(rpcParams.value);
+        } else {
+            const qs = new URLSearchParams(rpcParams.value).toString();
+            if (qs) {
+                const sep = rpcUrl.value.includes('?') ? '&' : '?';
+                rpcUrl.value = rpcUrl.value + sep + qs;
+            }
+        }
+        const res = await fetch(rpcUrl.value, opt);
+        const data = await res.json();
+        if (rpcTarget.value && data) {
+            const val = data.data !== undefined ? data.data : data;
+            // 通过 comInnerInfo 或 parentmodelinfo 写入目标 model
+            if (props.parentmodelinfo) {
+                props.parentmodelinfo[rpcTarget.value] = val;
+            }
+        }
+    } catch (e) {
+        console.warn('[RpcLoader] 请求失败:', e);
+    }
+}
+
+onMounted(() => {
+    if (rpcAutoLoad.value) doLoad();
+});
+
+// 暴露手动刷新方法
+Object.assign(comExtra, { doLoad });
+}
