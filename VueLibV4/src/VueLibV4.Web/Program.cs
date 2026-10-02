@@ -40,6 +40,9 @@ catch (Exception ex)
 app.UseStaticFiles();
 app.UseRouting();
 
+// API Key 鉴权（默认关闭；appsettings → Dyn:Auth 开启后校验 /api/ 的 X-Api-Key header）
+app.UseMiddleware<ApiKeyAuthMiddleware>();
+
 app.MapGet("/", () => Results.Redirect("/Platform/Page/Desktop"));
 
 app.MapControllerRoute(

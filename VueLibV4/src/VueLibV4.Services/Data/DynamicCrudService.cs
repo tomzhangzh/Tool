@@ -1,5 +1,6 @@
 using Newtonsoft.Json.Linq;
 using SqlSugar;
+using System.Collections.Concurrent;
 using System.Data;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -42,6 +43,26 @@ public class PageResult
 /// </summary>
 public class DynamicCrudService
 {
+    // ---------------- 元数据缓存 ----------------
+    // 表结构（列信息）很稳定，每次请求都查 information_schema 很贵。
+    // 按 连接串+表名 缓存短 TTL（60s）：开发期改表最多延迟一分钟生效。
+    private static readonly ConcurrentDictionary<string, (List<DbColumnInfo> cols, DateTime at)> _colCache = new();
+    private static readonly TimeSpan _colCacheTtl = TimeSpan.FromSeconds(60);
+
+    /// <summary>取表的原始列信息（带缓存）。返回 SqlSugar 原生 DbColumnInfo（含 IsIdentity 等）。</summary>
+    private static List<DbColumnInfo> GetRawColumns(SqlSugarClient db, string table)
+    {
+        var key = (db.CurrentConnectionConfig.ConnectionString ?? "") + "||" + table;
+        if (_colCache.TryGetValue(key, out var hit) && DateTime.Now - hit.at < _colCacheTtl)
+            return hit.cols;
+        var cols = db.DbMaintenance.GetColumnInfosByTableName(table, false);
+        _colCache[key] = (cols, DateTime.Now);
+        return cols;
+    }
+
+    /// <summary>清空列元数据缓存（改表结构后调用）。</summary>
+    public static void ClearColumnCache() => _colCache.Clear();
+
     // ---------------- 元数据 ----------------
 
     public List<string> Tables(SqlSugarClient db)
@@ -50,7 +71,7 @@ public class DynamicCrudService
     public List<ColumnInfo> Columns(SqlSugarClient db, string table)
     {
         EnsureTable(db, table);
-        return db.DbMaintenance.GetColumnInfosByTableName(table, false)
+        return GetRawColumns(db, table)
             .Select(c => new ColumnInfo
             {
                 Name = c.DbColumnName,
@@ -66,7 +87,7 @@ public class DynamicCrudService
     public List<string> PrimaryKeys(SqlSugarClient db, string table)
     {
         EnsureTable(db, table);
-        return db.DbMaintenance.GetColumnInfosByTableName(table, false)
+        return GetRawColumns(db, table)
             .Where(c => c.IsPrimarykey)
             .Select(c => c.DbColumnName)
             .ToList();
@@ -78,7 +99,7 @@ public class DynamicCrudService
         if (string.IsNullOrWhiteSpace(key)) return null;
         if (long.TryParse(key, out var id))
             return First(db, table, "[Id]=@id", new { id });
-        var cols = db.DbMaintenance.GetColumnInfosByTableName(table, false);
+        var cols = GetRawColumns(db, table);
         var codeCol = cols.FirstOrDefault(c => string.Equals(c.DbColumnName, "Code", StringComparison.OrdinalIgnoreCase));
         if (codeCol != null)
             return First(db, table, "[Code]=@code", new { code = key });
@@ -90,7 +111,7 @@ public class DynamicCrudService
 
     /// <summary>表列名 → 列信息（含 DataType / IsIdentity）</summary>
     private static Dictionary<string, DbColumnInfo> ColumnMap(SqlSugarClient db, string table)
-        => db.DbMaintenance.GetColumnInfosByTableName(table, false)
+        => GetRawColumns(db, table)
             .ToDictionary(c => c.DbColumnName, StringComparer.OrdinalIgnoreCase);
 
     // ---------------- 查询 ----------------
@@ -124,7 +145,7 @@ public class DynamicCrudService
         page = page < 1 ? 1 : page;
         size = size < 1 ? 20 : Math.Min(size, 200);
 
-        var colTypes = db.DbMaintenance.GetColumnInfosByTableName(table, false)
+        var colTypes = GetRawColumns(db, table)
             .ToDictionary(c => c.DbColumnName, c => c.DataType, StringComparer.OrdinalIgnoreCase);
 
         var pars = new List<SugarParameter>();
@@ -233,14 +254,11 @@ public class DynamicCrudService
         if (colInfos.TryGetValue("Id", out var idCol) && idCol.IsIdentity)
         {
             db.InsertableByObject(dict).AS(table).ExecuteCommand();
-            try
-            {
-                // 自增主键取回：SQLite 用 last_insert_rowid()，SQL Server 用 SCOPE_IDENTITY()
-                var isSqlite = db.CurrentConnectionConfig.DbType == SqlSugar.DbType.Sqlite;
-                var sql = isSqlite ? "SELECT last_insert_rowid()" : "SELECT CAST(SCOPE_IDENTITY() AS BIGINT)";
-                return db.Ado.GetLong(sql);
-            }
-            catch { return 1; }
+            // 同连接取回自增主键（SQLite last_insert_rowid / SqlServer SCOPE_IDENTITY）。
+            // 失败必须抛错——原 catch{return 1} 会让前端拿着假 Id 做后续 update/delete。
+            var isSqlite = db.CurrentConnectionConfig.DbType == SqlSugar.DbType.Sqlite;
+            var sql = isSqlite ? "SELECT last_insert_rowid()" : "SELECT CAST(SCOPE_IDENTITY() AS BIGINT)";
+            return db.Ado.GetLong(sql);
         }
         return db.InsertableByObject(dict).AS(table).ExecuteCommand();
     }
@@ -394,7 +412,7 @@ public class DynamicCrudService
             {
                 var col = match.Groups["col"].Value;
                 var dir = match.Groups["dir"].Value.ToLower();
-                var cols = db.DbMaintenance.GetColumnInfosByTableName(table, false)
+                var cols = GetRawColumns(db, table)
                     .Select(c => c.DbColumnName).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 if (cols.Contains(col)) return $"{QuoteIdent(col)} {dir}";
             }

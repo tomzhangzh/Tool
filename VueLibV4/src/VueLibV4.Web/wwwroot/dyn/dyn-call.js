@@ -22,11 +22,27 @@ var __plugin = {
   var axios = global.axios;
   if (!axios) { console.warn('[DynCall] axios 未就绪，请先由 dyn-lib 加载'); }
 
-  /* ---------- 轻量 loading 遮罩（按元素隔离） ---------- */
-  var maskCache = {}; // el -> count
+  /* ---------- 可选：为所有 axios 请求自动注入 X-Api-Key（默认关闭） ----------
+   * 场景：部署到服务器后，浏览器直连且本机回环放行（AllowLocal）不够用时。
+   * 用法：把 enabled 置 true、key 填成后端 Dyn:Auth:ApiKey 的值。
+   * 注意：key 会暴露在前端 JS 里，只适合内网/可信环境；公网请改用登录态（cookie/JWT）。 */
+  var API_KEY_AUTH = { enabled: false, key: '' };
+  (function setupApiKeyAuth() {
+    if (!global.axios || !API_KEY_AUTH.enabled || !API_KEY_AUTH.key) return;
+    global.axios.interceptors.request.use(function (cfg) {
+      cfg.headers = cfg.headers || {};
+      cfg.headers['X-Api-Key'] = API_KEY_AUTH.key;
+      return cfg;
+    });
+  })();
 
+  /* ---------- 轻量 loading 遮罩（按元素隔离 + 引用计数） ----------
+   * 同一元素可能并发多个请求：show 一次就把 count+1，hide 一次 count-1，
+   * 归零才真正移除遮罩——避免先完成的请求把还在飞的另一个请求的 loading 提前关掉。 */
   function showMask(el) {
-    if (!el || el.__dynMask) return;
+    if (!el) return;
+    el.__dynMaskCount = (el.__dynMaskCount || 0) + 1;
+    if (el.__dynMask) return; // 遮罩已在，不重复建
     var m = document.createElement('div');
     m.className = 'dyncall-mask';
     m.innerHTML = '<div class="dyncall-spinner"></div>';
@@ -38,6 +54,9 @@ var __plugin = {
   }
   function hideMask(el) {
     if (!el || !el.__dynMask) return;
+    el.__dynMaskCount = (el.__dynMaskCount || 0) - 1;
+    if (el.__dynMaskCount > 0) return; // 还有别的请求在用遮罩
+    el.__dynMaskCount = 0;
     var m = el.__dynMask; el.__dynMask = null;
     if (m && m.parentNode) m.parentNode.removeChild(m);
   }

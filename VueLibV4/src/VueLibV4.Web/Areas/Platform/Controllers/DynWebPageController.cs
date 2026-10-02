@@ -84,13 +84,12 @@ public class DynWebPageController : ControllerBase
         {
             try { config = JObject.Parse(row.PageJson); } catch { config = null; }
         }
-        if (config == null && row.TemplateId > 0)
+
+        // 模板只取一次：既用于回填默认 config，也用于返回 templateCode（之前 GetById 调了两次）
+        var tpl = row.TemplateId != null ? _templates.GetById(row.TemplateId.Value) : null;
+        if (config == null && tpl != null && row.TemplateId > 0)
         {
-            var tpl = _templates.GetById(row.TemplateId.Value);
-            if (tpl != null)
-            {
-                try { config = JObject.Parse(tpl.DefaultJson ?? "{}"); } catch { config = null; }
-            }
+            try { config = JObject.Parse(tpl.DefaultJson ?? "{}"); } catch { config = null; }
         }
 
         result["config"] = config ?? new JObject();
@@ -100,13 +99,7 @@ public class DynWebPageController : ControllerBase
         result["configjson"] = ps;
 
         // M4 三屏固定模板：返回模板 Code、运行 URL 与筛选/列表/详情三份配置树
-        string templateCode = null;
-        if (row.TemplateId != null)
-        {
-            var tpl2 = _templates.GetById(row.TemplateId.Value);
-            templateCode = tpl2?.Code;
-        }
-        result["templateCode"] = templateCode;
+        result["templateCode"] = tpl?.Code;
         result["url"] = row.Url;
         // 槽位 PageSettingId：blocks[slot].settingId 优先，回退旧扁平键
         result["filterConfig"] = LoadSettingConfig(DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId"));

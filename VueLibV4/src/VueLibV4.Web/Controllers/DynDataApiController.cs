@@ -83,6 +83,21 @@ public class DynDataApiController : ControllerBase
         var page = req["page"]?.Value<int>() ?? 1;
         var size = req["size"]?.Value<int>() ?? 20;
         var filter = req["filter"] as JObject;
+
+        // 前端积木（TreeApp 等）统一传顶层 sort:{field,order}，转成 Page() 认识的 __orderby。
+        // 列名与 asc/desc 由 Page() 内的白名单正则再校验一遍。
+        var sort = req["sort"] as JObject;
+        if (sort != null)
+        {
+            var field = sort["field"]?.ToString();
+            var order = (sort["order"]?.ToString() ?? "asc").ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(field))
+            {
+                filter ??= new JObject();
+                filter["__orderby"] = field + (order.StartsWith("desc") ? " desc" : " asc");
+            }
+        }
+
         try
         {
             using var db = Resolve(project);

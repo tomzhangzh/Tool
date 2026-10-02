@@ -1,5 +1,6 @@
 using Newtonsoft.Json.Linq;
 using SqlSugar;
+using System.Collections.Concurrent;
 
 namespace VueLibV4.Services.Data;
 
@@ -20,11 +21,18 @@ public class ProjectDbResolver
     private readonly DbFactory _dbs;
     private readonly DynamicCrudService _svc;
 
+    // project → 物理库连接串 缓存。项目连接串极少变，避免每个数据请求都开一次平台库查 DynProject。
+    // value 为空串表示"该项目无连接串，回退 BusinessDb"。项目编辑/删除后调 ClearCache。
+    private static readonly ConcurrentDictionary<string, string> _connCache = new(StringComparer.OrdinalIgnoreCase);
+
     public ProjectDbResolver(DbFactory dbs, DynamicCrudService svc)
     {
         _dbs = dbs;
         _svc = svc;
     }
+
+    /// <summary>清空项目连接串缓存（DynProject 增/改/删后调用）。</summary>
+    public static void ClearCache() => _connCache.Clear();
 
     /// <summary>
     /// 按数据域坐标解析物理库：
@@ -40,13 +48,22 @@ public class ProjectDbResolver
         if (project == PlatformProjectKey)
             return _dbs.PlatformDb();
 
+        // 命中缓存：直接按连接串建库；空串表示回退 BusinessDb。
+        if (_connCache.TryGetValue(project, out var cachedCs))
+            return string.IsNullOrWhiteSpace(cachedCs) ? _dbs.BusinessDb() : _dbs.ProjectDb(cachedCs);
+
         using var pdb = _dbs.PlatformDb();
         JObject proj = long.TryParse(project, out var pid)
             ? _svc.First(pdb, "DynProject", "[Id]=@id", new { id = pid })
             : _svc.First(pdb, "DynProject", "[Code]=@code", new { code = project });
 
-        if (proj == null) return _dbs.BusinessDb();
-        var cs = proj["ConnectionString"]?.ToString();
+        if (proj == null)
+        {
+            _connCache[project] = "";   // 记成"无项目→回退业务库"，避免反复查不存在的项目
+            return _dbs.BusinessDb();
+        }
+        var cs = proj["ConnectionString"]?.ToString() ?? "";
+        _connCache[project] = cs;
         return string.IsNullOrWhiteSpace(cs) ? _dbs.BusinessDb() : _dbs.ProjectDb(cs);
     }
 }
