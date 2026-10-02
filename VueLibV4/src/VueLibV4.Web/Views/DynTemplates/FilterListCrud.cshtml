@@ -31,6 +31,8 @@
     var modalPageId = ps["ModalPageId"]?.ToString() ?? "";
     var childFkField = ps["ChildFkField"]?.ToString() ?? "";
     var keyField = ps["KeyField"]?.ToString() ?? "Id";
+    var drawerMode = ps["DrawerMode"]?.ToString() == "true" || ps["DrawerMode"]?.ToString() == "1";
+    var drawerWidth = ps["DrawerWidth"]?.ToString() ?? "55%";
     var filterPsId = DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId");
     var listPsId = DynPageViewHelper.SlotSettingId(ps, "list", "ListPageSettingId");
 
@@ -110,6 +112,8 @@
             var PROJECT = '@project';
             var KEY_FIELD = '@keyField';
             var CHILD_FK_FIELD = '@childFkField';
+            var DRAWER_MODE = @(drawerMode ? "true" : "false");
+            var DRAWER_WIDTH = '@drawerWidth';
 
             // 主子"+子"预填：父行主键 → 表单外键字段
             function childPreFill(row) {
@@ -152,10 +156,10 @@
                 }
 
                 window.dyn.getLayer().then(function (layer) {
-                    var idx = layer.open({
+                    var layerOpts = {
                         type: 1,
                         title: rowId ? ('编辑记录 #' + rowId) : '新增记录',
-                        area: ['60%', '80%'], shadeClose: false, maxmin: true,
+                        shadeClose: false,
                         content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
                         success: function () {
                             window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
@@ -188,7 +192,16 @@
                             // 弹窗生命周期结束 → 刷新列表（单通道）
                             if (lEl.__dynBlock) lEl.__dynBlock.send('reload').catch(function () { });
                         }
-                    });
+                    };
+                    // 抽屉模式：右侧滑出，宽度可配；弹窗模式：居中
+                    if (DRAWER_MODE) {
+                        layerOpts.area = [DRAWER_WIDTH, '100%'];
+                        layerOpts.offset = 'r';
+                    } else {
+                        layerOpts.area = ['60%', '80%'];
+                        layerOpts.maxmin = true;
+                    }
+                    var idx = layer.open(layerOpts);
                 });
             }
 
