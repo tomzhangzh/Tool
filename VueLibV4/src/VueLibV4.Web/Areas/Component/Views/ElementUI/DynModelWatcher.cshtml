@@ -1,7 +1,14 @@
 @{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
 
 <!-- 隐藏的通用监听器：监听 model 变化，执行 JS 代码或触发 ActionHelper 动作 -->
-<div v-if="false"></div>
+<div v-if="!showDebug"></div>
+<div v-else class="dyn-watch-debug" style="border:1px dashed #67c23a;border-radius:4px;padding:8px;margin:4px;font-size:12px;background:#f0f9eb;">
+  <div style="font-weight:600;color:#67c23a;margin-bottom:4px;">👁️ ModelWatcher [{{ watchModel }}]</div>
+  <div style="color:#909399;font-size:11px;">触发次数: {{ triggerCount }}</div>
+  <div v-if="lastValue" style="margin-top:4px;max-height:60px;overflow:auto;background:#fff;padding:4px;border-radius:2px;">
+    <pre style="margin:0;font-size:11px;">{{ JSON.stringify(lastValue) }}</pre>
+  </div>
+</div>
 
 @section setupScripts{
 DVALUE = null;
@@ -9,10 +16,32 @@ DVALUE = null;
 const watchModel = computed(() => jc.options.comoptions.watchModel || '');
 const runJsCode = computed(() => jc.options.comoptions.onChangeJs || '');
 const runActionCode = computed(() => jc.options.comoptions.onChangeAction || '');
+const conditionExpr = computed(() => jc.options.comoptions.condition || '');
+const delay = computed(() => parseInt(jc.options.comoptions.delay || 0) || 0);
+const showDebug = computed(() => jc.options.comoptions.showDebug === true || jc.options.comoptions.showDebug === 'true' || jc.options.comoptions.showDebug === 1);
+
+const triggerCount = ref(0);
+const lastValue = ref(null);
+let _timer = null;
+
+function checkCondition(nv, ov) {
+    if (!conditionExpr.value) return true;
+    try {
+        const fn = new Function('model', 'newVal', 'oldVal', 'getByPath',
+            'return (' + conditionExpr.value + ');');
+        return !!fn(props.parentmodelinfo, nv, ov, getByPath);
+    } catch (e) {
+        console.warn('[ModelWatcher] 条件表达式错误:', e);
+        return true;
+    }
+}
 
 async function doTrigger(nv, ov) {
     if (nv === ov) return;
-    // 1. 执行 JS 代码
+    if (!checkCondition(nv, ov)) return;
+    triggerCount.value++;
+    lastValue.value = nv;
+
     if (runJsCode.value) {
         try {
             const fn = new Function('model', 'newVal', 'oldVal', 'getByPath',
@@ -22,10 +51,9 @@ async function doTrigger(nv, ov) {
             console.warn('[ModelWatcher] JS执行失败:', e);
         }
     }
-    // 2. 触发 ActionHelper 动作
     if (runActionCode.value && window.DynAction && typeof window.DynAction.run === 'function') {
         try {
-            await window.DynAction.run(runActionCode.value, {}, {
+            await window.DynAction.run(runActionCode.value, { newVal: nv, oldVal: ov }, {
                 element: null,
                 model: props.parentmodelinfo
             });
@@ -35,12 +63,25 @@ async function doTrigger(nv, ov) {
     }
 }
 
+function triggerWithDelay(nv, ov) {
+    if (delay.value > 0) {
+        if (_timer) clearTimeout(_timer);
+        _timer = setTimeout(() => doTrigger(nv, ov), delay.value);
+    } else {
+        doTrigger(nv, ov);
+    }
+}
+
 onMounted(() => {
     if (watchModel.value && props.parentmodelinfo) {
-        watch(() => getByPath(parentModel.value, watchModel.value),
-              (nv, ov) => doTrigger(nv, ov));
+        // 支持逗号分隔监听多个字段
+        const fields = watchModel.value.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+        fields.forEach(function(f) {
+            watch(() => getByPath(parentModel.value, f),
+                  (nv, ov) => triggerWithDelay(nv, ov), { deep: true });
+        });
     }
 });
 
-Object.assign(comExtra, { doTrigger });
+Object.assign(comExtra, { doTrigger, triggerCount, lastValue, showDebug });
 }

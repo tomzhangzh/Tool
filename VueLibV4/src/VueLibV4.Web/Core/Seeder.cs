@@ -171,6 +171,35 @@ CREATE TABLE SysMenu (
         SeedListMasterDetailShell(conn);
         // 早期手工入库模板的 class 名图标修正为 Emoji（平台图标统一 Emoji 直出）
         SeedBuiltinTemplateIcons(conn);
+        // 系统日志表（异常/操作日志持久化）
+        EnsureSysLogTable(conn);
+    }
+
+    /// <summary>系统日志表（旧库幂等建表）。平台库用 SQLite，字段名/类型与 SQL Server/MySQL 通用。</summary>
+    private void EnsureSysLogTable(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "SysLog"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE SysLog (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    LogLevel    TEXT NOT NULL DEFAULT 'Info',
+    Category    TEXT NULL,
+    Message     TEXT NULL,
+    Exception   TEXT NULL,
+    TraceId     TEXT NULL,
+    UserName    TEXT NULL,
+    Path        TEXT NULL,
+    Method      TEXT NULL,
+    Ip          TEXT NULL,
+    CreateTime  TEXT NOT NULL
+);
+CREATE INDEX IX_SysLog_Time ON SysLog(CreateTime);
+CREATE INDEX IX_SysLog_Level ON SysLog(LogLevel);";
+            create.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 SysLog");
+        }
     }
 
     /// <summary>DynBlock / DynTemplateBlock 建表（旧库迁移；新库 platform.sql 已含）</summary>

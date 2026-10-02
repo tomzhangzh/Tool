@@ -190,4 +190,66 @@ public class DynDataApiController : ControllerBase
         }
         catch (Exception ex) { return ApiResult.Fail("删除失败：" + ex.GetBaseException().Message); }
     }
+
+    /// <summary>
+    /// 批量操作（事务）：body={table,project?,ops:[{op:insert|update|delete|save, data?, keys?}]}。
+    /// 任一步失败全部回滚。ops 里 op=save 自动判断 insert/update（按主键是否存在）。
+    /// 返回每步结果数组。
+    /// </summary>
+    [HttpPost("batch")]
+    public ApiResult Batch([FromBody] JObject req)
+    {
+        var table = req["table"]?.ToString();
+        var ops = req["ops"] as JArray;
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (ops == null || ops.Count == 0) return ApiResult.Fail("缺少 ops 数组");
+
+        try
+        {
+            using var db = Resolve(req["project"]?.ToString());
+            var results = new List<object>();
+            var pks = _svc.PrimaryKeys(db, table);
+
+            try
+            {
+                db.Ado.BeginTran();
+                for (var i = 0; i < ops.Count; i++)
+                {
+                    var op = ops[i] as JObject;
+                    var opName = op?["op"]?.ToString()?.ToLower();
+                    object result;
+                    switch (opName)
+                    {
+                        case "insert":
+                            result = _svc.Insert(db, table, op["data"] as JObject);
+                            break;
+                        case "update":
+                            result = _svc.Update(db, table, op["data"] as JObject);
+                            break;
+                        case "delete":
+                            result = _svc.Delete(db, table, op["keys"] as JObject);
+                            break;
+                        case "save":
+                            var data = op["data"] as JObject;
+                            var hasPk = pks.Count > 0 && pks.All(p => data?[p] != null && data[p].Type != JTokenType.Null && !string.IsNullOrEmpty(data[p].ToString()));
+                            result = hasPk
+                                ? _svc.Update(db, table, data)
+                                : _svc.Insert(db, table, data);
+                            break;
+                        default:
+                            throw new Exception($"第 {i + 1} 步 op 无效: {opName}（支持 insert/update/delete/save）");
+                    }
+                    results.Add(new { step = i + 1, op = opName, result });
+                }
+                db.Ado.CommitTran();
+                return ApiResult.Ok(new { total = ops.Count, results }, $"批量操作成功（{ops.Count} 步）");
+            }
+            catch (Exception ex)
+            {
+                db.Ado.RollbackTran();
+                return ApiResult.Fail("批量操作已回滚：" + ex.GetBaseException().Message);
+            }
+        }
+        catch (Exception ex) { return ApiResult.Fail(ex.GetBaseException().Message); }
+    }
 }

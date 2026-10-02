@@ -43,6 +43,9 @@ app.UseRouting();
 // API Key 鉴权（默认关闭；appsettings → Dyn:Auth 开启后校验 /api/ 的 X-Api-Key header）
 app.UseMiddleware<ApiKeyAuthMiddleware>();
 
+// 全局异常日志（写 SysLog 表）
+app.UseMiddleware<ExceptionLoggingMiddleware>();
+
 app.MapGet("/", () => Results.Redirect("/Platform/Page/Desktop"));
 
 app.MapControllerRoute(

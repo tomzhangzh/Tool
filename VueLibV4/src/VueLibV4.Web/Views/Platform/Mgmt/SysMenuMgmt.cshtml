@@ -1,6 +1,10 @@
 @{
     ViewData["Title"] = "系统菜单管理 - VueLibV4";
 }
+<style>
+.dyn-tree-ghost { opacity: 0.4; background: #ecf5ff !important; }
+.dyn-tree-chosen { cursor: move !important; }
+</style>
 @*
   系统菜单管理（M5 范式）：
   · dyn-init="createapp" 自举根应用；script[tag=dynconfig] 声明页面数据/方法
@@ -21,7 +25,7 @@
                     <el-button type="success" size="small" @@click="onAddRoot">+ 根菜单</el-button>
                 </div>
                 <div class="flex-1 min-h-0 overflow-auto">
-                    <el-tree :data="treeData"
+                    <el-tree ref="treeEl" :data="treeData"
                              :props="{ children: 'children', label: 'Name' }"
                              node-key="Id"
                              default-expand-all
@@ -136,6 +140,7 @@
                 deleting: false,
                 emojiLoading: false, emojiRaw: [], emojiQuery: '',
                 treeData: [],
+                _sortables: [],
                 // 平铺父级选项（含层级缩进 label）
                 flatMenus: [],
                 form: {
@@ -238,7 +243,82 @@
                         }
                     })
                     .catch(function (e) { dyn.showMessage('加载菜单树失败：' + e.message, 'error'); })
-                    .finally(function () { self.treeLoading = false; });
+                    .finally(function () { self.treeLoading = false; self.$nextTick(function () { self.initSortable(); }); });
+            },
+            initSortable: function () {
+                var self = this;
+                this.destroySortable();
+                var treeRef = this.$refs.treeEl;
+                if (!treeRef || !treeRef.$el) return;
+                if (typeof Sortable === 'undefined') return;
+                var rootEl = treeRef.$el;
+                var lists = [rootEl];
+                rootEl.querySelectorAll('.el-tree-node__children').forEach(function (l) { lists.push(l); });
+                lists.forEach(function (list) {
+                    if (!list || !list.querySelectorAll) return;
+                    var s = Sortable.create(list, {
+                        group: 'menu-tree-sort',
+                        animation: 150,
+                        forceFallback: true,
+                        fallbackOnBody: true,
+                        ghostClass: 'dyn-tree-ghost',
+                        chosenClass: 'dyn-tree-chosen',
+                        onStart: function () {
+                            document.body.style.userSelect = 'none';
+                        },
+                        onEnd: function () {
+                            document.body.style.userSelect = '';
+                            self.saveOrder(arguments[0]);
+                        }
+                    });
+                    self._sortables.push(s);
+                });
+            },
+            destroySortable: function () {
+                if (this._sortables) { this._sortables.forEach(function (s) { try { s.destroy(); } catch (e) { } }); this._sortables = []; }
+            },
+            saveOrder: function (evt) {
+                var self = this;
+                if (!evt) return;
+                // 收集拖拽后同层所有节点的新排序号
+                function collect(listEl) {
+                    var nodes = listEl.querySelectorAll(':scope > .el-tree-node');
+                    var out = [];
+                    for (var i = 0; i < nodes.length; i++) {
+                        var keyEl = nodes[i].querySelector(':scope > .el-tree-node__content [data-key]')
+                                 || nodes[i].querySelector('[data-key]');
+                        var key = keyEl ? keyEl.getAttribute('data-key') : '';
+                        if (key) out.push({ Id: Number(key), SortNo: (i + 1) * 100 });
+                    }
+                    return out;
+                }
+                var updates = collect(evt.from);
+                if (evt.to && evt.to !== evt.from) updates = updates.concat(collect(evt.to));
+                if (!updates.length) { this.loadTree(); return; }
+                // 去重（同一节点可能在两个 list 里出现）
+                var seen = {};
+                var ops = updates.filter(function (u) {
+                    if (seen[u.Id]) return false;
+                    seen[u.Id] = true;
+                    return true;
+                }).map(function (u) {
+                    return { op: 'update', data: { Id: u.Id, SortNo: u.SortNo } };
+                });
+                // 调用批量接口，事务提交
+                fetch('/api/dyndata/batch', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ table: 'SysMenu', project: '__platform__', ops: ops })
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res && res.code === 0) {
+                        dyn.showMessage('排序已保存', 'success');
+                    } else {
+                        dyn.showMessage((res && res.msg) || '排序保存失败', 'error');
+                    }
+                    self.loadTree();
+                }).catch(function (e) {
+                    dyn.showMessage('排序保存失败：' + e.message, 'error');
+                    self.loadTree();
+                });
             },
             onNodeClick: function (data) {
                 this.loadForm(data.Id);
@@ -346,7 +426,8 @@
                     });
             }
         },
-        mounted: function () { this.loadTree(); this.loadEmojis(); }
+        mounted: function () { this.loadTree(); this.loadEmojis(); },
+        beforeUnmount: function () { this.destroySortable(); }
     };
     </script>
 </div>

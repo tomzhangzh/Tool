@@ -1,7 +1,15 @@
 @{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
 
-<!-- 隐藏的 RPC 调用器：发请求到服务端，结果可赋值 model / 执行 JS / 触发动作 -->
-<div v-if="false"></div>
+<!-- 隐藏的 RPC 调用器 -->
+<div v-if="!showDebug"></div>
+<div v-else class="dyn-rpc-debug" style="border:1px dashed #409eff;border-radius:4px;padding:8px;margin:4px;font-size:12px;background:#ecf5ff;">
+  <div style="font-weight:600;color:#409eff;margin-bottom:4px;">🔗 RpcLoader {{ rpcUrl || '(未配置URL)' }}</div>
+  <div v-if="lastResult" style="margin-top:4px;max-height:100px;overflow:auto;background:#fff;padding:4px;border-radius:2px;">
+    <pre style="margin:0;font-size:11px;">{{ JSON.stringify(lastResult, null, 2) }}</pre>
+  </div>
+  <div v-if="lastError" style="margin-top:4px;color:#f56c6c;font-size:11px;">{{ lastError }}</div>
+  <el-button size="mini" type="primary" plain @@click="doLoad" style="margin-top:6px;">手动触发</el-button>
+</div>
 
 @section setupScripts{
 DVALUE = null;
@@ -13,6 +21,13 @@ const rpcParams = computed(() => jc.options.comoptions.params || {});
 const rpcTarget = computed(() => jc.options.comoptions.targetModel || '');
 const onSuccessJs = computed(() => jc.options.comoptions.onSuccessJs || '');
 const onSuccessAction = computed(() => jc.options.comoptions.onSuccessAction || '');
+const onErrorJs = computed(() => jc.options.comoptions.onErrorJs || '');
+const onErrorAction = computed(() => jc.options.comoptions.onErrorAction || '');
+const showDebug = computed(() => jc.options.comoptions.showDebug === true || jc.options.comoptions.showDebug === 'true' || jc.options.comoptions.showDebug === 1);
+const delay = computed(() => parseInt(jc.options.comoptions.delay || 0) || 0);
+
+const lastResult = ref(null);
+const lastError = ref('');
 
 function writeModel(path, val) {
     if (!path || !props.parentmodelinfo) return;
@@ -50,13 +65,14 @@ async function doLoad() {
             url += (url.includes('?') ? '&' : '?') + qs;
         }
         const res = await fetch(url, opt);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         const result = (data && data.data !== undefined) ? data.data : data;
+        lastResult.value = result;
+        lastError.value = '';
 
-        // 1. 赋值给 model
         if (rpcTarget.value) writeModel(rpcTarget.value, result);
 
-        // 2. 执行 JS 代码
         if (onSuccessJs.value) {
             try {
                 const fn = new Function('result', 'model', 'getByPath',
@@ -66,7 +82,6 @@ async function doLoad() {
                 console.warn('[RpcLoader] JS执行失败:', e);
             }
         }
-        // 3. 触发 ActionHelper 动作
         if (onSuccessAction.value && window.DynAction && typeof window.DynAction.run === 'function') {
             try {
                 await window.DynAction.run(onSuccessAction.value, { result: result }, {
@@ -78,13 +93,39 @@ async function doLoad() {
             }
         }
     } catch (e) {
+        lastError.value = e.message || String(e);
         console.warn('[RpcLoader] 请求失败:', e);
+        if (onErrorJs.value) {
+            try {
+                const fn = new Function('error', 'model', 'getByPath', onErrorJs.value);
+                fn(e, props.parentmodelinfo, getByPath);
+            } catch (je) { console.warn('[RpcLoader] onError JS失败:', je); }
+        }
+        if (onErrorAction.value && window.DynAction && typeof window.DynAction.run === 'function') {
+            try {
+                await window.DynAction.run(onErrorAction.value, { error: e.message }, { element: null, model: props.parentmodelinfo });
+            } catch (je) { console.warn('[RpcLoader] onError 动作失败:', je); }
+        }
+    }
+}
+
+let _timer = null;
+function loadWithDelay() {
+    if (delay.value > 0) {
+        if (_timer) clearTimeout(_timer);
+        _timer = setTimeout(doLoad, delay.value);
+    } else {
+        doLoad();
     }
 }
 
 onMounted(() => {
-    if (rpcAutoLoad.value) doLoad();
+    if (rpcAutoLoad.value) loadWithDelay();
+    // 暴露给其他组件通过事件调用
+    if (window.DynBus) {
+        window.DynBus.on('rpc:' + (jc.options.modelname || jc.id), loadWithDelay);
+    }
 });
 
-Object.assign(comExtra, { doLoad });
+Object.assign(comExtra, { doLoad, loadWithDelay, lastResult, lastError, showDebug });
 }

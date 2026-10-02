@@ -39,5 +39,37 @@
                dyn.initActions("body");
             });
     </script>
+
+    @* 前端 JS 错误上报到后端 SysLog（开关在 appsettings: Dyn:Log:FrontendEnabled） *@
+    <script>
+    (function () {
+        var _lastReport = 0;
+        function report(err) {
+            var now = Date.now();
+            if (now - _lastReport < 3000) return; // 3秒去重
+            _lastReport = now;
+            try {
+                fetch('/api/log/frontend-error', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: err.message || String(err),
+                        source: err.filename || err.sourceURL || '',
+                        line: err.lineno || 0,
+                        column: err.colno || 0,
+                        stack: err.stack || '',
+                        url: location.href
+                    })
+                }).catch(function(){});
+            } catch(e){}
+        }
+        window.onerror = function (msg, src, line, col, err) {
+            report({ message: String(msg), filename: src, lineno: line, colno: col, stack: err && err.stack });
+        };
+        window.addEventListener('unhandledrejection', function (e) {
+            report({ message: 'UnhandledPromiseRejection: ' + (e.reason && e.reason.message || e.reason), stack: e.reason && e.reason.stack });
+        });
+    })();
+    </script>
 </body>
 </html>

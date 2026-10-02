@@ -47,6 +47,12 @@ public class ApiKeyAuthMiddleware
 
         // 浏览器静态资源与设计器页不卡，只拦 API（/api/ 前缀）
         var path = ctx.Request.Path.Value ?? "";
+        // 前端错误上报放行（无登录态，浏览器无法带 API Key）
+        if (path.StartsWith("/api/log", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(ctx);
+            return;
+        }
         if (!path.StartsWith("/api", StringComparison.OrdinalIgnoreCase))
         {
             await _next(ctx);
