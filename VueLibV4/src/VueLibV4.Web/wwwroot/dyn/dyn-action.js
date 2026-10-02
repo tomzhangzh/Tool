@@ -3,6 +3,10 @@
    组合动作 $before/$onSuccess/$onFail/$after 写在某步的 JSON 参数里；postback 使用 axios UMD */
 (function(global){
 'use strict';
+var __plugin = {
+  name:'actions', stage:'actions', requires:['dyn'],
+  setup:function(ctx){
+'use strict';
 if(!global.dyn){
   console.error("[DynAction] 请先加载 dyn-core.js");
   return;
@@ -1277,6 +1281,8 @@ function bindDelegation(){
 }
 
 const api = {
+  /* 管道词法的权威实现：dyn-debug / lint 等所有消费方统一走这里，禁止另抄解析器 */
+  parsePipe, parsePipeArg,
   actionList(){ return Object.values(_actionMeta); },
   getMeta(name){ return _actionMeta[name]||null; },
   resolveAction,
@@ -1295,6 +1301,17 @@ if(typeof dyn.installActionApi === 'function'){
 }else{
   console.error("[DynAction] dyn.installActionApi不存在，请检查dyn-core.js");
 }
+
+/* 测试钩子：仅当宿主预置了 window.__DYN_TEST__（node 测试 harness）时导出内部纯函数；
+   浏览器正常加载时该对象不存在，行为零变化。 */
+if(global.__DYN_TEST__){
+  global.__DYN_TEST__.exports = {
+    parsePipe, parsePipeArg, applyTpl, resolveCtxTokens,
+    normActionSteps, runPipe, wrapCompositeAction, resolveAction,
+    buildCtx, defineAction
+  };
+}
+
 bindDelegation();
 
 global.DynAction = {
@@ -1316,4 +1333,8 @@ global.DynActionHelper = global.DynAction;
 
 // 启动后自动拉取数据库动作，使任意页面 dyn-click="ActionHelper.Xxx" 管道可直接使用
 loadDbActionHelpers().catch(function(e){ console.warn("[DynAction]加载数据库动作助手失败",e&&e.message); });
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

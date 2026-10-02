@@ -24,6 +24,10 @@
  */
 (function (global) {
   'use strict';
+var __plugin = {
+  name:'rpc', stage:'services', requires:['dyn'],
+  setup:function(ctx){
+  'use strict';
 
   var RPC_BASE = '/api/rpc';
 
@@ -88,4 +92,8 @@
   global.dyn.service = service;
   global.dyn.eval = evalCode;
   global.dyn.rpcServices = services;
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

@@ -1,6 +1,10 @@
 /* dyn-load-com.js DynLoadCom：后端动态加载自定义组件，原vueLoadCom重命名 */
 (function(global){
 'use strict';
+var __plugin = {
+  name:'load-com', stage:'components', requires:[],
+  setup:function(ctx){
+'use strict';
 const componentCache = new Map();
 const loadingPromises = new Map();
 const injectedStyles = new Set();
@@ -150,4 +154,8 @@ DynLoadCom.getCache = ()=>componentCache;
 
 global.DynLoadCom = DynLoadCom;
 global.vueLoadCom = DynLoadCom; //兼容旧别名
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

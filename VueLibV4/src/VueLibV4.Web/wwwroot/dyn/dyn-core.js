@@ -2,6 +2,10 @@
 /* 网络层改用 axios UMD 全局（window.axios），去除 jQuery 依赖 */
 (function(global){
 'use strict';
+var __plugin = {
+  name:'core', stage:'core', requires:['Vue'],
+  setup:function(ctx){
+'use strict';
 const Vue = global.Vue;
 if(!Vue){ console.error("[DynCore] 请先引入Vue3 UMD"); return; }
 
@@ -1067,4 +1071,9 @@ dyn.installActionApi = function(obj){
 };
 global.dynCore = dyn;
 global.dyn = dyn;
+ctx.provide('dyn', dyn);
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

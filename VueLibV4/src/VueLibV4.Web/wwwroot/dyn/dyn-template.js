@@ -8,6 +8,10 @@
  * ============================================================ */
 (function (global) {
   'use strict';
+var __plugin = {
+  name:'template', stage:'designer', requires:[],
+  setup:function(ctx){
+  'use strict';
 
   /* ---------- 导入：Vue Template → DynCom JSON ---------- */
 
@@ -184,4 +188,8 @@
     exportTemplate: exportTemplate,
     parseStyle: parseStyle
   };
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

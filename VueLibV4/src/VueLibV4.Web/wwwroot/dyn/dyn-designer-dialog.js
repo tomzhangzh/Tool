@@ -22,6 +22,10 @@
  * ============================================================ */
 (function (global) {
   'use strict';
+var __plugin = {
+  name:'designer-dialog', stage:'designer', requires:[],
+  setup:function(ctx){
+  'use strict';
 
   var DESIGNER_URL = '/Platform/Page/Designer?embed=1';
 
@@ -119,4 +123,8 @@
   };
 
   global.DynDesignerDialog = DesignerDialog;
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

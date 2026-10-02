@@ -1,6 +1,10 @@
 /* dyn-com.js V4 组件注册表，组合组件解析；路径工具统一使用 dyn-core 的 setPathVal（lodash 驱动） */
 (function(global){
 'use strict';
+var __plugin = {
+  name:'com', stage:'components', requires:['Vue'],
+  setup:function(ctx){
+'use strict';
 const Vue = global.Vue;
 if(!Vue){ console.error("[DynCom] 未加载Vue"); return; }
 
@@ -154,4 +158,8 @@ global.DynCom = {
   registry:_registry,
   metaMap:_metaMap
 };
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

@@ -12,6 +12,7 @@
  * @property {boolean} loadTailwind
  * @property {boolean} loadAxios 是否加载本地 ../lib/axios.min.js（默认false，页面可自行引入axios UMD CDN）
  * @property {boolean} disableEvalJs 全局关闭evaljs动作，防止任意脚本执行
+ * @property {boolean} cacheBust 模块URL强制追加时间戳绕缓存（不经_Layout、无内容哈希清单的独立静态页/开发页使用，如 test.html）
  */
 
 /** @type {DynLibConfig} */
@@ -22,7 +23,8 @@ const DEFAULT_CONFIG = {
   loadCodemirror:true,
   loadTailwind:true,
   loadAxios:true,
-  disableEvalJs:false
+  disableEvalJs:false,
+  cacheBust:false
 };
 global.DYN_LIB_CONFIG = Object.assign({}, DEFAULT_CONFIG, global.DYN_LIB_CONFIG||{});
 const DYN_LIB_CONFIG = global.DYN_LIB_CONFIG;
@@ -61,8 +63,10 @@ if(DYN_LIB_CONFIG.loadCodemirror){
 // axios UMD：默认false，页面可自行引入CDN；如需本地加载，把 axios.min.js 放入 ../lib/ 并设置 loadAxios:true
 if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"../lib/axios.min.js",name:"axios"});
 
-// 模块加载顺序：dyn-com（组件注册表）→ dyn-core（挂载内核，递归统一走 DynDynamicCom）→ 校验器 → 动作系统 → 设计器弹窗
+// 模块加载顺序：dyn-kernel 最先（显式内核/阶段装配）→ dyn-com（组件注册表）→ dyn-core（挂载内核，递归统一走 DynDynamicCom）→ 校验器 → 动作系统 → 设计器弹窗
+// 注意：真正的初始化顺序由 DynKernel 按阶段（core→components→params→services→actions→blocks→layout→designer→debug）决定，与此数组顺序解耦
 const DYN_MODULES = [
+  "dyn-kernel.js",
   "dyn-load-com.js",
   "dyn-com.js",
   "dyn-core.js",
@@ -89,6 +93,11 @@ const DynLib = {
   // 改任意 wwwroot/dyn/**/*.js → 哈希变化 → URL 变化 → 浏览器缓存自动失效，无需手工 bump。
   // 清单缺失（片段独立加载等极端场景）才回退 this.version 固定版本号。
   script(rel){
+    // 独立静态页无哈希清单且开启 cacheBust：整次加载共用一个时间戳，既绕缓存又保持链内一致
+    if(DYN_LIB_CONFIG.cacheBust){
+      const bust = this._cacheBust || (this._cacheBust = Date.now());
+      return BASE+rel+(rel.indexOf('?')>=0?'&':'?')+'t='+bust;
+    }
     const hashes = global.DYN_ASSET_HASHES || {};
     const v = hashes[rel] || this.version;
     return BASE+rel+(rel.indexOf('?')>=0?'&':'?')+'v='+v;
@@ -132,12 +141,14 @@ const DynLib = {
     this._queue.push(cb);
   },
   _fireReady(){
-    // // 就绪后自动扫描并执行页面 dyn-init 初始化动作（含ajax载入片段由mountCore触发）
-    // try{
-    //   if(global.dyn && typeof dyn.initActions === 'function'){
-    //     dyn.initActions(document.body);
-    //   }
-    // }catch(e){ console.error("[DynLib]initActions执行异常",e); }
+    // 就绪后自动扫描并执行页面 dyn-init 初始化动作（含ajax载入片段由mountCore触发）。
+    // 无手动 mount 的独立页（如 dyn/test.html）完全依赖这次全局引导；
+    // mountCore 有 __dynApp 幂等守卫，ready 回调内再手动 mount 不会重复挂载。
+    try{
+      if(global.dyn && typeof global.dyn.initActions === 'function'){
+        global.dyn.initActions(document.body);
+      }
+    }catch(e){ console.error("[DynLib]initActions执行异常",e); }
     axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
     this._ready = true;
     const q = [...this._queue];
@@ -151,6 +162,10 @@ let chain = DEFAULT_LIBS.map(item=>({url:DynLib.lib(item.url),name:item.name}))
 .concat(DYN_MODULES.map(m=>({url:DynLib.script(m),name:m})));
 
 chain.reduce((prev,item)=>prev.then(()=>DynLib.load(item.url)),Promise.resolve())
+.then(()=>{
+  // 全部脚本就绪 → 内核按阶段显式装配（boot 幂等）；无 kernel 的极端场景直接放行
+  if(global.DynKernel && typeof global.DynKernel.boot==='function') return global.DynKernel.boot();
+})
 .then(()=>DynLib._fireReady())
 .catch(err=>{
   console.error("[DynLib]依赖加载异常",err);

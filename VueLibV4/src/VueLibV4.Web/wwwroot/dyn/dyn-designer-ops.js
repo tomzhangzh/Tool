@@ -2,6 +2,10 @@
  * 所有函数直接操作共享 scope（reactive），4 个分区 app 共用。 */
 (function (global) {
   'use strict';
+var __plugin = {
+  name:'designer-ops', stage:'designer', requires:['Vue'],
+  setup:function(ctx){
+  'use strict';
   const Vue = global.Vue;
 
   let _uidSeq = 0;
@@ -605,4 +609,8 @@
     commandRegistry, execOperate,
     saveSnapshot, undoAction, redoAction
   };
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

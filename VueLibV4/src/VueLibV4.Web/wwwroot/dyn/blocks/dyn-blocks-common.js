@@ -11,6 +11,10 @@
  */
 (function (global) {
     'use strict';
+var __plugin = {
+    name:'blocks-common', stage:'blocks', requires:[],
+    setup:function(ctx){
+    'use strict';
     var DynBlocks = global.DynBlocks = global.DynBlocks || {};
 
     // ---------------- Block 端口契约（静态声明） ----------------
@@ -168,4 +172,8 @@
         }
         return out;
     };
+    }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

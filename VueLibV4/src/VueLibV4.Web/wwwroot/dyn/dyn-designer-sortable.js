@@ -4,6 +4,10 @@
  * 我们只负责：左侧组件库 clone、拖入时把 metadata 转成实际组件配置、高亮。
  */
 (function () {
+    var global = window;
+var __plugin = {
+    name:'designer-sortable', stage:'designer', requires:[],
+    setup:function(ctx){
     var DesignerSortable = {};
 
     function getUseDraggable() {
@@ -220,4 +224,8 @@
     };
 
     window.DesignerSortable = DesignerSortable;
+    }
+};
+if(window.DynKernel) window.DynKernel.register(__plugin);
+else (window.__DYN_KERNEL_PENDING__=window.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })();

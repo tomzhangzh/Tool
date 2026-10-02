@@ -19,6 +19,10 @@
  */
 (function (global) {
   'use strict';
+var __plugin = {
+  name:'params', stage:'params', requires:['Vue'],
+  setup:function(ctx){
+  'use strict';
   var Vue = global.Vue;
   if (!Vue) { console.error('[DynParams] 需要 Vue3 UMD'); return; }
 
@@ -466,4 +470,8 @@
   };
 
   global.DynParams = DynParams;
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

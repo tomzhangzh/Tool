@@ -24,6 +24,10 @@
  */
 (function (global) {
     'use strict';
+var __plugin = {
+    name: 'debug', stage: 'debug', requires: ['dyn'],
+    setup: function (ctx) {
+    'use strict';
 
     function enabled() {
         try {
@@ -1082,28 +1086,6 @@
     var ACT_EVENTS = ['click', 'dblclick', 'change', 'select'];
     var ACT_PIPE_ATTR = { click: 'dyn-click', dblclick: 'dyn-dblclick', change: 'dyn-change', select: 'dyn-select' };
 
-    /** 与 dyn-action.js parsePipe 同语义：ActionHelper.Xxx|Yyy('a')|Zzz({"k":1}) */
-    function parsePipeLocal(expr) {
-        if (!expr || typeof expr !== 'string') return [];
-        return expr.split('|').map(function (s) { return s.trim(); }).filter(Boolean).map(function (tok) {
-            var m = tok.match(/^([A-Za-z_$][\w$.]*)\s*(\(([\s\S]*)\))?\s*$/);
-            if (!m) return null;
-            var action = m[1].replace(/^ActionHelper\./i, '');
-            var options = {};
-            if (m[3] !== undefined && m[3].trim() !== '') {
-                var raw = m[3].trim(), arg;
-                if ((raw.charAt(0) === '{' || raw.charAt(0) === '[')
-                    || /^(true|false|null|-?\d+(\.\d+)?)$/.test(raw)) {
-                    try { arg = JSON.parse(raw); } catch (e) { arg = raw; }
-                } else if ((raw.charAt(0) === "'" && raw.charAt(raw.length - 1) === "'")
-                    || (raw.charAt(0) === '"' && raw.charAt(raw.length - 1) === '"')) {
-                    arg = raw.slice(1, -1);
-                } else arg = raw;
-                options = (arg && typeof arg === 'object' && !Array.isArray(arg)) ? arg : { value: arg };
-            }
-            return { action: action, options: options };
-        }).filter(Boolean);
-    }
     function actionMetaOf(name) {
         try { if (global.dyn && typeof dyn.getMeta === 'function') return dyn.getMeta(name); } catch (e) { }
         return null;
@@ -1116,12 +1098,13 @@
             var an = ACT_PIPE_ATTR[ev];
             if (node.hasAttribute && node.hasAttribute(an)) {
                 var raw = node.getAttribute(an) || '';
-                binds.push({ ev: ev, kind: 'pipe', attr: an, raw: raw, steps: parsePipeLocal(raw) });
+                // 管道解析统一调用内核权威实现 dyn.parsePipe，禁止另抄解析器
+                binds.push({ ev: ev, kind: 'pipe', attr: an, raw: raw, steps: global.dyn.parsePipe(raw) });
             }
         });
         if (node.hasAttribute && node.hasAttribute('dyn-init')) {
             var ir = node.getAttribute('dyn-init') || '';
-            binds.push({ ev: 'init', kind: 'pipe', attr: 'dyn-init', raw: ir, steps: parsePipeLocal(ir) });
+            binds.push({ ev: 'init', kind: 'pipe', attr: 'dyn-init', raw: ir, steps: global.dyn.parsePipe(ir) });
         }
         if (node.hasAttribute && node.hasAttribute('data-dyn-action-ref')) {
             var refId = node.getAttribute('data-dyn-action-ref') || '';
@@ -1880,4 +1863,8 @@
         }
     }
     boot();
+    }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

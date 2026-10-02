@@ -14,6 +14,10 @@
  */
 (function (global) {
   'use strict';
+var __plugin = {
+  name:'call', stage:'services', requires:[],
+  setup:function(ctx){
+  'use strict';
 
   var axios = global.axios;
   if (!axios) { console.warn('[DynCall] axios 未就绪，请先由 dyn-lib 加载'); }
@@ -84,4 +88,8 @@
     }
   };
   global.DynCall = DynCall;
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

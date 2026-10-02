@@ -21,6 +21,10 @@
  */
 (function (global) {
     'use strict';
+var __plugin = {
+    name:'layout-engine', stage:'layout', requires:['dyn'],
+    setup:function(ctx){
+    'use strict';
     var DynLayouts = global.DynLayouts = global.DynLayouts || {};
     var shells = Object.create(null);
 
@@ -256,4 +260,8 @@
             return info;
         });
     };
+    }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

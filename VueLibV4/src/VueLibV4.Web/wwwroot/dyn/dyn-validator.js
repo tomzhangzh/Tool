@@ -8,6 +8,10 @@
  * ============================================================ */
 (function (global) {
   'use strict';
+var __plugin = {
+  name:'validator', stage:'services', requires:[],
+  setup:function(ctx){
+  'use strict';
 
   var RULES = {
     required: function (v) { return v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0); },
@@ -73,4 +77,8 @@
     validate: validate,
     toRules: toRules
   };
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);

@@ -15,6 +15,10 @@
  */
 (function (global) {
   'use strict';
+var __plugin = {
+  name:'dsl', stage:'designer', requires:[],
+  setup:function(ctx){
+  'use strict';
 
   /* ==================== 组件名简写别名 ==================== */
   const ALIASES = {
@@ -759,4 +763,8 @@
     markDslIssues: markDslIssues,
     defineDslMode: defineDslMode
   };
+  }
+};
+if(global.DynKernel) global.DynKernel.register(__plugin);
+else (global.__DYN_KERNEL_PENDING__=global.__DYN_KERNEL_PENDING__||[]).push(__plugin);
 })(window);
