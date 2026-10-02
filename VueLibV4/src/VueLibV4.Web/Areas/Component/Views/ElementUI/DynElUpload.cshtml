@@ -1,42 +1,26 @@
 @{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-upload v-if="jc.options.comoptions.uploadType === 'picture'"
-           :action="'/api/dyncommon/upload'"
-           :list-type="'picture-card'"
-           :limit="jc.options.comoptions.limit || 1"
-           :on-success="onUploadSuccess"
-           :on-error="onUploadError"
-           :file-list="fileList">
-    <el-icon><plus /></el-icon>
-</el-upload>
-<el-upload v-else
-           :action="'/api/dyncommon/upload'"
+<el-upload :action="'/api/dyncommon/upload'"
            :accept="jc.options.comoptions.accept || ''"
-           :limit="jc.options.comoptions.limit || 1"
-           :on-success="onUploadSuccess"
-           :on-error="onUploadError"
-           :file-list="fileList">
-    <el-button type="primary" size="small">{{ jc.options.comoptions.buttonText || '点击上传' }}</el-button>
+           :limit="1"
+           :show-file-list="true"
+           :on-success="upOk"
+           :on-error="upError"
+           v-bind="comBind">
+    <el-button type="primary" size="small">
+        {{ jc.options.comoptions.buttonText || '点击上传' }}
+    </el-button>
 </el-upload>
 
 @section setupScripts{
 DVALUE = '';
-const fileList = ref([]);
-
-function onUploadSuccess(res, file) {
+function upOk(res) {
     if (res && res.code === 0 && res.data) {
         modelinfo.value = res.data.url || res.data;
-        fileList.value = [{ name: file.name, url: res.data.url || res.data }];
+    } else {
+        dyn.showMessage((res && res.msg) || '上传失败', 'error');
     }
 }
-function onUploadError() {
-    ElementPlus.ElMessage.error('上传失败');
-}
-
-// 外部 model 变化时同步
-watch(modelinfo, function(val) {
-    if (val && (!fileList.value.length || fileList.value[0].url !== val)) {
-        fileList.value = [{ name: '已上传', url: val }];
-    }
-}, { immediate: true });
+function upError() { dyn.showMessage('上传失败', 'error'); }
+Object.assign(comExtra, { upOk, upError });
 }
