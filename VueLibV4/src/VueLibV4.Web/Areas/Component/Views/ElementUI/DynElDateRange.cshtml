@@ -1,0 +1,56 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+
+<template>
+  <el-date-picker
+    v-model="rangeValue"
+    :type="pickerType"
+    :range-separator="rangeSeparator"
+    :start-placeholder="startPlaceholder"
+    :end-placeholder="endPlaceholder"
+    :format="format"
+    :value-format="valueFormat"
+    :clearable="clearable"
+    :disabled="disabled"
+    :size="size"
+    @change="onChange"
+    style="width:100%;"
+  />
+</template>
+
+@section setupScripts{
+DVALUE = null;
+
+const rangeValue = ref([null, null]);
+
+const pickerType = computed(() => jc.options.comoptions.pickerType || 'datetimerange');
+const rangeSeparator = computed(() => jc.options.comoptions.rangeSeparator || '至');
+const startPlaceholder = computed(() => jc.options.comoptions.startPlaceholder || '开始日期');
+const endPlaceholder = computed(() => jc.options.comoptions.endPlaceholder || '结束日期');
+const format = computed(() => jc.options.comoptions.format || 'YYYY-MM-DD HH:mm:ss');
+const valueFormat = computed(() => jc.options.comoptions.valueFormat || 'YYYY-MM-DD HH:mm:ss');
+const clearable = computed(() => jc.options.comoptions.clearable !== false);
+const disabled = computed(() => jc.options.comoptions.disabled === true);
+const size = computed(() => jc.options.comoptions.size || 'small');
+
+// 初始值：从两个 model 读
+function initValue() {
+    const m1 = jc.options.comoptions.startModel || '';
+    const m2 = jc.options.comoptions.endModel || '';
+    if (m1 && m2 && window.__DYN_MODEL__) {
+        rangeValue.value = [window.__DYN_MODEL__[m1] || null, window.__DYN_MODEL__[m2] || null];
+    }
+}
+
+function onChange(val) {
+    const m1 = jc.options.comoptions.startModel || '';
+    const m2 = jc.options.comoptions.endModel || '';
+    if (m1 && window.__DYN_MODEL__) window.__DYN_MODEL__[m1] = val ? val[0] : null;
+    if (m2 && window.__DYN_MODEL__) window.__DYN_MODEL__[m2] = val ? val[1] : null;
+}
+
+onMounted(() => { setTimeout(initValue, 50); });
+
+Object.assign(comExtra, { rangeValue, pickerType, rangeSeparator, startPlaceholder, endPlaceholder, format, valueFormat, clearable, disabled, size, onChange });
+}

@@ -1,0 +1,43 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
+}
+
+<template>
+<div class="dyn-markdown">
+  <el-tabs v-if="!readonly" v-model="tab" type="card" class="md-tabs">
+    <el-tab-pane label="编辑" name="edit">
+      <el-input v-model="localSource" type="textarea" :rows="8" placeholder="# 写 Markdown..." />
+    </el-tab-pane>
+    <el-tab-pane label="预览" name="preview">
+      <div ref="mdRef" class="md-preview" v-html="renderedHtml"></div>
+    </el-tab-pane>
+  </el-tabs>
+  <div v-else ref="mdRef" class="md-preview" v-html="renderedHtml"></div>
+</div>
+</template>
+
+@section setupScripts{
+DVALUE = null;
+
+const tab = ref('preview');
+const localSource = ref(jc.options.comoptions.source || '');
+
+const readonly = computed(() => jc.options.comoptions.readonly === true || jc.options.comoptions.readonly === 'true' || jc.options.comoptions.readonly === 1);
+
+const renderedHtml = computed(() => {
+    const src = localSource.value || jc.options.comoptions.source || '';
+    if (!src) return '<div style="color:#909399;font-size:13px;padding:8px;">暂无内容</div>';
+    if (window.markdownit) {
+        try {
+            return window.markdownit({ html: true, linkify: true, breaks: true }).render(src);
+        } catch (e) { return '<pre style="color:#f56c6c;">Markdown render error: ' + e.message + '</pre>'; }
+    }
+    return '<pre>' + src + '</pre>';
+});
+
+watch(localSource, (v) => {
+    if (jc.options.comoptions.source !== v) jc.options.comoptions.source = v;
+});
+
+Object.assign(comExtra, { tab, localSource, readonly, renderedHtml });
+}

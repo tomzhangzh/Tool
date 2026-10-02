@@ -1,0 +1,53 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml";
+}
+
+<template>
+<div class="dyn-mermaid">
+  <el-tabs v-if="!readonly" v-model="tab" type="card" class="mm-tabs">
+    <el-tab-pane label="代码" name="code">
+      <el-input v-model="localCode" type="textarea" :rows="8" placeholder="flowchart LR..." />
+      <el-button size="small" type="primary" @click="renderMermaid" style="margin-top:8px;">渲染</el-button>
+    </el-tab-pane>
+    <el-tab-pane label="预览" name="preview">
+      <div ref="mmRef" class="mm-preview" style="overflow:auto;min-height:120px;"></div>
+    </el-tab-pane>
+  </el-tabs>
+  <div v-else ref="mmRef" class="mm-preview" style="overflow:auto;min-height:120px;"></div>
+</div>
+</template>
+
+@section setupScripts{
+DVALUE = null;
+
+const tab = ref('preview');
+const mmRef = ref(null);
+const localCode = ref(jc.options.comoptions.code || '');
+const theme = ref(jc.options.comoptions.theme || 'default');
+
+const readonly = computed(() => jc.options.comoptions.readonly === true || jc.options.comoptions.readonly === 'true' || jc.options.comoptions.readonly === 1);
+
+async function renderMermaid() {
+    try {
+        await nextTick();
+        const el = mmRef.value || document.querySelector('.dyn-mermaid .mm-preview');
+        if (!el) return;
+        const code = localCode.value || jc.options.comoptions.code || '';
+        if (!code) { el.innerHTML = '<div style="color:#909399;padding:12px;font-size:13px;">// 请配置 mermaid 代码</div>'; return; }
+        if (!window.mermaid) { el.innerHTML = '<div style="color:#f56c6c;padding:12px;font-size:13px;">mermaid 库未加载</div>'; return; }
+        window.mermaid.initialize({ startOnLoad: false, theme: theme.value });
+        const id = 'mmd-' + Math.random().toString(36).slice(2, 9);
+        const r = await window.mermaid.render(id, code);
+        el.innerHTML = r.svg;
+    } catch (e) {
+        const el = mmRef.value || document.querySelector('.dyn-mermaid .mm-preview');
+        if (el) el.innerHTML = '<pre style="color:#f56c6c;font-size:12px;padding:8px;">' + (e.message || e.str || 'render error') + '</pre>';
+    }
+}
+
+onMounted(() => { setTimeout(renderMermaid, 100); });
+
+watch(localCode, (v) => { jc.options.comoptions.code = v; });
+
+Object.assign(comExtra, { tab, mmRef, localCode, readonly, renderMermaid });
+}

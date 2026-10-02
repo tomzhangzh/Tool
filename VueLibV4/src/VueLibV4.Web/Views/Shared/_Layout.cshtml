@@ -22,6 +22,8 @@
 
     @* 全局图表依赖（DynEChart 组件使用；本地文件，无 CDN 依赖） *@
     <script src="~/lib/echarts.min.js"></script>
+    <script src="~/lib/markdown-it.min.js"></script>
+    <script src="~/lib/mermaid.min.js"></script>
 
     @* dyn 模块内容哈希清单：dyn-lib.js 据此为每个模块拼 ?v=&lt;内容哈希&gt;，改 js 自动失效，免手工 bump *@
     <script>@Html.Raw(DynAssets.RenderInlineScript())</script>
