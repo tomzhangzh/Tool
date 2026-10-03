@@ -59,7 +59,7 @@ var __plugin = {
         var clone = Array.isArray(tpl) ? [] : {};
         Object.keys(tpl).forEach(function (k) {
             var v = tpl[k];
-            clone[k] = (v && typeof v === 'object') ? mapWith(v, ctx) : mapWith(v, ctx);
+            clone[k] = mapWith(v, ctx);
         });
         return clone;
     }
@@ -129,16 +129,18 @@ var __plugin = {
             // —— 端口静态校验（对 DynBlocks.CONTRACTS 已登记的角色生效）——
             var fromRole = roleOf(src.node, spec);
             var fromContract = fromRole && fromRole !== '__shell__' ? contracts[fromRole] : null;
-            if (fromContract && fromContract.events.indexOf(src.port) < 0) {
+            var fromEvents = fromContract && fromContract.events ? fromContract.events : [];
+            if (fromEvents.indexOf(src.port) < 0) {
                 warnings.push('wire 源端口未声明：' + w.from + '（block=' + fromRole
-                    + '，事件=[' + fromContract.events.join(',') + ']）');
+                    + '，事件=[' + fromEvents.join(',') + ']）');
             }
             targets.forEach(function (t) {
                 var role = roleOf(t.node, spec);
                 var contract = role && role !== '__shell__' ? contracts[role] : null;
-                if (contract && contract.commands.indexOf(t.port) < 0) {
+                var cmds = contract && contract.commands ? contract.commands : [];
+                if (cmds.indexOf(t.port) < 0) {
                     warnings.push('wire 目标端口未声明：' + t.node + '.' + t.port + '（block=' + role
-                        + '，命令=[' + contract.commands.join(',') + ']）');
+                        + '，命令=[' + cmds.join(',') + ']）');
                 }
             });
 
@@ -180,16 +182,25 @@ var __plugin = {
         var spec = parseAttr(root, 'data-dyn-page-spec');
         var def = shells[spec.layout];
         if (!def) {
-            console.error('[DynLayouts] 未注册的布局壳：' + spec.layout
+            var err = new Error('[DynLayouts] 未注册的布局壳：' + spec.layout
                 + '（已注册=[' + Object.keys(shells).join(',') + ']）');
-            return Promise.resolve(null);
+            console.error(err.message);
+            return Promise.reject(err);
         }
         var warnings = [];
 
         // 1) 挂载壳内全部 BlockApp（mounted 只做自身初始化，不发对外事件，故并发挂载安全）
+        //    单个 block 挂坏不连累全局：记告警并继续，与"端口缺失只警告不阻断"一致
         var blockEls = root.querySelectorAll('[data-dyn-mode="createApp"]');
         var ready = [].map.call(blockEls, function (el) {
-            return (global.dyn && global.dyn.mount) ? global.dyn.mount(el) : null;
+            var p = (global.dyn && global.dyn.mount) ? global.dyn.mount(el) : null;
+            if (!p || !p.catch) return Promise.resolve(p);
+            return Promise.resolve(p).catch(function (e) {
+                warnings.push('BlockApp 挂载失败：' + (el.getAttribute('data-blk-role') || '(无role)')
+                    + '（' + (e && e.message) + '）');
+                console.error('[DynLayouts] block 挂载失败', e);
+                return null;
+            });
         });
         return Promise.all(ready).then(function () {
             // 2) 槽位名 → 句柄
