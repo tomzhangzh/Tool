@@ -33,8 +33,8 @@
     </div>
     <div class="dyn-blk-detail__btns">
         <button type="button" class="el-button el-button--small" @@click="onCancel()">取消</button>
-        <button type="button" class="el-button el-button--danger el-button--small" :disabled="loading || !canDelete" @@click="onDelete()">删除</button>
-        <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" @@click="onSave()">保存</button>
+        <button type="button" class="el-button el-button--danger el-button--small" data-permission-op="delete" :disabled="loading || !canDelete" @@click="onDelete()">删除</button>
+        <button type="button" class="el-button el-button--primary el-button--small" data-permission-op="edit" :disabled="loading" @@click="onSave()">保存</button>
         @(extSlots?.Render("detail:footer"))
     </div>
     <script type="text/plain" tag="dynconfig">

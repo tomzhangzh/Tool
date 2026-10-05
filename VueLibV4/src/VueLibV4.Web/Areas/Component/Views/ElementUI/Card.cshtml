@@ -3,7 +3,7 @@
 }
 
 <template>
-<el-card v-bind="comBind"
+<el-card v-bind="comBind" v-bind="$attrs"
              v-on="getComlisteners()">
         <template #header>
             <span>{{ jc.options?.comoptions.title || '' }}</span>

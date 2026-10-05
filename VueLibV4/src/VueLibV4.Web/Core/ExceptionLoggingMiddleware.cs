@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Data.Sqlite;
+using VueLibV4.Web.Services;
 
 namespace VueLibV4.Web.Core;
 
@@ -22,7 +23,10 @@ public class ExceptionLoggingMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext ctx)
+    // IPermissionService 是 Scoped，中间件为单例不能构造注入，只能放在 InvokeAsync 由请求容器解析。
+    // 平台认证是自定义签名 cookie（不构建 ClaimsPrincipal），用户名必须从 PermissionService 取，
+    // ctx.User.Identity.Name 在本项目恒为 null。
+    public async Task InvokeAsync(HttpContext ctx, IPermissionService perm)
     {
         try
         {
@@ -30,12 +34,20 @@ public class ExceptionLoggingMiddleware
         }
         catch (Exception ex)
         {
-            LogInBackground(ex, ctx);
+            // 用户名必须在请求线程上读取（只解析签名 cookie，不访问数据库）
+            var userName = SafeUserName(perm);
+            LogInBackground(ex, ctx, userName);
             throw; // 继续抛给框架处理（返回 500）
         }
     }
 
-    private void LogInBackground(Exception ex, HttpContext ctx)
+    private static string SafeUserName(IPermissionService perm)
+    {
+        try { return perm?.CurrentUserName ?? ""; }
+        catch { return ""; }
+    }
+
+    private void LogInBackground(Exception ex, HttpContext ctx, string userName)
     {
         try
         {
@@ -45,7 +57,6 @@ public class ExceptionLoggingMiddleware
             var path = ctx.Request.Path.Value ?? "";
             var method = ctx.Request.Method;
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "";
-            var userName = ctx.User?.Identity?.Name ?? "";
             var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
             // 异步写库，不 await

@@ -1,0 +1,167 @@
+@{
+    // =====================================================================================
+    // TabsBlock —— 详情页标签页容器（容器型 Block）
+    //
+    // 职责：
+    //   - 上面 el-tabs，下面 content 区；本身不懂业务，只做显隐控制 + 参数传递。
+    //   - tab1（基本信息）：内嵌 DetailApp partial，保存后拿到主记录 id。
+    //   - tab2+（子表 tab）：新建态禁用，主记录保存后解锁；切 tab 时把主 id 作为
+    //     参数传给子内容（第一版先渲染占位，后续接 updateElement 加载子页面）。
+    //
+    // 配置（data-blk-config）：
+    //   {
+    //     "detailBlkConfig": "<DetailApp 的 BlkConfig JSON>",
+    //     "subTabs": [
+    //       { "key":"course", "label":"相关课程", "fkField":"StudentId" },
+    //       { "key":"score",  "label":"成绩",     "fkField":"StudentId" }
+    //     ],
+    //     "idField": "Id"
+    //   }
+    //
+    // 对外端口（供外层 wire）：
+    //   命令 openNew(payload:{preFill}) → 打开新建态（只有 tab1 可用）
+    //   命令 openEdit(payload:{row})    → 打开编辑态（直接带 id，所有 tab 可用）
+    //   事件 saved(payload:{action,row}) → 主表单保存成功，通知外层刷新列表
+    // =====================================================================================
+    var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
+    var extId = (ViewData["ExtId"] as string) ?? ("tb" + Guid.NewGuid().ToString("N"));
+    var extSlots = ViewData["ExtSlots"] as DynExtSlots;
+    var demoEdit = ViewData["DemoEdit"] as bool? ?? false;
+
+    // 解析配置
+    var cfg = Newtonsoft.Json.Linq.JObject.Parse(string.IsNullOrEmpty(blkConfig) ? "{}" : blkConfig);
+    var subTabs = (cfg["subTabs"] as Newtonsoft.Json.Linq.JArray) ?? new Newtonsoft.Json.Linq.JArray();
+    var detailBlkConfig = (cfg["detailBlkConfig"] ?? "").ToString();
+    var idField = (cfg["idField"] ?? "Id").ToString();
+}
+<div id="@extId" data-dyn-mode="createApp" data-blk-role="tabs" data-blk-config="@blkConfig" class="dyn-blk-tabs">
+    <el-tabs v-model="activeTab" class="dyn-blk-tabs__tabs" @@tab-change="onTabChange">
+        <el-tab-pane label="基本信息" name="main">
+            @* tab1：内嵌 DetailApp（学生主表单）。它是独立 Vue app，自己读 detailBlkConfig。 *@
+            @await Html.PartialAsync("~/Views/DynBlocks/Apps/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
+                ["ExtId"] = extId + "-detail",
+                ["BlkConfig"] = detailBlkConfig,
+                ["ExtSlots"] = extSlots
+            })
+        </el-tab-pane>
+        @foreach (var tab in subTabs)
+        {
+            var tkey = tab["key"]?.ToString() ?? "";
+            var tlabel = tab["label"]?.ToString() ?? tkey;
+            var tfk = tab["fkField"]?.ToString() ?? "";
+            <el-tab-pane label="@tlabel" name="@tkey" :disabled="!currentId">
+                <div class="tabs-sub-host" data-sub-key="@tkey" data-sub-fk="@tfk">
+                    @if (demoEdit)
+                    {
+                        <div class="tabs-sub-loaded">
+                            当前主记录 @idField = <b>123</b>，外键字段 = <code>@tfk</code>
+                            <div class="tabs-sub-placeholder">[子表内容区域 —— 后续 updateElement 加载子页面]</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div v-if="loadedSubs['@tkey']" class="tabs-sub-loaded">
+                            当前主记录 @idField = <b>{{ currentId }}</b>，外键字段 = <code>@tfk</code>
+                            <div class="tabs-sub-placeholder">[子表内容区域 —— 后续 updateElement 加载子页面]</div>
+                        </div>
+                        <div v-else class="tabs-sub-empty">
+                            保存主记录后，此页签将加载相关数据
+                        </div>
+                    }
+                </div>
+            </el-tab-pane>
+        }
+    </el-tabs>
+
+    <script type="text/plain" tag="dynconfig">
+    var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
+    var __handle = null;
+
+    var dynConfig = {
+        data: function () {
+            var isEdit = /[?&]demo=edit/.test(location.search);
+            return {
+                activeTab: 'main',
+                currentId: isEdit ? 123 : null,
+                loadedSubs: isEdit ? { course: true, score: true } : {}
+            };
+        },
+        methods: {
+            onTabChange: function (key) {
+                // 切到子表 tab：标记已加载（后续在这里 updateElement 加载子页面）
+                if (key !== 'main' && this.currentId) {
+                    this.loadedSubs[key] = true;
+                }
+            },
+            // 收到内部 DetailApp 的 saved 事件：拿到主 id，解锁子表 tab
+            onMainSaved: function (payload) {
+                var self = this;
+                var row = (payload && payload.row) || {};
+                var id = row[__cfg.idField || 'Id'];
+                if (id !== null && id !== undefined && id !== '') {
+                    this.currentId = id;
+                }
+                // 对外广播 saved，让外层 ListApp 刷新
+                if (__handle) __handle.emit('saved', payload);
+            },
+            // 监听内部 DetailApp 的句柄（mounted 后通过 scan 拿到）
+            wireDetail: function () {
+                var self = this;
+                // 在自己 DOM 内找 DetailApp 的 __dynBlock
+                var found = DynBlocks.scan(element);
+                // found 里 role=detail 的就是主表单
+                if (found.detail && typeof found.detail.on === 'function') {
+                    found.detail.on('saved', function (p) { self.onMainSaved(p); });
+                }
+            }
+        },
+        mounted: function () {
+            var self = this;
+            __handle = DynBlocks.createBlockHandle(element);
+
+            // 命令：打开新建态
+            __handle.reg('openNew', function (p) {
+                self.activeTab = 'main';
+                self.currentId = null;
+                self.loadedSubs = {};
+                // 转发给内部 DetailApp
+                var found = DynBlocks.scan(element);
+                if (found.detail) return found.detail.send('newForm', p || {});
+            });
+
+            // 命令：打开编辑态（直接带 id）
+            __handle.reg('openEdit', function (p) {
+                var row = (p && p.row) || {};
+                var id = row[__cfg.idField || 'Id'];
+                self.currentId = id;
+                self.activeTab = 'main';
+                // 编辑态：所有子 tab 标记为可加载（内容在首次切入时按需 updateElement）
+                self.loadedSubs = {};
+                (__cfg.subTabs || []).forEach(function (t) {
+                    if (t && t.key) self.loadedSubs[t.key] = true;
+                });
+                var found = DynBlocks.scan(element);
+                if (found.detail) return found.detail.send('editForm', { row: row });
+            });
+
+            // 就绪后连内部 DetailApp 的 saved 事件
+            __handle.onReady(function () {
+                // DetailApp 在同 DOM 里，ready 时它已 mounted，scan 能拿到
+                self.wireDetail();
+            });
+        },
+        beforeUnmount: function () {
+            if (__handle) { __handle.destroy(); __handle = null; }
+        }
+    };
+    </script>
+</div>
+
+<style>
+.dyn-blk-tabs { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+.dyn-blk-tabs__tabs { flex: 1; min-height: 0; }
+.tabs-sub-host { padding: 8px 0; }
+.tabs-sub-placeholder { margin-top: 12px; padding: 24px; border: 1px dashed #dcdfe6; border-radius: 6px; color: #909399; text-align: center; }
+.tabs-sub-empty { padding: 24px; color: #c0c4cc; text-align: center; }
+.tabs-sub-loaded { color: #303133; }
+</style>

@@ -12,7 +12,7 @@
 (function (global) {
     'use strict';
 var __plugin = {
-    name:'blocks-common', stage:'blocks', requires:[],
+    name:'blocks-common', stage:'blocks', requires:['call'],
     setup:function(ctx){
     'use strict';
     var DynBlocks = global.DynBlocks = global.DynBlocks || {};
@@ -96,6 +96,7 @@ var __plugin = {
     DynBlocks.createBlockHandle = function (element) {
         var commands = Object.create(null);
         var listeners = Object.create(null);
+        var readyFns = [];
         var destroyed = false;
         var handle = {
             role: element.getAttribute('data-blk-role') || '',
@@ -104,6 +105,20 @@ var __plugin = {
             reg: function (cmd, fn) {
                 if (!destroyed && typeof fn === 'function') commands[cmd] = fn;
                 return handle;
+            },
+            // Block 注册"接线完成"钩子：engine 绑完 wire 后统一调 ready()，
+            // Block 在这里发首屏事件（如 Filter 推默认筛选）或做兜底首屏加载。
+            // 这样保证事件一定发在 wire 绑定之后，不会丢。
+            onReady: function (fn) {
+                if (!destroyed && typeof fn === 'function') readyFns.push(fn);
+                return handle;
+            },
+            // engine 在所有 wire 绑好后调用
+            ready: function () {
+                if (destroyed) return;
+                readyFns.slice().forEach(function (fn) {
+                    try { fn(); } catch (e) { console.error('[block ready]', e); }
+                });
             },
             // 编排方向 block 下发命令
             send: function (cmd, payload) {

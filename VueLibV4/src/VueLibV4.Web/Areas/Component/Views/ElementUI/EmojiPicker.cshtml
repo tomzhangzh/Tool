@@ -41,7 +41,7 @@
     comExtra.filterEmojis = filterEmojis;
 }
 <el-select-v2 v-model="modelinfo" :options="emojiOptions" :filter-method="filterEmojis" :loading="emojiState.loading"
-    v-bind="comBind" v-on="getComlisteners()"
+    v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
     filterable clearable allow-create default-first-option
     :placeholder="(jc.options && jc.options.comoptions && jc.options.comoptions.placeholder) || '搜索 Emoji（中/英文），也可手填'"
     style="width:100%">

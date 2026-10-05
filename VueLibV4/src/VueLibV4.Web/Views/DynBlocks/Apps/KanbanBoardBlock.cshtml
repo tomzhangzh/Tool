@@ -1,0 +1,327 @@
+@{
+    // =====================================================================================
+    // KanbanBoard —— 看板 Block（Trello 风格，独立 VueApp 版，自包含）
+    //
+    // 自包含：列、卡片、拖拽跨列、卡片弹窗编辑、评论，全部在本 Block 内完成，
+    //         数据直接走 /api/dyndata 平台库（project=__platform__）。
+    //
+    // 表：KanbanList(列) / KanbanCard(卡片) / KanbanComment(评论)
+    //
+    // 命令（编排方 handle.send）：reload
+    // 事件（handle.emit）：cardOpen{card} / cardSaved{card}
+    // =====================================================================================
+    var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
+    var extId = (ViewData["ExtId"] as string) ?? ("kb" + Guid.NewGuid().ToString("N"));
+}
+<div id="@extId" data-dyn-mode="createApp" data-blk-role="kanban" class="dyn-kanban" data-blk-config="@blkConfig">
+    <div class="dyn-kanban__header">
+        <span class="dyn-kanban__title">📋 任务看板</span>
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="reload()">刷新</button>
+    </div>
+    <div class="dyn-kanban__board" v-loading="model.loading">
+        <div class="dyn-kanban__col" v-for="col in model.lists" :key="col.Id" :data-list-id="col.Id">
+            <div class="dyn-kanban__col-head">
+                <span class="dyn-kanban__dot" :style="{background: col.Color}"></span>
+                <span class="dyn-kanban__col-title">{{ col.Title }}</span>
+                <span class="dyn-kanban__count">{{ cardsIn(col.Id).length }}</span>
+                <span class="dyn-kanban__add" @@click="addCard(col.Id)">＋</span>
+            </div>
+            <div class="dyn-kanban__cards" :ref="'cards_' + col.Id">
+                <div class="dyn-kanban__card" v-for="card in cardsIn(col.Id)" :key="card.Id" :data-card-id="card.Id">
+                    <div class="dyn-kanban__card-title" @@click="openCard(card)">{{ card.Title }}</div>
+                    <div class="dyn-kanban__card-meta">
+                        <span class="dyn-kanban__prio" :class="'prio-' + (card.Priority||'normal')">{{ prioText(card.Priority) }}</span>
+                        <span v-if="card.Assignee" class="dyn-kanban__assignee">👤 {{ card.Assignee }}</span>
+                    </div>
+                </div>
+                <div class="dyn-kanban__empty" v-if="cardsIn(col.Id).length === 0">拖卡片到这里</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 卡片详情弹窗：动态表单（复用 DynCom 体系，字段由 cardFormCfg JSON 配置驱动） + 评论 -->
+    <el-dialog v-model="model.dialogVisible" :title="model.currentCard.Id ? '编辑卡片' : '新卡片'" width="600px" append-to-body>
+        <dyn-dynamic-com v-if="cardFormCfg" :jsonconfig="cardFormCfg" :parentmodelinfo="model.currentCard"></dyn-dynamic-com>
+        <template v-if="model.currentCard.Id">
+            <div class="dyn-kanban__cmt-title">评论</div>
+            <div class="dyn-kanban__cmt" v-for="c in model.comments" :key="c.Id">
+                <div class="dyn-kanban__cmt-author">{{ c.Author || '我' }} <span class="dyn-kanban__cmt-time">{{ c.CreateTime }}</span></div>
+                <div class="dyn-kanban__cmt-body">{{ c.Content }}</div>
+            </div>
+            <div class="dyn-kanban__cmt-new">
+                <el-input v-model="model.newComment" placeholder="写条评论…" size="small" @@keyup.enter="addComment()"></el-input>
+                <button type="button" class="el-button el-button--primary el-button--small" @@click="addComment()">发送</button>
+            </div>
+        </template>
+        <template #footer>
+            <button type="button" class="el-button el-button--small" @@click="model.dialogVisible = false">取消</button>
+            <button type="button" class="el-button el-button--danger el-button--small" v-if="model.currentCard.Id" @@click="deleteCard()">删除</button>
+            <button type="button" class="el-button el-button--primary el-button--small" @@click="saveCard()">保存</button>
+        </template>
+    </el-dialog>
+
+    <script type="application/json" tag="dynmodel">{"lists":[],"cards":[],"loading":false,"dialogVisible":false,"currentCard":{},"comments":[],"newComment":""}</script>
+    <script type="text/plain" tag="dynconfig">
+    var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
+    var __handle = null;
+    var __project = DynBlocks.PLATFORM_PROJECT;
+    var __listsTable = 'KanbanList', __cardsTable = 'KanbanCard', __cmtsTable = 'KanbanComment';
+
+    var dynConfig = {
+        data: function () {
+            return {
+                boardId: __cfg.boardId || 1,
+                _sortables: [],
+                // 当前登录用户名（评论 Author 用），mounted 时从 /permission/me 拉取
+                currentUserName: '',
+                // 卡片表单配置：启动时从 PageSetting(Code=kanban-card-detail) 拉，可在积木管理页可视化改
+                cardFormCfg: null
+            };
+        },
+        methods: {
+            cardsIn: function (listId) {
+                return (this.model.cards || []).filter(function (c) { return c.ListId === listId; });
+            },
+            prioText: function (p) { return p === 'high' ? '高' : (p === 'low' ? '低' : '中'); },
+
+            // ---------- 加载 ----------
+            loadData: function () {
+                var self = this;
+                this.model.loading = true;
+                var p1 = DynBlocks.search(DynBlocks.URLS.search, {
+                    table: __listsTable, page: 1, size: 100,
+                    filter: { BoardId: { op: 'eq', value: self.boardId }, IsActive: { op: 'eq', value: 1 } },
+                    sort: { field: 'SortNo', order: 'asc' }, project: __project
+                }, element).then(function (data) { self.model.lists = (data && data.rows) || []; });
+                var p2 = DynBlocks.search(DynBlocks.URLS.search, {
+                    table: __cardsTable, page: 1, size: 500,
+                    filter: { BoardId: { op: 'eq', value: self.boardId }, IsActive: { op: 'eq', value: 1 } }, project: __project
+                }, element).then(function (data) { self.model.cards = (data && data.rows) || []; });
+                return Promise.all([p1, p2]).then(function () {
+                    self.model.loading = false;
+                    self.$nextTick(function () { self.initSortable(); });
+                }).catch(function () { self.model.loading = false; });
+            },
+
+            reload: function () { return this.loadData(); },
+
+            // 从 PageSetting 拉卡片详情表单配置（Code=kanban-card-detail）
+            loadFormCfg: function () {
+                var self = this;
+                return DynCall.get('/api/platform/pagesetting/get?id=kanban-card-detail', {}, { silent: true })
+                    .then(function (ps) {
+                        if (ps && ps.ConfigJson) {
+                            try { self.cardFormCfg = typeof ps.ConfigJson === 'string' ? JSON.parse(ps.ConfigJson) : ps.ConfigJson; }
+                            catch (e) { console.error('[kanban] ConfigJson 解析失败', e); }
+                        }
+                    }).catch(function (e) { console.warn('[kanban] 拉取 PageSetting 失败，使用空表单', e); });
+            },
+
+            // 当前登录用户（评论归属），失败保持空串→兜底 anonymous，不阻塞看板
+            loadCurrentUser: function () {
+                var self = this;
+                return DynCall.get('/api/platform/permission/me', {}, { silent: true })
+                    .then(function (me) {
+                        if (me && me.userName && me.userName !== 'anonymous') self.currentUserName = me.userName;
+                    }).catch(function () {});
+            },
+
+            // ---------- 拖拽跨列排序 ----------
+            initSortable: function () {
+                var self = this;
+                this.destroySortable();
+                if (typeof Sortable === 'undefined') return;
+                // 注意：不能用 this.$el——本 Block 模板是多根（header/board/el-dialog 且含前导空白），
+                // Vue3 多根组件的 $el 可能是 Text 节点（无 querySelectorAll），会导致 Sortable 静默初始化失败、
+                // 拖拽完全失效。element 是 dynconfig 闭包注入的挂载宿主（#extId 单根 div），始终可靠。
+                var root = (element && element.querySelectorAll) ? element : (this.$el && this.$el.querySelectorAll ? this.$el : null);
+                if (!root) { console.warn('[kanban] 找不到拖拽根容器，跳过排序初始化'); return; }
+                var colEls = root.querySelectorAll('.dyn-kanban__cards');
+                colEls.forEach(function (listEl) {
+                    var s = Sortable.create(listEl, {
+                        group: 'kanban',
+                        animation: 150,
+                        ghostClass: 'dyn-kanban__ghost',
+                        forceFallback: true,
+                        onEnd: function (evt) {
+                            self.persistOrder(evt.to);
+                        }
+                    });
+                    self._sortables.push(s);
+                });
+            },
+            destroySortable: function () {
+                if (this._sortables) { this._sortables.forEach(function (s) { try { s.destroy(); } catch (e) {} }); this._sortables = []; }
+            },
+            // 拖拽结束：按目标列 DOM 顺序，重写该列所有卡片的 ListId + SortNo
+            persistOrder: function (colEl) {
+                var self = this;
+                var listId = parseInt(colEl.getAttribute('data-list-id'), 10);
+                var ids = [];
+                colEl.querySelectorAll('.dyn-kanban__card').forEach(function (cardEl) {
+                    ids.push(parseInt(cardEl.getAttribute('data-card-id'), 10));
+                });
+                // 先更新本地，再逐条落库
+                ids.forEach(function (cid, idx) {
+                    var card = self.model.cards.find(function (c) { return c.Id === cid; });
+                    if (card) { card.ListId = listId; card.SortNo = idx + 1; }
+                });
+                // 先只组装请求描述符（此阶段不发请求），再串行落库：
+                // SQLite 并发写会 database is locked；切勿在 map 内直接 post（会并发提交 N 次）
+                var pending = ids.map(function (cid, idx) {
+                    return {
+                        url: DynBlocks.URLS.save,
+                        body: {
+                            table: __cardsTable, project: __project,
+                            data: { Id: cid, ListId: listId, SortNo: idx + 1 }
+                        }
+                    };
+                });
+                var chain = Promise.resolve();
+                pending.forEach(function (req) {
+                    chain = chain.then(function () {
+                        return DynCall.post(req.url, req.body, { scopeEl: element, silent: true });
+                    });
+                });
+                // 落库失败则以库中真实顺序刷新，避免 UI 与库长期不一致
+                chain.catch(function () { self.loadData(); });
+            },
+
+            // ---------- 卡片弹窗 ----------
+            addCard: function (listId) {
+                // BoardId 必须随新增一起提交：卡片按看板隔离查询（KanbanCard.BoardId）
+                this.model.currentCard = { Id: 0, BoardId: this.boardId, ListId: listId, Title: '', Description: '', Assignee: '', Priority: 'normal' };
+                this.model.comments = [];
+                this.model.newComment = '';
+                this.model.dialogVisible = true;
+            },
+            openCard: function (card) {
+                this.model.currentCard = Object.assign({}, card);
+                this.model.newComment = '';
+                this.model.dialogVisible = true;
+                var self = this;
+                // 加载评论（DynBlocks.search 自动解包，返回 {rows}）
+                DynBlocks.search(DynBlocks.URLS.search, {
+                    table: __cmtsTable, page: 1, size: 100,
+                    filter: { CardId: { op: 'eq', value: card.Id } }, project: __project
+                }, element).then(function (data) {
+                    self.model.comments = (data && data.rows) || [];
+                }).catch(function () {});
+                __handle.emit('cardOpen', { card: card });
+            },
+            saveCard: function () {
+                var self = this;
+                var card = this.model.currentCard;
+                if (!card.Title) { dyn.showMessage('标题不能为空', 'warning'); return; }
+                DynCall.post(DynBlocks.URLS.save, { table: __cardsTable, project: __project, data: card }, { scopeEl: element })
+                    .then(function () {
+                        dyn.showMessage('已保存', 'success');
+                        self.model.dialogVisible = false;
+                        __handle.emit('cardSaved', { card: card });
+                        return self.loadData();
+                    })
+                    .catch(function () {});
+            },
+            deleteCard: function () {
+                var self = this;
+                var id = this.model.currentCard.Id;
+                var doDel = function () {
+                    // KanbanComment 无外键级联（SQLite 默认 PRAGMA foreign_keys=OFF），
+                    // 必须先删该卡全部评论再删卡片，否则留下永久孤儿评论
+                    DynBlocks.search(DynBlocks.URLS.search, {
+                        table: __cmtsTable, page: 1, size: 500,
+                        filter: { CardId: { op: 'eq', value: id } }, project: __project
+                    }, element).then(function (data) {
+                        var rows = (data && data.rows) || [];
+                        // 串行删除，避免 SQLite 并发写锁
+                        var chain = Promise.resolve();
+                        rows.forEach(function (r) {
+                            chain = chain.then(function () {
+                                return DynCall.post(DynBlocks.URLS.delete,
+                                    { table: __cmtsTable, project: __project, keys: { Id: r.Id } },
+                                    { scopeEl: element, silent: true });
+                            });
+                        });
+                        return chain;
+                    }).then(function () {
+                        return DynCall.post(DynBlocks.URLS.delete,
+                            { table: __cardsTable, project: __project, keys: { Id: id } },
+                            { scopeEl: element });
+                    }).then(function () {
+                        self.model.dialogVisible = false;
+                        return self.loadData();
+                    }).catch(function () {});
+                };
+                if (window.dyn && dyn.confirmAsync) dyn.confirmAsync('确定删除该卡片？').then(function (ok) { if (ok) doDel(); });
+                else doDel();
+            },
+            addComment: function () {
+                var self = this;
+                var text = (this.model.newComment || '').trim();
+                if (!text) return;
+                DynCall.post(DynBlocks.URLS.save, { table: __cmtsTable, project: __project,
+                    data: { CardId: this.model.currentCard.Id, Content: text, Author: this.currentUserName || 'anonymous' } }, { scopeEl: element })
+                    .then(function () {
+                        self.model.newComment = '';
+                        return DynBlocks.search(DynBlocks.URLS.search, {
+                            table: __cmtsTable, page: 1, size: 100,
+                            filter: { CardId: { op: 'eq', value: self.model.currentCard.Id } }, project: __project
+                        }, element);
+                    }).then(function (data) {
+                        if (data) self.model.comments = data.rows || [];
+                    }).catch(function () {});
+            }
+        },
+        mounted: function () {
+            var self = this;
+            __handle = DynBlocks.createBlockHandle(element);
+            __handle.reg('reload', function () { return self.loadData(); });
+            // 防重复加载：onReady（Layout 环境）和兜底（独立页）只允许一次
+            var _bootLoaded = false;
+            function bootLoad() {
+                if (_bootLoaded) return;
+                _bootLoaded = true;
+                self.loadData();
+            }
+            __handle.onReady(bootLoad);
+            this.loadFormCfg();
+            this.loadCurrentUser();
+            // 独立 demo 页无 layout-engine，onReady 不会被触发，延迟兜底
+            this.$nextTick(function () {
+                setTimeout(function () { bootLoad(); }, 80);
+            });
+        },
+        beforeUnmount: function () {
+            this.destroySortable();
+            if (__handle) { __handle.destroy(); __handle = null; }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-kanban { display:flex; flex-direction:column; height:100%; }
+    .dyn-kanban__header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    .dyn-kanban__title { font-size:16px; font-weight:600; }
+    .dyn-kanban__board { display:flex; gap:12px; align-items:flex-start; overflow-x:auto; }
+    .dyn-kanban__col { flex:0 0 280px; background:#f4f5f7; border-radius:8px; padding:10px; max-height:75vh; display:flex; flex-direction:column; }
+    .dyn-kanban__col-head { display:flex; align-items:center; gap:6px; margin-bottom:10px; font-weight:600; }
+    .dyn-kanban__dot { width:10px; height:10px; border-radius:50%; }
+    .dyn-kanban__col-title { flex:1; }
+    .dyn-kanban__count { background:#ddd; border-radius:10px; padding:0 8px; font-size:12px; }
+    .dyn-kanban__add { cursor:pointer; font-size:18px; color:#909399; }
+    .dyn-kanban__cards { flex:1; overflow-y:auto; min-height:40px; }
+    .dyn-kanban__card { background:#fff; border-radius:6px; padding:10px; margin-bottom:8px; box-shadow:0 1px 2px rgba(0,0,0,.1); cursor:pointer; }
+    .dyn-kanban__card-title { font-size:14px; margin-bottom:6px; }
+    .dyn-kanban__card-meta { display:flex; gap:8px; font-size:12px; color:#909399; }
+    .dyn-kanban__prio.prio-high { color:#f56c6c; }
+    .dyn-kanban__prio.prio-low { color:#909399; }
+    .dyn-kanban__empty { color:#c0c4cc; text-align:center; font-size:12px; padding:10px; }
+    .dyn-kanban__ghost { opacity:.4; }
+    .dyn-kanban__cmt-title { font-weight:600; margin:10px 0 6px; }
+    .dyn-kanban__cmt { border-bottom:1px solid #eee; padding:6px 0; }
+    .dyn-kanban__cmt-author { font-size:12px; color:#909399; }
+    .dyn-kanban__cmt-time { margin-left:8px; }
+    .dyn-kanban__cmt-body { font-size:14px; }
+    .dyn-kanban__cmt-new { display:flex; gap:8px; margin-top:10px; }
+</style>

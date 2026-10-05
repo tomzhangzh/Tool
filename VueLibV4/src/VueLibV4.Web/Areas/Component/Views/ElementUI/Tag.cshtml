@@ -1,7 +1,7 @@
 ﻿@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
 
 <template>
-<el-tag v-bind="comBind" v-on="getComlisteners()">
+<el-tag v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()">
         {{ jc.options?.comoptions.text || '标签' }}
     </el-tag>
 </template>

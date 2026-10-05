@@ -1,6 +1,6 @@
-@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-timeline v-bind="comBind" v-on="getComlisteners()">
+<el-timeline v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()">
     <el-timeline-item v-for="(item, idx) in items" :key="idx"
                       :timestamp="item.time || ''"
                       :type="item.type || 'primary'"

@@ -2,7 +2,7 @@
     Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
 }
 
-<el-radio-group v-model="modelinfo" v-bind="comBind" v-on="getComlisteners()">
+<el-radio-group v-model="modelinfo" v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()">
     <template v-if="comBind.type === 'button'">
         <el-radio-button v-for="opt in comInnerInfo.options" :key="opt.value" :label="opt.value">
             {{ opt.label }}

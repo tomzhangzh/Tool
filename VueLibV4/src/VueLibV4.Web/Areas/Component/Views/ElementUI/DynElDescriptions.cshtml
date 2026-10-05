@@ -1,6 +1,6 @@
-@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-descriptions v-bind="comBind" v-on="getComlisteners()"
+<el-descriptions v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
                  :title="jc.options.comoptions.title || ''"
                  :column="jc.options.comoptions.column || 2"
                  :border="jc.options.comoptions.border !== false"

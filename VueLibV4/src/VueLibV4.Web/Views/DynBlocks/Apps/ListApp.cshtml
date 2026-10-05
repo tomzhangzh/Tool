@@ -41,10 +41,10 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
-                <button type="button" class="el-button el-button--primary el-button--small el-button--plain" @@click="onEdit(scope.row)">
+                <button type="button" class="el-button el-button--primary el-button--small el-button--plain" data-permission-op="edit" @@click="onEdit(scope.row)">
                     <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
                 </button>
-                <button type="button" class="el-button el-button--danger el-button--small el-button--plain" @@click="onDelete(scope.row)">
+                <button type="button" class="el-button el-button--danger el-button--small el-button--plain" data-permission-op="delete" @@click="onDelete(scope.row)">
                     <el-icon style="margin-right:2px"><Delete /></el-icon>删除
                 </button>
                 @(extSlots?.Render("list:row-actions"))
@@ -179,13 +179,19 @@
             var self = this;
             this.loadDicts();
             __handle = DynBlocks.createBlockHandle(element);
+            // 标记是否已被外部命令驱动过（Filter.changed → loadData / reload）
+            this._driven = false;
             __handle
                 .reg('loadData', function (p) {
+                    self._driven = true;
                     self.model.filter = (p && p.filter) || {};
                     self.model.page = 1;
                     return self.loadData();
                 })
-                .reg('reload', function () { return self.loadData(); });
+                .reg('reload', function () {
+                    self._driven = true;
+                    return self.loadData();
+                });
             // 首屏预置筛选：参数链 filterInit（与 FilterApp 同源，如页签透传 TemplateId=当前模板）。
             // 直接作为首屏 filter 发一次请求（不是先空查再重查，避免两次响应竞态覆盖）。
             // 支持 {字段:{op,value}} 与 {字段:裸值} 两种写法。
@@ -203,8 +209,12 @@
                 });
                 this.model.filter = initFilter;
             }
-            // mounted 只做自身首屏加载，不发对外事件
-            this.loadData();
+            // 就绪握手：不再在 mounted 里自动加载。
+            //   - 有 Filter 的壳页面：Filter.ready → emit changed → loadData，_driven=true，这里跳过；
+            //   - 没有 Filter 的独立列表页：没人驱动，这里兜底按当前 filter（含 filterInit）加载一次。
+            __handle.onReady(function () {
+                if (!self._driven) self.loadData();
+            });
         },
         beforeUnmount: function () {
             if (__handle) { __handle.destroy(); __handle = null; }

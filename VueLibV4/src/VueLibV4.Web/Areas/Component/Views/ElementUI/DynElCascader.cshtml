@@ -1,6 +1,6 @@
 @{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-cascader v-model="modelinfo" v-bind="comBind" v-on="getComlisteners()"
+<el-cascader v-model="modelinfo" v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
              :options="jc.options.comoptions.options || []"
              :props="jc.options.comoptions.props || { label: 'label', value: 'value', children: 'children' }"
              :placeholder="jc.options.comoptions.placeholder || '请选择'"

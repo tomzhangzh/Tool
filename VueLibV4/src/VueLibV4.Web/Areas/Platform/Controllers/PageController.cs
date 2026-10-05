@@ -28,17 +28,23 @@ public class PageController : Controller
     private readonly IDynWebPageService _webPages;
     private readonly IDynTemplateService _templates;
     private readonly IPageSettingService _settings;
+    private readonly IDynTemplateBlockService _tplBlocks;
+    private readonly IDynBlockService _blocks;
     private readonly IConfiguration _config;
 
     public PageController(
         IDynWebPageService webPages,
         IDynTemplateService templates,
         IPageSettingService settings,
+        IDynTemplateBlockService tplBlocks,
+        IDynBlockService blocks,
         IConfiguration config)
     {
         _webPages = webPages;
         _templates = templates;
         _settings = settings;
+        _tplBlocks = tplBlocks;
+        _blocks = blocks;
         _config = config;
     }
 
@@ -110,6 +116,154 @@ public class PageController : Controller
         ViewData["Title"] = "组件长廊质检 - VueLibV4";
         ViewData["ApiBase"] = "/api";
         return View(string.Format(Page, "ComponentCheck"));
+    }
+
+    /// <summary>权限管理：角色 + 资源树授权 + 用户角色分配</summary>
+    [HttpGet("/Platform/Page/PermissionAdmin")]
+    public IActionResult PermissionAdmin()
+    {
+        ViewData["Title"] = "权限管理 - VueLibV4";
+        return View(string.Format(Page, "PermissionAdmin"));
+    }
+
+    /// <summary>登录页（全局过滤器的唯一匿名页面入口）</summary>
+    [HttpGet("/Platform/Page/Login")]
+    [AllowAnonymousPermission]
+    public IActionResult Login()
+    {
+        return View("~/Views/Platform/Page/Login.cshtml");
+    }
+
+    /// <summary>修改密码页</summary>
+    [HttpGet("/Platform/Page/ChangePassword")]
+    public IActionResult ChangePassword()
+    {
+        return View("~/Views/Platform/Page/ChangePassword.cshtml");
+    }
+
+    /// <summary>TabsBlock 演示：主表单 + 子表标签页联动</summary>
+    [HttpGet("/Platform/Page/TabsBlockDemo")]
+    public IActionResult TabsBlockDemo()
+    {
+        ViewData["Title"] = "TabsBlock 演示 - VueLibV4";
+        ViewData["DemoEdit"] = Request.Query["demo"] == "edit";
+
+        // 学生详情表单配置
+        var nameInput = new { component = "DynElInput", modelname = "Name",
+            options = new { labeloptions = new { label = "学生姓名" }, comoptions = new {} } };
+        var noInput = new { component = "DynElInput", modelname = "StudentNo",
+            options = new { labeloptions = new { label = "学号" }, comoptions = new {} } };
+        var gradeInput = new { component = "DynElInput", modelname = "Grade",
+            options = new { labeloptions = new { label = "年级" }, comoptions = new {} } };
+
+        var detailCfg = new {
+            component = "DynGridContainer",
+            options = new { comoptions = new {}, itemoptions = new { style = new { gap = "8px" }, @class = "" } },
+            childrenctrls = new[] { nameInput, noInput, gradeInput }
+        };
+
+        var detailBlkConfig = Newtonsoft.Json.JsonConvert.SerializeObject(new {
+            table = "Student", keyField = "Id",
+            detailConfig = detailCfg,
+            detailDefault = new { Name = "", StudentNo = "", Grade = "" }
+        });
+
+        var tabsBlkConfig = Newtonsoft.Json.JsonConvert.SerializeObject(new {
+            detailBlkConfig = detailBlkConfig,
+            idField = "Id",
+            subTabs = new[] {
+                new { key = "course", label = "相关课程", fkField = "StudentId" },
+                new { key = "score",  label = "成绩",     fkField = "StudentId" }
+            }
+        });
+
+        ViewData["TabsBlkConfig"] = tabsBlkConfig;
+        ViewData["ExtId"] = "tabsDemo-" + Guid.NewGuid().ToString("N");
+        return View(string.Format(Page, "TabsBlockDemo"));
+    }
+
+    [HttpGet("/Platform/Page/KanbanDemo")]
+    public IActionResult KanbanDemo()
+    {
+        ViewData["Title"] = "Kanban 看板 - VueLibV4";
+        return View(string.Format(Page, "KanbanDemo"));
+    }
+
+    [HttpGet("/Platform/Page/PageGraphDemo")]
+    public IActionResult PageGraphDemo(int id = 34)
+    {
+        ViewData["Title"] = "页面组成图 Demo - VueLibV4";
+        var wp = _webPages.GetById(id);
+        if (wp == null) return Content($"WebPage {id} 不存在");
+
+        var tpl = wp.TemplateId > 0 ? _templates.GetById(wp.TemplateId) : null;
+        var param = string.IsNullOrEmpty(wp.ParamsJson) ? new JObject() : JObject.Parse(wp.ParamsJson);
+        var blocksNode = param["blocks"] as JObject ?? new JObject();
+
+        // 取 Template 槽位定义
+        var slots = tpl != null
+            ? _tplBlocks.Query(x => x.TemplateId == tpl.Id).OrderBy(x => x.SortNo).ToList()
+            : new List<VueLibV4.Platform.Models.DynTemplateBlock>();
+
+        // 拼 Mermaid
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("flowchart LR");
+        // WebPage 节点
+        sb.AppendLine($"    WP[\"📄 {wp.Name}<br/><small>id={wp.Id}</small>\"]:::wp");
+        // Template
+        if (tpl != null)
+        {
+            sb.AppendLine($"    T[\"📐 {tpl.Name}<br/><small>{tpl.Code}</small>\"]:::tpl");
+            sb.AppendLine("    WP --- T");
+        }
+        // 每个槽位一个 Block 节点 + 一个 PageSetting 节点
+        int idx = 0;
+        foreach (var s in slots)
+        {
+            var slot = s.Slot;
+            var blk = _blocks.GetById(s.BlockId);
+            var blkName = blk != null ? blk.Name : $"Block#{s.BlockId}";
+            var role = blk != null ? (blk.ImplementsRole ?? "") : "";
+
+            var bId = $"B{idx}";
+            var psId = $"PS{idx}";
+            var icon = role == "filter" ? "🔍" : role == "list" ? "📋" : role == "detail" ? "📝" : "🧩";
+            sb.AppendLine($"    {bId}[\"{icon} {blkName}<br/><small>slot={slot}</small>\"]:::blk");
+
+            // PageSetting
+            int settingId = 0;
+            if (blocksNode[slot] != null) int.TryParse(blocksNode[slot]["settingId"]?.ToString(), out settingId);
+            if (settingId > 0)
+            {
+                var ps = _settings.GetById(settingId);
+                if (ps != null)
+                {
+                    sb.AppendLine($"    {psId}[\"📄 {ps.Name}<br/><small>{ps.Code}</small>\"]:::ps");
+                    sb.AppendLine($"    {bId} -.->|配置| {psId}");
+                }
+            }
+            idx++;
+        }
+        // 内置消息流（filter->list）
+        if (slots.Count >= 2)
+        {
+            sb.AppendLine("    B0 ==>|筛选条件| B1");
+        }
+        sb.AppendLine("    classDef wp fill:#eaf2ff,stroke:#409eff,stroke-width:2px,color:#1f3a68");
+        sb.AppendLine("    classDef tpl fill:#fdf6ec,stroke:#e6a23c,stroke-width:2px,color:#7a5b17");
+        sb.AppendLine("    classDef blk fill:#ecf5ff,stroke:#409eff,stroke-width:1.5px,color:#1f3a68");
+        sb.AppendLine("    classDef ps fill:#f4f0fa,stroke:#9b59b6,stroke-width:1.5px,color:#5b2c6f");
+
+        ViewData["Mermaid"] = sb.ToString();
+        ViewData["WpName"] = wp.Name;
+        return View(string.Format(Page, "PageGraphDemo"));
+    }
+
+    [HttpGet("/Platform/Page/DbErGraph")]
+    public IActionResult DbErGraph()
+    {
+        ViewData["Title"] = "数据库 ER 关系图 - VueLibV4";
+        return View(string.Format(Page, "DbErGraph"));
     }
 
     [HttpGet("/Platform/Page/Demo/ActionHelper")]

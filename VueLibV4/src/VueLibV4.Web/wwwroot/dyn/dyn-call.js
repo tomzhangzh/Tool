@@ -36,6 +36,29 @@ var __plugin = {
     });
   })();
 
+  /* ---------- 401 统一处理：登录过期/未登录时清权限缓存并跳登录页 ----------
+   * 登录页自身不再跳转，避免循环；所有业务请求共用 axios 实例，一处拦截全局生效。 */
+  (function setupAuthRedirect() {
+    if (!global.axios) return;
+    global.axios.interceptors.response.use(null, function (err) {
+      if (err && err.response && err.response.status === 401) {
+        try {
+          if (global.DynPermission && typeof global.DynPermission.clearCache === 'function') {
+            global.DynPermission.clearCache();
+          } else {
+            sessionStorage.removeItem('dyn_permission_keys');
+          }
+        } catch (e) { /* ignore */ }
+        var path = location.pathname + location.search;
+        var onLogin = location.pathname.indexOf('/Platform/Page/Login') === 0;
+        if (!onLogin) {
+          location.href = '/Platform/Page/Login?returnUrl=' + encodeURIComponent(path);
+        }
+      }
+      return Promise.reject(err);
+    });
+  })();
+
   /* ---------- 轻量 loading 遮罩（按元素隔离 + 引用计数） ----------
    * 同一元素可能并发多个请求：show 一次就把 count+1，hide 一次 count-1，
    * 归零才真正移除遮罩——避免先完成的请求把还在飞的另一个请求的 loading 提前关掉。 */
@@ -107,6 +130,7 @@ var __plugin = {
     }
   };
   global.DynCall = DynCall;
+  ctx.provide('call', DynCall);
   }
 };
 if(global.DynKernel) global.DynKernel.register(__plugin);

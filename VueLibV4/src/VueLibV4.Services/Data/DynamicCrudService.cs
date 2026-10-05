@@ -249,6 +249,14 @@ public class DynamicCrudService
         EnsureTable(db, table);
         var colInfos = ColumnMap(db, table);
         var dict = ToColumnDict(data, colInfos);
+        // 自增列的空值（null/0/空串）必须剔除：SQLite 仅在自增列收到 NULL 时分配新 Id，
+        // 显式插入 0 会真的落 0（前端新增常带 Id:0），第二次新增即主键冲突。
+        foreach (var col in colInfos.Values.Where(c => c.IsIdentity))
+        {
+            if (!dict.TryGetValue(col.DbColumnName, out var v)) continue;
+            if (v == null || v is 0 || v is long l && l == 0 || v is string s && string.IsNullOrWhiteSpace(s))
+                dict.Remove(col.DbColumnName);
+        }
         if (colInfos.ContainsKey("CreateTime") && !dict.ContainsKey("CreateTime"))
             dict["CreateTime"] = DateTime.Now;
         if (colInfos.TryGetValue("Id", out var idCol) && idCol.IsIdentity)

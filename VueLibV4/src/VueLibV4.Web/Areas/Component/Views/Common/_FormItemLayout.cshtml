@@ -9,6 +9,7 @@
                class="el-form-item__label"
                :style="labelStyle"
                :class="{ 'is-required': finalLabelOptions.required }">
+            <span v-if="enableDiff && isChanged" style="display:inline-block;width:14px;height:14px;background:#f56c6c;border-radius:50%;margin-right:6px;vertical-align:middle;box-shadow:0 0 4px #f56c6c;"></span>
             {{ finalLabelOptions.label }}
         </label>
         <div class="el-form-item__content" :style="contentStyle">
@@ -98,4 +99,66 @@
     comExtra.labelStyle = labelStyle;
     comExtra.finalSize = finalSize;
     comExtra.contentStyle = contentStyle;
+
+    // ============ 字段变更标记（diff marker）============
+    // comoptions.diffMarker !== false 时启用：值变化后 label 左上角亮红三角，hover 看原值→新值
+    const enableDiff = computed(() => jc.options?.comoptions?.diffMarker !== false);
+    const isChanged = ref(false);
+    const originValue = ref(undefined);
+    const currentValue = ref(undefined);
+    let snapshotted = false;
+    let _diffStop = null;
+
+    function cloneVal(v) {
+        if (v === null || v === undefined) return v;
+        try { return JSON.parse(JSON.stringify(v)); } catch (e) { return v; }
+    }
+    function formatVal(v) {
+        if (v === null || v === undefined || v === '') return '（空）';
+        if (typeof v === 'object') { try { return JSON.stringify(v); } catch (e) { return String(v); } }
+        return String(v);
+    }
+
+    // onMounted 后再启动：此时 fullModelName / parentModel / modelinfo 均已初始化
+    onMounted(() => {
+        if (!enableDiff.value) return;
+        if (!fullModelName.value) return;
+        function readField() {
+            if (!parentModel.value) return undefined;
+            return getByPath(parentModel.value, fullModelName.value);
+        }
+        function check() {
+            if (!parentModel.value) return;  // model 未就绪，等下一次
+            const cur = readField();
+            currentValue.value = cur;
+            if (!snapshotted) {
+                originValue.value = cloneVal(cur);
+                snapshotted = true;
+                return;
+            }
+            isChanged.value = JSON.stringify(cloneVal(originValue.value)) !== JSON.stringify(cloneVal(cur));
+        }
+        check();
+        _diffStop = watch(readField, check, { deep: true });
+    });
+    onBeforeUnmount(() => { if (_diffStop) _diffStop(); });
+
+    comExtra.enableDiff = enableDiff;
+    comExtra.isChanged = isChanged;
+    comExtra.originValue = originValue;
+    comExtra.currentValue = currentValue;
+    comExtra.formatVal = formatVal;
 }
+
+<style>
+.diff-marker {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background: #f56c6c;
+    border-radius: 50%;
+    margin-right: 4px;
+    cursor: help;
+    vertical-align: middle;
+}
+</style>

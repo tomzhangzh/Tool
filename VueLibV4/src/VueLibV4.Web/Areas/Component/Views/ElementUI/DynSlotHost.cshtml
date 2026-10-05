@@ -1,0 +1,106 @@
+@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+@* ============================================================================
+   DynSlotHost —— 运行时占位符 / 插槽宿主
+   ----------------------------------------------------------------------------
+   用途：
+     设计时在页面上放一个空占位符，声明一个固定 slotId；
+     运行时通过 JS 往里面塞内容（HTML 片段 / 组件 JSON）。
+     典型场景：TabsBlock 子表 tab 内容区、动态注入的子页面、第三方插件挂载点。
+
+   配置（comoptions）：
+     slotId       string  必填，占位符唯一标识（外部通过它找到本节点）
+     showLabel    bool    是否显示 el-form-item label（默认 false，纯容器）
+     minHeight    string  占位区最小高度（默认 60px，空态时可见）
+
+   外部 JS API：
+     DynSlots.fill('xxx', htmlString)      —— 直接塞一段 HTML
+     DynSlots.mount('xxx', componentJson)   —— 塞一个 JSON 组件配置（走 dyn.mount）
+     DynSlots.clear('xxx')                  —— 清空
+     DynSlots.get('xxx')                    —— 取到宿主 DOM（可自行操作）
+   ============================================================================ *@
+
+<template>
+<div v-if="showLabel" class="el-form-item">
+    <label class="el-form-item__label"
+           :style="{ width: labelWidth }">{{ labelText }}</label>
+    <div class="el-form-item__content">
+        <div ref="hostRef" class="dyn-slot-host" :data-slot-id="slotId"
+             :style="{ minHeight: minHeight }"></div>
+    </div>
+</div>
+<div v-else ref="hostRef" class="dyn-slot-host" :data-slot-id="slotId"
+     :style="{ minHeight: minHeight, ...(jc.options.itemoptions && jc.options.itemoptions.style) }"></div>
+</template>
+
+@section setupScripts{
+DVALUE = null;
+// 注意：本平台组件脚本经 new Function 在运行时注入的沙箱里执行（非 ESM 模块），
+// ref/computed/onMounted 等 Vue API 已由装载器作为全局变量注入（见其余所有组件），
+// 这里不能写 import，否则解析即报 "Cannot use import statement outside a module"。
+const hostRef = ref(null);
+
+// ---- 配置 ----
+const slotId = computed(() => jc.options?.comoptions?.slotId || '');
+const showLabel = computed(() => jc.options?.comoptions?.showLabel === true);
+const labelText = computed(() => jc.options?.labeloptions?.label || '');
+const labelWidth = computed(() => jc.options?.labeloptions?.labelwidth || '110px');
+const minHeight = computed(() => jc.options?.comoptions?.minHeight || '60px');
+
+// ---- 全局注册表（懒初始化，避免污染全局）----
+if (typeof window.DynSlots === 'undefined') {
+    window.DynSlots = {
+        _registry: {},
+        get(id) { return this._registry[id] || null; },
+        fill(id, html) {
+            const h = this.get(id);
+            if (!h) { console.warn('[DynSlots] 未找到 slotId:', id); return; }
+            if (h.__dynApp) { try { dyn.unmount(h.el); } catch (e) {} h.__dynApp = null; }
+            h.el.innerHTML = html || '';
+        },
+        async mount(id, componentJson) {
+            const h = this.get(id);
+            if (!h) { console.warn('[DynSlots] 未找到 slotId:', id); return; }
+            if (h.__dynApp) { try { dyn.unmount(h.el); } catch (e) {} h.__dynApp = null; }
+            h.el.innerHTML = '';
+            // 把组件 JSON 包成一个临时 createApp 节点，走 dyn.mount 递归挂载
+            const holder = document.createElement('div');
+            holder.setAttribute('data-dyn-mode', 'createApp');
+            holder.setAttribute('data-blk-config', JSON.stringify(componentJson));
+            h.el.appendChild(holder);
+            if (window.dyn && dyn.mount) {
+                await dyn.mount(holder);
+            }
+        },
+        clear(id) {
+            const h = this.get(id);
+            if (!h) return;
+            if (h.__dynApp) { try { dyn.unmount(h.el); } catch (e) {} h.__dynApp = null; }
+            h.el.innerHTML = '';
+        }
+    };
+}
+
+onMounted(() => {
+    if (!slotId.value) {
+        console.warn('[DynSlotHost] 未配置 comoptions.slotId');
+        return;
+    }
+    window.DynSlots._registry[slotId.value] = { el: hostRef.value, vm: getCurrentInstance() };
+});
+
+onBeforeUnmount(() => {
+    if (slotId.value && window.DynSlots) {
+        const h = window.DynSlots._registry[slotId.value];
+        if (h && h.__dynApp) { try { dyn.unmount(h.el); } catch (e) {} }
+        delete window.DynSlots._registry[slotId.value];
+    }
+});
+
+// 暴露给外部：宿主 DOM 引用
+Object.assign(comExtra, { hostRef, slotId });
+}
+
+<style>
+.dyn-slot-host { border: 1px dashed #dcdfe6; border-radius: 4px; padding: 4px; transition: border-color .2s; }
+.dyn-slot-host:hover { border-color: #409eff; }
+</style>

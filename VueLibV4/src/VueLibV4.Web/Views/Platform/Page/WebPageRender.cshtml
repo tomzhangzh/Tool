@@ -46,6 +46,10 @@
                             }
                             self.pageName = res.data.name;
                             self.pageCode = res.data.code;
+                            // 注入权限资源上下文：根节点写 data-webpage-resource
+                            if (res.data.resourceKey) {
+                                document.getElementById('page-root').setAttribute('data-webpage-resource', res.data.resourceKey);
+                            }
                             var cfg = DynCore.normalize(res.data.config || {});
                             // 运行时：同一套 DynRender 渲染（不编译模板）
                             DynCore.mount(cfg, document.getElementById('page-root'));

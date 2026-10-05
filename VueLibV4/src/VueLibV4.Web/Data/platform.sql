@@ -88,7 +88,10 @@ CREATE TABLE IF NOT EXISTS ComponentMeta (
     PropertyConfigJson TEXT NULL,
     DefaultConfigJson  TEXT NULL,
     IsActive       INTEGER NOT NULL DEFAULT 1,
-    ExtJson        TEXT NULL
+    IsContainer    INTEGER NOT NULL DEFAULT 0,
+    ExtJson        TEXT NULL,
+    DesignerMeta   TEXT NULL,
+    DesignerOperates TEXT NULL
 );
 
 -- ---------------- 6. 动作助手 ----------------
@@ -135,6 +138,7 @@ CREATE TABLE IF NOT EXISTS DynWebPage (
     SpecJson              TEXT NULL,
     Url                   TEXT NULL,
     ExtViewPath           TEXT NULL,
+    ResourceKey           TEXT NULL,
     IsActive              INTEGER NOT NULL DEFAULT 1,
     CreateTime            TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     ExtJson               TEXT NULL
@@ -251,5 +255,106 @@ CREATE TABLE IF NOT EXISTS SysMenu (
     PermissionCode TEXT NULL,
     CreateTime     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+
+-- ---------------- 10. 轻量 RBAC 权限模块（与 Seeder.EnsurePermissionTables 保持同构） ----------------
+-- 说明：此处只建表；admin 用户种子由 Seeder 统一写入（含历史明文密码升级），保证单一写入点。
+CREATE TABLE IF NOT EXISTS SysUser (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserName    TEXT NOT NULL UNIQUE,
+    DisplayName TEXT NULL,
+    Password    TEXT NULL,
+    Email       TEXT NULL,
+    IsActive    INTEGER NOT NULL DEFAULT 1,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS SysRole (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name        TEXT NOT NULL,
+    Remark      TEXT NULL,
+    ProjectId   INTEGER NOT NULL DEFAULT 0,
+    IsActive    INTEGER NOT NULL DEFAULT 1,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS SysUserRole (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserName    TEXT NOT NULL,
+    RoleId      INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS SysResource (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ParentId    INTEGER NOT NULL DEFAULT 0,
+    Key         TEXT NOT NULL,
+    Name        TEXT NOT NULL,
+    Type        TEXT NOT NULL DEFAULT 'Operation',
+    ProjectId   INTEGER NOT NULL DEFAULT 0,
+    HasRead     INTEGER NOT NULL DEFAULT 1,
+    HasEdit     INTEGER NOT NULL DEFAULT 1,
+    HasDelete   INTEGER NOT NULL DEFAULT 0,
+    TableNames  TEXT NULL,
+    SortNo      INTEGER NOT NULL DEFAULT 0,
+    IsActive    INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS SysResourcePermission (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    RoleId      INTEGER NOT NULL,
+    ResourceId  INTEGER NOT NULL,
+    Read        INTEGER NOT NULL DEFAULT 0,
+    Edit        INTEGER NOT NULL DEFAULT 0,
+    CanDelete   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS IX_SysUserRole_User ON SysUserRole(UserName);
+CREATE INDEX IF NOT EXISTS IX_SysResourcePermission_Role ON SysResourcePermission(RoleId);
+CREATE INDEX IF NOT EXISTS IX_SysResource_Parent ON SysResource(ParentId);
+
+-- ---------------- 11. 系统日志（与 Seeder.EnsureSysLogTable 保持同构） ----------------
+CREATE TABLE IF NOT EXISTS SysLog (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    LogLevel    TEXT NOT NULL DEFAULT 'Info',
+    Category    TEXT NULL,
+    Message     TEXT NULL,
+    Exception   TEXT NULL,
+    TraceId     TEXT NULL,
+    UserName    TEXT NULL,
+    Path        TEXT NULL,
+    Method      TEXT NULL,
+    Ip          TEXT NULL,
+    CreateTime  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS IX_SysLog_Time ON SysLog(CreateTime);
+CREATE INDEX IF NOT EXISTS IX_SysLog_Level ON SysLog(LogLevel);
+
+-- ---------------- 12. 看板（与 Seeder.EnsureKanbanTables 保持同构；种子由 Seeder.SeedKanban 写入） ----------------
+CREATE TABLE IF NOT EXISTS KanbanList (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    BoardId     INTEGER NOT NULL DEFAULT 1,
+    Title       TEXT NOT NULL,
+    Color       TEXT NULL,
+    SortNo      INTEGER NOT NULL DEFAULT 0,
+    IsActive    INTEGER NOT NULL DEFAULT 1,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS KanbanCard (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    BoardId     INTEGER NOT NULL DEFAULT 1,
+    ListId      INTEGER NOT NULL,
+    Title       TEXT NOT NULL,
+    Description TEXT NULL,
+    Assignee    TEXT NULL,
+    Priority    TEXT NOT NULL DEFAULT 'normal',
+    DueDate     TEXT NULL,
+    SortNo      INTEGER NOT NULL DEFAULT 0,
+    IsActive    INTEGER NOT NULL DEFAULT 1,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS IX_KanbanCard_Board ON KanbanCard(BoardId);
+CREATE INDEX IF NOT EXISTS IX_KanbanCard_List ON KanbanCard(ListId);
+CREATE TABLE IF NOT EXISTS KanbanComment (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    CardId      INTEGER NOT NULL,
+    Content     TEXT NULL,
+    Author      TEXT NULL,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS IX_KanbanComment_Card ON KanbanComment(CardId);
 
 -- ComponentMeta 由初始化器按 Data/component-meta.sql 批量插入

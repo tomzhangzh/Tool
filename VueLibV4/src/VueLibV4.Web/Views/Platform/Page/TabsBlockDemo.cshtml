@@ -1,0 +1,40 @@
+@model dynamic
+@{
+    Layout = "_Layout";
+    var tabsBlkConfig = (string)ViewData["TabsBlkConfig"];
+    var extId = (string)ViewData["ExtId"];
+}
+<div id="@extId-root" class="tabs-demo-root">
+    <div class="tabs-demo-header">
+        <h3>TabsBlock 演示 —— 学生详情（主表单 + 子表 tab）</h3>
+        <div class="tabs-demo-tip">
+            步骤：① 在"基本信息"里填学生姓名 → 点保存；② 保存成功后"相关课程/成绩"tab 自动解锁；
+            ③ 切到子表 tab，能看到主记录 id 已传入。
+        </div>
+    </div>
+    <div class="tabs-demo-body">
+        @await Html.PartialAsync("~/Views/DynBlocks/Apps/TabsBlock.cshtml", new ViewDataDictionary(ViewData) {
+            ["ExtId"] = extId,
+            ["BlkConfig"] = tabsBlkConfig,
+            ["ExtSlots"] = null
+        })
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/dyn/blocks/dyn-blocks-common.js" asp-append-version="true"></script>
+    <script src="~/dyn/layouts/dyn-layout-engine.js" asp-append-version="true"></script>
+    <script>
+        DynLib.ready(function () {
+            // 只 mount 最外层 TabsBlock，mountCore 会递归处理内部嵌套的 DetailApp
+            var root = document.querySelector('.dyn-blk-tabs');
+            if (root && !root.__dynApp) dyn.mount(root);
+        });
+    </script>
+}
+<style>
+.tabs-demo-root { padding: 20px; background: #f0f2f5; min-height: 100vh; }
+.tabs-demo-header h3 { margin: 0 0 8px; }
+.tabs-demo-tip { color: #909399; font-size: 13px; margin-bottom: 16px; }
+.tabs-demo-body { background: #fff; border-radius: 8px; padding: 16px; min-height: 480px; }
+</style>

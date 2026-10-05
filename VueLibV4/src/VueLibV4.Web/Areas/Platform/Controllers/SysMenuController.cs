@@ -3,13 +3,14 @@ using Newtonsoft.Json.Linq;
 using VueLibV4.Platform.Models;
 using VueLibV4.Platform.Services;
 using VueLibV4.Web.Core;
+using VueLibV4.Web.Services;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
 /// 系统菜单（树形）：管理页左侧树+右侧表单；桌面快捷方式数据源（IsAddToDesktop=true）。
 /// TargetType：FullScreen=全屏 / Iframe=桌面内嵌 iframe / NewWindow=新窗口。
-/// PermissionCode 预留权限编码（后续与权限模块对接，树接口可增加按权限过滤）。
+/// PermissionCode 与权限模块对接：DesktopList 按当前用户权限过滤。
 /// </summary>
 [Area("Platform")]
 [Route("api/platform/sysmenu")]
@@ -17,8 +18,13 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 public class SysMenuController : ControllerBase
 {
     private readonly ISysMenuService _menus;
+    private readonly IPermissionService _perm;
 
-    public SysMenuController(ISysMenuService menus) => _menus = menus;
+    public SysMenuController(ISysMenuService menus, IPermissionService perm)
+    {
+        _menus = menus;
+        _perm = perm;
+    }
 
     /// <summary>完整菜单树（含全部字段），供管理页左侧树渲染</summary>
     [HttpGet("tree")]
@@ -65,10 +71,17 @@ public class SysMenuController : ControllerBase
 
     /// <summary>桌面快捷方式数据源：IsAddToDesktop=true 且 IsActive 的树（含 children，父菜单=文件夹）</summary>
     [HttpGet("desktoplist")]
-    public ApiResult DesktopList()
+    public async Task<ApiResult> DesktopList()
     {
         var all = _menus.List(m => m.IsAddToDesktop && m.IsActive, "SortNo ASC, Id ASC");
-        return ApiResult.Ok(BuildTree(all, null));
+        // 按权限过滤：PermissionCode 为空 = 放行；非空 = 当前用户必须有 Read 权限
+        var filtered = new List<SysMenu>();
+        foreach (var m in all)
+        {
+            if (string.IsNullOrWhiteSpace(m.PermissionCode) || await _perm.CanReadAsync(m.PermissionCode))
+                filtered.Add(m);
+        }
+        return ApiResult.Ok(BuildTree(filtered, null));
     }
 
     // ---------------- 树构建 ----------------

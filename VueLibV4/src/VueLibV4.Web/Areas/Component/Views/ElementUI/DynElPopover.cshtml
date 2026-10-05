@@ -1,6 +1,6 @@
 @{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-popover v-bind="comBind" v-on="getComlisteners()"
+<el-popover v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
             :title="jc.options.comoptions.title || ''"
             :width="jc.options.comoptions.width || 200"
             :trigger="jc.options.comoptions.trigger || 'hover'"

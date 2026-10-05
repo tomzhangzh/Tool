@@ -1,0 +1,78 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>登录 - VueLibV4</title>
+    <style>
+        body { margin:0; font-family:'Helvetica Neue',Arial,'PingFang SC','Microsoft YaHei',sans-serif; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height:100vh; display:flex; align-items:center; justify-content:center; }
+        .login-box { background:#fff; border-radius:12px; padding:40px; width:360px; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+        .login-title { text-align:center; font-size:24px; font-weight:600; color:#303133; margin-bottom:30px; }
+        .login-item { margin-bottom:20px; }
+        .login-item label { display:block; font-size:14px; color:#606266; margin-bottom:6px; }
+        .login-item input { width:100%; padding:10px 12px; border:1px solid #dcdfe6; border-radius:6px; font-size:14px; box-sizing:border-box; }
+        .login-item input:focus { outline:none; border-color:#409eff; }
+        .login-btn { width:100%; padding:12px; background:#409eff; color:#fff; border:none; border-radius:6px; font-size:16px; cursor:pointer; }
+        .login-btn:hover { background:#66b1ff; }
+        .login-error { color:#f56c6c; font-size:14px; text-align:center; margin-top:10px; display:none; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <div class="login-title">VueLibV4 登录</div>
+        <div class="login-item">
+            <label>用户名</label>
+            <input id="userName" type="text" placeholder="请输入用户名" value="admin" />
+        </div>
+        <div class="login-item">
+            <label>密码</label>
+            <input id="password" type="password" placeholder="请输入密码" value="admin123" />
+        </div>
+        <button class="login-btn" onclick="doLogin()">登 录</button>
+        <div class="login-error" id="errorMsg"></div>
+    </div>
+    <script>
+        async function doLogin() {
+            var userName = document.getElementById('userName').value.trim();
+            var password = document.getElementById('password').value;
+            var err = document.getElementById('errorMsg');
+            err.style.display = 'none';
+            try {
+                var res = await fetch('/api/platform/permission/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userName, password })
+                });
+                var json = await res.json();
+                if (json.code === 0) {
+                    // 身份切换必须清掉旧权限缓存（匿名/上一用户的 isAdmin/keys 不能带到新会话）
+                    try { sessionStorage.removeItem('dyn_permission_keys'); } catch (e2) { /* ignore */ }
+                    window.location.href = safeReturnUrl() || '/Platform/Page/Desktop';
+                } else {
+                    err.textContent = json.msg || '登录失败';
+                    err.style.display = 'block';
+                }
+            } catch (e) {
+                err.textContent = '网络错误';
+                err.style.display = 'block';
+            }
+        }
+        // returnUrl 白名单：仅接受站内相对路径（/ 开头且非 // 协议相对 URL），防开放重定向
+        function safeReturnUrl() {
+            try {
+                var q = new URLSearchParams(location.search).get('returnUrl') || '';
+                if (q.charAt(0) === '/' && q.charAt(1) !== '/' && q.charAt(1) !== '\\' && q.indexOf('\n') < 0) {
+                    return q;
+                }
+            } catch (e) { /* ignore */ }
+            return '';
+        }
+        document.getElementById('password').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') doLogin();
+        });
+    </script>
+</body>
+</html>

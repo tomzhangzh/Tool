@@ -1,6 +1,6 @@
 @{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-transfer v-model="modelinfo" v-bind="comBind" v-on="getComlisteners()"
+<el-transfer v-model="modelinfo" v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
              :data="comInnerInfo.options || []"
              :titles="jc.options.comoptions.titles || ['待选', '已选']"
              :button-texts="jc.options.comoptions.buttonTexts || ['→', '←']"

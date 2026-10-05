@@ -1,6 +1,6 @@
 ﻿@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-rate v-model="modelinfo" v-bind="comBind" v-on="getComlisteners()"
+<el-rate v-model="modelinfo" v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
          :max="jc.options.comoptions.max || 5"
          :allow-half="jc.options.comoptions.allowHalf === true">
 </el-rate>

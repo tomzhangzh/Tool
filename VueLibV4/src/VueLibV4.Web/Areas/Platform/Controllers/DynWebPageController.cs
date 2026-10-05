@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using SqlSugar;
+using System.Text;
 using VueLibV4.Platform.Models;
 using VueLibV4.Platform.Services;
 using VueLibV4.Web.Core;
@@ -101,6 +102,7 @@ public class DynWebPageController : ControllerBase
         // M4 三屏固定模板：返回模板 Code、运行 URL 与筛选/列表/详情三份配置树
         result["templateCode"] = tpl?.Code;
         result["url"] = row.Url;
+        result["resourceKey"] = row.ResourceKey; // 权限资源 Key，前端渲染时注入 data-webpage-resource
         // 槽位 PageSettingId：blocks[slot].settingId 优先，回退旧扁平键
         result["filterConfig"] = LoadSettingConfig(DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId"));
         result["listConfig"] = LoadSettingConfig(DynPageViewHelper.SlotSettingId(ps, "list", "ListPageSettingId"));
@@ -269,6 +271,115 @@ public class DynWebPageController : ControllerBase
         if (id <= 0) return ApiResult.Fail("缺少 Id");
         _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
+    }
+
+    /// <summary>
+    /// 导出手写模板：把 PageSet 的 ConfigJson 转成嵌套的 dyn-xxx 标签格式。
+    /// 入参 {id}，返回 { template: "..." }。
+    /// </summary>
+    [HttpPost("export-template")]
+    public ApiResult ExportTemplate([FromBody] JObject body)
+    {
+        var id = body["id"]?.Value<int>() ?? body["Id"]?.Value<int>() ?? 0;
+        var page = id > 0 ? _svc.GetById(id) : null;
+        if (page == null) return ApiResult.Fail("页面不存在");
+        if (string.IsNullOrWhiteSpace(page.PageJson)) return ApiResult.Fail("页面没有配置");
+
+        try
+        {
+            var cfg = JObject.Parse(page.PageJson);
+            var template = BuildTemplate(cfg, 0);
+            return ApiResult.Ok(new { template = template }, "导出成功");
+        }
+        catch (Exception ex)
+        {
+            return ApiResult.Fail("导出失败: " + ex.Message);
+        }
+    }
+
+    /// <summary>递归把 JSON 配置转成手写模板标签</summary>
+    private string BuildTemplate(JObject cfg, int indent)
+    {
+        var pad = new string(' ', indent * 4);
+        var component = cfg["component"]?.ToString() ?? "dyn-el-container";
+        var modelname = cfg["modelname"]?.ToString();
+        var options = cfg["options"] as JObject;
+        var comoptions = options?["comoptions"] as JObject;
+        var labeloptions = options?["labeloptions"] as JObject;
+        var children = cfg["childrenctrls"] as JArray;
+
+        var sb = new StringBuilder();
+        sb.Append(pad).Append("<").Append(component);
+        if (!string.IsNullOrEmpty(modelname)) sb.Append(" modelname=\"").Append(modelname).Append("\"");
+
+        // labeloptions → 独立属性
+        if (labeloptions != null)
+        {
+            var label = labeloptions["label"]?.ToString();
+            if (!string.IsNullOrEmpty(label)) sb.Append(" label=\"").Append(label).Append("\"");
+            var required = labeloptions["required"]?.Value<bool>() ?? false;
+            if (required) sb.Append(" required");
+        }
+
+        // comoptions 常用属性 → 独立属性
+        if (comoptions != null)
+        {
+            AppendComOption(sb, comoptions, "placeholder", "placeholder");
+            AppendComOption(sb, comoptions, "type", "type");
+            AppendComOption(sb, comoptions, "size", "size");
+            AppendComOption(sb, comoptions, "disabled", "disabled");
+            AppendComOption(sb, comoptions, "clearable", "clearable");
+            AppendComOption(sb, comoptions, "readonly", "readonly");
+            AppendComOption(sb, comoptions, "min", "min");
+            AppendComOption(sb, comoptions, "max", "max");
+            AppendComOption(sb, comoptions, "multiple", "multiple");
+            AppendComOption(sb, comoptions, "filterable", "filterable");
+            AppendComOption(sb, comoptions, "show-word-limit", "show-word-limit");
+            AppendComOption(sb, comoptions, "maxlength", "maxlength");
+            // 剩余的特殊值用 :prop 绑定
+            // options 数组用 :options
+            var optionsArr = comoptions["options"] as JArray;
+            if (optionsArr != null && optionsArr.HasValues)
+            {
+                sb.Append(" :options='").Append(optionsArr.ToString(Newtonsoft.Json.Formatting.None)).Append("'");
+            }
+        }
+
+        if (children != null && children.Count > 0)
+        {
+            sb.AppendLine(">");
+            foreach (var child in children)
+            {
+                sb.Append(BuildTemplate((JObject)child, indent + 1));
+            }
+            sb.Append(pad).AppendLine("</" + component + ">");
+        }
+        else
+        {
+            sb.AppendLine(" />");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>把 comoptions 里的属性转成独立标签属性</summary>
+    private void AppendComOption(StringBuilder sb, JObject comoptions, string key, string attrName)
+    {
+        var token = comoptions[key];
+        if (token == null || token.Type == JTokenType.Null) return;
+
+        if (token.Type == JTokenType.Boolean)
+        {
+            if (token.Value<bool>()) sb.Append(" ").Append(attrName);
+        }
+        else if (token.Type == JTokenType.Integer || token.Type == JTokenType.Float)
+        {
+            sb.Append(" ").Append(attrName).Append("=\"").Append(token.ToString()).Append("\"");
+        }
+        else
+        {
+            var val = token.ToString();
+            if (!string.IsNullOrEmpty(val)) sb.Append(" ").Append(attrName).Append("=\"").Append(val).Append("\"");
+        }
     }
 
     /// <summary>

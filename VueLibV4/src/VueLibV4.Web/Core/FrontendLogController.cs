@@ -12,6 +12,7 @@ namespace VueLibV4.Web.Core;
 /// </summary>
 [ApiController]
 [Route("api/log")]
+[AllowAnonymousPermission] // 未登录页（如登录页）也允许上报；ApiKey 中间件同样放行，靠同源校验+IP 限流防刷
 public class FrontendLogController : ControllerBase
 {
     private readonly IConfiguration _config;

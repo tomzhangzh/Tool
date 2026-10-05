@@ -1,6 +1,6 @@
-@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-card shadow="hover" v-bind="comBind" v-on="getComlisteners()" style="min-width:200px;">
+<el-card shadow="hover" v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()" style="min-width:200px;">
     <div style="display:flex;align-items:center;gap:16px;">
         <div v-if="jc.options.comoptions.icon"
              :style="{ fontSize: '32px', color: jc.options.comoptions.iconColor || '#409eff' }">

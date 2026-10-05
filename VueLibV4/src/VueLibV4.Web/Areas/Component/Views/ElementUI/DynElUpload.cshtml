@@ -6,7 +6,7 @@
            :show-file-list="true"
            :on-success="upOk"
            :on-error="upError"
-           v-bind="comBind">
+           v-bind="comBind" v-bind="$attrs">
     <el-button type="primary" size="small">
         {{ jc.options.comoptions.buttonText || '点击上传' }}
     </el-button>

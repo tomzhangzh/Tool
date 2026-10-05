@@ -1,7 +1,7 @@
-@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
 
 <template>
-<el-divider v-bind="comBind" v-on="getComlisteners()"
+<el-divider v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
             :content-position="jc.options?.comoptions.contentPosition || 'center'">
     {{ jc.options?.comoptions.content || '' }}
 </el-divider>

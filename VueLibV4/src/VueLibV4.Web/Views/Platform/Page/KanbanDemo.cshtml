@@ -1,0 +1,32 @@
+@model dynamic
+@{
+    Layout = "_Layout";
+    var extId = "kanban-root";
+}
+<div class="kanban-demo-root">
+    <div class="kanban-demo-header">
+        <h3>📋 Kanban 看板 —— 项目任务管理（自举 Demo）</h3>
+        <div class="kanban-demo-tip">
+            拖拽卡片跨列移动（自动保存状态）；点卡片编辑标题/负责人/优先级并写评论；列头 ＋ 加新卡片。
+        </div>
+    </div>
+    @await Html.PartialAsync("~/Views/DynBlocks/Apps/KanbanBoardBlock.cshtml", new ViewDataDictionary(ViewData) {
+        ["ExtId"] = extId,
+        ["BlkConfig"] = "{}",
+        ["ExtSlots"] = null
+    })
+</div>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var root = document.querySelector('.dyn-kanban');
+            if (root && !root.__dynApp) dyn.mount(root);
+        });
+    </script>
+}
+<style>
+.kanban-demo-root { padding: 20px; background: #f0f2f5; min-height: 100vh; }
+.kanban-demo-header h3 { margin: 0 0 8px; }
+.kanban-demo-tip { color: #909399; font-size: 13px; margin-bottom: 16px; }
+</style>

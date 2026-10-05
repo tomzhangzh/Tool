@@ -1,6 +1,6 @@
 @{ Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml"; }
 
-<el-badge :value="badgeValue" v-bind="comBind" v-on="getComlisteners()"
+<el-badge :value="badgeValue" v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
           :type="jc.options.comoptions.type || 'danger'"
           :max="jc.options.comoptions.max || 99"
           :is-dot="jc.options.comoptions.isDot === true">

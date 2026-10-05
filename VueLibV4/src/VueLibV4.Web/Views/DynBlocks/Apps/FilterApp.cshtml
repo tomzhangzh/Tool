@@ -99,6 +99,11 @@
             __handle = DynBlocks.createBlockHandle(element);
             // 编排方可用 send('submit') 以当前输入主动触发一次查询（初始化预置筛选时用）
             __handle.reg('submit', function () { __handle.emit('changed', self.buildSubmit()); return null; });
+            // 就绪握手：wire 绑好后把默认筛选条件推一次，驱动 List 首屏加载。
+            // 必须放在 onReady 里而不是这里直接 emit——否则 wire 还没绑上，消息丢失。
+            __handle.onReady(function () {
+                __handle.emit('changed', self.buildSubmit());
+            });
         },
         beforeUnmount: function () {
             if (__handle) { __handle.destroy(); __handle = null; }

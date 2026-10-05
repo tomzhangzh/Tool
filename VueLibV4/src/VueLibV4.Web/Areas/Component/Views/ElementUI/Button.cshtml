@@ -3,7 +3,7 @@
 }
 
 <template>
-<el-button v-bind="comBind"
+<el-button v-bind="comBind" v-bind="$attrs"
                v-on="getComlisteners()">
         {{ jc.options?.comoptions.text || '按钮' }}
     </el-button>

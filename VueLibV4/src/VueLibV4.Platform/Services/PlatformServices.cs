@@ -279,3 +279,100 @@ public class DynSchemaLabelService : SugarService<DynSchemaLabel>, IDynSchemaLab
         }
     }
 }
+
+// ============ 权限模块（轻量 RBAC） ============
+
+public interface ISysRoleService : ISugarService<SysRole>, IScopeDependency { }
+public class SysRoleService : SugarService<SysRole>, ISysRoleService
+{
+    public SysRoleService(ISqlSugarClient db) : base(db) { }
+}
+
+public interface ISysUserRoleService : ISugarService<SysUserRole>, IScopeDependency { }
+public class SysUserRoleService : SugarService<SysUserRole>, ISysUserRoleService
+{
+    public SysUserRoleService(ISqlSugarClient db) : base(db) { }
+}
+
+public interface ISysResourceService : ISugarService<SysResource>, IScopeDependency
+{
+    /// <summary>取资源树（全部启用节点）</summary>
+    List<SysResource> ListAll();
+
+    /// <summary>按表名找绑定该表的资源节点（TableNames 逗号包含）</summary>
+    SysResource? FindByTable(string tableName);
+}
+public class SysResourceService : SugarService<SysResource>, ISysResourceService
+{
+    public SysResourceService(ISqlSugarClient db) : base(db) { }
+    public List<SysResource> ListAll() => List(r => r.IsActive, "SortNo ASC, Id ASC");
+
+    public SysResource? FindByTable(string tableName)
+    {
+        if (string.IsNullOrWhiteSpace(tableName)) return null;
+        // 找所有有 TableNames 的节点，内存里匹配逗号分隔
+        var all = List(r => r.IsActive && r.TableNames != null && r.TableNames != "", null);
+        return all.FirstOrDefault(r =>
+            (r.TableNames ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(t => string.Equals(t, tableName, StringComparison.OrdinalIgnoreCase)));
+    }
+}
+
+public interface ISysResourcePermissionService : ISugarService<SysResourcePermission>, IScopeDependency
+{
+    /// <summary>取某用户拥有的全部权限记录（关联资源表拿 Key）</summary>
+    List<SysResourcePermission> ListByUser(string userName);
+
+    /// <summary>取某用户拥有的全部权限 Key 集合（前端缓存用）
+    /// 格式：Key、Key|Read、Key|Edit、Key|Delete</summary>
+    Task<HashSet<string>> GetPermissionKeysAsync(string userName);
+}
+
+public class SysResourcePermissionService : SugarService<SysResourcePermission>, ISysResourcePermissionService
+{
+    public SysResourcePermissionService(ISqlSugarClient db) : base(db) { }
+
+    public List<SysResourcePermission> ListByUser(string userName)
+    {
+        if (string.IsNullOrWhiteSpace(userName)) return new();
+        return _db.Queryable<SysUserRole>()
+            .Where(ur => ur.UserName == userName)
+            .InnerJoin<SysResourcePermission>((ur, p) => ur.RoleId == p.RoleId)
+            .Select((ur, p) => p)
+            .ToList();
+    }
+
+    public Task<HashSet<string>> GetPermissionKeysAsync(string userName)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(userName)) return Task.FromResult(set);
+
+        // 查用户权限 + 关联资源表拿 Key
+        var rows = _db.Queryable<SysUserRole>()
+            .Where(ur => ur.UserName == userName)
+            .InnerJoin<SysResourcePermission>((ur, p) => ur.RoleId == p.RoleId)
+            .InnerJoin<SysResource>((ur, p, r) => p.ResourceId == r.Id)
+            .Select((ur, p, r) => new { p.Read, p.Edit, p.Delete, r.Key })
+            .ToList();
+
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrEmpty(row.Key)) continue;
+            set.Add(row.Key);
+            if (row.Read) set.Add($"{row.Key}|Read");
+            if (row.Edit) set.Add($"{row.Key}|Edit");
+            if (row.Delete) set.Add($"{row.Key}|Delete");
+        }
+        return Task.FromResult(set);
+    }
+}
+
+public interface ISysUserService : ISugarService<SysUser>, IScopeDependency
+{
+    List<SysUser> ListAll();
+}
+public class SysUserService : SugarService<SysUser>, ISysUserService
+{
+    public SysUserService(ISqlSugarClient db) : base(db) { }
+    public List<SysUser> ListAll() => List(r => r.IsActive, "UserName ASC");
+}

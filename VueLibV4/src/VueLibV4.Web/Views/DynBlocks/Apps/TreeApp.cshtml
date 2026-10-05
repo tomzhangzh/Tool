@@ -243,8 +243,13 @@
             var self = this;
             // 实例句柄：对外 nodeClick/addRoot/addChild 事件 + reload 命令；不持有任何其他 app 的引用
             __handle = DynBlocks.createBlockHandle(element);
-            __handle.reg('reload', function () { return self.loadTree(); });
-            this.loadTree();
+            __handle.reg('reload', function () { self._driven = true; return self.loadTree(); });
+            // 就绪握手：树没有筛选上游，wire 绑好后直接加载整棵树。
+            // 放 onReady 而不是这里，保证和 detail 槽的接线时序对齐。
+            this._driven = false;
+            __handle.onReady(function () {
+                if (!self._driven) self.loadTree();
+            });
         },
         beforeUnmount: function () {
             this.destroySortable();

@@ -595,6 +595,14 @@ defineAction('open',async ctx=>{
           holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
           const html = await dyn.fetchPartial(url,o.params||{},o.method||'GET');
           global.dyn.html(holder,html);
+          // 权限上下文透传：inheritResource=true 时，从触发源向上找 resourceKey，写到弹窗根节点
+          if(o.inheritResource && typeof window.DynPermission==='object' && window.DynPermission.findResourceKey){
+            const rk = window.DynPermission.findResourceKey(triggerEl);
+            if(rk){
+              holder.setAttribute('data-block-resource', rk);
+              if(typeof window.DynPermission.scan==='function') window.DynPermission.scan(holder);
+            }
+          }
           await _runEvents(normActionSteps(o.onopen),Object.assign({},ctx,{holder}));
         }catch(e){
           holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：'+(e.message||e)+'</div>';

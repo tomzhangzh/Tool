@@ -1,0 +1,389 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "权限管理 - VueLibV4";
+}
+
+<div id="perm-admin" style="padding:16px;">
+  <el-card shadow="never">
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+      <span style="font-weight:bold;font-size:16px;">权限管理</span>
+      <el-divider direction="vertical"></el-divider>
+      <span>角色：</span>
+      <el-select v-model="currentRoleId" placeholder="选择角色" size="default" style="width:200px;" @@change="onRoleChange">
+        <el-option v-for="r in roles" :key="r.Id" :label="r.Name" :value="r.Id"></el-option>
+      </el-select>
+      <el-button size="small" type="primary" @@click="showRoleDialog = true">新建角色</el-button>
+      <el-button size="small" @@click="saveGrants" :disabled="!currentRoleId">保存授权</el-button>
+    </div>
+
+    <el-row :gutter="16">
+      <!-- 左：资源树 -->
+      <el-col :span="14">
+        <el-card shadow="never" header="资源权限树">
+          <el-table :data="treeData" row-key="Id" border size="small" default-expand-all>
+            <el-table-column prop="Name" label="资源" width="280">
+              <template #default="s">
+                <span :style="{paddingLeft: (s.row._depth * 20) + 'px'}">
+                  <el-tag size="small" :type="typeTag(s.row.Type)">{{ s.row.Type }}</el-tag>
+                  {{ s.row.Name }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="Read" width="60" align="center">
+              <template #default="s">
+                <el-checkbox v-if="s.row.HasRead" v-model="s.row._read" @@change="onReadChange(s.row)"></el-checkbox>
+                <span v-else style="color:#ccc;">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="Edit" width="60" align="center">
+              <template #default="s">
+                <el-checkbox v-if="s.row.HasEdit" v-model="s.row._edit" @@change="onEditChange(s.row)"></el-checkbox>
+                <span v-else style="color:#ccc;">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="Delete" width="60" align="center">
+              <template #default="s">
+                <el-checkbox v-if="s.row.HasDelete" v-model="s.row._delete" @@change="onDeleteChange(s.row)"></el-checkbox>
+                <span v-else style="color:#ccc;">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="Key" label="Key" />
+          </el-table>
+        </el-card>
+      </el-col>
+
+      <!-- 右：用户-角色 -->
+      <el-col :span="10">
+        <el-card shadow="never" header="资源管理">
+          <el-button size="small" type="primary" style="margin-bottom:10px;" @@click="scanResources">扫描代码注册新资源</el-button>
+          <el-table :data="resources" size="small" border max-height="300">
+            <el-table-column prop="Key" label="Key" width="180" />
+            <el-table-column prop="Name" label="名称" width="120">
+              <template #default="s">
+                <el-input v-model="s.row.Name" size="small"></el-input>
+              </template>
+            </el-table-column>
+            <el-table-column prop="TableNames" label="绑定表名">
+              <template #default="s">
+                <el-input v-model="s.row.TableNames" size="small" placeholder="逗号分隔"></el-input>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="70">
+              <template #default="s">
+                <el-button size="small" type="primary" link @@click="saveResourceRow(s.row)">保存</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+
+        <el-card shadow="never" header="用户管理" style="margin-top:12px;">
+          <el-button size="small" type="primary" style="margin-bottom:10px;" @@click="openCreateUser">新建用户</el-button>
+          <el-table :data="users" size="small" border max-height="250">
+            <el-table-column prop="UserName" label="用户名" width="100" />
+            <el-table-column prop="DisplayName" label="姓名" width="100" />
+            <el-table-column prop="Email" label="邮箱" />
+            <el-table-column label="启用" width="60">
+              <template #default="s">
+                <el-tag size="small" :type="s.row.IsActive ? 'success' : 'danger'">{{ s.row.IsActive ? '是' : '否' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120">
+              <template #default="s">
+                <el-button size="small" type="primary" link @@click="editUser(s.row)">编辑</el-button>
+                <el-button size="small" type="danger" link @@click="deleteUser(s.row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+
+        <el-card shadow="never" :header="'当前角色下的用户（' + (currentRoleId || '未选角色') + '）'" style="margin-top:12px;">
+          <el-input v-model="newUser" placeholder="输入用户名，加到当前角色" size="small" style="width:200px;margin-bottom:10px;"
+                    @@keyup.enter.native="addUserToRole">
+            <template #append>
+              <el-button @@click="addUserToRole">添加</el-button>
+            </template>
+          </el-input>
+          <el-table :data="roleUsers" size="small" border>
+            <el-table-column prop="UserName" label="用户名" />
+            <el-table-column label="操作" width="80">
+              <template #default="s">
+                <el-button size="small" type="danger" link @@click="removeUser(s.row)">移除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+
+        <el-card shadow="never" header="新建资源节点" style="margin-top:12px;">
+          <el-form size="small" label-width="80px">
+            <el-form-item label="父节点">
+              <el-select v-model="newResource.ParentId" placeholder="根节点" style="width:100px;">
+                <el-option :label="根节点" :value="0"></el-option>
+                <el-option v-for="r in resources" :key="r.Id" :label="r.Name" :value="r.Id"></el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Key"><el-input v-model="newResource.Key" placeholder="Customer.List"></el-input></el-form-item>
+            <el-form-item label="名称"><el-input v-model="newResource.Name" placeholder="客户列表"></el-input></el-form-item>
+            <el-form-item label="表名"><el-input v-model="newResource.TableNames" placeholder="逗号分隔，如 Customer,Order"></el-input></el-form-item>
+            <el-form-item label="类型">
+              <el-select v-model="newResource.Type" style="width:100%;">
+                <el-option label="模块" value="Module"></el-option>
+                <el-option label="菜单" value="Menu"></el-option>
+                <el-option label="页面" value="Page"></el-option>
+                <el-option label="操作" value="Operation"></el-option>
+                <el-option label="字段" value="Field"></el-option>
+              </el-select>
+            </el-form-item>
+            <el-button size="small" type="primary" @@click="addResource">添加资源</el-button>
+          </el-form>
+        </el-card>
+      </el-col>
+    </el-row>
+  </el-card>
+
+  <!-- 新建角色弹窗 -->
+  <el-dialog v-model="showRoleDialog" title="新建角色" width="400px">
+    <el-form size="small" label-width="80px">
+      <el-form-item label="角色名"><el-input v-model="newRoleName" placeholder="如：业务员"></el-input></el-form-item>
+      <el-form-item label="备注"><el-input v-model="newRoleRemark"></el-input></el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @@click="showRoleDialog = false">取消</el-button>
+      <el-button type="primary" @@click="saveRole">保存</el-button>
+    </template>
+  </el-dialog>
+
+  <!-- 新建/编辑用户弹窗 -->
+  <el-dialog v-model="showUserDialog" :title="editingUser.Id > 0 ? '编辑用户' : '新建用户'" width="400px">
+    <el-form size="small" label-width="80px">
+      <el-form-item label="用户名"><el-input v-model="editingUser.UserName" :disabled="editingUser.Id > 0"></el-input></el-form-item>
+      <el-form-item label="姓名"><el-input v-model="editingUser.DisplayName"></el-input></el-form-item>
+      <el-form-item label="密码">
+        <el-input v-model="editingUser.Password" type="password" show-password
+                  :placeholder="editingUser.Id > 0 ? '留空表示不修改密码' : '必填，初始密码'"></el-input>
+      </el-form-item>
+      <el-form-item label="邮箱"><el-input v-model="editingUser.Email"></el-input></el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @@click="showUserDialog = false">取消</el-button>
+      <el-button type="primary" @@click="saveUser">保存</el-button>
+    </template>
+  </el-dialog>
+</div>
+
+<script>
+const { createApp, ref, reactive, onMounted } = Vue;
+createApp({
+  setup() {
+    const roles = ref([]);
+    const resources = ref([]);
+    const treeData = ref([]);
+    const currentRoleId = ref(null);
+    const granted = ref({});
+    const roleUsers = ref([]);
+    const newUser = ref('');
+    const showRoleDialog = ref(false);
+    const newRoleName = ref('');
+    const newRoleRemark = ref('');
+    const users = ref([]);
+    const showUserDialog = ref(false);
+    const editingUser = reactive({ Id: 0, UserName: '', DisplayName: '', Password: '', Email: '', IsActive: true });
+    const newResource = reactive({ ParentId: 0, Key: '', Name: '', TableNames: '', Type: 'Operation' });
+
+    const typeTag = (t) => ({ Module: 'danger', Menu: 'warning', Page: 'primary', Operation: 'success', Field: 'info' }[t] || 'info');
+
+    async function loadRoles() {
+      const r = await fetch('/api/platform/permission/roles').then(r => r.json());
+      roles.value = r.data || [];
+    }
+
+    async function loadResources() {
+      const r = await fetch('/api/platform/permission/resources').then(r => r.json());
+      resources.value = r.data || [];
+      buildTree();
+    }
+
+    function buildTree() {
+      // 扁平数组 → 带深度的树
+      const byParent = {};
+      resources.value.forEach(r => {
+        const p = r.ParentId || 0;
+        (byParent[p] = byParent[p] || []).push(r);
+      });
+      const flat = [];
+      function walk(parentId, depth) {
+        (byParent[parentId] || []).forEach(r => {
+          flat.push({ ...r, _depth: depth, _read: false, _edit: false, _delete: false });
+          walk(r.Id, depth + 1);
+        });
+      }
+      walk(0, 0);
+      treeData.value = flat;
+    }
+
+    async function onRoleChange(roleId) {
+      granted.value = {};
+      const r = await fetch('/api/platform/permission/granted?roleId=' + roleId).then(r => r.json());
+      granted.value = r.data || {};
+      // 回填 checkbox
+      treeData.value.forEach(node => {
+        const g = granted.value[node.Id];
+        node._read = g?.Read || false;
+        node._edit = g?.Edit || false;
+        node._delete = g?.Delete || false;
+      });
+      // 加载该角色的用户
+      loadRoleUsers();
+    }
+
+    function onReadChange(row) {
+      if (!row._read) { row._edit = false; row._delete = false; }
+    }
+    function onEditChange(row) {
+      if (row._edit) row._read = true;
+    }
+    function onDeleteChange(row) {
+      if (row._delete) row._read = true;
+    }
+
+    async function saveGrants() {
+      for (const node of treeData.value) {
+        const g = granted.value[node.Id];
+        const read = node._read, edit = node._edit, del = node._delete;
+        // 只保存有变化或有勾选的
+        if (!read && !edit && !del) continue;
+        await fetch('/api/platform/permission/grant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ RoleId: currentRoleId.value, ResourceId: node.Id, Read: read, Edit: edit, Delete: del })
+        });
+      }
+      ElementPlus.ElMessage.success('授权已保存');
+    }
+
+    async function saveRole() {
+      if (!newRoleName.value) return;
+      await fetch('/api/platform/permission/role/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Name: newRoleName.value, Remark: newRoleRemark.value })
+      });
+      showRoleDialog.value = false;
+      newRoleName.value = '';
+      newRoleRemark.value = '';
+      loadRoles();
+    }
+
+    async function loadRoleUsers() {
+      const r = await fetch('/api/platform/permission/userroles?roleId=' + currentRoleId.value).then(r => r.json());
+      roleUsers.value = r.data || [];
+    }
+    async function addUserToRole() {
+      if (!newUser.value || !currentRoleId.value) return;
+      await fetch('/api/platform/permission/userrole/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userName: newUser.value, roleId: currentRoleId.value })
+      });
+      newUser.value = '';
+      loadRoleUsers();
+    }
+    async function removeUser(row) {
+      await fetch('/api/platform/permission/userrole/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.Id })
+      });
+      loadRoleUsers();
+    }
+
+    async function addResource() {
+      if (!newResource.Key || !newResource.Name) return;
+      await fetch('/api/platform/permission/resource/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newResource)
+      });
+      newResource.Key = ''; newResource.Name = ''; newResource.TableNames = '';
+      loadResources();
+    }
+
+    async function scanResources() {
+      const r = await fetch('/api/platform/permission/resource/scan', { method: 'POST' }).then(r => r.json());
+      ElementPlus.ElMessage.success(r.msg || '扫描完成');
+      loadResources();
+    }
+
+    async function saveResourceRow(row) {
+      await fetch('/api/platform/permission/resource/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(row)
+      });
+      ElementPlus.ElMessage.success('已保存');
+    }
+
+    onMounted(() => { loadRoles(); loadResources(); loadUsers(); });
+
+    async function loadUsers() {
+      const r = await fetch('/api/platform/permission/users').then(r => r.json());
+      users.value = r.data || [];
+    }
+    function resetEditingUser() {
+      Object.assign(editingUser, { Id: 0, UserName: '', DisplayName: '', Password: '', Email: '', IsActive: true });
+    }
+    function openCreateUser() {
+      // 每次新建都重置，避免残留上一次编辑/输入的密码
+      resetEditingUser();
+      showUserDialog.value = true;
+    }
+    function editUser(row) {
+      // 后端用户列表已不返回 Password；显式置空，占位符提示"留空不修改"
+      Object.assign(editingUser, row, { Password: '' });
+      showUserDialog.value = true;
+    }
+    async function saveUser() {
+      if (!editingUser.UserName) { ElementPlus.ElMessage.warning('用户名不能为空'); return; }
+      if (editingUser.Id <= 0 && !editingUser.Password) {
+        ElementPlus.ElMessage.warning('新建用户必须设置初始密码');
+        return;
+      }
+      const res = await fetch('/api/platform/permission/user/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingUser)
+      }).then(r => r.json());
+      if (res.code !== 0) { ElementPlus.ElMessage.error(res.msg || '保存失败'); return; }
+      ElementPlus.ElMessage.success(res.msg || '保存成功');
+      showUserDialog.value = false;
+      resetEditingUser();
+      loadUsers();
+    }
+    async function deleteUser(row) {
+      try {
+        await ElementPlus.ElMessageBox.confirm('确定删除用户「' + row.UserName + '」？', '提示', { type: 'warning' });
+      } catch (e) { return; }
+      const res = await fetch('/api/platform/permission/user/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.Id })
+      }).then(r => r.json());
+      if (res.code !== 0) { ElementPlus.ElMessage.error(res.msg || '删除失败'); return; }
+      ElementPlus.ElMessage.success(res.msg || '已删除');
+      loadUsers();
+    }
+
+    return {
+      roles, resources, treeData, currentRoleId, granted, roleUsers, newUser,
+      showRoleDialog, newRoleName, newRoleRemark, newResource,
+      users, showUserDialog, editingUser,
+      typeTag, onRoleChange, onReadChange, onEditChange, onDeleteChange,
+      saveGrants, saveRole, addUserToRole, removeUser, addResource, scanResources, saveResourceRow,
+      openCreateUser, editUser, saveUser, deleteUser
+    };
+  }
+}).use(ElementPlus).mount('#perm-admin');
+</script>
+
+<style>
+#perm-admin .el-card { margin-bottom: 0; }
+</style>

@@ -1,7 +1,7 @@
-@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
 
 <template>
-<el-container v-bind="comBind" v-on="getComlisteners()"
+<el-container v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
                   :style="[{ width: '100%', minWidth: '100%' }, getStyle(jc.options.itemoptions)]"
                   :class="getClass(jc.options.itemoptions)">
         <div class="dyn-children-wrap dyn-is-flex" :class="designRootClass"><n-dynamic-com v-for="(child, idx) in safeChildren"

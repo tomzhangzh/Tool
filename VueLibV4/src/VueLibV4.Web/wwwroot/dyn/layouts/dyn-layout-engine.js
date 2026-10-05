@@ -245,12 +245,43 @@ var __plugin = {
             var wires = spec.replaceDefaultWires ? pageWires : defaultWires.concat(pageWires);
             var bound = bindWires(spec, handles, wires, warnings);
 
+            // 6) 就绪握手：所有 wire 已绑好，通知各 Block 可以发首屏事件了。
+            //    显式定义就绪顺序，不依赖 DOM 排列：
+            //      Filter 先 ready → emit changed → List 收到 loadData；List 再 ready 时
+            //      发现自己已经被驱动过，就不重复加载。
+            //    master/detail 作为槽位通用名优先，shell 最后（壳自身不发首屏事件）。
+            var READY_ORDER = ['filter', 'master', 'detail', 'tree'];
+            var ordered = READY_ORDER.filter(function (n) { return Object.prototype.hasOwnProperty.call(handles, n); });
+            Object.keys(handles).forEach(function (n) {
+                if (n !== 'shell' && ordered.indexOf(n) < 0) ordered.push(n);
+            });
+            ordered.push('shell');
+            ordered.forEach(function (name) {
+                var h = handles[name];
+                if (h && typeof h.ready === 'function') {
+                    try { h.ready(); } catch (e) { console.error('[DynLayouts] ready 异常', name, e); }
+                }
+            });
+
             var info = {
                 layout: spec.layout, spec: spec, handles: handles,
                 wires: bound, warnings: warnings,
                 destroy: function () {
                     bound.forEach(function (b) { try { b.off(); } catch (e) { } });
                     disposers.forEach(function (d) { try { d(); } catch (e) { } });
+                    // 销毁各 Block 句柄：清内部事件/命令；Vue 实例由各自 beforeUnmount
+                    // 或 dyn.unmount 统一处理。shell 单独跳过。
+                    Object.keys(handles).forEach(function (name) {
+                        if (name === 'shell') return;
+                        var h = handles[name];
+                        if (h && typeof h.destroy === 'function') {
+                            try { h.destroy(); } catch (e) { }
+                        }
+                    });
+                    // 级联销毁壳内全部 Vue App（含 Block 独立实例与嵌套实例）
+                    if (global.dyn && typeof global.dyn.unmount === 'function') {
+                        try { global.dyn.unmount(root); } catch (e) { }
+                    }
                     if (handles.shell) handles.shell.destroy();
                     delete root.__dynLayout;
                     root.__dynLayoutMounted = false;

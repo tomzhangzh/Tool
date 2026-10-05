@@ -1,0 +1,324 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f7fa; }
+        .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; position: relative; z-index: 10; }
+        .topbar label { color: #606266; font-size: 13px; }
+        .topbar select { height: 32px; padding: 0 10px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 13px; min-width: 160px; background:#fff; }
+        .topbar button { height: 32px; padding: 0 14px; border: none; border-radius: 4px; background: #409eff; color: #fff; cursor: pointer; font-size: 13px; }
+        .topbar button.ghost { background: #fff; color: #409eff; border: 1px solid #c6e2ff; }
+        .legend { margin-left: auto; color: #909399; font-size: 12px; }
+        #canvas-wrap { position: relative; width: 100%; height: calc(100vh - 53px); overflow: hidden; background: #fff; cursor: grab; }
+        #canvas-wrap:active { cursor: grabbing; }
+        #canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+        .table-card {
+            position: absolute; background: #fff; border: 1.5px solid #c0c4cc; border-radius: 6px;
+            overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); font-size: 12px;
+        }
+        .table-card.root { border-color: #409eff; }
+        .table-card .head {
+            padding: 6px 10px; background: #f5f7fa; font-weight: 600; font-size: 12px;
+            color: #303133; border-bottom: 1px solid #ebeef5;
+        }
+        .table-card.root .head { background: #ecf5ff; color: #409eff; }
+        .table-card table { width: 100%; border-collapse: collapse; }
+        .table-card td { padding: 2px 6px; font-size: 11px; white-space: nowrap; }
+        .table-card td.name { font-family: Consolas, monospace; color: #303133; }
+        .table-card td.type { color: #909399; font-size: 10px; }
+        .table-card td.label { color: #67c23a; font-size: 10px; }
+        .table-card td.pk { width: 16px; color: #e6a23c; }
+        svg.lines { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
+        svg.lines-fg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
+        svg.lines path { stroke: #409eff; stroke-width: 1.5; fill: none; transition: all 0.2s; }
+        svg.lines path.dim { stroke: #dcdfe6; stroke-width: 1; }
+        svg.lines-fg path { stroke: #f56c6c; stroke-width: 2.5; fill: none; }
+        svg.lines-fg path.arrow { stroke: none; }
+        svg.lines text { font-size: 10px; fill: #409eff; }
+        .table-card { transition: box-shadow 0.2s, opacity 0.2s; z-index: 2; cursor: pointer; }
+        .table-card.selected { box-shadow: 0 0 0 2px #f56c6c, 0 2px 12px rgba(245,108,108,0.3); }
+        .table-card.dim { opacity: 0.4; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <label>数据库：</label>
+        <select id="conn">
+            <option value="platform">平台库 (Platform.db)</option>
+            <option value="business">业务库 (Business.db)</option>
+        </select>
+        <label>表：</label>
+        <select id="tableSel"><option value="">-- 请选择表 --</option></select>
+        <button id="loadBtn">加载 ER 图</button>
+        <button id="loadAllBtn" class="ghost">整库结构</button>
+        <button id="fitBtn" class="ghost">复位视图</button>
+        <span class="legend">蓝色=根表 ｜ 🔑=主键 ｜ 括号=中文注释</span>
+    </div>
+    <div id="canvas-wrap">
+        <div id="canvas">
+            <svg class="lines" id="lines-bg"></svg>
+            <svg class="lines-fg" id="lines-fg"></svg>
+        </div>
+    </div>
+
+    <script>
+    const connEl = document.getElementById('conn');
+    const tableEl = document.getElementById('tableSel');
+    const wrap = document.getElementById('canvas-wrap');
+    const canvas = document.getElementById('canvas');
+    const svgBg = document.getElementById('lines-bg');
+    const svgFg = document.getElementById('lines-fg');
+
+    let viewX = 0, viewY = 0, scale = 1;
+    let nodePos = {};
+    let currentEdges = [];
+    let selectedNode = null; // id -> {x,y,w,h}
+
+    async function loadTables() {
+        const r = await fetch(`/api/platform/dbmeta/tables?conn=${connEl.value}`).then(r => r.json());
+        tableEl.innerHTML = '<option value="">-- 请选择表 --</option>';
+        (r.data || []).forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t; opt.textContent = t;
+            tableEl.appendChild(opt);
+        });
+    }
+
+    async function loadEr(table) {
+        if (!table) { alert('请先选表'); return; }
+        const r = await fetch(`/api/platform/dbmeta/er?conn=${connEl.value}&table=${encodeURIComponent(table)}`).then(r => r.json());
+        if (r.code !== 0) { alert(r.msg || '加载失败'); return; }
+        render(r.data);
+    }
+
+    function render(data) {
+        canvas.querySelectorAll('.table-card').forEach(e => e.remove());
+        svgBg.innerHTML = '';
+        svgFg.innerHTML = '';
+        nodePos = {};
+        selectedNode = null;
+
+        const COLS = 4;
+        const CARD_W = 260;
+        const X_GAP = 50;
+        const Y_GAP = 30;
+        const nodes = data.nodes || [];
+
+        // 先算每张卡片高度
+        const metas = nodes.map(n => {
+            const rowH = 19;
+            const h = 28 + n.fields.length * rowH + 6;
+            return { n, h };
+        });
+
+        // 按行分组，算每行最大高度
+        const rowMaxH = [];
+        metas.forEach((m, i) => {
+            const row = Math.floor(i / COLS);
+            rowMaxH[row] = Math.max(rowMaxH[row] || 0, m.h);
+        });
+
+        // 算每行 y 偏移
+        let yOffset = 40;
+        const rowY = rowMaxH.map(h => { const y = yOffset; yOffset += h + Y_GAP; return y; });
+
+        metas.forEach((m, i) => {
+            const n = m.n;
+            const col = i % COLS;
+            const row = Math.floor(i / COLS);
+            const x = 40 + col * (CARD_W + X_GAP);
+            const y = rowY[row];
+            const h = m.h;
+
+            // 保存字段索引：字段名 -> 行中心 y 偏移（相对卡片顶部）
+            const fieldY = {};
+            n.fields.forEach((f, fi) => {
+                fieldY[f.name] = 28 + fi * 19 + 9.5;
+            });
+
+            nodePos[n.id] = { x, y, w: CARD_W, h, fieldY };
+
+            const card = document.createElement('div');
+            card.className = 'table-card' + (n.isRoot ? ' root' : '');
+            card.style.left = x + 'px';
+            card.style.top = y + 'px';
+            card.style.width = CARD_W + 'px';
+            card.style.height = h + 'px';
+            card.dataset.id = n.id;
+
+            let rowsHtml = '';
+            n.fields.forEach((f, fi) => {
+                const pk = f.pk ? '🔑' : '·';
+                rowsHtml += `<tr data-col="${f.name}" style="cursor:pointer" title="点击编辑中文注释">
+                    <td class="pk">${pk}</td>
+                    <td class="name">${f.name}</td>
+                    <td class="type">${f.type}</td>
+                    <td class="label">${f.label || ''}</td>
+                </tr>`;
+            });
+
+            card.innerHTML = `<div class="head">${n.tableName}</div><table>${rowsHtml}</table>`;
+            canvas.appendChild(card);
+
+            // 点字段行编辑中文注释
+            card.querySelectorAll('tr[data-col]').forEach(tr => {
+                tr.onclick = async (ev) => {
+                    ev.stopPropagation();
+                    const col = tr.dataset.col;
+                    const cur = tr.querySelector('.label').textContent;
+                    const v = prompt(`编辑 ${n.tableName}.${col} 的中文注释：`, cur);
+                    if (v === null) return;
+                    const r = await fetch(`/api/platform/dbmeta/label?conn=${connEl.value}&table=${encodeURIComponent(n.tableName)}&col=${encodeURIComponent(col)}&label=${encodeURIComponent(v)}`, { method: 'POST' }).then(r => r.json());
+                    if (r.code === 0) {
+                        tr.querySelector('.label').textContent = v;
+                        if (nodePos[n.id].fieldY) {
+                            // 更新字段位置缓存（不变，但刷新数据）
+                        }
+                    } else {
+                        alert('保存失败: ' + r.msg);
+                    }
+                };
+            });
+        });
+
+        // 画连线（底层）
+        const maxX = (COLS) * (CARD_W + X_GAP) + 40;
+        const maxY = yOffset;
+        svgBg.setAttribute('width', maxX);
+        svgBg.setAttribute('height', maxY);
+        svgFg.setAttribute('width', maxX);
+        svgFg.setAttribute('height', maxY);
+        currentEdges = data.edges || [];
+
+        currentEdges.forEach(e => {
+            const s = nodePos[e.source], t = nodePos[e.target];
+            if (!s || !t) return;
+            const sy = s.y + (s.fieldY[e.sourceCol] || s.h / 2);
+            const x1 = s.x + s.w, y1 = sy;
+            const ty = t.y + (t.fieldY[e.targetCol] || t.h / 2);
+            const x2 = t.x, y2 = ty;
+            const mx = (x1 + x2) / 2;
+            drawEdge(svgBg, x1, y1, x2, y2, mx, '#409eff', 1.5);
+        });
+
+        // 卡片点击选中
+        canvas.querySelectorAll('.table-card').forEach(card => {
+            card.onclick = (ev) => {
+                ev.stopPropagation();
+                const id = card.dataset.id;
+                selectNode(id);
+            };
+        });
+
+        fitView();
+    }
+
+    function drawEdge(svgEl, x1, y1, x2, y2, mx, color, w) {
+        const ns = 'http://www.w3.org/2000/svg';
+        const path = document.createElementNS(ns, 'path');
+        path.setAttribute('d', `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`);
+        path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', w);
+        path.setAttribute('fill', 'none');
+        svgEl.appendChild(path);
+        const ang = Math.atan2(y2 - y1, x2 - x1);
+        const ax = x2 - Math.cos(ang) * 8, ay = y2 - Math.sin(ang) * 8;
+        const marker = document.createElementNS(ns, 'path');
+        marker.setAttribute('d', `M ${x2} ${y2} L ${ax - 3} ${ay - 3} L ${ax + 3} ${ay - 3} Z`);
+        marker.setAttribute('fill', color);
+        svgEl.appendChild(marker);
+    }
+
+    function selectNode(id) {
+        selectedNode = id;
+        // 更新卡片样式
+        canvas.querySelectorAll('.table-card').forEach(c => {
+            c.classList.toggle('selected', c.dataset.id === id);
+            const rel = currentEdges.some(e => e.source === id || e.target === id);
+            c.classList.toggle('dim', c.dataset.id !== id && !rel);
+        });
+        // 底层线变淡
+        svgBg.querySelectorAll('path').forEach(p => p.classList.add('dim'));
+        // 顶层画高亮线
+        svgFg.innerHTML = '';
+        currentEdges.forEach(e => {
+            if (e.source !== id && e.target !== id) return;
+            const s = nodePos[e.source], t = nodePos[e.target];
+            if (!s || !t) return;
+            const sy = s.y + (s.fieldY[e.sourceCol] || s.h / 2);
+            const x1 = s.x + s.w, y1 = sy;
+            const ty = t.y + (t.fieldY[e.targetCol] || t.h / 2);
+            const x2 = t.x, y2 = ty;
+            const mx = (x1 + x2) / 2;
+            drawEdge(svgFg, x1, y1, x2, y2, mx, '#f56c6c', 2.5);
+        });
+    }
+
+    // 点空白处取消选中
+    wrap.addEventListener('click', () => {
+        if (selectedNode) {
+            selectedNode = null;
+            canvas.querySelectorAll('.table-card').forEach(c => c.classList.remove('selected', 'dim'));
+            svgBg.querySelectorAll('path').forEach(p => p.classList.remove('dim'));
+            svgFg.innerHTML = '';
+        }
+    });
+
+    function applyTransform() {
+        canvas.style.transform = `translate(${viewX}px, ${viewY}px) scale(${scale})`;
+    }
+
+    function fitView() {
+        const rect = canvas.getBoundingClientRect();
+        const cw = wrap.clientWidth, ch = wrap.clientHeight;
+        const contentW = 1200, contentH = 800;
+        scale = Math.min(cw / contentW, ch / contentH, 1);
+        viewX = (cw - contentW * scale) / 2;
+        viewY = (ch - contentH * scale) / 2;
+        applyTransform();
+    }
+
+    // 平移
+    let dragging = false, sx = 0, sy = 0, svx = 0, svy = 0;
+    wrap.addEventListener('mousedown', e => {
+        dragging = true; sx = e.clientX; sy = e.clientY; svx = viewX; svy = viewY;
+    });
+    window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        viewX = svx + (e.clientX - sx);
+        viewY = svy + (e.clientY - sy);
+        applyTransform();
+    });
+    window.addEventListener('mouseup', () => dragging = false);
+
+    // 缩放
+    wrap.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.ctrlKey ? 1.1 : 1.05;
+        scale = Math.max(0.2, Math.min(3, e.deltaY < 0 ? scale * factor : scale / factor));
+        applyTransform();
+    }, { passive: false });
+
+    connEl.onchange = loadTables;
+    document.getElementById('loadBtn').onclick = () => loadEr(tableEl.value);
+    document.getElementById('loadAllBtn').onclick = () => loadEr('__all__');
+    document.getElementById('fitBtn').onclick = fitView;
+
+    (async function init() {
+        await loadTables();
+        const qs = new URLSearchParams(location.search);
+        const autoTable = qs.get('table');
+        const autoConn = qs.get('conn');
+        if (autoConn) { connEl.value = autoConn; await loadTables(); }
+        if (autoTable) { tableEl.value = autoTable; loadEr(autoTable); }
+    })();
+    </script>
+</body>
+</html>

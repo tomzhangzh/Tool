@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using VueLibV4.Services.Data;
 using VueLibV4.Web.Core;
+using VueLibV4.Web.Services;
 
 namespace VueLibV4.Web.Controllers;
 
@@ -21,19 +22,27 @@ public class DynDataApiController : ControllerBase
 {
     private readonly DynamicCrudService _svc;
     private readonly ProjectDbResolver _projects;
-    public DynDataApiController(DynamicCrudService svc, ProjectDbResolver projects)
+    private readonly IPermissionService _perm;
+    public DynDataApiController(DynamicCrudService svc, ProjectDbResolver projects, IPermissionService perm)
     {
         _svc = svc;
         _projects = projects;
+        _perm = perm;
     }
 
     private SqlSugar.SqlSugarClient Resolve(string project) => _projects.Resolve(project);
 
+    /// <summary>表级权限校验，未绑定资源 = 放行</summary>
+    private async Task<bool> TableAllowedAsync(string table, string level)
+        => await _perm.CheckTableAsync(table, level);
+
     // ---------------- 元数据 ----------------
 
     [HttpGet("tables")]
-    public ApiResult Tables(string project = null)
+    public async Task<ApiResult> Tables(string project = null)
     {
+        // 库级表清单不绑定具体资源，登录即可访问；表级权限在 columns/meta/数据端点校验
+        await Task.CompletedTask;
         try
         {
             using var db = Resolve(project);
@@ -43,9 +52,10 @@ public class DynDataApiController : ControllerBase
     }
 
     [HttpGet("columns")]
-    public ApiResult Columns(string table, string project = null)
+    public async Task<ApiResult> Columns(string table, string project = null)
     {
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (!await TableAllowedAsync(table, "Read")) return ApiResult.Fail($"没有权限查询 {table} 结构", 403);
         try
         {
             using var db = Resolve(project);
@@ -55,9 +65,10 @@ public class DynDataApiController : ControllerBase
     }
 
     [HttpGet("meta")]
-    public ApiResult Meta(string table, string project = null)
+    public async Task<ApiResult> Meta(string table, string project = null)
     {
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (!await TableAllowedAsync(table, "Read")) return ApiResult.Fail($"没有权限查询 {table} 结构", 403);
         try
         {
             using var db = Resolve(project);
@@ -75,10 +86,11 @@ public class DynDataApiController : ControllerBase
 
     /// <summary>分页查询：body={table,page,size,filter?,sort?,project?}；筛选告警随 data.warnings 回流。</summary>
     [HttpPost("search")]
-    public ApiResult Search([FromBody] JObject req)
+    public async Task<ApiResult> Search([FromBody] JObject req)
     {
         var table = req["table"]?.ToString();
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (!await TableAllowedAsync(table, "Read")) return ApiResult.Fail($"没有权限查询 {table}", 403);
         var project = req["project"]?.ToString();
         var page = req["page"]?.Value<int>() ?? 1;
         var size = req["size"]?.Value<int>() ?? 20;
@@ -108,9 +120,10 @@ public class DynDataApiController : ControllerBase
 
     /// <summary>按主键取单行（query：table/id/project）</summary>
     [HttpGet("get")]
-    public ApiResult Get(string table, string id, string project = null)
+    public async Task<ApiResult> Get(string table, string id, string project = null)
     {
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (!await TableAllowedAsync(table, "Read")) return ApiResult.Fail($"没有权限读取 {table}", 403);
         try
         {
             using var db = Resolve(project);
@@ -124,12 +137,13 @@ public class DynDataApiController : ControllerBase
     // ---------------- 增删改（统一信封，异常永远 JSON，不冒 HTML 异常页） ----------------
 
     [HttpPost("insert")]
-    public ApiResult Insert([FromBody] JObject req)
+    public async Task<ApiResult> Insert([FromBody] JObject req)
     {
         var table = req["table"]?.ToString();
         var data = req["data"] as JObject;
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
         if (data == null) return ApiResult.Fail("缺少 data（契约：body 必须是 {table,data:{...}}）");
+        if (!await TableAllowedAsync(table, "Edit")) return ApiResult.Fail($"没有权限新增 {table}", 403);
         try
         {
             using var db = Resolve(req["project"]?.ToString());
@@ -139,12 +153,13 @@ public class DynDataApiController : ControllerBase
     }
 
     [HttpPost("update")]
-    public ApiResult Update([FromBody] JObject req)
+    public async Task<ApiResult> Update([FromBody] JObject req)
     {
         var table = req["table"]?.ToString();
         var data = req["data"] as JObject;
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
         if (data == null) return ApiResult.Fail("缺少 data（契约：body 必须是 {table,data:{...}}）");
+        if (!await TableAllowedAsync(table, "Edit")) return ApiResult.Fail($"没有权限修改 {table}", 403);
         try
         {
             using var db = Resolve(req["project"]?.ToString());
@@ -155,18 +170,21 @@ public class DynDataApiController : ControllerBase
 
     /// <summary>保存（有主键→更新，无主键→新增）。Block 写操作的标准端点。</summary>
     [HttpPost("save")]
-    public ApiResult Save([FromBody] JObject req)
+    public async Task<ApiResult> Save([FromBody] JObject req)
     {
         var table = req["table"]?.ToString();
         var data = req["data"] as JObject;
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
         if (data == null) return ApiResult.Fail("缺少 data（契约：body 必须是 {table,data:{...}}）");
+        if (!await TableAllowedAsync(table, "Edit")) return ApiResult.Fail($"没有权限保存 {table}", 403);
         try
         {
             using var db = Resolve(req["project"]?.ToString());
             var pks = _svc.PrimaryKeys(db, table);
-            var hasPk = pks.Count > 0
-                && pks.All(p => data[p] != null && data[p].Type != JTokenType.Null && !string.IsNullOrEmpty(data[p].ToString()));
+            // 主键缺失判据：null/JSON null/空字符串/数值 0。
+            // 前端新增约定常传 Id:0（自增表从 1 起），0 必须按新增处理，否则 UPDATE ... WHERE Id=0
+            // 影响 0 行却返回"保存成功"，造成新增静默丢失。
+            var hasPk = pks.Count > 0 && pks.All(p => IsUsablePkValue(data[p]));
             return hasPk
                 ? ApiResult.Ok(_svc.Update(db, table, data), "保存成功")
                 : ApiResult.Ok(_svc.Insert(db, table, data), "保存成功");
@@ -176,13 +194,14 @@ public class DynDataApiController : ControllerBase
 
     /// <summary>删除：body={table,keys:{Id:...},project?}</summary>
     [HttpPost("delete")]
-    public ApiResult Delete([FromBody] JObject req)
+    public async Task<ApiResult> Delete([FromBody] JObject req)
     {
         var table = req["table"]?.ToString();
         var keys = req["keys"] as JObject;
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
         if (keys == null || keys.Count == 0)
             return ApiResult.Fail("缺少 keys（契约：body 必须是 {table,keys:{Id:...}}）");
+        if (!await TableAllowedAsync(table, "Delete")) return ApiResult.Fail($"没有权限删除 {table}", 403);
         try
         {
             using var db = Resolve(req["project"]?.ToString());
@@ -194,16 +213,21 @@ public class DynDataApiController : ControllerBase
     /// <summary>
     /// 批量操作（事务）：body={table,project?,ops:[{op:insert|update|delete|save, data?, keys?}]}。
     /// 任一步失败全部回滚。ops 里 op=save 自动判断 insert/update（按主键是否存在）。
+    /// 权限：insert/update/save 需 Edit；op=delete 必须额外具备 Delete 权限，在执行前逐表校验。
     /// 返回每步结果数组。
     /// </summary>
     [HttpPost("batch")]
-    public ApiResult Batch([FromBody] JObject req)
+    public async Task<ApiResult> Batch([FromBody] JObject req)
     {
         var table = req["table"]?.ToString();
         var ops = req["ops"] as JArray;
         if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
         if (ops == null || ops.Count == 0) return ApiResult.Fail("缺少 ops 数组");
-
+        if (!await TableAllowedAsync(table, "Edit")) return ApiResult.Fail($"没有权限批量操作 {table}", 403);
+        // 只要批次里含删除步骤，就必须具备 Delete 权限，杜绝"只有 Edit 也能通过 batch 删数据"
+        var hasDeleteOp = ops.Any(o => string.Equals((o as JObject)?["op"]?.ToString(), "delete", StringComparison.OrdinalIgnoreCase));
+        if (hasDeleteOp && !await TableAllowedAsync(table, "Delete"))
+            return ApiResult.Fail($"没有权限删除 {table}，批量操作被拒绝", 403);
         try
         {
             using var db = Resolve(req["project"]?.ToString());
@@ -231,8 +255,8 @@ public class DynDataApiController : ControllerBase
                             break;
                         case "save":
                             var data = op["data"] as JObject;
-                            var hasPk = pks.Count > 0 && pks.All(p => data?[p] != null && data[p].Type != JTokenType.Null && !string.IsNullOrEmpty(data[p].ToString()));
-                            result = hasPk
+                            var opHasPk = pks.Count > 0 && pks.All(p => IsUsablePkValue(data?[p]));
+                            result = opHasPk
                                 ? _svc.Update(db, table, data)
                                 : _svc.Insert(db, table, data);
                             break;
@@ -251,5 +275,18 @@ public class DynDataApiController : ControllerBase
             }
         }
         catch (Exception ex) { return ApiResult.Fail(ex.GetBaseException().Message); }
+    }
+
+    /// <summary>
+    /// 主键值是否可用于 UPDATE 定位：null/JSON null/空白字符串/数值 0 一律视为"无主键"（走新增）。
+    /// 自增表从 1 起，前端新增约定的 Id:0 不能进 WHERE Id=0（影响 0 行却假报成功）。
+    /// </summary>
+    private static bool IsUsablePkValue(JToken v)
+    {
+        if (v == null || v.Type == JTokenType.Null || v.Type == JTokenType.Undefined) return false;
+        if (v.Type == JTokenType.Integer) return v.Value<long>() != 0;
+        if (v.Type == JTokenType.Float) return v.Value<double>() != 0;
+        if (v.Type == JTokenType.String) return !string.IsNullOrWhiteSpace(v.Value<string>());
+        return true;
     }
 }

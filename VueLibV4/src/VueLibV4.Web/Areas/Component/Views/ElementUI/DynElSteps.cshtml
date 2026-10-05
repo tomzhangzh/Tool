@@ -3,7 +3,7 @@
 }
 
 <template>
-<el-steps v-bind="comBind" v-on="getComlisteners()"
+<el-steps v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
           :style="getStyle(jc.options.itemoptions)"
           :class="getClass(jc.options.itemoptions)">
   <el-step v-for="(child, idx) in safeChildren"

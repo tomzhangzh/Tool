@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -31,6 +32,29 @@ public class Seeder
         SeedBusiness();
     }
 
+    /// <summary>在单事务内执行初始化：任何一步失败整体回滚，绝不允许留下"半迁移"库带病启动。</summary>
+    private void WithTransaction(SqliteConnection conn, Action<SqliteConnection> work)
+    {
+        ExecInline(conn, "BEGIN IMMEDIATE;");
+        try
+        {
+            work(conn);
+            ExecInline(conn, "COMMIT;");
+        }
+        catch
+        {
+            try { ExecInline(conn, "ROLLBACK;"); } catch { /* 连接已失效时无需再回滚 */ }
+            throw;
+        }
+    }
+
+    private static void ExecInline(SqliteConnection conn, string sql)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.ExecuteNonQuery();
+    }
+
     // ---------------- 平台库 ----------------
 
     private void SeedPlatform()
@@ -45,49 +69,49 @@ public class Seeder
         using var conn = OpenSqlite(cs);
         conn.Open();
 
-        // 旧列改名迁移：必须最先执行（seed-extra.sql 的 INSERT 引用 DefaultJson 列；新库建表已含，旧库需先 RENAME）
-        EnsureTemplateDefaultJson(conn);
-        // DynWebPage：ConfigJson → ParamsJson（实例参数；新结构 blocks 槽位分组兼容旧扁平值）
-        EnsureWebPageParamsJson(conn);
+        WithTransaction(conn, SeedPlatformCore);
+        _logger.LogInformation("[Init] 平台库初始化完成");
+    }
 
-        if (TableExists(conn, "ComponentMeta"))
+    private void SeedPlatformCore(SqliteConnection conn)
+    {
+        // 0) 全新库：先建全部表
+        if (!TableExists(conn, "ComponentMeta"))
         {
-            // 自愈：若种子新增的组件缺失（开发期换表结构/加组件），清空后重跑种子
-            using (var hasNew = conn.CreateCommand())
-            {
-                hasNew.CommandText = "SELECT COUNT(*) FROM ComponentMeta WHERE ComponentName='DynElContainer'";
-                var has = Convert.ToInt32(hasNew.ExecuteScalar());
-                using var hasOld = conn.CreateCommand();
-                hasOld.CommandText = "SELECT COUNT(*) FROM ComponentMeta WHERE ComponentName='ElFormItem'";
-                var old = Convert.ToInt32(hasOld.ExecuteScalar());
-                if (has > 0 && old == 0)
-                {
-                    _logger.LogInformation("[Init] ComponentMeta 已存在且组件齐全");
-                    // 增量追加种子仍需执行（新增项目/字典/快捷方式幂等补齐）
-                    ExecScript(conn, "seed-extra.sql");
-                    // 属性面板 PCJ（M3）：仅补齐空值，幂等
-                    ExecScript(conn, "update-property-config.sql");
-                    // 旧库结构增量迁移（幂等）
-                    MigrateSchema(conn);
-                    return;
-                }
-            }
-            _logger.LogWarning("[Init] ComponentMeta 缺新组件，清空后重跑种子");
-            using (var del = conn.CreateCommand()) { del.CommandText = "DELETE FROM ComponentMeta;"; del.ExecuteNonQuery(); }
-            ExecScript(conn, "component-meta.sql");
-            ExecScript(conn, "seed-extra.sql");
-            ExecScript(conn, "update-property-config.sql");
-            MigrateSchema(conn);
-            return;
+            _logger.LogInformation("[Init] 平台库为空，开始执行 platform.sql ...");
+            ExecScript(conn, "platform.sql");
         }
 
-        _logger.LogInformation("[Init] 平台库为空，开始执行 SQL 脚本...");
-        ExecScript(conn, "platform.sql");
-        ExecScript(conn, "component-meta.sql");
-        ExecScript(conn, "seed-extra.sql");
-        ExecScript(conn, "update-property-config.sql");
+        // 1) 列改名 / 补列（旧库迁移；必须早于引用这些列的种子脚本）
+        EnsureTemplateDefaultJson(conn);
+        EnsureWebPageParamsJson(conn);
+        EnsureColumn(conn, "DynWebPage", "ExtViewPath", "TEXT NULL");
+        EnsureColumn(conn, "DynWebPage", "SpecJson", "TEXT NULL");
+        EnsureColumn(conn, "DynWebPage", "ResourceKey", "TEXT NULL");
+
+        // 2) 结构迁移（建表）+ C# 内置种子，全部幂等。
+        //    必须先于 seed-extra.sql 执行：该脚本会向 DynSchemaLabel 等"迁移期才建"的表写数据。
         MigrateSchema(conn);
-        _logger.LogInformation("[Init] 平台库初始化完成");
+
+        // 3) ComponentMeta：空表才灌全量基线。新增组件一律由 seed-extra.sql 幂等补齐，
+        //    绝不 DELETE 重灌（会抹掉用户手工注册的组件）。
+        using (var cnt = conn.CreateCommand())
+        {
+            cnt.CommandText = "SELECT COUNT(*) FROM ComponentMeta;";
+            if (Convert.ToInt32(cnt.ExecuteScalar()) == 0)
+            {
+                ExecScript(conn, "component-meta.sql");
+            }
+            else
+            {
+                _logger.LogInformation("[Init] ComponentMeta 已有数据，跳过基线脚本（增量由 seed-extra 幂等补齐）");
+            }
+        }
+
+        // 4) 增量追加种子（新增项目/字典/快捷方式/组件，幂等，每次启动执行）
+        ExecScript(conn, "seed-extra.sql");
+        // 属性面板 PropertyConfigJson：仅补齐空值，幂等
+        ExecScript(conn, "update-property-config.sql");
     }
 
     /// <summary>
@@ -135,6 +159,8 @@ CREATE TABLE SysMenu (
     Icon           TEXT NULL,
     Url            TEXT NULL,
     TargetType     TEXT NOT NULL DEFAULT 'Iframe',
+    Width          TEXT NULL,
+    Height         TEXT NULL,
     IsAddToDesktop INTEGER NOT NULL DEFAULT 1,
     SortNo         INTEGER NOT NULL DEFAULT 0,
     IsActive       INTEGER NOT NULL DEFAULT 1,
@@ -144,8 +170,11 @@ CREATE TABLE SysMenu (
             create.ExecuteNonQuery();
             _logger.LogInformation("[Init] 迁移：新建表 SysMenu");
         }
-        EnsureColumn(conn, "SysMenu", "Width", "INTEGER NULL");
-        EnsureColumn(conn, "SysMenu", "Height", "INTEGER NULL");
+        // Width/Height 支持像素("800")与百分比("50%")，必须是 TEXT（与模型 string? 及 platform.sql 一致）。
+        // 历史迁移曾误补为 INTEGER：SQLite 类型亲和下"50%"按文本存储、"800"按整数存储，均可被 string 读出，
+        // 不做表重建；仅保证【新迁移补列】一律 TEXT。
+        EnsureColumn(conn, "SysMenu", "Width", "TEXT NULL");
+        EnsureColumn(conn, "SysMenu", "Height", "TEXT NULL");
         EnsureColumn(conn, "SysMenu", "IsAddToDesktopRoot", "INTEGER NOT NULL DEFAULT 1");
         EnsureColumn(conn, "SysMenu", "IsAddToStartMenu", "INTEGER NOT NULL DEFAULT 1");
         SeedSysMenu(conn);
@@ -155,6 +184,7 @@ CREATE TABLE SysMenu (
         EnsureColumn(conn, "DynWebPage", "ExtViewPath", "TEXT NULL");
         // 布局壳规格列（壳模型 v1.1：spec 与老模板 ParamsJson 分家；旧库幂等补列，空值回退 ParamsJson）
         EnsureColumn(conn, "DynWebPage", "SpecJson", "TEXT NULL");
+        EnsureColumn(conn, "DynWebPage", "ResourceKey", "TEXT NULL");
         // 表结构显示名字典（PageGen 中文名来源）：旧库幂等建表 + 通用列名层种子
         EnsureSchemaLabelTable(conn);
         // 页面模板种子 + 页面实例种子（demo：页面设置管理 / 页面实例列表）
@@ -173,6 +203,81 @@ CREATE TABLE SysMenu (
         SeedBuiltinTemplateIcons(conn);
         // 系统日志表（异常/操作日志持久化）
         EnsureSysLogTable(conn);
+        // 看板（Trello 风格任务看板：列/卡片/评论）
+        EnsureKanbanTables(conn);
+        SeedKanban(conn);
+        SeedKanbanPageSetting(conn);
+        // 权限模块（轻量 RBAC：角色 / 用户角色 / 资源权限）
+        EnsurePermissionTables(conn);
+    }
+
+    /// <summary>权限表（旧库幂等建表）：角色 / 用户角色 / 资源目录树 / 角色授权</summary>
+    private void EnsurePermissionTables(SqliteConnection conn)
+    {
+        using var create = conn.CreateCommand();
+        create.CommandText = @"
+CREATE TABLE IF NOT EXISTS SysUser (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserName    TEXT NOT NULL UNIQUE,
+    DisplayName TEXT NULL,
+    Password    TEXT NULL,
+    Email       TEXT NULL,
+    IsActive    INTEGER NOT NULL DEFAULT 1,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS SysRole (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name        TEXT NOT NULL,
+    Remark      TEXT NULL,
+    ProjectId   INTEGER NOT NULL DEFAULT 0,
+    IsActive    INTEGER NOT NULL DEFAULT 1,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS SysUserRole (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserName    TEXT NOT NULL,
+    RoleId      INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS SysResource (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ParentId    INTEGER NOT NULL DEFAULT 0,
+    Key         TEXT NOT NULL,
+    Name        TEXT NOT NULL,
+    Type        TEXT NOT NULL DEFAULT 'Operation',
+    ProjectId   INTEGER NOT NULL DEFAULT 0,
+    HasRead     INTEGER NOT NULL DEFAULT 1,
+    HasEdit     INTEGER NOT NULL DEFAULT 1,
+    HasDelete   INTEGER NOT NULL DEFAULT 0,
+    TableNames  TEXT NULL,
+    SortNo      INTEGER NOT NULL DEFAULT 0,
+    IsActive    INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS SysResourcePermission (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    RoleId      INTEGER NOT NULL,
+    ResourceId  INTEGER NOT NULL,
+    Read        INTEGER NOT NULL DEFAULT 0,
+    Edit        INTEGER NOT NULL DEFAULT 0,
+    CanDelete   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS IX_SysUserRole_User ON SysUserRole(UserName);
+CREATE INDEX IF NOT EXISTS IX_SysResourcePermission_Role ON SysResourcePermission(RoleId);
+CREATE INDEX IF NOT EXISTS IX_SysResource_Parent ON SysResource(ParentId);";
+        create.ExecuteNonQuery();
+
+        // admin 初始密码以 SHA256 入库（与 PermissionController.Sha256 同算法）；
+        // 历史明文 'admin123' 在启动时自动升级为哈希。用户自行修改过的密码不受影响。
+        using (var user = conn.CreateCommand())
+        {
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("admin123"))).ToLowerInvariant();
+            user.CommandText = @"
+INSERT OR IGNORE INTO SysUser (UserName, DisplayName, Password) VALUES ('admin', '管理员', @pwd);
+UPDATE SysUser SET Password=@pwd WHERE UserName='admin' AND Password='admin123';";
+            user.Parameters.AddWithValue("@pwd", hash);
+            user.ExecuteNonQuery();
+        }
+        _logger.LogInformation("[Init] 迁移：权限表（SysRole/SysUserRole/SysResource/SysResourcePermission）幂等建表");
     }
 
     /// <summary>系统日志表（旧库幂等建表）。平台库用 SQLite，字段名/类型与 SQL Server/MySQL 通用。</summary>
@@ -200,6 +305,115 @@ CREATE INDEX IX_SysLog_Level ON SysLog(LogLevel);";
             create.ExecuteNonQuery();
             _logger.LogInformation("[Init] 迁移：新建表 SysLog");
         }
+    }
+
+    /// <summary>看板表（旧库幂等建表）：列 / 卡片 / 评论。单看板 BoardId=1。</summary>
+    private void EnsureKanbanTables(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "KanbanList"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE KanbanList (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    BoardId     INTEGER NOT NULL DEFAULT 1,
+    Title       TEXT NOT NULL,
+    Color       TEXT NULL,
+    SortNo      INTEGER NOT NULL DEFAULT 0,
+    IsActive    INTEGER NOT NULL DEFAULT 1,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);";
+            create.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 KanbanList");
+        }
+        if (!TableExists(conn, "KanbanCard"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE KanbanCard (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    BoardId     INTEGER NOT NULL DEFAULT 1,
+    ListId      INTEGER NOT NULL,
+    Title       TEXT NOT NULL,
+    Description TEXT NULL,
+    Assignee    TEXT NULL,
+    Priority    TEXT NOT NULL DEFAULT 'normal',
+    DueDate     TEXT NULL,
+    SortNo      INTEGER NOT NULL DEFAULT 0,
+    IsActive    INTEGER NOT NULL DEFAULT 1,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS IX_KanbanCard_Board ON KanbanCard(BoardId);
+CREATE INDEX IF NOT EXISTS IX_KanbanCard_List ON KanbanCard(ListId);";
+            create.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 KanbanCard");
+        }
+        // 旧库补 BoardId：ADD COLUMN 带 NOT NULL 必须给 DEFAULT，存量卡片统一回填到 1 号看板
+        EnsureColumn(conn, "KanbanCard", "BoardId", "INTEGER NOT NULL DEFAULT 1");
+        using (var idxCard = conn.CreateCommand())
+        {
+            idxCard.CommandText = "CREATE INDEX IF NOT EXISTS IX_KanbanCard_Board ON KanbanCard(BoardId);";
+            idxCard.ExecuteNonQuery();
+        }
+        if (!TableExists(conn, "KanbanComment"))
+        {
+            using var create = conn.CreateCommand();
+            create.CommandText = @"
+CREATE TABLE KanbanComment (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    CardId      INTEGER NOT NULL,
+    Content     TEXT NULL,
+    Author      TEXT NULL,
+    CreateTime  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IX_KanbanComment_Card ON KanbanComment(CardId);";
+            create.ExecuteNonQuery();
+            _logger.LogInformation("[Init] 迁移：新建表 KanbanComment");
+        }
+    }
+
+    /// <summary>看板初始种子（幂等）：3 列 + 若干示例卡片。仅当 KanbanList 为空时插入。</summary>
+    private void SeedKanban(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "KanbanList") || !TableExists(conn, "KanbanCard")) return;
+        using var cnt = conn.CreateCommand();
+        cnt.CommandText = "SELECT COUNT(*) FROM KanbanList;";
+        if (Convert.ToInt32(cnt.ExecuteScalar()) > 0) return;
+
+        using var cmd = conn.CreateCommand();
+        // 列：待办 / 进行中 / 已完成
+        cmd.CommandText = @"
+INSERT INTO KanbanList (Id, BoardId, Title, Color, SortNo) VALUES
+(1, 1, '待办',   '#909399', 1),
+(2, 1, '进行中', '#409eff', 2),
+(3, 1, '已完成', '#67c23a', 3);
+INSERT INTO KanbanCard (ListId, Title, Description, Assignee, Priority, DueDate, SortNo) VALUES
+(1, '字段变更标记 diff marker', 'FormItem label 红点，hover 看原值新值', 'Tom', 'high',  NULL, 1),
+(1, 'Block 契约与 C# 强类型',   'BlockContracts.cs + Validator',      'Tom', 'normal',NULL, 2),
+(2, 'Kanban 看板 Block 自举',   '用本平台做 Trello 看板管理自身任务',  'Tom', 'high',  NULL, 1),
+(3, '组件 PropertyConfig gap',  '58 个组件最外层容器统一 gap=4px',      'Tom', 'low',   NULL, 1);";
+        cmd.ExecuteNonQuery();
+        _logger.LogInformation("[Init] 看板初始种子插入完成");
+        // 详情表单 PageSetting 由 MigrateSchema 统一调用 SeedKanbanPageSetting，此处不再重复
+    }
+
+    /// <summary>看板卡片详情表单 PageSetting（幂等）：Code=kanban-card-detail。
+    /// 卡片弹窗不再 inline 写死表单，而是运行时按 Code 拉这份 ConfigJson 渲染。</summary>
+    private void SeedKanbanPageSetting(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "PageSetting")) return;
+        // 4 字段：标题(必填) / 描述 / 负责人 / 优先级(静态下拉 high/normal/low)
+        var detailConfig = "{\"component\":\"DynGridContainer\",\"modelname\":\"\",\"options\":{\"comoptions\":{\"direction\":\"vertical\",\"size\":\"small\"},\"labeloptions\":{\"required\":false,\"show\":true,\"labelposition\":\"right\",\"labelwidth\":\"80px\"},\"itemoptions\":{\"style\":{\"gap\":\"4px\"},\"class\":\"\"}},\"validators\":[],\"childrenctrls\":[{\"component\":\"DynElInput\",\"modelname\":\"Title\",\"options\":{\"comoptions\":{\"size\":\"small\",\"placeholder\":\"请输入卡片标题\",\"clearable\":true},\"labeloptions\":{\"label\":\"标题\",\"required\":true,\"show\":true},\"itemoptions\":{\"style\":{},\"class\":\"\"}},\"validators\":[{\"type\":\"required\",\"message\":\"标题不能为空\"}],\"childrenctrls\":[],\"slots\":{},\"extendinfo\":{}},{\"component\":\"DynElTextarea\",\"modelname\":\"Description\",\"options\":{\"comoptions\":{\"size\":\"small\",\"rows\":3,\"placeholder\":\"请输入描述\"},\"labeloptions\":{\"label\":\"描述\",\"required\":false,\"show\":true},\"itemoptions\":{\"style\":{},\"class\":\"\"}},\"validators\":[],\"childrenctrls\":[],\"slots\":{},\"extendinfo\":{}},{\"component\":\"DynElInput\",\"modelname\":\"Assignee\",\"options\":{\"comoptions\":{\"size\":\"small\",\"placeholder\":\"请输入负责人\",\"clearable\":true},\"labeloptions\":{\"label\":\"负责人\",\"required\":false,\"show\":true},\"itemoptions\":{\"style\":{},\"class\":\"\"}},\"validators\":[],\"childrenctrls\":[],\"slots\":{},\"extendinfo\":{}},{\"component\":\"DynElSelect\",\"modelname\":\"Priority\",\"options\":{\"comoptions\":{\"size\":\"small\",\"sourceType\":\"static\",\"optionValuesText\":\"high,高\\nnormal,中\\nlow,低\"},\"labeloptions\":{\"label\":\"优先级\",\"required\":false,\"show\":true},\"itemoptions\":{\"style\":{},\"class\":\"\"}},\"validators\":[],\"childrenctrls\":[],\"slots\":{},\"extendinfo\":{}}],\"slots\":{},\"extendinfo\":{}}";
+        var detailDefault = "{\"Title\":null,\"Description\":null,\"Assignee\":null,\"Priority\":\"normal\",\"ListId\":0}";
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+INSERT INTO PageSetting (Code, Name, SettingType, ProjectId, TableName, ConfigJson, RenderMode, PartialPath, DefaultJson, SortNo, IsActive)
+SELECT 'kanban-card-detail', '看板卡片详情表单', 'Detail', NULL, 'KanbanCard', @cfg, 'Front', NULL, @def, 100, 1
+WHERE NOT EXISTS (SELECT 1 FROM PageSetting WHERE Code='kanban-card-detail');";
+        cmd.Parameters.AddWithValue("@cfg", detailConfig);
+        cmd.Parameters.AddWithValue("@def", detailDefault);
+        cmd.ExecuteNonQuery();
+        _logger.LogInformation("[Init] 看板卡片详情 PageSetting 种子插入完成");
     }
 
     /// <summary>DynBlock / DynTemplateBlock 建表（旧库迁移；新库 platform.sql 已含）</summary>
@@ -318,13 +532,15 @@ CREATE UNIQUE INDEX UX_DynSchemaLabel_Key ON DynSchemaLabel(ProjectId, TableName
         {
             using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
+-- 根菜单先插；子菜单下一条语句再按 Code 解析父 Id（同一 INSERT 内子查询读不到本语句的行）
 INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) VALUES
 (NULL, 'system', '系统管理', '📁', NULL, 'Iframe', 1, 1, 1, 'system'),
-(NULL, 'apps',   '应用中心', '🗂️', NULL, 'Iframe', 1, 2, 1, 'apps'),
-(1,   'menu-mgmt',   '菜单管理', '🧭', '/Platform/Mgmt/SysMenuMgmt', 'FullScreen', 1, 1, 1, 'system.menu'),
-(1,   'shortcut-mgmt','桌面快捷管理', '🖥️', '/Platform/Mgmt/DesktopShortcut', 'Iframe', 1, 2, 1, 'system.shortcut'),
-(2,   'designer', '页面设计器', '🎨', '/Platform/Page/Designer', 'FullScreen', 1, 1, 1, 'apps.designer'),
-(2,   'student',  '学生管理', '🎓', '/Platform/Page/WebPageRender?code=student-manage', 'Iframe', 1, 2, 1, 'apps.student');";
+(NULL, 'apps',   '应用中心', '🗂️', NULL, 'Iframe', 1, 2, 1, 'apps');
+INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) VALUES
+((SELECT Id FROM SysMenu WHERE Code='system'), 'menu-mgmt',   '菜单管理', '🧭', '/Platform/Mgmt/SysMenuMgmt', 'FullScreen', 1, 1, 1, 'system.menu'),
+((SELECT Id FROM SysMenu WHERE Code='system'), 'shortcut-mgmt','桌面快捷管理', '🖥️', '/Platform/Mgmt/DesktopShortcut', 'Iframe', 1, 2, 1, 'system.shortcut'),
+((SELECT Id FROM SysMenu WHERE Code='apps'), 'designer', '页面设计器', '🎨', '/Platform/Page/Designer', 'FullScreen', 1, 1, 1, 'apps.designer'),
+((SELECT Id FROM SysMenu WHERE Code='apps'), 'student',  '学生管理', '🎓', '/Platform/Page/WebPageRender?code=student-manage', 'Iframe', 1, 2, 1, 'apps.student');";
         cmd.ExecuteNonQuery();
             _logger.LogInformation("[Init] SysMenu 初始种子插入完成");
         }
@@ -432,13 +648,37 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
     private void SeedDynWebPages(SqliteConnection conn)
     {
         if (!TableExists(conn, "DynWebPage") || !TableExists(conn, "DynTemplate")) return;
+
         using var cnt = conn.CreateCommand();
         cnt.CommandText = "SELECT COUNT(*) FROM DynWebPage WHERE Code='page-setting-mgmt';";
-        if (Convert.ToInt32(cnt.ExecuteScalar()) > 0) return;
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO DynWebPage (Code, Name, TemplateId, PageJson, ParamsJson, Url, IsActive) VALUES ('page-setting-mgmt', '页面设置管理', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"PageSetting\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1), ('dyn-webpage-list', '页面实例列表', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"DynWebPage\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1);";
-        cmd.ExecuteNonQuery();
-        _logger.LogInformation("[Init] DynWebPage 实例种子插入完成");
+        if (Convert.ToInt32(cnt.ExecuteScalar()) == 0)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "INSERT INTO DynWebPage (Code, Name, TemplateId, PageJson, ParamsJson, Url, IsActive) VALUES ('page-setting-mgmt', '页面设置管理', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"PageSetting\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1), ('dyn-webpage-list', '页面实例列表', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"DynWebPage\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1);";
+            cmd.ExecuteNonQuery();
+            _logger.LogInformation("[Init] DynWebPage 实例种子插入完成");
+        }
+
+        // 幂等自愈（每次启动都执行，无论演示页是本次新建还是历史已存在）：
+        // 1) 两条演示页 Url 必须带自身 Id（插入时 Id 未知，先写前缀再在此回填）
+        using (var fix = conn.CreateCommand())
+        {
+            fix.CommandText = @"
+UPDATE DynWebPage SET Url='/Platform/Page/DynWebPage?id=' || Id
+WHERE Code IN ('page-setting-mgmt','dyn-webpage-list') AND (Url IS NULL OR Url='/Platform/Page/DynWebPage?id=');";
+            fix.ExecuteNonQuery();
+        }
+        // 2) setting-mgmt 菜单的 Url 依赖本页 Id。SeedSysMenu 在本方法之前执行，
+        //    全新库首次启动时该菜单先于页面创建、拿到 NULL（'...id=' || NULL = NULL），
+        //    必须在页面插入【之后】无条件重算，消除初始化顺序依赖。
+        if (TableExists(conn, "SysMenu"))
+        {
+            using var fixMenu = conn.CreateCommand();
+            fixMenu.CommandText = @"
+UPDATE SysMenu SET Url='/Platform/Page/DynWebPage?id=' || (SELECT Id FROM DynWebPage WHERE Code='page-setting-mgmt')
+WHERE Code='setting-mgmt' AND EXISTS (SELECT 1 FROM DynWebPage WHERE Code='page-setting-mgmt');";
+            fixMenu.ExecuteNonQuery();
+        }
     }
 
     /// <summary>
@@ -734,7 +974,7 @@ SELECT @code,@name,@cat,@role,@view,@cfg,@def,@cmds,@evs,@desc,@sort,1
 WHERE NOT EXISTS (SELECT 1 FROM DynBlock WHERE Code=@code);
 UPDATE DynBlock SET Name=@name,Category=@cat,ImplementsRole=@role,ViewPath=@view,
     ParamConfigJson=@cfg,ParamDefaultJson=@def,Commands=@cmds,Events=@evs,
-    Description=@desc,SortNo=@sort,IsActive=1
+    Description=@desc,SortNo=@sort
 WHERE Code=@code;";
             cmd.Parameters.AddWithValue("@code", b.Code);
             cmd.Parameters.AddWithValue("@name", b.Name);
@@ -852,8 +1092,8 @@ WHERE EXISTS (SELECT 1 FROM DynTemplate WHERE Code='{s.Tpl}') AND EXISTS (SELECT
         }
         using var conn = OpenSqlite(cs);
         conn.Open();
-        // business.sql 全部为 CREATE TABLE IF NOT EXISTS + WHERE NOT EXISTS 幂等语句，每次启动执行安全
-        ExecScript(conn, "business.sql");
+        // business.sql 全部为 CREATE TABLE IF NOT EXISTS + WHERE NOT EXISTS 幂等语句，包事务保证整体成功或整体回滚
+        WithTransaction(conn, c => ExecScript(c, "business.sql"));
         _logger.LogInformation("[Init] 业务库初始化完成");
     }
 
@@ -888,8 +1128,8 @@ WHERE EXISTS (SELECT 1 FROM DynTemplate WHERE Code='{s.Tpl}') AND EXISTS (SELECT
         var path = Path.Combine(_dataDir, fileName);
         if (!File.Exists(path))
         {
-            _logger.LogWarning("[Init] 未找到脚本 {File}", fileName);
-            return;
+            // 缺失种子脚本属于部署失败：静默跳过会导致建库不完整（甚至在清表后变空壳），必须让启动失败
+            throw new FileNotFoundException($"[Init] 必需的种子脚本不存在: {path}", path);
         }
         var sql = File.ReadAllText(path, System.Text.Encoding.UTF8);
         using var cmd = conn.CreateCommand();

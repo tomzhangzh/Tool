@@ -80,7 +80,9 @@ const DYN_MODULES = [
   "dyn-designer-dialog.js",
   "dyn-template.js",
   "dyn-dsl.js",
-  "dyn-debug.js"
+  "dyn-permission.js",
+  "dyn-debug.js",
+  "blocks/dyn-blocks-common.js"
 ];
 
 const DynLib = {

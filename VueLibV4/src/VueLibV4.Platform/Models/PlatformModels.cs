@@ -289,6 +289,10 @@ public class DynWebPage
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Url { get; set; }
 
+    /// <summary>绑定的权限资源 Key（如 Customer），渲染时注入 data-webpage-resource</summary>
+    [SugarColumn(Length = 200, IsNullable = true)]
+    public string? ResourceKey { get; set; }
+
     /// <summary>
     /// 页面实例扩展视图路径（真实 cshtml，如 ~/Views/DynPages/Ext/student.ext.cshtml）。
     /// 运行时由积木模板执行该视图：其 HTML 片段按具名槽位（list:toolbar 等）插入内置 Block，

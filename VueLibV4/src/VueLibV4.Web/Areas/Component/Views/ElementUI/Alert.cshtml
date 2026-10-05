@@ -1,7 +1,7 @@
-@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
+﻿@{ Layout = "~/Areas/Component/Views/Common/_BaseLayout.cshtml"; }
 
 <template>
-<el-alert v-bind="comBind" v-on="getComlisteners()"
+<el-alert v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
           :title="jc.options?.comoptions.title || '提示'"
           :type="jc.options?.comoptions.type || 'info'"
           :description="jc.options?.comoptions.description || ''"
