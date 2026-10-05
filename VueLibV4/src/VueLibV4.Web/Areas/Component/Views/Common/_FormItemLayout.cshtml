@@ -8,11 +8,27 @@
         <label v-if="finalLabelOptions.show !== false"
                class="el-form-item__label"
                :style="labelStyle"
+               
                :class="{ 'is-required': finalLabelOptions.required }">
-            <span v-if="enableDiff && isChanged" style="display:inline-block;width:14px;height:14px;background:#f56c6c;border-radius:50%;margin-right:6px;vertical-align:middle;box-shadow:0 0 4px #f56c6c;"></span>
             {{ finalLabelOptions.label }}
-        </label>
-        <div class="el-form-item__content" :style="contentStyle">
+          </label>
+        <div class="el-form-item__content" :style="contentStyle" style="position:relative;">
+            <!-- 字段变更标记：左上角小红三角 -->
+             <span v-if="enableDiff && isChanged"
+                  style=" position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    border-right: 10px solid transparent;
+    border-top: 10px solid #f56c6c;
+    border-bottom: 0;
+    cursor: help;
+    z-index: 10;
+    filter: drop-shadow(0 0 2px #f56c6c);"
+                  :title="'原值: ' + formatVal(originValue) + '\n新值: ' + formatVal(currentValue)">
+                  </span>
+        
             @RenderBody()
             <div v-if="comInnerInfo.validation && !comInnerInfo.validation.valid && comInnerInfo.validation.touched && comInnerInfo.validation.errors && comInnerInfo.validation.errors.length"
                  class="el-form-item__error">
@@ -127,19 +143,29 @@
             if (!parentModel.value) return undefined;
             return getByPath(parentModel.value, fullModelName.value);
         }
+        function resetSnapshot() {
+            // 整个 model 被重置（重新加载数据）时，重新以新数据为基准快照
+            originValue.value = cloneVal(readField());
+            currentValue.value = originValue.value;
+            isChanged.value = false;
+            snapshotted = true;
+        }
         function check() {
             if (!parentModel.value) return;  // model 未就绪，等下一次
             const cur = readField();
             currentValue.value = cur;
             if (!snapshotted) {
-                originValue.value = cloneVal(cur);
-                snapshotted = true;
+                resetSnapshot();
                 return;
             }
             isChanged.value = JSON.stringify(cloneVal(originValue.value)) !== JSON.stringify(cloneVal(cur));
         }
         check();
         _diffStop = watch(readField, check, { deep: true });
+        // 监听整个 parentModel 引用变化（表单重新加载/重置时触发），重新快照
+        @* _diffStop = watch(() => parentModel.value, () => {
+            if (parentModel.value) resetSnapshot();
+        }); *@
     });
     onBeforeUnmount(() => { if (_diffStop) _diffStop(); });
 
@@ -151,14 +177,18 @@
 }
 
 <style>
-.diff-marker {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    background: #f56c6c;
-    border-radius: 50%;
-    margin-right: 4px;
+/* 字段变更标记：左上角小红三角 */
+.diff-marker-triangle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    border-left: 10px solid #f56c6c;
+    border-top: 10px solid transparent;
+    border-bottom: 0;
     cursor: help;
-    vertical-align: middle;
+    z-index: 10;
+    filter: drop-shadow(0 0 2px #f56c6c);
 }
 </style>
