@@ -445,7 +445,30 @@ defineAction('postback',async function(ctx){
 });
 defineAction('postdata',ctx=>_actions.postback(ctx));
 
-defineAction('reload',ctx=>dyn.reload(ctx.options.selector||ctx.element,ctx.options));
+/**
+ * reload 刷新（双路分发）：
+ *   目标元素（或其最近 [data-blk-role] 祖先）是已挂载 BlockApp 且句柄注册了 reload
+ *   → 直接 handle.send('reload')（list/tree 等数据型 block 自管理加载）；
+ *   否则回退原有片段刷新 dyn.reload（data-dyn-url 容器 fetchPartial + 重新 mount）。
+ * 目标：selector/target 选择器，或 reload('#id') 的单参 value；省略=触发元素自身。
+ */
+defineAction('reload',async ctx=>{
+  const o = ctx.options||{};
+  const sel = o.selector||o.target||(o.value!==undefined?o.value:null);
+  let el = null;
+  if(sel&&typeof sel==='string') el = dyn.resolve(sel);
+  else if(sel&&sel.nodeType) el = sel;
+  else el = ctx.element;
+  if(el&&el.closest){
+    const blk = (el.hasAttribute&&el.hasAttribute('data-blk-role')) ? el : el.closest('[data-blk-role]');
+    const handle = blk&&blk.__dynBlock;
+    if(handle&&typeof handle.send==='function'){
+      try{ return await handle.send('reload'); }
+      catch(e){ console.warn('[reload] block reload 失败，回退片段刷新',e); }
+    }
+  }
+  return dyn.reload(el||ctx.element,o);
+});
 
 /**
  * grid 表格动作（M4 三屏模板）：按 gridId 刷新注册到 window.DynGrids 的 DynTable
@@ -731,6 +754,19 @@ defineAction('notify',ctx=>{
   });
 });
 
+/**
+ * setVueModel 写 Vue 模型（兼容旧用法 + 跨 app 编排）：
+ *
+ * 旧用法（不变）：{modelName/path, value} → 写触发元素自身 scope model。
+ *
+ * 跨 app（布局壳声明式编排）：
+ *   target   目标元素选择器（省略=触发方 scope model），如 '#Flw1-master'；
+ *   from     源元素选择器（省略=触发元素所在 app，filter 按钮场景即 filter 自己）；
+ *   fromPath 源 proxy 上的取值路径，如 'filterModel' / 'initModel'；
+ *   fromMethod 源 proxy 上的无参方法，取其返回值，如 'buildSubmit'（优先级高于 fromPath）。
+ * 例：查询 = setVueModel({"target":"#m","path":"model.filter","fromMethod":"buildSubmit"})
+ *     重置首步 = setVueModel({"target":"#f","path":"filterModel","fromPath":"initModel"})
+ */
 defineAction('setVueModel',async ctx=>{
   const o = ctx.options||{};
   const modelName = o.modelName||o.path;
@@ -738,20 +774,47 @@ defineAction('setVueModel',async ctx=>{
     dyn.showMessage('setVueModel：path/modelName不能为空','warning');
     return null;
   }
-  const model = ctx.model;
-  if(!model){
+  const delay = Number(o.settimeout||o.delay||0);
+
+  // —— 目标 proxy：target 指定跨 app 元素；省略维持旧行为（写触发方 scope model）——
+  let targetProxy = ctx.model;
+  if(o.target){
+    const tel = dyn.resolve(o.target);
+    if(!tel){ dyn.showMessage('setVueModel：未找到目标元素 '+o.target,'warning'); return null; }
+    targetProxy = (typeof dyn.getProxy==='function'&&dyn.getProxy(tel))||null;
+  }
+  if(!targetProxy){
     dyn.showMessage('setVueModel：未获取到model(scope)','warning');
     return null;
   }
-  const delay = Number(o.settimeout||o.delay||0);
-  const val = o.value;
-  let realVal = val;
-  if(typeof realVal === 'string') realVal = applyTpl(realVal, ctx.params);
+
+  // —— 源值：from/fromPath/fromMethod 跨 app 取；否则沿用旧行为 value（支持 {{params}} 占位）——
+  let realVal;
+  if(o.from!==undefined||o.fromPath||o.fromMethod){
+    const srcEl = (o.from ? dyn.resolve(o.from) : null)||ctx.element;
+    if(!srcEl){ dyn.showMessage('setVueModel：未找到源元素 '+(o.from||''),'warning'); return null; }
+    const srcProxy = (typeof dyn.getProxy==='function'&&dyn.getProxy(srcEl))||null;
+    if(!srcProxy){ dyn.showMessage('setVueModel：源元素上无Vue实例','warning'); return null; }
+    if(o.fromMethod){
+      const fn = dyn.getByPath(srcProxy,o.fromMethod);
+      if(typeof fn!=='function'){ dyn.showMessage('setVueModel：源方法不存在 '+o.fromMethod,'warning'); return null; }
+      realVal = fn.call(srcProxy);
+    }else if(o.fromPath){
+      realVal = dyn.getByPath(srcProxy,o.fromPath);
+    }else{
+      realVal = srcProxy;
+    }
+  }else{
+    realVal = o.value;
+    if(typeof realVal === 'string') realVal = applyTpl(realVal, ctx.params);
+  }
   try{
     if(delay>0){
       await new Promise(resolve=>setTimeout(resolve,delay));
     }
-    dyn.setPathVal(model,modelName,realVal);
+    // clone:true 写入深拷贝（如"重置回基线"场景，避免后续编辑反向污染源模型）
+    if(o.clone&&realVal&&typeof realVal==='object') realVal = dyn.deepClone(realVal);
+    dyn.setPathVal(targetProxy,modelName,realVal);
     return realVal;
   }catch(err){
     dyn.showMessage(`setVueModel执行异常:${err.message}`,'error');
@@ -1258,7 +1321,31 @@ function rebindActions(){
 }
 
 /**
- * @description document捕获模式事件委托（唯一协议：管道属性 dyn-click/dblclick/change/select）
+ * 沿触发源向上查找"命名动作直连"属性：dyn-click-<ActionName>（如 dyn-click-DetailClose）。
+ * CSS 选择器不支持属性名前缀匹配，这里手工遍历祖先链。
+ * @returns {{el:HTMLElement,attr:string}|null}
+ */
+function findNamedActionAttr(start,prefix){
+  let n = start;
+  while(n && n.nodeType===1){
+    const attrs = n.attributes;
+    for(let i=0;i<attrs.length;i++){
+      const nm = attrs[i].name;
+      // 严格长于前缀，排除管道属性本体（dyn-click）与其 data- 形态
+      if(nm.length>prefix.length && nm.slice(0,prefix.length)===prefix){
+        return { el:n, attr:nm };
+      }
+    }
+    if(n===document.documentElement) break;
+    n = n.parentElement;
+  }
+  return null;
+}
+
+/**
+ * @description document捕获模式事件委托（唯一协议：
+ *   1) 管道属性 dyn-click="A|B('x')"；
+ *   2) 命名动作直连属性 dyn-click-<ActionName>，属性值可空（无参）或 JSON 参数）。
  */
 function bindDelegation(){
   if(_delegationBound) return;
@@ -1267,11 +1354,25 @@ function bindDelegation(){
     // dyn-click="ActionHelper.Submit|ActionHelper.Toast('保存成功')"
     Object.keys(CONST.PIPE_EVENT_ATTR).forEach(ev=>{
       const attrName = CONST.PIPE_EVENT_ATTR[ev];
+      const namedPrefix = attrName + '-'; // dyn-click- / dyn-dblclick- / ...
       const handler = async e=>{
-        const target = e.target&&e.target.closest?e.target.closest('['+attrName+']'):null;
-        if(!target) return;
-        const steps = parsePipe(target.getAttribute(attrName)||'');
-        if(!steps.length) return;
+        let target = e.target&&e.target.closest?e.target.closest('['+attrName+']'):null;
+        let steps = target ? parsePipe(target.getAttribute(attrName)||'') : [];
+        // 管道未命中时，尝试命名动作直连：<button dyn-click-DetailClose>取消</button>
+        if(!steps.length && e.target && e.target.closest){
+          const hit = findNamedActionAttr(e.target, namedPrefix);
+          if(hit){
+            target = hit.el;
+            const rawVal = target.getAttribute(hit.attr) || '';
+            let options = {};
+            if(rawVal.trim()){
+              const arg = parsePipeArg(rawVal);
+              options = (arg&&typeof arg==='object'&&!Array.isArray(arg)) ? arg : { value:arg };
+            }
+            steps = [{ action:hit.attr.slice(namedPrefix.length).replace(/^ActionHelper\./i,''), options:options }];
+          }
+        }
+        if(!target || !steps.length) return;
         const prevent = !steps[0].options || steps[0].options.prevent!==false;
         if(prevent){ e.preventDefault(); e.stopPropagation(); }
         try{

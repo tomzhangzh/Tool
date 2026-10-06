@@ -9,7 +9,8 @@
     //   1) 创建应用：根容器 data-dyn-mode="createApp" + <script tag="dynconfig">，由 dyn.mount() 统一挂载，
     //      不再手写 Vue.createApp / DynCom.setupApp / DynCom.ensureRegistered / app.mount。
     //   2) 网络层：统一走 window.axios（dyn-core 网络层，替代原生 fetch）。
-    //   3) 按钮动作：保存/取消用 dyn-click 动作体系（data-dyn-click-DetailSave / data-dyn-click-DetailClose），
+    //   3) 按钮动作：保存/取消用 dyn-click 动作体系（dyn-click-DetailSave / dyn-click-DetailClose
+    //      命名动作直连属性，由 dyn-action 委托沿祖先链识别 dyn-click-<动作名>），
     //      动作经 dyn.defineAction 注册，委托在 document 捕获层触发；业务逻辑仍集中在 methods。
     // =====================================================================================
     Layout = null;
@@ -35,8 +36,8 @@
         }
     </div>
     <div class="dtpl-footer">
-        <el-button size="small" data-dyn-click-DetailClose>取消</el-button>
-        <el-button type="primary" size="small" :loading="loading" data-dyn-click-DetailSave>保存</el-button>
+        <el-button size="small" dyn-click-DetailClose>取消</el-button>
+        <el-button type="primary" size="small" :loading="loading" dyn-click-DetailSave>保存</el-button>
     </div>
 
     <script tag="dynconfig">

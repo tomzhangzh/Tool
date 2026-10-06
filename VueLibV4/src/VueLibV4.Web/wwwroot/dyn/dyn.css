@@ -163,6 +163,42 @@ body.dyn-drag-active .designer-empty-container::before,
     display: none !important;
 }
 
+/* ===== DynTable 树化：设计态列托板 / 列卡片 / 操作列卡片 ===== */
+.dyn-table-design {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch;
+    padding: 10px; min-height: 96px;
+    background: #fafbfc; border: 1px solid #dcdfe6; border-radius: 6px;
+}
+.dyn-table-design-empty {
+    width: 100%; min-height: 72px; display: flex; align-items: center; justify-content: center;
+    color: #909399; font-size: 12px; text-align: center;
+    border: 1.5px dashed #c0c4cc; border-radius: 6px; background: #f4f8ff;
+}
+.dyn-col-card {
+    width: 190px; flex: 0 0 auto;
+    border: 1px solid #dcdfe6; border-radius: 6px; background: #fff;
+    overflow: hidden; font-size: 12px;
+}
+.dyn-col-card-head {
+    display: flex; justify-content: space-between; align-items: center; gap: 4px;
+    padding: 6px 8px; background: #f0f4f8; border-bottom: 1px solid #e4e7ed;
+}
+.dyn-col-card-title { font-weight: 600; color: #303133; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dyn-col-card-field { color: #909399; font-size: 11px; flex-shrink: 0; }
+.dyn-col-card-meta { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px 8px; color: #909399; }
+.dyn-col-card-meta > span { background: #f4f6f8; border-radius: 3px; padding: 0 5px; line-height: 18px; }
+.dyn-col-card-meta .dyn-col-card-type { color: #409eff; background: #ecf5ff; }
+.dyn-ops-card .dyn-col-card-head { background: #fdf6ec; }
+.dyn-ops-card .dyn-col-card-meta .dyn-col-card-type { color: #e6a23c; background: #fdf6ec; }
+.dyn-col-render-wrap {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    padding: 6px 8px; min-height: 36px; border-top: 1px dashed #ebeef5;
+}
+.dyn-col-render-hint { color: #b0b6bf; font-size: 11px; line-height: 1.4; }
+.dyn-ops-wrap .el-button { margin: 0; }
+/* 运行态分页区 */
+.dyn-table-pager { display: flex; justify-content: flex-end; padding-top: 8px; }
+
 /* 组件树节点 */
 .dyn-struct-node { padding: 4px 6px; font-size: 13px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 4px; }
 .dyn-struct-node:hover { background: #f5f7fa; }

@@ -1,0 +1,36 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+<template>
+<!-- 操作列节点：运行态由父 DynTable 读取本节点 childrenctrls 渲染行按钮（本组件实例只在设计器画布出现） -->
+<div class="dyn-col-card dyn-ops-card" :class="getClass(jc.options.itemoptions)" :style="getStyle(jc.options.itemoptions)">
+    <div class="dyn-col-card-head">
+        <span class="dyn-col-card-title">操作列</span>
+        <span class="dyn-col-card-field">{{ co.title || '操作' }} · 宽 {{ co.width || 150 }}</span>
+    </div>
+    <div class="dyn-col-card-meta">
+        <span>固定:{{ co.fixed || 'right' }}</span>
+        <span v-if="co.align">对齐:{{ co.align }}</span>
+        <span class="dyn-col-card-type">行操作</span>
+    </div>
+    <!-- 行按钮槽：拖入 DynElButton；按钮动作用属性面板「动作管道(dyn-click)」声明，
+         行数据经 data-* 自动注入，管道中用 {{id}}/{{table}}/{{gridid}}/{{editurl}} 等占位 -->
+    <div class="dyn-col-render-wrap dyn-children-wrap dyn-ops-wrap">
+        <n-dynamic-com v-for="(child, idx) in safeChildren"
+                       :key="child.__uid || idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[' + idx + ']'"></n-dynamic-com>
+        <div v-if="!safeChildren.length" class="dyn-col-render-hint dyn-no-drag">
+            拖入按钮作为行操作（默认配置已提供编辑/删除）
+        </div>
+    </div>
+</div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    const co = computed(function () { return (jc.options && jc.options.comoptions) || {}; });
+    Object.assign(comExtra, { co });
+}

@@ -3,47 +3,86 @@
 }
 
 <template>
-<div class="dyn-table" :style="getStyle(jc.options.itemoptions)" :class="getClass(jc.options.itemoptions)">
-        <el-table :data="rows"
-                  v-bind="tableBind"
-                  v-loading="loading"
-                  stripe
-                  size="small"
-                  border
-                  v-on:sort-change="onSortChange"
-                  v-on:row-click="onRowClick">
-            @* 所有列（含操作列）必须由同一个 v-for 数组驱动：该版本 ElementPlus 的列收集对
-               v-for 片段之后的条件 vnode（template v-if / 列上 v-if）处理异常，会导致
-               hidden-columns 查询时 vnode.el 为注释、整表渲染失败。操作列以 isOps 标记并入数组。 *@
-            <el-table-column v-for="col in tableColumns"
-                             :key="col.prop"
-                             :prop="col.isOps ? undefined : col.prop"
-                             :label="col.label"
-                             :width="col.width"
-                             :sortable="(!col.isOps && col.sortable) ? 'custom' : false"
-                             :fixed="col.isOps ? 'right' : undefined">
-                <template #default="scope">
-                    <template v-if="col.isOps">
-                        <el-button v-for="act in actions" :key="act.label"
-                                   size="small" :type="act.type || 'primary'" link
-                                   v-on:click="runAction(act, scope.row, $event)">{{ act.label }}</el-button>
-                    </template>
-                    <slot v-else :name="'cell-' + col.prop" :row="scope.row">
-                        <span v-if="col.type === 'tag'">
-                            <el-tag :type="(col.tagMap && col.tagMap[scope.row[col.prop]]) || 'info'">{{ scope.row[col.prop] }}</el-tag>
-                        </span>
-                        <span v-else>{{ scope.row[col.prop] }}</span>
-                    </slot>
-                </template>
-            </el-table-column>
-        </el-table>
-        <div v-if="pager" class="dyn-table-pager">
-            <el-pagination background layout="total, sizes, prev, pager, next"
-                           :total="total" :page-size="size" :current-page="page"
-                           :page-sizes="[10,20,50,100]"
-                           v-on:current-change="onPageChange" v-on:size-change="onSizeChange" />
-        </div>
+@* ============ 设计态：列托板（列/操作列节点直接子元素，支持拖入/排序/点选） ============ *@
+<div v-if="designMode"
+     class="dyn-table dyn-children-wrap dyn-table-design"
+     :class="[...getClass(jc.options.itemoptions), designRootClass]"
+     :style="getStyle(jc.options.itemoptions)">
+    <n-dynamic-com v-for="(child, idx) in safeChildren"
+                   :key="child.__uid || idx"
+                   :jsonconfig="child"
+                   :parentmodelinfo="props.parentmodelinfo"
+                   :node-path="props.nodePath + '.childrenctrls[' + idx + ']'"></n-dynamic-com>
+    <div v-if="!safeChildren.length" class="dyn-table-design-empty dyn-no-drag">
+        表格列：从左侧拖入「表格列 / 操作列」（或点选浮层 ＋ 快速新增列）
     </div>
+</div>
+
+@* ============ 运行态：免模型表格（childrenctrls 组件树驱动列） ============ *@
+<div v-else
+     class="dyn-table"
+     :style="getStyle(jc.options.itemoptions)"
+     :class="getClass(jc.options.itemoptions)">
+    <el-table :data="rows"
+              v-bind="tableBind"
+              v-loading="loading"
+              stripe
+              size="small"
+              border
+              v-on:sort-change="onSortChange"
+              v-on:row-click="onRowClick">
+        @* 所有列（含操作列）必须由同一个 v-for 数组驱动：该版本 ElementPlus 的列收集对
+           v-for 片段之后的条件 vnode（template v-if / 列上 v-if）处理异常，会导致
+           hidden-columns 查询时 vnode.el 为注释、整表渲染失败。操作列以 isOps 标记并入数组。 *@
+        <el-table-column v-for="col in tableColumns"
+                         :key="col.key"
+                         :prop="col.isOps ? undefined : col.field"
+                         :label="col.label"
+                         :width="col.width"
+                         :min-width="col.minWidth"
+                         :fixed="col.fixed"
+                         :align="col.align"
+                         :sortable="col.isOps ? false : (col.sortable ? 'custom' : false)">
+            <template #default="scope">
+                @* ---- 操作列：读取 DynTableActions 节点的按钮子节点 ---- *@
+                <template v-if="col.isOps">
+                    <template v-for="(btn, bIdx) in actionButtons(scope.row)" :key="btn.key || bIdx">
+                        <el-button v-if="btn.kind === 'button'"
+                                   link
+                                   size="small"
+                                   :type="btn.type || 'primary'"
+                                   :dyn-click="btn.pipe"
+                                   v-bind="btn.dataAttrs">{{ btn.text }}</el-button>
+                        <n-dynamic-com v-else
+                                       :jsonconfig="btn.node"
+                                       :parentmodelinfo="cellCtx(scope.row, null)"
+                                       :node-path="opsNodePath(btn.nodeIdx)"></n-dynamic-com>
+                    </template>
+                </template>
+                @* ---- 自定义呈现节点（列 childrenctrls）：row 作为 model，$value 为当前格值 ---- *@
+                <template v-else-if="col.customChildren.length">
+                    <n-dynamic-com v-for="(chNode, ci) in col.customChildren"
+                                   :key="chNode.__uid || ci"
+                                   :jsonconfig="chNode"
+                                   :parentmodelinfo="cellCtx(scope.row, col)"
+                                   :node-path="colNodePath(col.nodeIdx, ci)"></n-dynamic-com>
+                </template>
+                @* ---- 标签呈现（tagMap 值→类型；文本可叠加字典映射） ---- *@
+                <el-tag v-else-if="col.renderType === 'tag'"
+                        :type="tagType(col, scope.row)"
+                        size="small">{{ cellText(col, scope.row) }}</el-tag>
+                @* ---- 默认文本呈现（含字典 dict） ---- *@
+                <span v-else>{{ cellText(col, scope.row) }}</span>
+            </template>
+        </el-table-column>
+    </el-table>
+    <div v-if="pager" class="dyn-table-pager">
+        <el-pagination background layout="total, sizes, prev, pager, next"
+                       :total="total" :page-size="size" :current-page="page"
+                       :page-sizes="[10,20,50,100]"
+                       v-on:current-change="onPageChange" v-on:size-change="onSizeChange" />
+    </div>
+</div>
 </template>
 
 @section setupScripts{
@@ -62,21 +101,157 @@
     const loading = ref(false);
     const pkField = ref('Id');
     const pager = computed(() => !!co.pager);
-    const columns = computed(() => (co.columns || []).filter(c => c && c.prop));
-    // 操作列并入同一数组驱动（避免 el-table-column 上的条件 vnode 触发表格列收集缺陷）
+
+    // ============ 列树：childrenctrls 中的 DynTableColumn / DynTableActions 节点 ============
+    const columnNodes = computed(() =>
+        safeChildren.value.filter(n => n && n.component === 'DynTableColumn'));
+    const opsNode = computed(() =>
+        safeChildren.value.find(n => n && n.component === 'DynTableActions') || null);
+
+    function parseTagMap(raw) {
+        if (!raw) return {};
+        if (typeof raw === 'object') return raw;
+        try { return JSON.parse(raw) || {}; } catch (e) { console.warn('[DynTable] tagMap JSON 解析失败', e); return {}; }
+    }
+    // 组件树列 → el-table 渲染描述（操作列并入同一数组，规避该版 ElementPlus 列收集缺陷）
     const tableColumns = computed(() => {
-        const list = columns.value.slice();
-        if (Array.isArray(co.actions) && co.actions.length) {
-            list.push({ prop: '__ops__', label: '操作', width: actionsWidth, isOps: true });
+        const list = columnNodes.value.map((n, i) => {
+            const cco = (n.options && n.options.comoptions) || {};
+            return {
+                key: n.__uid || ('col-' + i),
+                nodeIdx: safeChildren.value.indexOf(n),
+                node: n,
+                field: cco.field || '',
+                label: cco.label || cco.field || '',
+                width: cco.width || undefined,
+                minWidth: cco.minwidth || undefined,
+                fixed: cco.fixed || undefined,
+                align: cco.align || undefined,
+                sortable: !!cco.sortable,
+                showOverflowTooltip: cco.showoverflowtooltip !== false,
+                emptyText: cco.emptytext === undefined ? '' : cco.emptytext,
+                renderType: cco.rendertype || 'text',
+                dicttype: cco.dicttype || '',
+                tagMap: parseTagMap(cco.tagmap),
+                customChildren: (n.childrenctrls || []).filter(x => x && x.component)
+            };
+        }).filter(c => c.field || c.customChildren.length);
+        const ops = opsNode.value;
+        if (ops) {
+            const oco = (ops.options && ops.options.comoptions) || {};
+            list.push({
+                key: ops.__uid || '__ops__',
+                isOps: true,
+                nodeIdx: safeChildren.value.indexOf(ops),
+                label: oco.title || '操作',
+                width: oco.width || 150,
+                fixed: oco.fixed || 'right',
+                align: oco.align || 'center'
+            });
         }
         return list;
     });
-    const actions = computed(() => co.actions || []);
-    const actionsWidth = co.actionsWidth || 150;
+
+    // ============ 字典呈现：dicttype 列自动加载 /api/dyncommon/dicts ============
+    const dictMaps = reactive({});
+    function loadDicts() {
+        const types = [];
+        tableColumns.value.forEach(c => {
+            if (c.dicttype && types.indexOf(c.dicttype) === -1) types.push(c.dicttype);
+        });
+        types.forEach(t => {
+            fetch('/api/dyncommon/dicts?type=' + encodeURIComponent(t))
+                .then(r => r.json())
+                .then(res => {
+                    if (res && res.code === 0 && Array.isArray(res.data)) {
+                        const m = {};
+                        res.data.forEach(d => { m[d.value] = d.label; m[String(d.value)] = d.label; });
+                        dictMaps[t] = m;
+                    }
+                })
+                .catch(e => console.warn('[DynTable] 字典加载失败', t, e));
+        });
+    }
+    function dictLabel(col, v) {
+        const m = dictMaps[col.dicttype];
+        if (!m) return undefined;
+        return m[v] !== undefined ? m[v] : m[String(v)];
+    }
+    function cellText(col, row) {
+        let v = col.field ? _.get(row, col.field) : '';
+        if (v === null || v === undefined || v === '') return col.emptyText;
+        if ((col.renderType === 'dict' || col.renderType === 'tag') && col.dicttype) {
+            const lbl = dictLabel(col, v);
+            if (lbl !== undefined) return lbl;
+        }
+        return v;
+    }
+    function tagType(col, row) {
+        const v = col.field ? _.get(row, col.field) : '';
+        return (col.tagMap && (col.tagMap[v] !== undefined ? col.tagMap[v] : col.tagMap[String(v)])) || 'info';
+    }
+    // 自定义呈现节点的行模型：行字段平铺 + $value 当前格值 + $row 整行（modelname 可写 Status / $value）
+    function cellCtx(row, col) {
+        const ctx = Object.assign({}, row || {});
+        Object.defineProperty(ctx, '$value', { value: col ? (col.field ? _.get(row, col.field) : undefined) : undefined, enumerable: true });
+        Object.defineProperty(ctx, '$row', { value: row || {}, enumerable: true });
+        return ctx;
+    }
+    function colNodePath(nodeIdx, childIdx) {
+        return props.nodePath + '.childrenctrls[' + nodeIdx + '].childrenctrls[' + childIdx + ']';
+    }
+    function opsNodePath(nodeIdx) {
+        return props.nodePath + '.childrenctrls[' + nodeIdx + ']';
+    }
+
+    // ============ 操作列按钮：DynElButton 子节点 + extendinfo.pipe 声明式动作管道 ============
+    // 行数据经 data-* 注入，dyn-action 的 buildCtx 自动收集并替换管道中的 {{id}}/{{table}} 等占位
+    function rowDataAttrs(row) {
+        const attrs = {};
+        if (row && typeof row === 'object') {
+            Object.keys(row).forEach(k => {
+                const v = row[k];
+                attrs['data-' + String(k).toLowerCase()] = (v === null || v === undefined) ? '' : String(v);
+            });
+        }
+        attrs['data-id'] = row ? String(row[pkField.value] ?? '') : '';
+        attrs['data-gridid'] = gridId || '';
+        attrs['data-table'] = table || '';
+        attrs['data-project'] = project || '';
+        attrs['data-editurl'] = co.editUrl || '';
+        return attrs;
+    }
+    function actionButtons(row) {
+        const ops = opsNode.value;
+        if (!ops || !Array.isArray(ops.childrenctrls)) return [];
+        const out = [];
+        ops.childrenctrls.forEach((b, idx) => {
+            if (!b) return;
+            if (b.component === 'DynElButton') {
+                const bco = (b.options && b.options.comoptions) || {};
+                const ei = b.extendinfo || {};
+                // 预置编辑按钮：表格未配置 editUrl 时安静隐藏
+                if (ei.builtin === 'edit' && !co.editUrl) return;
+                out.push({
+                    key: b.__uid || ('btn-' + idx),
+                    kind: 'button',
+                    text: bco.text || '按钮',
+                    type: bco.type || 'primary',
+                    pipe: ei.pipe || '',
+                    dataAttrs: rowDataAttrs(row)
+                });
+            } else if (b.component) {
+                // 非按钮节点（如下拉等）：直接以行模型渲染
+                out.push({ key: b.__uid || ('btn-' + idx), kind: 'node', node: b, nodeIdx: idx });
+            }
+        });
+        return out;
+    }
+
     // 绑定到 el-table 的属性：剔除业务自定义键，避免污染 DOM
     const tableBind = computed(() => {
-        const skip = { table:1, project:1, columns:1, filter:1, filterFields:1, filterFromScope:1,
-            pager:1, size:1, actions:1, actionsWidth:1, gridId:1, rowClickAction:1, apiBase:1 };
+        const skip = { table:1, project:1, filter:1, filterFields:1, filterFromScope:1,
+            pager:1, size:1, gridId:1, rowClickAction:1, apiBase:1, editUrl:1 };
         const out = {};
         Object.keys(co).forEach(k => { if (!skip[k]) out[k] = co[k]; });
         return out;
@@ -127,8 +302,11 @@
     function onPageChange(p) { loadList(p); }
     function onSizeChange(s) { size.value = s; loadList(1); }
     function onSortChange(s) {
-        // 仅允许列定义中标记 sortable 的列（与服务端 __orderby 白名单双重防护）
-        const allow = columns.value.some(c => c.prop === s.prop && c.sortable);
+        // 仅允许列节点中标记 sortable 的列（与服务端 __orderby 白名单双重防护）
+        const allow = columnNodes.value.some(n => {
+            const cco = (n.options && n.options.comoptions) || {};
+            return cco.field === s.prop && cco.sortable;
+        });
         if (allow && s.order) {
             orderField.value = s.prop;
             orderDir.value = s.order === 'ascending' ? 'asc' : 'desc';
@@ -139,7 +317,7 @@
         loadList(1);
     }
 
-    // 行操作：act.action 走动作系统（open/grid/postback/数据库助手等），params 自动带整行数据与 id
+    // 行点击动作（保留）：cfg.action 走动作系统，params 自动带整行数据与 id
     function fillUrl(url, row) {
         // 注意：replace 回调首参是整段匹配串，切勿命名为 _，否则遮蔽外层 lodash（const _ = window._）导致 _.get 不是函数
         return String(url || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, function (match, k) {
@@ -177,6 +355,8 @@
     }
 
     onMounted(function () {
+        // 设计态不请求任何数据
+        if (designMode) return;
         // 注册到全局表格注册表，供 grid 动作 / 外部 API 刷新：window.DynGrids[gridId].refresh()
         if (gridId) {
             window.DynGrids = window.DynGrids || {};
@@ -186,6 +366,8 @@
                 getRows: function () { return rows.value; }
             };
         }
+        loadDicts();
+        if (!table) return;
         // 取主键名（行操作 params.id / 编辑弹窗用）
         fetch(apiBase + '/meta?table=' + encodeURIComponent(table) + (project ? '&project=' + encodeURIComponent(project) : ''),
               { cache: 'no-store' })
@@ -206,8 +388,10 @@
     // 否则模板中 rows/columns 等恒为 undefined：表格无列无数据且无报错）
     Object.assign(comExtra, {
         rows, total, page, size, loading, pkField,
-        pager, columns, tableColumns, actions, actionsWidth, tableBind,
+        pager, columnNodes, opsNode, tableColumns, tableBind,
         orderField, orderDir,
+        loadDicts, cellText, tagType, cellCtx, colNodePath, opsNodePath,
+        actionButtons,
         loadList, onPageChange, onSizeChange, onSortChange, runAction, onRowClick
     });
 }

@@ -93,6 +93,9 @@ public class Seeder
         //    必须先于 seed-extra.sql 执行：该脚本会向 DynSchemaLabel 等"迁移期才建"的表写数据。
         MigrateSchema(conn);
 
+        // 2.1) 清理历史坏占位 DB 动作（platform.sql 只在全新库执行，旧库在此幂等清理）
+        CleanupLegacyActionHelpers(conn);
+
         // 3) ComponentMeta：空表才灌全量基线。新增组件一律由 seed-extra.sql 幂等补齐，
         //    绝不 DELETE 重灌（会抹掉用户手工注册的组件）。
         using (var cnt = conn.CreateCommand())
@@ -199,6 +202,8 @@ CREATE TABLE SysMenu (
         SeedTabsTemplate(conn);
         // 布局壳 v1.1：list-master-detail 壳模板 + SysMenu 演示页（spec 存独立列 SpecJson）
         SeedListMasterDetailShell(conn);
+        // 布局壳：filter-list-open-window（顶筛选+列表+明细弹窗）壳模板 + SysMenu 演示页
+        SeedFilterListOpenWindowShell(conn);
         // 早期手工入库模板的 class 名图标修正为 Emoji（平台图标统一 Emoji 直出）
         SeedBuiltinTemplateIcons(conn);
         // 系统日志表（异常/操作日志持久化）
@@ -906,6 +911,74 @@ WHERE Code='sysmenu-list-shell-demo';";
             cmd.ExecuteNonQuery();
         }
         _logger.LogInformation("[Init] 布局壳 list-master-detail 模板与演示页种子同步完成");
+    }
+
+    /// <summary>
+    /// 清理历史坏占位 DB 动作（幂等，旧库迁移；platform.sql 中已同步去除）。
+    /// reload='ctx.reload();' 在 ctx 上从无实现，且 DB 动作加载时覆盖同名内置 reload
+    /// （内置 reload：BlockApp 句柄优先 send('reload')，否则片段刷新），导致管道 reload 必报错。
+    /// 仅精确删除原文占位行；用户自定义的同名动作保留。
+    /// </summary>
+    private void CleanupLegacyActionHelpers(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynActionHelper")) return;
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+DELETE FROM DynActionHelper
+ WHERE Code='reload' AND ActionType='script' AND TRIM(COALESCE(Script,''))='ctx.reload();';";
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// 布局壳种子（幂等）：
+    /// 1) DynTemplate 增列第三个壳 filter-list-open-window（顶筛选 + 列表占满 + 明细弹窗，spec 驱动）；
+    /// 2) DynWebPage 增演示页：SysMenu 平台表，复用 49/50/51 三屏设置，规格写入 SpecJson。
+    /// </summary>
+    private void SeedFilterListOpenWindowShell(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynTemplate") || !TableExists(conn, "DynWebPage")) return;
+
+        var tplDef = "{\"layout\":\"filter-list-open-window\","
+            + "\"provide\":{\"table\":\"\",\"keyField\":\"Id\",\"project\":\"\"},"
+            + "\"slots\":{\"filter\":{\"block\":\"filter\",\"settingId\":null},\"master\":{\"block\":\"list\",\"settingId\":null},"
+            + "\"detail\":{\"settingId\":null,\"title\":\"明细\",\"width\":\"720px\",\"height\":\"80%\"}}}";
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive)
+SELECT 'filter-list-open-window','筛选列表弹窗(壳)','布局壳','🪟','~/Views/DynLayouts/FilterListOpenWindow.cshtml',@def,NULL,
+'布局壳(声明式)：壳只摆布局，无引擎无wires；filter 查询/重置=setVueModel 跨app写 list.model.filter + reload；list 新增/编辑=open 明细片段(layer type:1，非iframe)，onclose 关窗后 reload。',31,1
+WHERE NOT EXISTS (SELECT 1 FROM DynTemplate WHERE Code='filter-list-open-window');
+UPDATE DynTemplate SET Name='筛选列表弹窗(壳)', Category='布局壳', Icon='🪟', ViewPath='~/Views/DynLayouts/FilterListOpenWindow.cshtml',
+    DefaultJson=@def,
+    Description='布局壳(声明式)：壳只摆布局，无引擎无wires；filter 查询/重置=setVueModel 跨app写 list.model.filter + reload；list 新增/编辑=open 明细片段(layer type:1，非iframe)，onclose 关窗后 reload。'
+WHERE Code='filter-list-open-window';";
+            cmd.Parameters.AddWithValue("@def", tplDef);
+            cmd.ExecuteNonQuery();
+        }
+
+        if (!TableExists(conn, "DynWebPage")) return;
+        var spec = "{\"layout\":\"filter-list-open-window\","
+            + "\"provide\":{\"table\":\"SysMenu\",\"keyField\":\"Id\",\"project\":\"__platform__\"},"
+            + "\"slots\":{\"filter\":{\"block\":\"filter\",\"settingId\":49},\"master\":{\"block\":\"list\",\"settingId\":50},"
+            + "\"detail\":{\"settingId\":51,\"title\":\"菜单明细\",\"width\":\"720px\",\"height\":\"80%\"}}}";
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+INSERT INTO DynWebPage (Code, Name, TemplateId, ProjectId, ParamsJson, SpecJson, Url, IsActive)
+SELECT 'sysmenu-filter-openwindow-demo','菜单筛选列表弹窗(壳)',(SELECT Id FROM DynTemplate WHERE Code='filter-list-open-window'),NULL,NULL,@spec,
+'/Platform/Page/DynWebPage?id=',1
+WHERE NOT EXISTS (SELECT 1 FROM DynWebPage WHERE Code='sysmenu-filter-openwindow-demo');
+UPDATE DynWebPage SET TemplateId=(SELECT Id FROM DynTemplate WHERE Code='filter-list-open-window'), SpecJson=@spec, IsActive=1
+WHERE Code='sysmenu-filter-openwindow-demo';
+UPDATE DynWebPage SET Url='/Platform/Page/DynWebPage?id=' || Id
+WHERE Code='sysmenu-filter-openwindow-demo';";
+            cmd.Parameters.AddWithValue("@spec", spec);
+            cmd.ExecuteNonQuery();
+        }
+        _logger.LogInformation("[Init] 布局壳 filter-list-open-window 模板与演示页种子同步完成");
     }
 
     /// <summary>

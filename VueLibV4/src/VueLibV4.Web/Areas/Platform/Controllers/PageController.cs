@@ -442,6 +442,7 @@ public class PageController : Controller
             || string.Equals(template.Code, "tree-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tree-master-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "list-master-detail", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "filter-list-open-window", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);

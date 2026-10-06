@@ -163,9 +163,9 @@
         check();
         _diffStop = watch(readField, check, { deep: true });
         // 监听整个 parentModel 引用变化（表单重新加载/重置时触发），重新快照
-        @* _diffStop = watch(() => parentModel.value, () => {
+        _diffStop = watch(() => parentModel.value, () => {
             if (parentModel.value) resetSnapshot();
-        }); *@
+        });
     });
     onBeforeUnmount(() => { if (_diffStop) _diffStop(); });
 

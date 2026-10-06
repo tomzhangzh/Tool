@@ -50,9 +50,9 @@
                             if (res.data.resourceKey) {
                                 document.getElementById('page-root').setAttribute('data-webpage-resource', res.data.resourceKey);
                             }
-                            var cfg = DynCore.normalize(res.data.config || {});
+                            var cfg = dyn.normalize(res.data.config || {});
                             // 运行时：同一套 DynRender 渲染（不编译模板）
-                            DynCore.mount(cfg, document.getElementById('page-root'));
+                            dyn.mount(cfg, document.getElementById('page-root'));
                         }).catch(function () {
                             document.getElementById('page-root').innerHTML = '<div style="text-align:center;color:#f56c6c">页面加载失败</div>';
                         });

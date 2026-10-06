@@ -1,0 +1,40 @@
+@{
+    Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
+}
+
+<template>
+<!-- 表格列节点：运行态由父 DynTable 读取本节点 comoptions 统一渲染 el-table-column（本组件实例只在设计器画布出现） -->
+<div class="dyn-col-card" :class="getClass(jc.options.itemoptions)" :style="getStyle(jc.options.itemoptions)">
+    <div class="dyn-col-card-head">
+        <span class="dyn-col-card-title">{{ co.label || co.field || '（未命名列）' }}</span>
+        <span class="dyn-col-card-field">{{ co.field || 'field 未配置' }}</span>
+    </div>
+    <div class="dyn-col-card-meta">
+        <span v-if="co.width">宽:{{ co.width }}</span>
+        <span v-if="co.minwidth">最小:{{ co.minwidth }}</span>
+        <span v-if="co.fixed">固定:{{ co.fixed }}</span>
+        <span v-if="co.align">对齐:{{ co.align }}</span>
+        <span v-if="co.sortable">可排序</span>
+        <span class="dyn-col-card-type">{{ typeLabel }}</span>
+    </div>
+    <!-- 单元格呈现槽：拖入标签/按钮等呈现组件（可选；留空时父表格按呈现类型默认渲染文本/标签/字典） -->
+    <div class="dyn-col-render-wrap dyn-children-wrap">
+        <n-dynamic-com v-for="(child, idx) in safeChildren"
+                       :key="child.__uid || idx"
+                       :jsonconfig="child"
+                       :parentmodelinfo="props.parentmodelinfo"
+                       :node-path="props.nodePath + '.childrenctrls[' + idx + ']'"></n-dynamic-com>
+        <div v-if="!safeChildren.length" class="dyn-col-render-hint dyn-no-drag">
+            单元格呈现槽（可选）：拖入标签/按钮/徽章；留空按类型默认渲染
+        </div>
+    </div>
+</div>
+</template>
+
+@section setupScripts{
+    DVALUE = null;
+    const co = computed(function () { return (jc.options && jc.options.comoptions) || {}; });
+    const TYPE_LABELS = { text: '文本', tag: '标签', dict: '字典', custom: '自定义' };
+    const typeLabel = computed(function () { return TYPE_LABELS[co.value.rendertype] || '文本'; });
+    Object.assign(comExtra, { co, typeLabel });
+}

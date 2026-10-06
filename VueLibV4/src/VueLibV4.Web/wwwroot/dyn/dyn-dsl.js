@@ -49,6 +49,9 @@ var __plugin = {
     collapse: 'DynElCollapse',
     form: 'DynForm',
     table: 'DynTable',
+    tablecolumn: 'DynTableColumn',
+    column: 'DynTableColumn',
+    tableactions: 'DynTableActions',
     crud: 'DynCrudPage'
   };
 
@@ -273,7 +276,7 @@ var __plugin = {
       if (!node || !node.component) return;
       const indent = '  '.repeat(depth);
       const isCont = !!(node.childrenctrls && node.childrenctrls.length) ||
-        /^(DynElContainer|DynGridContainer|DynForm|DynElCard|DynElTabs|DynElCollapse|DynCrudPage|DynTable)$/.test(node.component);
+        /^(DynElContainer|DynGridContainer|DynForm|DynElCard|DynElTabs|DynElCollapse|DynCrudPage|DynTable|DynTableColumn|DynTableActions)$/.test(node.component);
       const head = (isCont ? '>> ' : '- ') + node.component;
       const parts = [];
       if (node.modelname) parts.push('modelname=' + formatValue(node.modelname));

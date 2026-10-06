@@ -22,10 +22,18 @@
         <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
     </div>
     <div class="dyn-blk-filter__btns">
-        <button type="button" class="el-button el-button--primary el-button--small" @@click="query()">
+        @* 声明式覆写：cfg.actions.search/reset 存在时按钮走 dyn-click 动作管道（布局壳编排）；
+           缺省保持 @@click emit('changed') 事件（引擎壳/老页面）。两条接线方式互斥。 *@
+        <button v-if="!(actions && actions.search)" type="button" class="el-button el-button--primary el-button--small" @@click="query()">
             <el-icon style="margin-right:4px"><Search /></el-icon>查询
         </button>
-        <button type="button" class="el-button el-button--small" @@click="reset()">
+        <button v-else type="button" class="el-button el-button--primary el-button--small" :dyn-click="actions.search">
+            <el-icon style="margin-right:4px"><Search /></el-icon>查询
+        </button>
+        <button v-if="!(actions && actions.reset)" type="button" class="el-button el-button--small" @@click="reset()">
+            <el-icon style="margin-right:4px"><Refresh /></el-icon>重置
+        </button>
+        <button v-else type="button" class="el-button el-button--small" :dyn-click="actions.reset">
             <el-icon style="margin-right:4px"><Refresh /></el-icon>重置
         </button>
         @(extSlots?.Render("filter:actions"))
@@ -64,7 +72,9 @@
                 pageCfg: __uiCfg,
                 filterModel: JSON.parse(JSON.stringify(__init.initModel)),
                 opMap: __init.opMap,
-                initModel: __init.initModel
+                initModel: __init.initModel,
+                // 声明式按钮覆写（布局壳编排）：{search:'管道', reset:'管道'}；缺省走 emit 事件
+                actions: __cfg.actions || {}
             };
         },
         methods: {

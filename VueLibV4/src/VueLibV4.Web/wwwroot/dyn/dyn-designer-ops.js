@@ -463,14 +463,24 @@ var __plugin = {
       return child;
     }
     if (cfg.component === 'DynTable') {
-      const cols = getPath(cfg, 'options.comoptions.columns') || [];
-      return { prop: 'field' + (cols.length + 1), label: '新列', width: 120, sortable: false };
+      // 树化表格：新增子项 = 标准 DynTableColumn 节点（推入 childrenctrls）
+      const cols = (cfg.childrenctrls || []).filter(n => n && n.component === 'DynTableColumn');
+      const child = defaultCfg('DynTableColumn');
+      const cco = child.options && child.options.comoptions;
+      if (cco) { cco.field = 'field' + (cols.length + 1); cco.label = '新列'; }
+      return child;
     }
     if (cfg.component === 'DynElCollapse') {
       return { component: 'DynElCollapseItem', options: { comoptions: { label: '折叠项' }, labeloptions: { show: false } }, childrenctrls: [] };
     }
     if (cfg.component === 'DynElSteps') {
       return { component: 'DynElStep', options: { comoptions: { title: '新步骤', description: '', status: '', icon: '' } }, childrenctrls: [] };
+    }
+    // 通用兜底：容器 AllowDrop 白名单的第一个可接收组件（如 DynTableColumn→DynElTag、DynTableActions→DynElButton）
+    const dm = metaOf(cfg.component);
+    if (dm && Array.isArray(dm.AllowDrop)) {
+      const first = dm.AllowDrop.filter(function (x) { return x && x !== '*'; })[0];
+      if (first) return defaultCfg(first);
     }
     return { label: '新子项' };
   }

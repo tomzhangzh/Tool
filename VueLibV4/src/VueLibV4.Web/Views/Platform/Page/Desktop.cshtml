@@ -3,7 +3,7 @@
     var extId = "Ctrl" + Guid.NewGuid().ToString("N");
 }
 <div id="@extId">
-    <div class="desktop" @@contextmenu.prevent="showContextMenu($event)">
+    <div class="desktop">
         <!-- 桌面快捷方式：两种展示模式（icons=经典平铺图标 / cards=分组卡片小组件） -->
         <div v-if="displayMode === 'icons'" class="desktop-icons">
             <div v-for="m in roots" :key="m.Id" class="desktop-icon"
@@ -75,7 +75,9 @@
                 </div>
             </div>
             <div class="window-body">
-                <iframe :src="win.url"></iframe>
+                <!-- 窗口内容：UseIframe=true 用 iframe，否则用内嵌渲染 -->
+                <iframe v-if="win.useIframe !== false" :src="win.url"></iframe>
+                <div v-else class="inline-frame" :data-inline-frame="win.id"></div>
             </div>
         </div>
 
@@ -108,15 +110,6 @@
                 <button @@click="go('/Platform/Page/Demo/ActionHelper')">⚡ 动作助手</button>
                 <button @@click="go('/Platform/Page/WebPageRender?code=student-manage')">🎓 学生管理</button>
             </div>
-        </div>
-
-        <!-- 右键菜单 -->
-        <div v-if="contextMenu.show" class="context-menu"
-            :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
-            <div class="context-menu-item" @@click="refreshDesktop">🔄 刷新</div>
-            <div class="context-menu-divider"></div>
-            <div class="context-menu-item" @@click="go('/Platform/Page/Designer')">🎨 设计器</div>
-            <div class="context-menu-item" @@click="go('/Platform/Page/Demo/Crud')">📋 CRUD Demo</div>
         </div>
 
         <!-- 桌面设置面板（向上弹出，Tailwind） -->
@@ -782,6 +775,14 @@
         border: none;
     }
 
+    .window-body .inline-frame {
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        padding: 16px;
+        background: #fff;
+    }
+
     .context-menu {
         position: absolute;
         background: rgba(50, 50, 50, 0.95);
@@ -896,7 +897,6 @@
                         roots: [], windows: [],
                         showStartMenu: false, selectedId: null, activeWinId: null,
                         currentTime: '', currentDate: '',
-                        contextMenu: { show: false, x: 0, y: 0 },
                         treeData: [],
                         floatStack: [],
                         displayMode: 'icons', // 桌面快捷方式展示模式：icons=经典平铺 / cards=分组卡片小组件
@@ -1027,6 +1027,7 @@
                         var winH = this.parseSize(m.Height, availH);
                         var w = {
                             id: ++this._winId, title: m.Name, icon: m.Icon || '📄', url: url,
+                            useIframe: m.UseIframe === true,  // 默认 iframe，菜单可配置关闭
                             x: 80 + (this.windows.length * 30) % 200,
                             y: 60 + (this.windows.length * 30) % 150,
                             width: (isWin && winW) ? Math.min(winW, availW) : 960,
@@ -1037,6 +1038,22 @@
                         };
                         this.windows.push(w); this.activeWinId = w.id;
                         this.closeFloatMenu();
+                        // 内嵌模式：加载片段内容
+                        if (w.useIframe === false) {
+                            var self2 = this;
+                            this.$nextTick(function () {
+                                var el = document.querySelector('[data-inline-frame="' + w.id + '"]');
+                                if (el && typeof dyn !== 'undefined' && dyn.fetchPartial) {
+                                    dyn.fetchPartial(w.url, {}, 'GET', 'text')
+                                        .then(function (html) {
+                                            dyn.html(el, html, true);
+                                        })
+                                        .catch(function (e) {
+                                            el.innerHTML = '<div style="padding:20px;color:#f56c6c;">加载失败：' + e.message + '</div>';
+                                        });
+                                }
+                            });
+                        }
                     },
                     focusWindow: function (id) {
                         var w = this.windows.find(function (x) { return x.id === id; });
@@ -1062,8 +1079,6 @@
                         var up = function () { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
                         document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
                     },
-                    showContextMenu: function (e) { this.contextMenu.show = true; this.contextMenu.x = e.clientX; this.contextMenu.y = e.clientY; },
-                    refreshDesktop: function () { this.contextMenu.show = false; this.load(); },
                     tick: function () {
                         var n = new Date();
                         this.currentTime = n.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -1074,7 +1089,7 @@
                     this.load(); this.tick();
                     setInterval(this.tick, 1000);
                     var self = this;
-                    document.addEventListener('click', function () { self.showStartMenu = false; self.contextMenu.show = false; self.selectedId = null; self.floatStack = []; });
+                    document.addEventListener('click', function () { self.showStartMenu = false; self.selectedId = null; self.floatStack = []; });
                 }
             });
             const container = document.querySelector('#@extId');

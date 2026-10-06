@@ -232,9 +232,12 @@ SELECT 'default', '默认工作台', '开箱即用的默认解决方案', '🗂�
 WHERE NOT EXISTS (SELECT 1 FROM DesktopSolution WHERE Code='default');
 
 -- 基础动作
-INSERT INTO DynActionHelper (Code, Name, ActionType, Script, Description)
-SELECT 'reload', '刷新当前页', 'script', 'ctx.reload();', '重新查询并刷新'
-WHERE NOT EXISTS (SELECT 1 FROM DynActionHelper WHERE Code='reload');
+-- reload 是平台内置动作（dyn-action.js：BlockApp 优先 handle.send('reload')，否则片段刷新）。
+-- 早期曾在此插入过一条 script='ctx.reload();' 的 DB 占位行，但 ctx 上从无 reload 实现，
+-- 且 DB 动作加载时会覆盖同名内置动作，导致管道 reload 必报 "ctx.reload is not a function"。
+-- 启动时精确清除该坏占位（仅原文匹配；用户自定义同名动作保留）；不再插入。
+DELETE FROM DynActionHelper
+ WHERE Code='reload' AND ActionType='script' AND TRIM(COALESCE(Script,''))='ctx.reload();';
 
 -- ---------------- 系统菜单（树形；桌面快捷方式数据源） ----------------
 CREATE TABLE IF NOT EXISTS SysMenu (

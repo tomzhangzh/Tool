@@ -1,0 +1,194 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
+@{
+    // =====================================================================================
+    // 布局壳：filter-list-open-window（顶筛选 + 列表占满 + 明细弹窗）——声明式动作版
+    //
+    // 设计原则：壳【只摆布局】，不写任何运行时编排 JS（无引擎、无句柄、无 wires）。
+    //   Block 间关系全部是按钮上肉眼可见的 dyn-click 动作管道（可存库、可在设计器配置）：
+    //     · filter 查询 = setVueModel 把 filter.buildSubmit() 跨 app 写进 list.model.filter
+    //                    → reload(list)（reload 动作优先调 BlockApp 句柄，否则片段刷新）
+    //     · filter 重置 = 先写回 initModel（UI 回基线）→ 同上写条件 → reload
+    //     · list 新增   = open 明细【片段】(layer type:1，非 iframe)；onclose 关窗后 reload(list)
+    //     · list 编辑   = 同上，url 带 &bizId={{id}}（行主键经按钮 data-id 进动作参数）
+    //   明细片段保存/取消会自己调 ActionHelper.close → layer end → open.onclose → 刷新列表。
+    //
+    // 页面规格（DynWebPage.SpecJson；空值回退 ParamsJson）：
+    //   { layout:"filter-list-open-window",
+    //     provide:{table,keyField,project?},
+    //     slots:{
+    //       filter:{block:"filter", settingId:49},          // 可整节省略
+    //       master:{block:"list",   settingId:50},
+    //       detail:{settingId:51, title?, width?:"720px", height?:"80%"} } }
+    // =====================================================================================
+    Layout = "_Layout";
+
+    var spec = DynPageViewHelper.ParseShellSpec(Model);
+    var provide = spec["provide"] as JObject ?? new JObject();
+    string Prov(string key, string dft = "")
+    {
+        var v = provide[key];
+        if (v == null || v.Type == JTokenType.Null) return dft;
+        var s = v.ToString();
+        return string.IsNullOrEmpty(s) ? dft : s;
+    }
+
+    var tableName = Prov("table");
+    var keyField = Prov("keyField", "Id");
+    var project = Prov("project", Model.ProjectId?.ToString() ?? "");
+
+    var slots = spec["slots"] as JObject ?? new JObject();
+    var filterSlot = slots["filter"] as JObject;
+    var masterSlot = slots["master"] as JObject ?? new JObject();
+    var detailSlot = slots["detail"] as JObject ?? new JObject();
+
+    var filterBlock = filterSlot?["block"]?.ToString()?.Trim().ToLowerInvariant();
+    var masterBlock = string.IsNullOrWhiteSpace(masterSlot["block"]?.ToString()) ? "list" : masterSlot["block"]!.ToString().Trim().ToLowerInvariant();
+    var filterPartial = string.IsNullOrEmpty(filterBlock) ? null : DynPageViewHelper.BlockAppPath(filterBlock);
+    var masterPartial = DynPageViewHelper.BlockAppPath(masterBlock);
+
+    int? SlotSettingId(JObject slot) =>
+        int.TryParse(slot?["settingId"]?.ToString(), out var i) ? i : null;
+
+    var extSlots = await Html.LoadPageExtAsync(Model);
+    var extId = "Flw" + Guid.NewGuid().ToString("N");
+    var rootId = extId + "-root";
+    var filterId = extId + "-filter";
+    var masterId = extId + "-master";
+    var showDesignEntry = Convert.ToBoolean(ViewData["ShowDesignEntry"] ?? false);
+
+    // —— 明细片段 URL（ActionHelper.open 以 fragment/layer type:1 打开，非 iframe）——
+    var detailSettingId = SlotSettingId(detailSlot);
+    var winTitle = detailSlot["title"]?.ToString() ?? "明细";
+    var winWidth = detailSlot["width"]?.ToString();
+    var winHeight = detailSlot["height"]?.ToString();
+    if (string.IsNullOrEmpty(winWidth) || string.IsNullOrEmpty(winHeight))
+    {
+        var lp = spec["layoutProps"] as JObject;
+        if (string.IsNullOrEmpty(winWidth) && lp?["dialogWidth"] != null) winWidth = lp["dialogWidth"] + "px";
+    }
+    winWidth = string.IsNullOrEmpty(winWidth) ? "720px" : winWidth;
+    winHeight = string.IsNullOrEmpty(winHeight) ? "80%" : winHeight;
+
+    string detailUrl = null;
+    string addPipe = null, editPipe = null;
+    if (detailSettingId != null)
+    {
+        detailUrl = $"/Platform/Page/DynDetail?settingId={detailSettingId}&table={Uri.EscapeDataString(tableName)}&project={Uri.EscapeDataString(project)}";
+        // open 片段弹窗；onclose 统一在窗口生命周期结束（×/ESC/保存/取消）后刷新列表
+        var openTail = $"\"width\":\"{winWidth}\",\"height\":\"{winHeight}\",\"onclose\":[{{\"action\":\"reload\",\"target\":\"#{masterId}\"}}]}})";
+        addPipe = "open({\"url\":\"" + detailUrl + "\",\"title\":\"新增\"," + openTail;
+        editPipe = "open({\"url\":\"" + detailUrl + "&bizId={{id}}\",\"title\":\"编辑\"," + openTail;
+    }
+
+    // —— list 槽 Block 配置：数据域坐标 + PageSetting 列 + 声明式按钮 ——
+    var listCfg = new JObject();
+    DynPageViewHelper.ApplyListSetting(listCfg, PageSettingService, SlotSettingId(masterSlot), "columns");
+    listCfg["table"] = tableName;
+    listCfg["keyField"] = keyField;
+    listCfg["project"] = project;
+    if (addPipe != null)
+        listCfg["actions"] = new JObject { ["add"] = addPipe, ["edit"] = editPipe };
+
+    // —— filter 槽 Block 配置：PageSetting UI + 默认值 + 查询/重置动作管道 ——
+    JObject filterCfg = null;
+    if (filterSlot != null)
+    {
+        filterCfg = new JObject();
+        DynPageViewHelper.ApplyFrontSetting(filterCfg, PageSettingService, SlotSettingId(filterSlot),
+            "filterConfig", "filterDefault");
+        filterCfg["project"] = project;
+        var mSel = "#" + masterId;
+        var fSel = "#" + filterId;
+        // 查询：filter.buildSubmit() → list.model.filter → reload(list)
+        var searchPipe = "setVueModel({\"target\":\"" + mSel + "\",\"path\":\"model.filter\",\"fromMethod\":\"buildSubmit\"})"
+                       + "|reload(\"" + mSel + "\")";
+        // 重置：filter.filterModel 回 initModel 深拷贝（UI 回基线，不污染源基线）→ buildSubmit 写 list → reload
+        var resetPipe = "setVueModel({\"target\":\"" + fSel + "\",\"path\":\"filterModel\",\"from\":\"" + fSel + "\",\"fromPath\":\"initModel\",\"clone\":true})"
+                      + "|setVueModel({\"target\":\"" + mSel + "\",\"path\":\"model.filter\",\"from\":\"" + fSel + "\",\"fromMethod\":\"buildSubmit\"})"
+                      + "|reload(\"" + mSel + "\")";
+        filterCfg["actions"] = new JObject { ["search"] = searchPipe, ["reset"] = resetPipe };
+    }
+
+    var pageParams = new JObject
+    {
+        ["table"] = tableName,
+        ["tableName"] = tableName,
+        ["keyField"] = keyField,
+        ["project"] = project
+    };
+}
+<div id="@rootId" class="flw-root" data-dyn-layout="filter-list-open-window"
+     data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)"
+     data-dyn-page-spec="@DynPageViewHelper.SafeJson(spec)">
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = Model.Name, ["Code"] = "filter-list-open-window", ["TableName"] = tableName,
+        ["ShowBack"] = true, ["ShowDesign"] = showDesignEntry, ["PageId"] = Model.Id.ToString()
+    })
+
+    @if (masterPartial == null || (filterSlot != null && filterPartial == null))
+    {
+        <div class="flw-fatal">
+            壳槽位引用了未登记的 Block：filter=@(filterBlock ?? "(无)")，master=@masterBlock
+        </div>
+    }
+    else
+    {
+        if (filterSlot != null)
+        {
+            <div class="flw-card" data-layout-slot="filter">
+                @await Html.PartialAsync(filterPartial, new ViewDataDictionary(ViewData) {
+                    ["ExtId"] = filterId,
+                    ["BlkConfig"] = DynPageViewHelper.SafeJson(filterCfg),
+                    ["ExtSlots"] = extSlots
+                })
+            </div>
+        }
+        <div class="flw-card flw-card--main" data-layout-slot="master">
+            @await Html.PartialAsync(masterPartial, new ViewDataDictionary(ViewData) {
+                ["ExtId"] = masterId,
+                ["BlkConfig"] = DynPageViewHelper.SafeJson(listCfg),
+                ["ExtSlots"] = extSlots
+            })
+        </div>
+    }
+</div>
+
+<style>
+    .flw-root { min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column;
+        background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .flw-card { background: #fff; margin: 14px 20px 0; padding: 12px 16px; border-radius: 8px;
+        border: 1px solid #e4e7ed; }
+    .flw-card--main { flex: 1; margin-bottom: 20px; }
+    .flw-fatal { margin: 24px; padding: 16px; color: #c45656; background: #fef0f0;
+        border: 1px solid #fde2e2; border-radius: 6px; }
+</style>
+
+@section Scripts {
+    @* 只引 Block 公共层（其依赖链自动带 dyn-core/dyn-action 等）；不引布局引擎。 *@
+    <script src="~/dyn/blocks/dyn-blocks-common.js" asp-append-version="true"></script>
+    <script>
+        // 壳唯一的页面脚本：把容器内 BlockApp 挂上去。关系由各按钮 dyn-click 声明，无需额外 JS。
+        DynLib.ready(function () {
+            var root = document.getElementById('@rootId');
+            if (!root) return;
+            var apps = root.querySelectorAll('[data-dyn-mode="createApp"]');
+            Promise.all([].map.call(apps, function (el) { return window.dyn.mount(el); }))
+                .then(function () {
+                    // 无引擎壳：壳自己完成"就绪握手"（等价引擎绑完 wires 后逐块 h.ready()）。
+                    // 本壳不做 filter→list 接线：Filter ready 时无人订阅（无害）；
+                    // List ready 时 _driven=false，执行 onReady 兜底空查完成首屏加载。
+                    // 之后的条件查询/重置/弹窗刷新全部由按钮上的 dyn-click 声明式管道驱动。
+                    [].forEach.call(apps, function (el) {
+                        var h = el.__dynBlock;
+                        if (h && typeof h.ready === 'function') h.ready();
+                    });
+                })
+                .catch(function (e) { console.error('[filter-list-open-window] Block 挂载失败', e); });
+        });
+    </script>
+}

@@ -22,7 +22,12 @@
 }
 <div id="@extId" data-dyn-mode="createApp" data-blk-role="list" class="dyn-blk-list" data-blk-config="@blkConfig">
     <div class="dyn-blk-list__toolbar">
-        <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">
+        @* 声明式覆写：cfg.actions.add 存在时走 dyn-click（如 open 明细片段弹窗，onclose 自刷新）；
+           缺省保持 @@click emit('add')（引擎壳/老页面）。 *@
+        <button v-if="!(actions && actions.add)" type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">
+            <el-icon style="margin-right:4px"><Plus /></el-icon>新增
+        </button>
+        <button v-else type="button" class="el-button el-button--primary el-button--small" :dyn-click="actions.add">
             <el-icon style="margin-right:4px"><Plus /></el-icon>新增
         </button>
         @(extSlots?.Render("list:toolbar"))
@@ -41,7 +46,12 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
-                <button type="button" class="el-button el-button--primary el-button--small el-button--plain" data-permission-op="edit" @@click="onEdit(scope.row)">
+                <button v-if="!(actions && actions.edit)" type="button" class="el-button el-button--primary el-button--small el-button--plain" data-permission-op="edit" @@click="onEdit(scope.row)">
+                    <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
+                </button>
+                @* 声明式编辑：行主键经 data-id 进入动作 params，管道 url 用 {{id}} 占位（open 明细片段） *@
+                <button v-else type="button" class="el-button el-button--primary el-button--small el-button--plain" data-permission-op="edit"
+                        :dyn-click="actions.edit" :data-id="scope.row[keyField]">
                     <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
                 </button>
                 <button type="button" class="el-button el-button--danger el-button--small el-button--plain" data-permission-op="delete" @@click="onDelete(scope.row)">
@@ -72,6 +82,8 @@
         data: function () {
             return {
                 columns: __cfg.columns || [],
+                // 声明式按钮覆写（布局壳编排）：{add:'管道', edit:'管道'}；缺省走 emit 事件
+                actions: __cfg.actions || {},
                 keyField: __pv('keyField', 'Id'),
                 table: __pv('table', ''),
                 // URL 是基础设施：默认统一端点，数据域由 project 决定；cfg 显式 URL 仅旧配置兼容
