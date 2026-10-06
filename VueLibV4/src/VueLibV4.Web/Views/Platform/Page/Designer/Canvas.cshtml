@@ -38,7 +38,7 @@
     <div v-if="model.overlay.uid && designMode"
          class="absolute border-2 border-blue-400 pointer-events-none z-30"
          :style="{ top: model.overlay.top + 'px', left: model.overlay.left + 'px', width: model.overlay.width + 'px', height: model.overlay.height + 'px' }">
-      <div class="absolute -top-7 left-0 bg-blue-500 text-white text-xs px-2 py-0.5 flex items-center gap-1 pointer-events-auto rounded" @@click.stop>
+      <div class="absolute -top-7 left-0 bg-blue-500 text-white text-xs px-2 py-0.5 flex items-center gap-1 pointer-events-auto rounded whitespace-nowrap" @@click.stop>
         <span class="mr-1">{{ model.overlay.label }}</span>
         @* ===== 组件专属操作（ComponentMeta.DesignerOperates，command/view）===== *@
         <button v-for="op in customOperates" :key="op.operateKey"
