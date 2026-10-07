@@ -67,6 +67,7 @@ if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"../lib/axios.min.js",name:"
 // 注意：真正的初始化顺序由 DynKernel 按阶段（core→components→params→services→actions→blocks→layout→designer→debug）决定，与此数组顺序解耦
 const DYN_MODULES = [
   "dyn-kernel.js",
+  "dyn-eventbus.js",
   "dyn-load-com.js",
   "dyn-com.js",
   "dyn-core.js",

@@ -1,0 +1,41 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
+@{
+    // =====================================================================================
+    // DetailModalV2 —— Detail 弹窗片段（DynEventBus 版）
+    // 被 FilterListOpenWindow 通过 fetchPartial 拉取，注入 layer。
+    // 入参 query：rowId, execId, project
+    // =====================================================================================
+    Layout = null;
+    var rowId = Context.Request.Query["rowId"].ToString();
+    var execId = Context.Request.Query["execId"].ToString();
+    var project = Context.Request.Query["project"].ToString();
+
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    var tableName = ps["TableName"]?.ToString() ?? "";
+    var keyField = ps["KeyField"]?.ToString() ?? "Id";
+    var detailPsId = DynPageViewHelper.SlotSettingId(ps, "detail", "DetailPageSettingId");
+    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.SaveUrl);
+    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.SaveUrl);
+    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
+
+    var extIdDetail = "dbv2-" + Guid.NewGuid().ToString("N");
+}
+<div class="tsb-modal" style="padding:4px 2px;">
+    @await Html.PartialAsync("~/Views/DynBlocks/AppsV2/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
+        ["ExtId"] = extIdDetail,
+        ["ExecId"] = execId,
+        ["DetailSettingId"] = detailPsId,
+        ["TableName"] = tableName,
+        ["KeyField"] = keyField,
+        ["Project"] = project,
+        ["RowId"] = rowId,
+        ["AddUrl"] = addUrl,
+        ["EditUrl"] = editUrl,
+        ["DeleteUrl"] = deleteUrl
+    })
+</div>

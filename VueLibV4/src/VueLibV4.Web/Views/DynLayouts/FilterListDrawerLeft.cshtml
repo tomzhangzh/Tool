@@ -1,0 +1,308 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
+@{
+    // =====================================================================================
+    // 布局壳：filter-list-drawer-left（顶筛选 + 列表占满 + 明细左侧抽屉）—— el-drawer 版
+    //
+    // 与 filter-list-open-window 的区别：
+    //   明细不是 layui layer 居中弹窗，而是 Element Plus 的 el-drawer 从左侧滑出
+    //   UI 风格与平台 Element Plus 统一
+    //
+    // 页面规格（DynWebPage.SpecJson；空值回退 ParamsJson）：
+    //   { layout:"filter-list-drawer-left",
+    //     provide:{table,keyField,project?},
+    //     layoutProps:{ drawerWidth?:"40%" },  // 抽屉宽度，默认 40%
+    //     slots:{
+    //       filter:{block:"filter", settingId:49},          // 可整节省略
+    //       master:{block:"list",   settingId:50},
+    //       detail:{settingId:51, title?, width?} } }
+    // =====================================================================================
+    Layout = "_Layout";
+
+    var spec = DynPageViewHelper.ParseShellSpec(Model);
+    var provide = spec["provide"] as JObject ?? new JObject();
+    string Prov(string key, string dft = "")
+    {
+        var v = provide[key];
+        if (v == null || v.Type == JTokenType.Null) return dft;
+        var s = v.ToString();
+        return string.IsNullOrEmpty(s) ? dft : s;
+    }
+
+    var tableName = Prov("table");
+    var keyField = Prov("keyField", "Id");
+    var project = Prov("project", Model.ProjectId?.ToString() ?? "");
+
+    var slots = spec["slots"] as JObject ?? new JObject();
+    var filterSlot = slots["filter"] as JObject;
+    var masterSlot = slots["master"] as JObject ?? new JObject();
+    var detailSlot = slots["detail"] as JObject ?? new JObject();
+
+    var filterBlock = filterSlot?["block"]?.ToString()?.Trim().ToLowerInvariant();
+    var masterBlock = string.IsNullOrWhiteSpace(masterSlot["block"]?.ToString()) ? "list" : masterSlot["block"]!.ToString().Trim().ToLowerInvariant();
+    var filterPartial = string.IsNullOrEmpty(filterBlock) ? null : DynPageViewHelper.BlockAppPath(filterBlock);
+    var masterPartial = DynPageViewHelper.BlockAppPath(masterBlock);
+
+    int? SlotSettingId(JObject slot) =>
+        int.TryParse(slot?["settingId"]?.ToString(), out var i) ? i : null;
+
+    var extSlots = await Html.LoadPageExtAsync(Model);
+    var extId = "Fld" + Guid.NewGuid().ToString("N");
+    var rootId = extId + "-root";
+    var filterId = extId + "-filter";
+    var masterId = extId + "-master";
+    var drawerId = extId + "-drawer";
+    var drawerBodyId = extId + "-drawer-body";
+    var showDesignEntry = Convert.ToBoolean(ViewData["ShowDesignEntry"] ?? false);
+
+    // —— 明细抽屉配置 ——
+    var detailSettingId = SlotSettingId(detailSlot);
+    var drawerTitle = detailSlot["title"]?.ToString() ?? "明细";
+    var lp = spec["layoutProps"] as JObject;
+    var drawerWidth = detailSlot["width"]?.ToString()
+        ?? lp?["drawerWidth"]?.ToString()
+        ?? "40%";
+    if (!drawerWidth.EndsWith("%") && !drawerWidth.EndsWith("px")) drawerWidth += "%";
+
+    // 明细片段 URL
+    string detailUrl = null;
+    if (detailSettingId != null)
+    {
+        detailUrl = $"/Platform/Page/DynDetail?settingId={detailSettingId}&table={Uri.EscapeDataString(tableName)}&project={Uri.EscapeDataString(project)}";
+    }
+
+    // —— list 槽 Block 配置：数据域坐标 + PageSetting 列（不配 add/edit 动作，由壳层监听事件打开 el-drawer）——
+    var listCfg = new JObject();
+    DynPageViewHelper.ApplyListSetting(listCfg, PageSettingService, SlotSettingId(masterSlot), "columns");
+    listCfg["table"] = tableName;
+    listCfg["keyField"] = keyField;
+    listCfg["project"] = project;
+
+    // —— filter 槽 Block 配置：PageSetting UI + 默认值 + 查询/重置动作管道 ——
+    JObject filterCfg = null;
+    if (filterSlot != null)
+    {
+        filterCfg = new JObject();
+        DynPageViewHelper.ApplyFrontSetting(filterCfg, PageSettingService, SlotSettingId(filterSlot),
+            "filterConfig", "filterDefault");
+        filterCfg["project"] = project;
+        var mSel = "#" + masterId;
+        var fSel = "#" + filterId;
+        var searchPipe = "setVueModel({\"target\":\"" + mSel + "\",\"path\":\"model.filter\",\"fromMethod\":\"buildSubmit\"})"
+                       + "|reload(\"" + mSel + "\")";
+        var resetPipe = "setVueModel({\"target\":\"" + fSel + "\",\"path\":\"filterModel\",\"from\":\"" + fSel + "\",\"fromPath\":\"initModel\",\"clone\":true})"
+                      + "|setVueModel({\"target\":\"" + mSel + "\",\"path\":\"model.filter\",\"from\":\"" + fSel + "\",\"fromMethod\":\"buildSubmit\"})"
+                      + "|reload(\"" + mSel + "\")";
+        filterCfg["actions"] = new JObject { ["search"] = searchPipe, ["reset"] = resetPipe };
+    }
+
+    var pageParams = new JObject
+    {
+        ["table"] = tableName,
+        ["tableName"] = tableName,
+        ["keyField"] = keyField,
+        ["project"] = project
+    };
+}
+<div id="@rootId" class="fld-root" data-dyn-layout="filter-list-drawer-left"
+     data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)"
+     data-dyn-page-spec="@DynPageViewHelper.SafeJson(spec)">
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = Model.Name, ["Code"] = "filter-list-drawer-left", ["TableName"] = tableName,
+        ["ShowBack"] = true, ["ShowDesign"] = showDesignEntry, ["PageId"] = Model.Id.ToString()
+    })
+
+    @if (masterPartial == null || (filterSlot != null && filterPartial == null))
+    {
+        <div class="fld-fatal">
+            壳槽位引用了未登记的 Block：filter=@(filterBlock ?? "(无)")，master=@masterBlock
+        </div>
+    }
+    else
+    {
+        if (filterSlot != null)
+        {
+            <div class="fld-card" data-layout-slot="filter">
+                @await Html.PartialAsync(filterPartial, new ViewDataDictionary(ViewData) {
+                    ["ExtId"] = filterId,
+                    ["BlkConfig"] = DynPageViewHelper.SafeJson(filterCfg),
+                    ["ExtSlots"] = extSlots
+                })
+            </div>
+        }
+        <div class="fld-card fld-card--main" data-layout-slot="master">
+            @await Html.PartialAsync(masterPartial, new ViewDataDictionary(ViewData) {
+                ["ExtId"] = masterId,
+                ["BlkConfig"] = DynPageViewHelper.SafeJson(listCfg),
+                ["ExtSlots"] = extSlots
+            })
+        </div>
+    }
+
+    @* 明细抽屉挂载点 *@
+    <div id="@drawerId" dyn-init="CreateApp" data-dyn-mode-model="@(new{visible=true, drawerTitle=drawerTitle}.ToJson())"  data-dyn-app-name="FilterDrawer">
+        <el-drawer ref="drawer" :title="model.drawerTitle" direction="ltr" size="@drawerWidth" :visible.sync="model.visible" :append-to-body="false" v-on:closed="onClosed">
+            <div ref="body" class="fld-drawer-body"></div>
+        </el-drawer>
+        <div class="box">
+            <div class="top">
+                <el-tooltip class="item" effect="dark" content="Top Left 提示文字" placement="top-start">
+                    <el-button>上左</el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Top Center 提示文字" placement="top">
+                    <el-button>上边</el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Top Right 提示文字" placement="top-end">
+                    <el-button>上右</el-button>
+                </el-tooltip>
+            </div>
+            <div class="left">
+                <el-tooltip class="item" effect="dark" content="Left Top 提示文字" placement="left-start">
+                    <el-button>左上</el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Left Center 提示文字" placement="left">
+                    <el-button>左边</el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Left Bottom 提示文字" placement="left-end">
+                    <el-button>左下</el-button>
+                </el-tooltip>
+            </div>
+
+            <div class="right">
+                <el-tooltip class="item" effect="dark" content="Right Top 提示文字" placement="right-start">
+                    <el-button>右上</el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Right Center 提示文字" placement="right">
+                    <el-button>右边</el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Right Bottom 提示文字" placement="right-end">
+                    <el-button>右下</el-button>
+                </el-tooltip>
+            </div>
+            <div class="bottom">
+                <el-tooltip class="item" effect="dark" content="Bottom Left 提示文字" placement="bottom-start">
+                    <el-button>下左</el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Bottom Center 提示文字" placement="bottom">
+                    <el-button>下边</el-button>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="Bottom Right 提示文字" placement="bottom-end">
+                    <el-button>下右</el-button>
+                </el-tooltip>
+            </div>
+        </div>
+        {{model}}我来啦!{{model.visible}}
+        <el-drawer title="我是标题1111"
+                   v-model= "model.visible" :with-header="false">
+            <span>{{model}}我来啦!{{model.visible}}</span>
+        </el-drawer>
+        <script>
+            dynconfig = {
+               
+                methods: {
+                    onClosed: function () {
+                        // 抽屉关闭后刷新列表
+                        var listEl = document.getElementById('@masterId');
+                        if (listEl && listEl.__dynBlock) {
+                            listEl.__dynBlock.send('reload').catch(function () { });
+                        }
+                    }
+                }
+            };
+        </script>
+    </div>
+    
+</div>
+
+<style>
+    .fld-root { min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column;
+        background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .fld-card { background: #fff; margin: 14px 20px 0; padding: 12px 16px; border-radius: 8px;
+        border: 1px solid #e4e7ed; }
+    .fld-card--main { flex: 1; margin-bottom: 20px; }
+    .fld-fatal { margin: 24px; padding: 16px; color: #c45656; background: #fef0f0;
+        border: 1px solid #fde2e2; border-radius: 6px; }
+    .fld-drawer-body { padding: 0 20px 20px; min-height: 200px; }
+</style>
+
+@section Scripts {
+    <script src="~/dyn/blocks/dyn-blocks-common.js" asp-append-version="true"></script>
+    <script>
+        DynLib.ready(function () {
+            var root = document.getElementById('@rootId');
+            if (!root) return;
+
+            var drawerEl = document.getElementById('@drawerId');
+            var listHandle = null;
+            var drawerVm = null;
+
+            // —— 挂载所有 Block（包括抽屉）——
+            var apps = root.querySelectorAll('[data-dyn-mode="createApp"]');
+            Promise.all([].map.call(apps, function (el) { return window.dyn.mount(el); }))
+                .then(function () {
+                    [].forEach.call(apps, function (el) {
+                        var h = el.__dynBlock;
+                        if (h && typeof h.ready === 'function') h.ready();
+                    });
+
+                    // 找到抽屉 Vue 实例
+                    drawerVm = dynCore.getProxy(drawerEl);
+                    console.log('drawerVm:', drawerVm);
+
+                    // 找到 list 句柄，监听 add/edit 事件
+                    listHandle = document.getElementById('@masterId').__dynBlock;
+                    if (listHandle) {
+                        listHandle.on('add', function () {
+                            openDrawer('新增', '@detailUrl');
+                        });
+                        listHandle.on('edit', function (p) {
+                            var rowId = p && p.row ? p.row['@keyField'] : null;
+                            openDrawer('编辑', '@detailUrl&bizId=' + rowId);
+                        });
+                    }
+                })
+                .catch(function (e) { console.error('[filter-list-drawer-left] Block 挂载失败', e); });
+
+            function openDrawer(title, url) {
+                debugger;
+                if (!drawerVm) return;
+                drawerVm.drawerTitle = title;
+                drawerVm.visible = true;
+                // el-drawer 是懒渲染的，设置 visible=true 后需要等 Vue 渲染完 slot 内容
+                setTimeout(function () {
+                    // 用 DOM 查询找到内容容器（proxy 里没有 $refs）
+                    var bodyEl = drawerEl.querySelector('.fld-drawer-body');
+                    if (!bodyEl) {
+                        console.error('[FilterListDrawerLeft] 找不到 drawer body 容器');
+                        return;
+                    }
+                    // 清空内容，显示加载中
+                    bodyEl.innerHTML = '<div style="padding:40px;text-align:center;color:#909399;">加载中...</div>';
+                    // 加载明细片段
+                    window.dyn.fetchPartial(url, {}, 'GET').then(function (html) {
+                        window.dyn.html(bodyEl, html, false);
+                        var subApps = bodyEl.querySelectorAll('[data-dyn-mode="createApp"]');
+                        var chain = window.Promise.resolve();
+                        [].forEach.call(subApps, function (ae) {
+                            chain = chain.then(function () { return window.dyn.mount(ae); });
+                        });
+                        chain.then(function () {
+                            var blocks = DynBlocks.scan(bodyEl);
+                            var detail = blocks.detail;
+                            if (detail) {
+                                detail.on('cancel', function () { drawerVm.visible = false; });
+                                detail.on('saved', function () { drawerVm.visible = false; });
+                            }
+                        }).catch(function (e) { console.error('[FilterListDrawerLeft] 抽屉挂载失败', e); });
+                    }).catch(function (e) {
+                        bodyEl.innerHTML = '<div style="padding:20px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+                    });
+                }, 300);
+            }
+        });
+    </script>
+}

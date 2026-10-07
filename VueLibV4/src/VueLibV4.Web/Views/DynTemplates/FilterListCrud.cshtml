@@ -223,6 +223,8 @@
                 list.on('addChild', function (p) {
                     openDetailModal(null, childPreFill(p && p.row));
                 });
+                // wire 接好后手动触发一次查询，确保首屏加载（Filter.onReady emit 的 changed 在 wire 接好前丢了）
+                filter.send('submit').catch(function () { });
                 console.log('[FilterListCrud] 就绪（独立 BlockApp + 句柄接线）');
             });
         });

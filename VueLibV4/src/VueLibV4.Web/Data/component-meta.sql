@@ -24,7 +24,7 @@ VALUES
  '{"component":"DynElPassword","modelname":"","options":{"comoptions":{"placeholder":"请输入密码"},"comlisteners":{},"labeloptions":{"label":"密码框","required":false,"show":true},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),
 
 ('DynElSelect','下拉选择','表单','ElementUI','/api/component/define/DynElSelect','/Areas/Component/Views/ElementUI/DynElSelect.cshtml','📋',0,'[]','["DynElFormItem"]','["default"]','[]',
- '{"component":"DynElSelect","modelname":"","options":{"comoptions":{"placeholder":"请选择","clearable":true,"filterable":false,"multiple":false,"optionValues":[]},"comlisteners":{},"labeloptions":{"label":"下拉选择","required":false,"show":true},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),
+ '{"component":"DynElSelect","modelname":"","options":{"comoptions":{"placeholder":"请选择","clearable":true,"filterable":false,"allowCreate":false,"multiple":false,"optionValues":[]},"comlisteners":{},"labeloptions":{"label":"下拉选择","required":false,"show":true},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),
 
 ('DynElRadioGroup','单选框组','表单','ElementUI','/api/component/define/DynElRadioGroup','/Areas/Component/Views/ElementUI/DynElRadioGroup.cshtml','🔘',0,'[]','["DynElFormItem"]','["default"]','[]',
  '{"component":"DynElRadioGroup","modelname":"","options":{"comoptions":{},"comlisteners":{},"labeloptions":{"label":"单选框组","required":false,"show":true},"itemoptions":{"style":{},"class":""}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}',1),

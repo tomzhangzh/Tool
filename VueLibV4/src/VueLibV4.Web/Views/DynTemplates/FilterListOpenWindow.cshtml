@@ -1,0 +1,168 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
+@{
+    // =====================================================================================
+    // FilterListOpenWindow —— V2 模板：筛选 + 列表 + 弹窗编辑（DynEventBus 版）
+    //
+    // 架构：
+    //   根元素 registerRoot → 拿到 execId，所有 Block 之间通过 DynEventBus 通信。
+    //   Filter 发 filter.query → List 监听加载数据。
+    //   List 点 add/edit → 模板打开 Detail 弹窗（layer）。
+    //   Detail 保存成功发 refresh → List 自刷。
+    //
+    // ParamsJson 结构：
+    //   {
+    //     "TableName": "SysMenu",
+    //     "KeyField": "Id",
+    //     "Project": "__platform__",
+    //     "ModalPageId": 99,
+    //     "DrawerMode": false,
+    //     "DrawerWidth": "55%",
+    //     "filter": { "settingId": 5 },
+    //     "list":   { "settingId": 6, "loadUrl": "", "deleteUrl": "" }
+    //   }
+    // =====================================================================================
+    Layout = Context.Request.Headers.TryGetValue("X-Requested-With", out var __xrw)
+                && __xrw == "XMLHttpRequest" ? "_AjaxLayout" : "_Layout";
+    ViewData["Title"] = Model.Name + " - VueLibV4";
+
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    var tableName = ps["TableName"]?.ToString() ?? "";
+    var keyField = ps["KeyField"]?.ToString() ?? "Id";
+    var project = ps["Project"]?.ToString() ?? Model.ProjectId?.ToString() ?? "";
+    var modalPageId = ps["ModalPageId"]?.ToString() ?? "";
+    var drawerMode = ps["DrawerMode"]?.ToString() == "true" || ps["DrawerMode"]?.ToString() == "1";
+    var drawerWidth = ps["DrawerWidth"]?.ToString() ?? "55%";
+    var filterPsId = DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId");
+    var listPsId = DynPageViewHelper.SlotSettingId(ps, "list", "ListPageSettingId");
+    var loadUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "loadUrl", "ListUrl"), DynPageViewHelper.SearchUrl);
+    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
+
+    // 根 execId：Template 级事件总线
+    var execId = "T2-" + Guid.NewGuid().ToString("N");
+    var extIdFilter = "f2-" + Guid.NewGuid().ToString("N");
+    var extIdList = "l2-" + Guid.NewGuid().ToString("N");
+    var title = Model.Name;
+
+    var extSlots = await Html.LoadPageExtAsync(Model);
+}
+<div id="@execId" class="flw-root">
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
+    })
+
+    <div class="flw-card">
+        <div class="flw-section-title"><span>筛选查询</span></div>
+        @await Html.PartialAsync("~/Views/DynBlocks/AppsV2/FilterApp.cshtml", new ViewDataDictionary(ViewData) {
+            ["ExtId"] = extIdFilter,
+            ["ExecId"] = execId,
+        ["FilterPageSettingId"] = filterPsId
+        })
+    </div>
+
+    <div class="flw-card">
+        <div class="flw-section-title"><span>数据列表</span></div>
+        @await Html.PartialAsync("~/Views/DynBlocks/AppsV2/ListApp.cshtml", new ViewDataDictionary(ViewData) {
+            ["ExtId"] = extIdList,
+            ["ExecId"] = execId,
+            ["ListSettingId"] = listPsId,
+            ["TableName"] = tableName,
+            ["KeyField"] = keyField,
+            ["Project"] = project,
+            ["LoadUrl"] = loadUrl,
+            ["DeleteUrl"] = deleteUrl
+        })
+    </div>
+</div>
+
+<style>
+    .flw-root { min-height: 100vh; box-sizing: border-box; padding: 0 0 20px;
+        background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .flw-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
+    .flw-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #303133; }
+    .flw-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #409eff; border-radius: 2px; margin-right: 8px; }
+</style>
+
+@section Scripts {
+    <script src="~/dyn/blocks/dyn-blocks-common.js" asp-append-version="true"></script>
+    <script>
+    DynLib.ready(function () {
+        var ROOT_ID = '@execId';
+        var MODAL_PAGE_ID = '@modalPageId';
+        var PROJECT = '@project';
+        var KEY_FIELD = '@keyField';
+        var DRAWER_MODE = @(drawerMode ? "true" : "false");
+        var DRAWER_WIDTH = '@drawerWidth';
+
+        // 1. 注册根事件总线
+        var rootEl = document.getElementById(ROOT_ID);
+        window.DynEventBus.registerRoot(rootEl);
+
+        // 2. 打开 Detail 弹窗：拉片段 → layer → 挂载 DetailAppV2
+        function openDetailWindow(rowId) {
+            if (!MODAL_PAGE_ID) { dyn.showMessage('未配置 ModalPageId', 'warning'); return; }
+            var q = '/Platform/Page/DetailModalV2?id=' + MODAL_PAGE_ID +
+                '&rowId=' + (rowId || '') +
+                '&execId=' + ROOT_ID +
+                '&project=' + encodeURIComponent(PROJECT || '');
+
+            var holder = document.createElement('div');
+            holder.className = 'dyn-modal-host dyn-layer-fragment';
+            holder.style.padding = '0px';
+            holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
+            document.body.appendChild(holder);
+
+            window.dyn.getLayer().then(function (layer) {
+                var layerOpts = {
+                    type: 1,
+                    title: rowId ? ('编辑记录 #' + rowId) : '新增记录',
+                    shadeClose: false,
+                    content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
+                    success: function () {
+                        window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
+                            window.dyn.html(holder, html, false);
+                            var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
+                            var chain = window.Promise.resolve();
+                            [].forEach.call(apps, function (ae) {
+                                chain = chain.then(function () { return window.dyn.mount(ae); });
+                            });
+                            chain.catch(function (e) { console.error('[FilterListOpenWindow] 弹窗挂载失败', e); });
+                        }).catch(function (e) {
+                            holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+                        });
+                    },
+                    end: function () {
+                        var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
+                        [].forEach.call(apps, function (ae) { try { window.dyn.unmount(ae); } catch (e) { } });
+                        try { holder.remove(); } catch (e) { }
+                    }
+                };
+                if (DRAWER_MODE) {
+                    layerOpts.area = [DRAWER_WIDTH, '100%'];
+                    layerOpts.offset = 'r';
+                } else {
+                    layerOpts.area = ['60%', '80%'];
+                    layerOpts.maxmin = true;
+                }
+                layer.open(layerOpts);
+            });
+        }
+
+        // 3. 监听 List 的 add/edit 事件 → 打开弹窗
+        window.DynEventBus.on(ROOT_ID, 'add', function () {
+            openDetailWindow(null);
+        });
+        window.DynEventBus.on(ROOT_ID, 'edit', function (p) {
+            var row = p && p.row;
+            var rowId = row ? row[KEY_FIELD] : null;
+            openDetailWindow(rowId);
+        });
+
+        console.log('[FilterListOpenWindow] V2 就绪, execId=' + ROOT_ID);
+    });
+    </script>
+}

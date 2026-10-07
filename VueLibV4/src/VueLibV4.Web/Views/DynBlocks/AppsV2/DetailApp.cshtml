@@ -1,0 +1,211 @@
+@inject IPageSettingService pageSettingService
+@{
+    // =====================================================================================
+    // DetailAppV2 —— 明细表单 Block（DynEventBus 版，服务端渲染配置）
+    //
+    // ViewData 入参：
+    //   ExtId          元素 ID
+    //   ExecId         Template 根事件总线 ID
+    //   DetailSettingId  PageSetting ID（ConfigJson=表单UI树, DefaultJson=表单骨架）
+    //   TableName      业务表名
+    //   KeyField       主键字段（默认 Id）
+    //   Project        数据域
+    //   RowId          编辑态主键（可空）
+    //   AddUrl / EditUrl / DeleteUrl  接口（可选）
+    //
+    // 事件：
+    //   on:    newForm   payload={preFill:{...}}  新增态
+    //          editForm  payload={row:{...}}      编辑态回填
+    //   emit:  saved     payload={action, row}
+    //          refresh   payload 可空              通知列表刷新
+    //          cancel
+    // =====================================================================================
+    var extId = (ViewData["ExtId"] as string) ?? ("db2" + Guid.NewGuid().ToString("N"));
+    var execId = (ViewData["ExecId"] as string) ?? "";
+    var detailPsId = (ViewData["DetailSettingId"] as int?) ?? 0;
+    var tableName = (ViewData["TableName"] as string) ?? "";
+    var keyField = (ViewData["KeyField"] as string) ?? "Id";
+    var project = (ViewData["Project"] as string) ?? "";
+    var rowId = (ViewData["RowId"] as string) ?? "";
+    var addUrl = (ViewData["AddUrl"] as string) ?? "";
+    var editUrl = (ViewData["EditUrl"] as string) ?? "";
+    var deleteUrl = (ViewData["DeleteUrl"] as string) ?? "";
+
+    var detailSetting = detailPsId > 0 ? pageSettingService.GetById(detailPsId) : null;
+    if (detailSetting == null) { detailSetting = null; }
+}
+<div id="@extId" dyn-init="createApp" class="dyn-blk-detail">
+    <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
+    <div class="dyn-blk-detail__body">
+        <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+    </div>
+    <div class="dyn-blk-detail__btns">
+        <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" @@click="onSave()">
+            <el-icon><Check /></el-icon> 保存
+        </button>
+        <button type="button" class="el-button el-button--danger el-button--small" :disabled="loading || !canDelete" @@click="onDelete()">
+            <el-icon><Delete /></el-icon> 删除
+        </button>
+        <button type="button" class="el-button el-button--small" @@click="onCancel()">
+            <el-icon><Close /></el-icon> 取消
+        </button>
+    </div>
+    <script type="text/plain" tag="dynconfig">
+    var __execId = '@execId';
+    var __detailCfg = @Html.Raw(detailSetting?.ConfigJson ?? "null");
+    var __defaultJson = @Html.Raw(detailSetting?.DefaultJson ?? "{}");
+    var __table = '@tableName';
+    var __keyField = '@keyField';
+    var __project = '@project';
+    var __rowId = '@rowId';
+    var __addUrl = '@(string.IsNullOrEmpty(addUrl) ? DynPageViewHelper.SaveUrl : addUrl)';
+    var __editUrl = '@(string.IsNullOrEmpty(editUrl) ? DynPageViewHelper.SaveUrl : editUrl)';
+    var __deleteUrl = '@(string.IsNullOrEmpty(deleteUrl) ? DynPageViewHelper.DeleteUrl : deleteUrl)';
+    var __newFormHandler = null, __editFormHandler = null;
+
+    var dynConfig = {
+        data: function () {
+            return {
+                detailCfg: __detailCfg,
+                form: JSON.parse(JSON.stringify(__defaultJson)),
+                formError: '',
+                loading: false,
+                table: __table,
+                addUrl: __addUrl,
+                editUrl: __editUrl,
+                deleteUrl: __deleteUrl,
+                keyField: __keyField,
+                project: __project,
+                initForm: __defaultJson
+            };
+        },
+        computed: {
+            canDelete: function () {
+                var id = this.form[this.keyField];
+                return id !== null && id !== undefined && id !== '' && id !== 0;
+            }
+        },
+        methods: {
+            validateForm: function () {
+                var errs = [];
+                var nodes = element.querySelectorAll('*');
+                for (var i = 0; i < nodes.length; i++) {
+                    var n = nodes[i];
+                    if (typeof n.__dynValidate === 'function') {
+                        try {
+                            if (n.__dynValidate() !== true) {
+                                var msg = null;
+                                if (n.__dynErrors && n.__dynErrors.length) {
+                                    msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
+                                }
+                                if (!msg) msg = '存在未通过校验的字段';
+                                if (errs.indexOf(msg) < 0) errs.push(msg);
+                            }
+                        } catch (e) { console.warn('[detail validate]', e); }
+                    }
+                }
+                return errs;
+            },
+            newForm: function (preFill) {
+                this.form = Object.assign({}, JSON.parse(JSON.stringify(this.initForm)), preFill || {});
+                this.formError = '';
+            },
+            editForm: function (row) {
+                this.form = Object.assign({}, JSON.parse(JSON.stringify(this.initForm)), row || {});
+                this.formError = '';
+            },
+            onSave: function () {
+                var self = this;
+                var errs = this.validateForm();
+                if (errs.length) {
+                    this.formError = errs.join('；');
+                    dyn.showMessage(errs.join('；'), 'warning');
+                    return;
+                }
+                this.loading = true;
+                var kf = this.keyField;
+                var isEdit = this.form[kf] !== null && this.form[kf] !== undefined && this.form[kf] !== '';
+                var req = DynBlocks.saveRequest(isEdit ? this.editUrl : this.addUrl, this.table, this.form, this.project);
+                DynCall.post(req.url, req.body, { scopeEl: element })
+                    .then(function () {
+                        self.loading = false;
+                        self.formError = '';
+                        dyn.showMessage('保存成功', 'success');
+                        var payload = { action: isEdit ? 'edit' : 'add', row: self.form };
+                        if (window.DynEventBus && __execId) {
+                            window.DynEventBus.emit(__execId, 'saved', payload);
+                            window.DynEventBus.emit(__execId, 'refresh', null);
+                        }
+                    })
+                    .catch(function () { self.loading = false; });
+            },
+            onCancel: function () {
+                this.form = JSON.parse(JSON.stringify(this.initForm));
+                this.formError = '';
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'cancel', {});
+            },
+            onDelete: function () {
+                var self = this;
+                var kf = this.keyField;
+                var id = this.form[kf];
+                if (id === null || id === undefined || id === '' || id === 0) {
+                    dyn.showMessage('请先选择要删除的记录', 'warning'); return;
+                }
+                var doDelete = function () {
+                    self.loading = true;
+                    var req = DynBlocks.deleteRequest(self.deleteUrl, self.table, id, kf, self.project);
+                    DynCall.post(req.url, req.body, { scopeEl: element })
+                        .then(function () {
+                            self.loading = false;
+                            dyn.showMessage('删除成功', 'success');
+                            var rowKey = {}; rowKey[kf] = id;
+                            self.form = JSON.parse(JSON.stringify(self.initForm));
+                            self.formError = '';
+                            if (window.DynEventBus && __execId) {
+                                window.DynEventBus.emit(__execId, 'saved', { action: 'delete', row: rowKey });
+                                window.DynEventBus.emit(__execId, 'refresh', null);
+                            }
+                        })
+                        .catch(function () { self.loading = false; });
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该条记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else { doDelete(); }
+            }
+        },
+        mounted: function () {
+            var self = this;
+            if (!window.DynEventBus || !__execId) return;
+            __newFormHandler = function (p) { self.newForm((p && p.preFill) || {}); };
+            __editFormHandler = function (p) { self.editForm((p && p.row) || {}); };
+            window.DynEventBus.on(__execId, 'newForm', __newFormHandler);
+            window.DynEventBus.on(__execId, 'editForm', __editFormHandler);
+            // 编辑态 rowId 兜底
+            if (__rowId) {
+                var getUrl = DynBlocks.getUrl(this.table, __rowId, this.project);
+                DynCall.get(getUrl, {}, { silent: true })
+                    .then(function (row) { if (row) self.editForm(row); })
+                    .catch(function (e) { console.error('[DetailAppV2] 加载行失败', e); });
+            }
+        },
+        beforeUnmount: function () {
+            if (window.DynEventBus && __execId) {
+                if (__newFormHandler) window.DynEventBus.off(__execId, 'newForm', __newFormHandler);
+                if (__editFormHandler) window.DynEventBus.off(__execId, 'editForm', __editFormHandler);
+            }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-detail { display: flex; flex-direction: column; }
+    .dyn-blk-detail__errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
+        border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .dyn-blk-detail__body { flex: 1; }
+    .dyn-blk-detail__btns {
+        display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
+        padding: 10px 16px; border-top: 1px solid #e4e7ed; background: #fafafa;
+    }
+</style>

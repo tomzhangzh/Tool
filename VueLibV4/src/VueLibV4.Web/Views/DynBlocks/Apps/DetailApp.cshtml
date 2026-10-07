@@ -24,19 +24,28 @@
     var extSlots = ViewData["ExtSlots"] as DynExtSlots;
 }
 <div id="@extId" data-dyn-mode="createApp" data-blk-role="detail" class="dyn-blk-detail" data-blk-config="@blkConfig">
+    <div class="dyn-blk-detail__btns">
+        <button type="button" class="el-button el-button--primary el-button--small" data-permission-op="edit" :disabled="loading" @@click="onSave()">
+            <el-icon><Check /></el-icon> 保存
+        </button>
+        <button type="button" class="el-button el-button--danger el-button--small" data-permission-op="delete" :disabled="loading || !canDelete" @@click="onDelete()">
+            <el-icon><Delete /></el-icon> 删除
+        </button>
+        <button type="button" class="el-button el-button--small" @@click="onCancel()">
+            <el-icon><Close /></el-icon> 取消
+        </button>
+
+
+        @(extSlots?.Render("detail:footer"))
+    </div>
     <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
-    <div class="dyn-blk-detail__body">
+    <div class="dyn-blk-detail__body" style="padding-top:8px;">
         <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
         @* 页面扩展槽位：动态组件树之外的自定义表单区（ext 视图填 Slots["detail:body-extra"]），
            与本 Block 同一个 VueApp 编译，可直接绑 this.form / 调 app-ext 注入的方法。 *@
         @(extSlots?.Render("detail:body-extra"))
     </div>
-    <div class="dyn-blk-detail__btns">
-        <button type="button" class="el-button el-button--small" @@click="onCancel()">取消</button>
-        <button type="button" class="el-button el-button--danger el-button--small" data-permission-op="delete" :disabled="loading || !canDelete" @@click="onDelete()">删除</button>
-        <button type="button" class="el-button el-button--primary el-button--small" data-permission-op="edit" :disabled="loading" @@click="onSave()">保存</button>
-        @(extSlots?.Render("detail:footer"))
-    </div>
+   
     <script type="text/plain" tag="dynconfig">
     // ===== 自读配置（独立 app，无任何根依赖） =====
     var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
@@ -190,10 +199,28 @@
 </div>
 
 <style>
+    /* 按钮栏用 sticky 粘在底部：不管父容器多高，都固定在弹框底部 */
     .dyn-blk-detail { display: flex; flex-direction: column; }
     .dyn-blk-detail__errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
         border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
     .dyn-blk-detail__body { flex: 1; }
-    .dyn-blk-detail__btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
-        padding-top: 12px; border-top: 1px solid #e4e7ed; }
+    .dyn-blk-detail__btns { 
+        display: flex; 
+        justify-content: flex-end; 
+        gap: 8px; 
+        padding: 10px 16px;
+        border-top: 1px solid #e4e7ed;
+        border-bottom: 1px solid #e4e7ed; 
+        background: #fafafa;
+        position: sticky;
+        z-index: 10;
+        box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+    }
+    /* emoji 图标：变成纯白色，和按钮文字颜色一致 */
+    .btn-emoji {
+        margin-right: 4px;
+        /* brightness(0) 把所有颜色变黑，invert(1) 再反转变白 */
+        filter: brightness(0) invert(1);
+        opacity: 0.95;
+    }
 </style>

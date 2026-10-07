@@ -1,0 +1,206 @@
+@inject IPageSettingService pageSettingService
+@{
+    // =====================================================================================
+    // ListAppV2 —— 列表 Block（DynEventBus 版，服务端渲染配置）
+    //
+    // ViewData 入参：
+    //   ExtId        元素 ID
+    //   ExecId       Template 根事件总线 ID
+    //   ListSettingId  PageSetting ID（ConfigJson 里是 columns 数组）
+    //   TableName    业务表名
+    //   KeyField     主键字段（默认 Id）
+    //   Project      数据域
+    //   LoadUrl / DeleteUrl  接口（可选，默认统一端点）
+    //
+    // 事件：
+    //   on:    filter.query  payload={字段:{op,value}}  → 回到第1页加载
+    //          refresh       payload 可空                 → 按当前条件刷新
+    //   emit:  add / edit{row} / rowSelected{row}
+    // =====================================================================================
+    var extId = (ViewData["ExtId"] as string) ?? ("lb2" + Guid.NewGuid().ToString("N"));
+    var execId = (ViewData["ExecId"] as string) ?? "";
+    var listPsId = (ViewData["ListSettingId"] as int?) ?? 0;
+    var tableName = (ViewData["TableName"] as string) ?? "";
+    var keyField = (ViewData["KeyField"] as string) ?? "Id";
+    var project = (ViewData["Project"] as string) ?? "";
+    var loadUrl = (ViewData["LoadUrl"] as string) ?? "";
+    var deleteUrl = (ViewData["DeleteUrl"] as string) ?? "";
+
+    var listSetting = listPsId > 0 ? pageSettingService.GetById(listPsId) : null;
+    if (listSetting == null) { listSetting = null; }
+}
+<div id="@extId" dyn-init="createApp" class="dyn-blk-list">
+    <div class="dyn-blk-list__toolbar">
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">
+            <el-icon style="margin-right:4px"><Plus /></el-icon>新增
+        </button>
+    </div>
+    <el-table :data="model.rows" v-loading="model.loading" size="small" border>
+        <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label"
+            :width="col.width || undefined" :min-width="col.minWidth || undefined"
+            :align="col.align || undefined" :fixed="col.fixed || undefined"
+            :show-overflow-tooltip="col.cellType !== 'tag'">
+            <template #default="scope">
+                <el-tag v-if="col.cellType === 'tag'" :type="cellTagType(col, scope.row)" size="small" effect="light">
+                    {{ formatCell(col, scope.row) }}
+                </el-tag>
+                <span v-else>{{ formatCell(col, scope.row) }}</span>
+            </template>
+        </el-table-column>
+        <el-table-column label="操作" width="180" fixed="right">
+            <template #default="scope">
+                <button type="button" class="el-button el-button--primary el-button--small el-button--plain" @@click="onEdit(scope.row)">
+                    <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
+                </button>
+                <button type="button" class="el-button el-button--danger el-button--small el-button--plain" @@click="onDelete(scope.row)">
+                    <el-icon style="margin-right:2px"><Delete /></el-icon>删除
+                </button>
+            </template>
+        </el-table-column>
+    </el-table>
+    <div class="dyn-blk-list__page">
+        <el-pagination background layout="total, prev, pager, next, sizes"
+            :total="model.total" :current-page="model.page" :page-size="model.size"
+            :page-sizes="[10, 20, 50, 100]" @@current-change="onPage" @@size-change="onSize"></el-pagination>
+    </div>
+    <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
+    <script type="text/plain" tag="dynconfig">
+    var __execId = '@execId';
+    var __columns = @Html.Raw(listSetting?.ConfigJson ?? "[]");
+    var __table = '@tableName';
+    var __keyField = '@keyField';
+    var __project = '@project';
+    var __loadUrl = '@(string.IsNullOrEmpty(loadUrl) ? DynPageViewHelper.SearchUrl : loadUrl)';
+    var __deleteUrl = '@(string.IsNullOrEmpty(deleteUrl) ? DynPageViewHelper.DeleteUrl : deleteUrl)';
+    var __searchHandler = null, __refreshHandler = null;
+
+    var dynConfig = {
+        data: function () {
+            var cols = __columns;
+            if (cols && !Array.isArray(cols) && cols.columns) cols = cols.columns;
+            return {
+                columns: cols || [],
+                keyField: __keyField,
+                table: __table,
+                loadUrl: __loadUrl,
+                deleteUrl: __deleteUrl,
+                project: __project,
+                dictMap: {}
+            };
+        },
+        methods: {
+            loadData: function () {
+                var self = this;
+                if (!this.table || !this.loadUrl) return Promise.resolve(null);
+                this.model.loading = true;
+                return DynBlocks.search(this.loadUrl, {
+                    table: this.table, page: this.model.page, size: this.model.size,
+                    filter: this.model.filter || {}, project: this.project
+                }, element)
+                .then(function (data) {
+                    self.model.loading = false;
+                    self.model.rows = (data && data.rows) || [];
+                    self.model.total = (data && data.total) || 0;
+                })
+                .catch(function () { self.model.loading = false; });
+            },
+            onPage: function (p) { this.model.page = p; this.loadData(); },
+            onSize: function (s) { this.model.size = s; this.model.page = 1; this.loadData(); },
+            loadDicts: function () {
+                var types = [], self = this;
+                (this.columns || []).forEach(function (c) {
+                    if (c.dictType && types.indexOf(c.dictType) < 0) types.push(c.dictType);
+                });
+                types.forEach(function (t) {
+                    fetch('/api/dyncommon/dicts?type=' + encodeURIComponent(t))
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) { if (res && res.code === 0) self.dictMap[t] = res.data; })
+                        .catch(function () {});
+                });
+            },
+            cellOption: function (col, row) {
+                var v = row ? row[col.field] : null;
+                var list = col.options;
+                if ((!list || !list.length) && col.dictType) list = this.dictMap[col.dictType];
+                if (list && list.length) {
+                    for (var i = 0; i < list.length; i++) {
+                        if (String(list[i].value) === String(v)) return list[i];
+                    }
+                }
+                return null;
+            },
+            formatCell: function (col, row) {
+                var v = row ? row[col.field] : null;
+                if (v === null || v === undefined || v === '') return col.emptyText || '-';
+                var o = this.cellOption(col, row);
+                if (o && o.label !== undefined && o.label !== null) return o.label;
+                return v;
+            },
+            cellTagType: function (col, row) {
+                var v = row ? row[col.field] : null;
+                var o = this.cellOption(col, row);
+                if (o && o.type) return o.type;
+                if (col.tagType) return o.tagType;
+                return v ? 'success' : 'info';
+            },
+            onAdd: function () {
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'add', {});
+            },
+            onEdit: function (row) {
+                if (window.DynEventBus && __execId) {
+                    window.DynEventBus.emit(__execId, 'edit', { row: row });
+                    window.DynEventBus.emit(__execId, 'rowSelected', { row: row });
+                }
+            },
+            onDelete: function (row) {
+                var self = this;
+                var id = row && row[this.keyField];
+                if (id === null || id === undefined) return;
+                var doDelete = function () {
+                    var req = DynBlocks.deleteRequest(self.deleteUrl, self.table, id, self.keyField, self.project);
+                    DynCall.post(req.url, req.body, { scopeEl: element })
+                        .then(function () { dyn.showMessage('删除成功', 'success'); self.loadData(); })
+                        .catch(function () {});
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该条记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else { doDelete(); }
+            }
+        },
+        mounted: function () {
+            var self = this;
+            this.loadDicts();
+            if (!window.DynEventBus || !__execId) {
+                this.loadData();
+                return;
+            }
+            // 监听 filter.query：快照自动补发首屏
+            __searchHandler = function (payload) {
+                self.model.filter = payload || {};
+                self.model.page = 1;
+                self.loadData();
+            };
+            window.DynEventBus.on(__execId, 'filter.query', __searchHandler);
+            // 监听 refresh：Detail 保存成功后通知列表刷新
+            __refreshHandler = function () { self.loadData(); };
+            window.DynEventBus.on(__execId, 'refresh', __refreshHandler);
+            // 兜底：如果快照没有补发（Filter 还没 emit），自己先加载一次
+            this.loadData();
+        },
+        beforeUnmount: function () {
+            if (window.DynEventBus && __execId) {
+                if (__searchHandler) window.DynEventBus.off(__execId, 'filter.query', __searchHandler);
+                if (__refreshHandler) window.DynEventBus.off(__execId, 'refresh', __refreshHandler);
+            }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-list { display: flex; flex-direction: column; }
+    .dyn-blk-list__toolbar { margin-bottom: 12px; }
+    .dyn-blk-list .el-table { width: 100%; }
+    .dyn-blk-list__page { display: flex; justify-content: flex-end; margin-top: 14px; }
+</style>

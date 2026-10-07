@@ -155,6 +155,8 @@ public class PageController : Controller
             || string.Equals(template.Code, "tree-master-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "list-master-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filter-list-open-window", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "filter-list-open-windowV2", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "filter-list-drawer-leftV2", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);
@@ -177,6 +179,22 @@ public class PageController : Controller
         var template = page.TemplateId != null ? _templates.GetById(page.TemplateId.Value) : null;
         var viewPath = string.IsNullOrWhiteSpace(template?.ViewPath)
             ? "~/Views/DynTemplates/DetailModal.cshtml"
+            : template.ViewPath;
+        return View(viewPath, page);
+    }
+
+    /// <summary>Detail 弹窗片段 V2（DynEventBus 版）：供 V2 模板 fetchPartial 拉取。</summary>
+    [HttpGet("/Platform/Page/DetailModalV2")]
+    public IActionResult DetailModalV2(long id, long? rowId = null, string project = null, string execId = null)
+    {
+        var page = _webPages.GetById((int)id);
+        if (page == null) return Content("弹窗页面实例不存在：" + id);
+        ViewBag.RowId = rowId?.ToString() ?? "";
+        ViewBag.ProjectId = string.IsNullOrEmpty(project) ? (page.ProjectId?.ToString() ?? "") : project;
+        ViewBag.ExecId = execId ?? "";
+        var template = page.TemplateId != null ? _templates.GetById(page.TemplateId.Value) : null;
+        var viewPath = string.IsNullOrWhiteSpace(template?.ViewPath)
+            ? "~/Views/DynTemplates/DetailModalV2.cshtml"
             : template.ViewPath;
         return View(viewPath, page);
     }

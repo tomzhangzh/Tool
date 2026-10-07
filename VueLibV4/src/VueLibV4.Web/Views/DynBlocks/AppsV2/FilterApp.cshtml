@@ -1,0 +1,108 @@
+@inject IPageSettingService pageSettingService
+@{
+    // =====================================================================================
+    // FilterAppV2 —— 筛选 Block（DynEventBus 版）
+    //
+    // 与旧版 FilterApp 的区别：
+    //   不再依赖 DynBlocks.createBlockHandle / wire 编排。
+    //   通过 config.execId 拿到 Template 根元素上的 eventBus，直接 emit('search', payload)。
+    //   ListApp 用 on('search') 监听，快照机制自动解决时序问题。
+    //
+    // 契约：
+    //   config: { filterConfig, filterDefault, execId }
+    //   emit:  search  payload={字段:{op,value}}  （查询/重置都发这个）
+    // =====================================================================================
+    var extId = (ViewData["ExtId"] as string) ?? ("fb2" + Guid.NewGuid().ToString("N"));
+    var execId = (ViewData["ExecId"] as string) ?? "";
+    var pagsettingId = ViewData["FilterPageSettingId"] != null ? Convert.ToInt32(ViewData["FilterPageSettingId"]) : 0;
+    var pageSetting = pagsettingId > 0 ? pageSettingService.GetById(pagsettingId) : null;
+   
+}
+
+
+<div id="@extId" dyn-init="createApp">
+    <div class="dyn-blk-filter__body">
+        @if (pageSetting!=null){
+            <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
+        }
+        else{
+            <div>暂无筛选配置</div>
+        }
+    </div>
+    <div class="dyn-blk-filter__btns">
+        <button type="button" class="el-button el-button--primary el-button--small" @@click="query()">
+            <el-icon style="margin-right:4px"><Search /></el-icon>查询
+        </button>
+        <button type="button" class="el-button el-button--small" @@click="reset()">
+            <el-icon style="margin-right:4px"><Refresh /></el-icon>重置
+        </button>
+    </div>
+    <script type="text/plain" tag="dynconfig">
+    var __uiCfg = @Html.Raw(pageSetting?.ConfigJson ?? "null");
+    var __def = @Html.Raw(pageSetting?.DefaultJson ?? "{}");
+    var __execId = '@execId';
+
+    function __buildInit(fd) {
+        var opMap = {}, initModel = {};
+        Object.keys(fd || {}).forEach(function (k) {
+            var v = fd[k];
+            if (v && typeof v === 'object' && v.op) {
+                opMap[k] = v.op;
+                initModel[k] = { op: v.op, value: (v.value === undefined ? null : v.value) };
+            } else { opMap[k] = 'eq'; initModel[k] = (v === null || v === undefined) ? null : v; }
+        });
+        return { opMap: opMap, initModel: initModel };
+    }
+    var __P = (window.dyn && dyn.params) ? dyn.params(element) : null;
+    var __paramInit = (__P && __P.get('filterInit')) || {};
+    var __init = __buildInit(Object.assign({}, __def, __paramInit));
+
+    var dynConfig = {
+        data: function () {
+            return {
+                pageCfg: __uiCfg,
+                filterModel: JSON.parse(JSON.stringify(__init.initModel)),
+                opMap: __init.opMap,
+                initModel: __init.initModel
+            };
+        },
+        methods: {
+            buildSubmit: function () {
+                var f = {}, self = this;
+                Object.keys(this.filterModel).forEach(function (k) {
+                    var v = self.filterModel[k];
+                    if (v && typeof v === 'object' && !Array.isArray(v) && Object.prototype.hasOwnProperty.call(v, 'value')) {
+                        if (v.value !== null && v.value !== undefined && v.value !== '')
+                            f[k] = { op: v.op || self.opMap[k] || 'eq', value: v.value };
+                    } else if (v !== null && v !== undefined && v !== '') {
+                        f[k] = { op: self.opMap[k] || 'eq', value: v };
+                    }
+                });
+                return f;
+            },
+            query: function () {
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'filter.query', this.buildSubmit());
+            },
+            reset: function () {
+                this.filterModel = JSON.parse(JSON.stringify(this.initModel));
+                if (window.DynEventBus && __execId)
+                        window.DynEventBus.emit(__execId, 'filter.query', this.buildSubmit());
+            }
+        },
+        mounted: function () {
+            var self = this;
+            this.$nextTick(function () {
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'filter.query', self.buildSubmit());
+            });
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-filter { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .dyn-blk-filter__body { flex: 1; min-width: 200px; }
+    .dyn-blk-filter__btns { flex-shrink: 0; }
+</style>
