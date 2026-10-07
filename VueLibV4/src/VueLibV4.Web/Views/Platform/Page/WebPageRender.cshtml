@@ -1,70 +1,169 @@
+@using Newtonsoft.Json
 @{
-    Layout = "_Layout";
+    // 双形态：被 open 动作 fetchPartial 拉取（带 X-Requested-With）时是纯片段，走 _AjaxLayout；
+    // 浏览器直访走完整 _Layout。
+    var isAjax = Context.Request.Headers.TryGetValue("X-Requested-With", out var __xrw)
+                && __xrw == "XMLHttpRequest";
+    Layout = isAjax ? "_AjaxLayout" : "_Layout";
     ViewData["Title"] = "动态页面 - VueLibV4";
     var pageCode = ViewData["PageCode"] as string;
     var pageId = ViewData["PageId"] as string;
-    var extId = "Ctrl" + Guid.NewGuid().ToString("N");
+    var barId = "Ctrl" + Guid.NewGuid().ToString("N");
+
+    // ===== 表单弹窗壳 form=1 =====
+    // 设计器保存的参数页（DynForm 等组件树）作为 layui layer 片段打开时，壳负责三件事：
+    //   rowId 有值 → GET /api/dyndata/get 拉行回填（无值=新增空模型）；
+    //   底部「保存」→ postback /api/dyndata/save（wrap 表模型）→ 成功后关窗（onclose 由 open 管道负责刷新）；
+    //   「取消」→ close。页面本身零 JS、零弹窗代码。
+    // 注意：行主键查询参数固定用 rowId，避免与本路由的页面实例 id（PageId）撞键。
+    var formMode = Context.Request.Query["form"].ToString() == "1";
+    var shellRowId = Context.Request.Query["rowId"].ToString();
+    var shellTable = Context.Request.Query["table"].ToString();
+    var shellProject = Context.Request.Query["project"].ToString();
+    var rootId = "pr" + Guid.NewGuid().ToString("N");
 }
-<div id="@extId">
-    <div class="webpage-bar">
-        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
-        <span class="title">{{ pageName || '动态页面' }}</span>
-        <el-tag size="small" v-if="pageCode" type="info" effect="plain">{{ pageCode }}</el-tag>
+@if (!isAjax)
+{
+    <div id="@barId">
+        <div class="webpage-bar">
+            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+            <span class="title">{{ pageName || '动态页面' }}</span>
+            <el-tag size="small" v-if="pageCode" type="info" effect="plain">{{ pageCode }}</el-tag>
+        </div>
     </div>
+}
+<div class="wpr-shell @(formMode ? "wpr-shell--form" : "")">
+    <div id="@rootId" class="wpr-body">正在渲染动态页面…</div>
+    @if (formMode)
+    {
+        <div class="wpr-form-footer">
+            <button type="button" class="el-button el-button--default el-button--small" id="@(rootId)-cancel">取消</button>
+            <button type="button" class="el-button el-button--primary el-button--small" id="@(rootId)-save">保存</button>
+        </div>
+    }
 </div>
-<div id="page-root">正在渲染动态页面…</div>
 
 <style>
     body { margin: 0; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .webpage-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
     .webpage-bar .title { font-weight: 600; color: #303133; margin-right: auto; }
-    #page-root { padding: 16px; }
+    .wpr-shell { padding: 16px; }
+    .wpr-shell--form { padding: 16px 16px 0; background: #fff; }
+    .wpr-form-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
+        padding: 12px 0; border-top: 1px solid #e4e7ed; }
+    .wpr-form-footer .el-button.is-disabled { opacity: .6; }
 </style>
 
 @section Scripts {
     <script>
         DynLib.ready(function () {
-            var app = Vue.createApp({
-                data: function () {
-                    return { pageName: '', pageCode: '@pageCode' };
-                },
-                methods: {
-                    go: function (url) { window.location.href = url; },
-                    load: function () {
-                        var self = this;
-                        var url = '/api/platform/dynwebpage/render';
-                        if ('@pageId') url += '?id=' + encodeURIComponent('@pageId');
-                        else if ('@pageCode') url += '?code=' + encodeURIComponent('@pageCode');
-                        else {
-                            document.getElementById('page-root').innerHTML = '<div style="text-align:center;color:#909399">缺少页面参数（?code= 或 ?id=）</div>';
-                            return;
-                        }
-                        fetch(url).then(function (r) { return r.json(); }).then(function (res) {
-                            if (res.code !== 0 || !res.data) {
-                                document.getElementById('page-root').innerHTML = '<div style="text-align:center;color:#f56c6c">' + (res.msg || '页面加载失败') + '</div>';
-                                return;
-                            }
-                            self.pageName = res.data.name;
-                            self.pageCode = res.data.code;
-                            // 注入权限资源上下文：根节点写 data-webpage-resource
-                            if (res.data.resourceKey) {
-                                document.getElementById('page-root').setAttribute('data-webpage-resource', res.data.resourceKey);
-                            }
-                            var cfg = dyn.normalize(res.data.config || {});
-                            // 运行时：同一套 DynRender 渲染（不编译模板）
-                            dyn.mount(cfg, document.getElementById('page-root'));
-                        }).catch(function () {
-                            document.getElementById('page-root').innerHTML = '<div style="text-align:center;color:#f56c6c">页面加载失败</div>';
+            var FORM_MODE = @Html.Raw(JsonConvert.SerializeObject(formMode));
+            var SHELL = {
+                rowId: @Html.Raw(JsonConvert.SerializeObject(shellRowId)),
+                table: @Html.Raw(JsonConvert.SerializeObject(shellTable)),
+                project: @Html.Raw(JsonConvert.SerializeObject(shellProject))
+            };
+            var root = document.getElementById('@rootId');
+
+            // 拉 DynWebPage 配置树（单次），返回 render data；参数缺失/失败时渲染错误提示
+            function fetchRender() {
+                var url = '/api/platform/dynwebpage/render';
+                // 表单弹窗壳固定按 code 寻址：open 管道会把行 data-id 合并进 query（即 ?id=行主键），
+                // 不能让它被当成 WebPage 实例 Id（PageId）导致加载错页。
+                if (FORM_MODE) {
+                    if (!'@pageCode') return Promise.reject(new Error('表单弹窗壳需要 ?code= 页面标识'));
+                    url += '?code=' + encodeURIComponent('@pageCode');
+                } else if ('@pageId') url += '?id=' + encodeURIComponent('@pageId');
+                else if ('@pageCode') url += '?code=' + encodeURIComponent('@pageCode');
+                else return Promise.reject(new Error('缺少页面参数（?code= 或 ?id=）'));
+                return fetch(url).then(function (r) { return r.json(); }).then(function (res) {
+                    if (res.code !== 0 || !res.data) throw new Error(res.msg || '页面加载失败');
+                    return res.data;
+                });
+            }
+            // 用同一套 DynRender 挂载配置树；initModel 为表单弹窗壳的回填模型
+            function mountData(data, initModel) {
+                if (data.resourceKey) root.setAttribute('data-webpage-resource', data.resourceKey);
+                var cfg = dyn.normalize(data.config || {});
+                return dyn.mount(cfg, root, initModel || {});
+            }
+
+            // 弹窗壳：保存（postback 统一信封，成功关窗 → open 的 onclose 管道负责刷新外层 grid）/ 取消
+            function bindShell() {
+                var saveBtn = document.getElementById('@(rootId)-save');
+                var cancelBtn = document.getElementById('@(rootId)-cancel');
+                if (!saveBtn || !cancelBtn) return;
+                var saving = false;
+                saveBtn.addEventListener('click', function () {
+                    if (saving) return;
+                    if (!SHELL.table) { dyn.showMessage('弹窗壳缺少 table 参数（编辑管道 params 需带 table）', 'warning'); return; }
+                    saving = true; saveBtn.classList.add('is-disabled'); saveBtn.disabled = true;
+                    var wrap = { table: SHELL.table, dataField: 'data' };
+                    if (SHELL.project) wrap.project = SHELL.project;
+                    window.DynAction.run('postback',
+                        // useEventPayload:false —— body 直接用表单 model，wrap 才包成 {table,project,data:model}；
+                        // 否则默认事件信封会把 body 变成 {event:'',data:model} 双层嵌套
+                        { url: '/api/dyndata/save', useEventPayload: false, wrap: wrap, message: '保存成功' },
+                        { element: saveBtn, model: root.__dynModel })
+                        .then(function (res) {
+                            if (res && res.code !== 0) return;
+                            window.DynAction.run('close', {}, { element: saveBtn });
+                        })
+                        .catch(function () { /* postback 已统一 toast，保留弹窗供修正 */ })
+                        .finally(function () {
+                            saving = false; saveBtn.classList.remove('is-disabled'); saveBtn.disabled = false;
                         });
+                });
+                cancelBtn.addEventListener('click', function () {
+                    window.DynAction.run('close', {}, { element: cancelBtn });
+                });
+            }
+
+            function fail(msg) {
+                root.innerHTML = '<div style="text-align:center;color:#f56c6c">' + msg + '</div>';
+            }
+
+            if (FORM_MODE) {
+                // 片段弹窗壳：编辑态先拉行再挂载，避免空模型挂载后整体替换导致输入控件值闪断
+                var loadRow = (SHELL.rowId && SHELL.table)
+                    ? fetch('/api/dyndata/get?table=' + encodeURIComponent(SHELL.table)
+                            + '&id=' + encodeURIComponent(SHELL.rowId)
+                            + (SHELL.project ? '&project=' + encodeURIComponent(SHELL.project) : ''),
+                            { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) {
+                            if (res.code !== 0) throw new Error(res.msg || '数据加载失败');
+                            return res.data || {};
+                        })
+                    : Promise.resolve({});
+                loadRow.then(function (row) {
+                    bindShell();
+                    return fetchRender().then(function (data) { return mountData(data, row); });
+                }).catch(function (e) {
+                    fail(((e && e.message) || e) + '');
+                });
+            } else {
+                // 整页形态：桌面返回条小 App + 页面树挂载（共用 fetchRender，不重复请求）
+                var app = Vue.createApp({
+                    data: function () {
+                        return { pageName: '', pageCode: '@pageCode' };
+                    },
+                    methods: {
+                        go: function (url) { window.location.href = url; }
+                    },
+                    mounted: function () {
+                        var self = this;
+                        fetchRender().then(function (data) {
+                            self.pageName = data.name || '';
+                            return mountData(data, {});
+                        }).catch(function (e) { fail(((e && e.message) || e) + ''); });
                     }
-                },
-                mounted: function () { this.load(); }
-            });
-            DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function () { 
-                const container = document.querySelector('#@extId');            
-                app.mount(container);
-             });
+                });
+                DynCom.setupApp(app);
+                DynCom.ensureRegistered(app).then(function () {
+                    app.mount(document.getElementById('@barId'));
+                });
+            }
         });
     </script>
 }

@@ -415,6 +415,7 @@ defineAction('postback',async function(ctx){
   if(o.wrap && typeof o.wrap==='object' && o.wrap.table && !(o.body&&typeof o.body==='object')){
     const wrapped = { table:o.wrap.table };
     if(o.wrap.gridId) wrapped.gridId = o.wrap.gridId;
+    if(o.wrap.project) wrapped.project = o.wrap.project;
     wrapped[o.wrap.dataField||'data'] = body;
     body = wrapped;
   }
@@ -520,6 +521,7 @@ defineAction('updateel',async ctx=>{
   if(o.wrap && typeof o.wrap==='object' && o.wrap.table){
     const wrapped = { table:o.wrap.table };
     if(o.wrap.gridId) wrapped.gridId = o.wrap.gridId;
+    if(o.wrap.project) wrapped.project = o.wrap.project;
     wrapped[o.wrap.dataField||'data'] = body;
     body = wrapped;
   }

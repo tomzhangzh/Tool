@@ -23,6 +23,10 @@
      class="dyn-table"
      :style="getStyle(jc.options.itemoptions)"
      :class="getClass(jc.options.itemoptions)">
+    @* 顶部工具条：配置了 editUrl 且未显式关闭新增按钮时，内置「新增」声明式管道（弹窗壳，onclose 自刷本表格） *@
+    <div v-if="addPipe" class="dyn-table-toolbar">
+        <el-button type="success" size="small" :dyn-click="addPipe">➕ 新增</el-button>
+    </div>
     <el-table :data="rows"
               v-bind="tableBind"
               v-loading="loading"
@@ -203,6 +207,21 @@
     function opsNodePath(nodeIdx) {
         return props.nodePath + '.childrenctrls[' + nodeIdx + ']';
     }
+
+    // ============ 顶部「新增」按钮：复用 editUrl 弹窗片段（不带 rowId=新增态），关窗后自刷本表格 ============
+    const addPipe = computed(() => {
+        if (!co.editUrl || co.showAdd === false) return '';
+        const opts = {
+            url: co.editUrl,
+            title: '新增',
+            width: '760px',
+            height: '85vh',
+            mode: 'fragment',
+            params: { table: table || '', project: project || '' },
+            onclose: gridId ? [{ action: 'grid', options: { gridId: gridId } }] : []
+        };
+        return 'open(' + JSON.stringify(opts) + ')';
+    });
 
     // ============ 操作列按钮：DynElButton 子节点 + extendinfo.pipe 声明式动作管道 ============
     // 行数据经 data-* 注入，dyn-action 的 buildCtx 自动收集并替换管道中的 {{id}}/{{table}} 等占位
@@ -389,7 +408,7 @@
     Object.assign(comExtra, {
         rows, total, page, size, loading, pkField,
         pager, columnNodes, opsNode, tableColumns, tableBind,
-        orderField, orderDir,
+        orderField, orderDir, addPipe,
         loadDicts, cellText, tagType, cellCtx, colNodePath, opsNodePath,
         actionButtons,
         loadList, onPageChange, onSizeChange, onSortChange, runAction, onRowClick
