@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using VueLibV4.Web.Core;
 using VueLibV4.Services.Data;
@@ -14,7 +14,7 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 [Area("Platform")]
 public class MgmtController : Controller
 {
-    private const string Page = "~/Views/Platform/Mgmt/{0}.cshtml";
+    private const string Page = "~/Areas/Platform/Views/Mgmt/{0}.cshtml";
     private readonly DbFactory _dbs;
     private readonly DynamicCrudService _svc;
     public MgmtController(DbFactory dbs, DynamicCrudService svc) { _dbs = dbs; _svc = svc; }

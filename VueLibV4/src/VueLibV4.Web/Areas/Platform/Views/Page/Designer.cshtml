@@ -1,4 +1,4 @@
-@{
+﻿@{
     var isEmbed = ViewBag.Embed as string == "1";
     Layout = isEmbed ? null : "_Layout";
 }
@@ -22,14 +22,14 @@
      data-dyn-shared-scope="designer"
      data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "previewActive": { "uid": "", "index": 0 }, "viewState": { "open": false, "name": "", "node": null, "columns": [] }, "undoStack": [], "redoStack": [], "canvasVersion": 0, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 }, "zoom": 100, "embed": @(isEmbed ? "true" : "false"), "pageId": 0, "pageCode": "", "defaultModel": {} }'>
 
-  <partial name="~/Views/Platform/Page/Designer/TopBar.cshtml" />
+  <partial name="~/Areas/Platform/Views/Page/Designer/TopBar.cshtml" />
 
   <div class="flex flex-1 overflow-hidden min-h-0">
-    <partial name="~/Views/Platform/Page/Designer/LeftPanel.cshtml" />
-    <partial name="~/Views/Platform/Page/Designer/Canvas.cshtml" />
-    <partial name="~/Views/Platform/Page/Designer/RightPanel.cshtml" />
+    <partial name="~/Areas/Platform/Views/Page/Designer/LeftPanel.cshtml" />
+    <partial name="~/Areas/Platform/Views/Page/Designer/Canvas.cshtml" />
+    <partial name="~/Areas/Platform/Views/Page/Designer/RightPanel.cshtml" />
   </div>
-  <partial name="~/Views/Platform/Page/Designer/JsonEditorDialog.cshtml" />
+  <partial name="~/Areas/Platform/Views/Page/Designer/JsonEditorDialog.cshtml" />
 
   <style>
 .drag-target-active { outline: 2px dashed #409eff !important; outline-offset: 2px; }
