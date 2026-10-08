@@ -101,8 +101,8 @@
                             '&execId=' + __execId +
                             '&project=' + encodeURIComponent(__project || '');
                         window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
-                            window.dyn.html(body, html, false);
-                                window.dyn.initActions(body);
+                            window.dyn.html(body, html);
+                               
                         }).catch(function (e) {
                             body.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
                         });

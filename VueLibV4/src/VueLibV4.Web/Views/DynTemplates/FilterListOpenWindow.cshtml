@@ -124,8 +124,7 @@
                     content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
                     success: function () {
                         window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
-                            window.dyn.html(holder, html, false);
-                            window.dyn.initActions(holder);
+                            window.dyn.html(holder, html);
                         }).catch(function (e) {
                             holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
                         });

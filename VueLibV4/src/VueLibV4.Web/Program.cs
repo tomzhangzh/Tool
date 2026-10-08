@@ -43,10 +43,9 @@ builder.Services.AddScoped<IPermissionHook, DemoRowLevelHook>();
 
 var app = builder.Build();
 
-// 启动初始化平台 SQLite 库（建表 + 种子 SQL）。
-// 失败必须终止启动：Seeder 内部已用事务保证不会留下半迁移库，带病启动只会让系统静默跑在残缺数据上。
-var seeder = new Seeder(builder.Configuration, app.Logger);
-seeder.Run();
+// 启动初始化平台 SQLite 库（建表 + 种子 SQL）—— 已暂停
+// var seeder = new Seeder(builder.Configuration, app.Logger);
+// seeder.Run();
 
 // 页面全部由 Razor View 返回
 app.UseStaticFiles();
