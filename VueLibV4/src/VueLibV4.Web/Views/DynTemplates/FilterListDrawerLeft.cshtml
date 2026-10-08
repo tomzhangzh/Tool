@@ -32,7 +32,7 @@
                 <dyn-inject-host data-block-host="list"><div class="dyn-loading">加载列表…</div></dyn-inject-host>
             </div>
         </div>
-        <div dyn-init="createApp" id="@(execId)_drawerapp">
+        <div dyn-init="createApp" id="@(execId)_drawerapp" class="fldl-drawer" data-dyn-mode-model="@(new { visible = false, drawerTitle = title }.ToJson())">
             <el-drawer ref="drawer" :title="model.drawerTitle" direction="ltr" size="@drawerWidth"
                        v-model="model.visible" :destroy-on-close="false" :modal="true" :append-to-body="false" v-on:closed="onClosed">
                 <dyn-inject-host data-block-host="detail" ><div class="dyn-loading">加载明细…</div></dyn-inject-host>
@@ -49,7 +49,16 @@
     .fld-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
     .fld-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #303133; }
     .fld-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #409eff; border-radius: 2px; margin-right: 8px; }
-    .fld-drawer-body { padding: 0; }
+
+    .fldl-drawer .el-drawer__header {
+        margin-bottom: 0px;
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+
+    .fldl-drawer .el-drawer__body {
+        padding: 0 8px 8px;
+    }
     .dyn-loading { padding: 20px; text-align: center; color: #909399; font-size: 13px; }
 </style>
 
