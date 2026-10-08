@@ -58,6 +58,9 @@ public interface IPageGenService : IScopeDependency
     /// 供向导【预览抽屉】用 dyn-dynamic-com 真实渲染（下拉数据源、字典、外键、中文 label 与最终生成一致）。
     /// </summary>
     (JObject FilterCfg, JObject ListCfg, JObject DetailCfg) Preview(JObject req);
+
+    /// <summary>返回支持三屏生成的模板列表（SupportGen=1），供向导下拉选择。</summary>
+    List<GenTemplateOption> ListGenTemplates();
 }
 
 /// <summary>页面生成成功后的返回数据（Controller 转为 ApiResult.Ok 返回前端）</summary>
@@ -79,6 +82,16 @@ public class PageGenResult
     public string? ShellUrl { get; set; }
     /// <summary>页面扩展视图路径（真实 cshtml 骨架；生成失败或已手工指定时可能为空）</summary>
     public string? ExtViewPath { get; set; }
+}
+
+/// <summary>三屏生成器可选模板项。</summary>
+public class GenTemplateOption
+{
+    public int Id { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Icon { get; set; }
+    public string? Description { get; set; }
 }
 
 /// <summary>
@@ -252,11 +265,11 @@ public class PageGenService : IPageGenService
         }
 
         // ---------- 生成三屏（ConfigJson=UI 渲染树 / DefaultJson=model 骨架） ----------
-        var filterCfg = BuildFilterCfg(fields, projectId, filterCols);
+        var filterCfg = BuildFilterCfg(fields, projectId, table, filterCols);
         var filterDefault = BuildFilterDefaultJson(fields);
         var listCfg = BuildListCfg(fields);
         var listDefault = BuildListDefaultJson();
-        var detailCfg = BuildDetailCfg(pk, fields, projectId, detailCols);
+        var detailCfg = BuildDetailCfg(pk, fields, projectId, table, detailCols);
         var detailDefault = BuildDetailDefaultJson(pk, fields);
 
         // ---------- 落库三屏（幂等：同 code 更新） ----------
@@ -266,11 +279,15 @@ public class PageGenService : IPageGenService
             table, projectId, listCfg, listDefault);
         var detailId = UpsertSetting(code + "_detail", name + " - 详情区", "Detail", "Front", null, table, projectId, detailCfg, detailDefault);
 
-        // DynWebPage：主页绑定 filterlist-crud 积木模板（筛选/列表 Block + detail-modal 弹窗实例）。
-        // ParamsJson = 模板顶层参数 + blocks 槽位（各槽位 URL 留空，由 Block/模板自动补 dyndata 端点）。
-        var tpl = _templates.Query(t => t.Code == "filterlist-crud").First()
-                  ?? _templates.Query(t => t.Code == "crud-basic").First();
-        var modalTpl = _templates.Query(t => t.Code == "detail-modal").First();
+        // DynWebPage：主页绑定用户选择的三屏模板（SupportGen=1）。
+        // 默认 filter-list-open-windowV2；detail 弹窗统一用 detail-modal-v2。
+        var tplCode = (req["tplCode"]?.ToString() ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(tplCode)) tplCode = "filter-list-open-windowV2";
+        var tpl = _templates.Query(t => t.Code == tplCode && t.SupportGen && t.IsActive).First();
+        if (tpl == null) tpl = _templates.Query(t => t.Code == "filter-list-open-windowV2" && t.SupportGen).First();
+        if (tpl == null) tpl = _templates.Query(t => t.Code == "filterlist-crud").First();
+        var modalTpl = _templates.Query(t => t.Code == "detail-modal-v2").First()
+                       ?? _templates.Query(t => t.Code == "detail-modal").First();
 
         // 编辑弹窗实例（幂等：{code}-modal）：DetailModal.cshtml 读顶层 TableName/KeyField + blocks.detail
         var existModal = _pages.Query(p => p.Code == code + "-modal").First();
@@ -312,7 +329,8 @@ public class PageGenService : IPageGenService
                 ["blocks"] = new JObject
                 {
                     ["filter"] = new JObject { ["settingId"] = filterId, ["model"] = new JObject() },
-                    ["list"] = new JObject { ["settingId"] = listId, ["model"] = new JObject() }
+                    ["list"] = new JObject { ["settingId"] = listId, ["model"] = new JObject() },
+                    ["detail"] = new JObject { ["settingId"] = detailId, ["model"] = new JObject() }
                 }
             }.ToJson(),
             IsActive = true
@@ -420,6 +438,21 @@ public class PageGenService : IPageGenService
     //  字段元数据 + 推荐控件（向导第二步）
     // ======================================================================
 
+    /// <summary>返回支持三屏生成的模板列表（SupportGen=1），按 SortNo 排序。</summary>
+    public List<GenTemplateOption> ListGenTemplates()
+    {
+        return _templates.Query(t => t.SupportGen && t.IsActive)
+            .OrderBy(t => t.SortNo)
+            .Select(t => new GenTemplateOption
+            {
+                Id = t.Id,
+                Code = t.Code,
+                Name = t.Name,
+                Icon = t.Icon,
+                Description = t.Description
+            }).ToList();
+    }
+
     /// <summary>
     /// 读取表字段元数据，并按与 Generate 相同的 BuildColumns 规则推断推荐控件。
     /// 供页面生成向导【第二步：配置字段】预填充控件下拉框；用户可手动覆盖后回传 Generate。
@@ -513,9 +546,9 @@ public class PageGenService : IPageGenService
         int filterCols = req["filterCols"]?.Type == JTokenType.Integer ? (int)req["filterCols"]! : 4;
         int detailCols = req["detailCols"]?.Type == JTokenType.Integer ? (int)req["detailCols"]! : 2;
 
-        var filterCfg = BuildFilterCfg(fields, projectId, filterCols);
+        var filterCfg = BuildFilterCfg(fields, projectId, table, filterCols);
         var listCfg = BuildListCfg(fields);
-        var detailCfg = BuildDetailCfg(pk, fields, projectId, detailCols);
+        var detailCfg = BuildDetailCfg(pk, fields, projectId, table, detailCols);
         return (filterCfg, listCfg, detailCfg);
     }
 
@@ -782,7 +815,7 @@ public class PageGenService : IPageGenService
     /// 控件 → 组件映射：emoji→DynElEmojiPicker / json→DynJsonDesigner / textarea→DynElTextarea /
     ///                  number→DynElInputNumber / switch→DynElSwitch / select→DynElSelect / 其他→DynElInput。
     /// </summary>
-    private static JObject FieldNode(GenColumn f, bool filterMode, int? projectId)
+    private static JObject FieldNode(GenColumn f, bool filterMode, int? projectId, string table)
     {
         var comp = ControlToComponent(f.Control);
         var modelName = filterMode ? f.Name + ".value" : f.Name;
@@ -802,10 +835,10 @@ public class PageGenService : IPageGenService
                 // 库里布尔/标志位多为 int(0/1)，el-switch 默认认 true/false，必须显式绑定值
                 co["activeValue"] = 1; co["inactiveValue"] = 0; break;
             case "DynElSelect":
-                // 数据源：字典 / 外键表(projectId 用于拉取下拉) / 静态占位
+                // 数据源优先级：字典 > 外键表 > 当前表 DISTINCT（SQL 自查询，可手改）
                 if (!string.IsNullOrWhiteSpace(f.DictType)) { co["sourceType"] = "dict"; co["dictType"] = f.DictType; }
                 else if (!string.IsNullOrWhiteSpace(f.FkTable)) { co["sourceType"] = "table"; co["table"] = f.FkTable; co["valueField"] = "Id"; co["textField"] = "Name"; co["projectId"] = projectId; }
-                else { co["sourceType"] = "static"; co["optionValuesText"] = ""; }
+                else { co["sourceType"] = "sql"; co["sql"] = $"SELECT DISTINCT [{f.Name}] AS [Value], [{f.Name}] AS [Text] FROM [{table}] WHERE [{f.Name}] IS NOT NULL AND [{f.Name}] <> ''"; co["projectId"] = projectId; co["filterable"] = true; co["allowCreate"] = true; }
                 co["placeholder"] = "请选择"; co["clearable"] = true; break;
             default:
                 co["placeholder"] = "请输入" + f.Label; co["clearable"] = true; break;
@@ -818,11 +851,11 @@ public class PageGenService : IPageGenService
     /// 规则：只生成条件输入控件，不内置「查询/重置」按钮（按钮统一放外层 List 页面，职责分离）。
     /// filterCols：每行几列（3 或 4，默认 4），控制网格列数。
     /// </summary>
-    private static JObject BuildFilterCfg(List<GenColumn> fields, int? projectId, int filterCols = 4)
+    private static JObject BuildFilterCfg(List<GenColumn> fields, int? projectId, string table, int filterCols = 4)
     {
         if (filterCols != 3 && filterCols != 4) filterCols = 4;
         var children = new JArray();
-        foreach (var f in fields.Where(x => x.InFilter)) children.Add(FieldNode(f, true, projectId));
+        foreach (var f in fields.Where(x => x.InFilter)) children.Add(FieldNode(f, true, projectId, table));
 
         var root = BaseNode("DynGridContainer", "", new JObject
         {
@@ -896,7 +929,7 @@ public class PageGenService : IPageGenService
     ///  - 数据库 NOT NULL 且无默认值 → 自动追加 required 校验。
     ///  - 审计字段（CreateTime/UpdateTime）已在分类阶段排除，不进详情区。
     /// </summary>
-    private static JObject BuildDetailCfg(string pk, List<GenColumn> fields, int? projectId, int detailCols = 2)
+    private static JObject BuildDetailCfg(string pk, List<GenColumn> fields, int? projectId, string table, int detailCols = 2)
     {
         if (detailCols != 1 && detailCols != 2) detailCols = 2;
         var children = new JArray();
@@ -909,7 +942,7 @@ public class PageGenService : IPageGenService
 
         foreach (var f in detailFields)
         {
-            var node = FieldNode(f, false, projectId);
+            var node = FieldNode(f, false, projectId, table);
             // 长文本 / JSON 内容较宽：两列布局时占满两列；一列布局时本身就占满，无需跨列
             if (detailCols == 2 && f.Control is "textarea" or "json")
                 node["options"]!["itemoptions"]!["class"] = "col-span-2";

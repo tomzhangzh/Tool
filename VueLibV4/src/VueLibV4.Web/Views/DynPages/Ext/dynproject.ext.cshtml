@@ -1,0 +1,62 @@
+﻿@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Web.Core
+@*
+  ========================================================================
+  页面扩展视图（DynWebPage.ExtViewPath）—— 页面 Code：dynproject
+  ------------------------------------------------------------------------
+  · 本文件是真实 cshtml，可随意手工修改；Razor 运行时编译，保存即生效。
+  · 页面生成器只在文件不存在时生成骨架，永远不会覆盖你改过的内容。
+  · 原理：运行时模板先执行本视图，把 HTML/脚本片段填入 Slots 字典的具名槽位，
+    再由内置 Block 在自己的锚点处输出；脚本片段在 Block 的 VueApp 创建前合并。
+
+  可用槽位（{block角色}:{区域}）：
+    list:toolbar        列表工具栏（内置「+ 新增」之后）
+    list:row-actions    列表行操作列（编辑 / +子 / 删除 之后）
+    list:app-ext        合并进 list Block 的脚本（script[tag=dynconfig-ext]）
+    filter:actions      筛选按钮区（查询 / 重置 之后）
+    filter:app-ext      合并进 filter Block 的脚本
+    detail:body-extra   动态表单树之后的自定义表单区（与 detail Block 同 VueApp，可绑 form）
+    detail:footer       表单底部按钮区（取消 / 删除 / 保存 之后）
+    detail:app-ext      合并进 detail Block 的脚本
+    tree:tools          树形页左树工具区
+    tree:app-ext        合并进 tree Block 的脚本
+
+  脚本合并规则（dynconfig-ext）：
+    · 声明 var dynConfigExt = { methods/computed/data/mounted... }
+    · 脚本内 this 即对应 Block 的 Vue 实例：可直接访问 this.model / this.table /
+      this.loadData() 等内部状态与方法；methods/computed 同名时扩展优先（可覆盖）；
+      data 浅合并；created/mounted 等生命周期在 Block 自身之后串联执行。
+    · cshtml 内 JS 的 @ 必须写 @@。
+    · 不需要 JS 时，按钮也可直接用 dyn-click="open({...})/postback({...})" 声明式动作管道（纯 HTML）。
+  ========================================================================
+*@
+@{
+    // 槽位字典由运行时注入（ViewData[DynExtSlots]）
+    var Slots = ViewData["DynExtSlots"] as DynExtSlots ?? new DynExtSlots();
+}
+
+@* ===== 示例：删除外层 @if(false) 即启用 ===== *@
+@if (false)
+{
+    @* ① 往 list Block 工具栏追加按钮（需要配合 ② 的方法） *@
+    Slots["list:toolbar"] = @<button type="button"
+        class="el-button el-button--success el-button--small" @@click="onExtDemo()">
+        扩展按钮
+    </button>;
+
+    @* ② 脚本合并进 list Block 的 VueApp *@
+    Slots["list:app-ext"] = @<script type="text/plain" tag="dynconfig-ext">
+    var dynConfigExt = {
+        methods: {
+            onExtDemo: function () {
+                // this 即 list Block 实例：this.model.rows / this.table / this.loadData() 都能用
+                dyn.showMessage('项目管理 扩展：当前表 ' + this.table + '，共 ' + (this.model.total || 0) + ' 条', 'success');
+            }
+        }
+    };
+    </script>;
+
+    @* ③ 零 JS 的写法：声明式动作管道按钮（打开另一个页面弹窗） *@
+    @* Slots["list:toolbar"] = @<button type="button" class="el-button el-button--small"
+           dyn-click='open({"url":"/Platform/Page/DynWebPage?id=0","mode":"fragment"})'>打开页面</button>; *@
+}

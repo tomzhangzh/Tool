@@ -238,6 +238,9 @@ public class DynTemplate
     public int SortNo { get; set; } = 0;
     public bool IsActive { get; set; } = true;
 
+    /// <summary>是否支持三屏生成器（勾选后在生成器模板下拉中可选）。</summary>
+    public bool SupportGen { get; set; } = false;
+
     public DateTime CreateTime { get; set; } = DateTime.Now;
 }
 

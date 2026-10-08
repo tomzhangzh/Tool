@@ -354,8 +354,9 @@
                 loadColumns: function () {
                     var self = this;
                     self.fields = []; self.loadingCols = true;
-                    if (!self.form.code) self.form.code = (self.form.table || '').toLowerCase();
-                    if (!self.form.name) self.form.name = self.form.table + '管理';
+                    // 切换表时自动重新生成编码和名称
+                    self.form.code = (self.form.table || '').toLowerCase();
+                    self.form.name = self.form.table + '管理';
                     var url = '/api/business/pagegen/fields?table=' + encodeURIComponent(self.form.table)
                         + (self.form.project ? '&project=' + encodeURIComponent(self.form.project) : '');
                     fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
