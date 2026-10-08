@@ -2,19 +2,9 @@
 @using VueLibV4.Platform.Services
 @using VueLibV4.Services.Extensions
 @using VueLibV4.Web.Core
-@using Newtonsoft.Json.Linq
+@using Newtonsoft.Json.Linq;
 @inject IPageSettingService PageSettingService
 @{
-    // =====================================================================================
-    // FilterListDrawerLeft —— V2 模板：筛选 + 列表 + 左侧抽屉编辑（DynEventBus + el-drawer）
-    //
-    // ParamsJson 结构：
-    //   {
-    //     "TableName": "SysMenu", "KeyField": "Id", "Project": "__platform__",
-    //     "ModalPageId": 99, "DrawerWidth": "45%",
-    //     "blocks": { "filter": { "settingId": 5 }, "list": { "settingId": 6 } }
-    //   }
-    // =====================================================================================
     Layout = Context.Request.Headers.TryGetValue("X-Requested-With", out var __xrw)
                 && __xrw == "XMLHttpRequest" ? "_AjaxLayout" : "_Layout";
     ViewData["Title"] = Model.Name + " - VueLibV4";
@@ -22,134 +12,96 @@
     var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
     var tableName = ps["TableName"]?.ToString() ?? "";
     var keyField = ps["KeyField"]?.ToString() ?? "Id";
-    var project = ps["Project"]?.ToString() ?? Model.ProjectId?.ToString() ?? "";
-    var modalPageId = ps["ModalPageId"]?.ToString() ?? "";
-    var drawerWidth = ps["DrawerWidth"]?.ToString() ?? "45%";
-    var filterPsId = DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId");
-    var listPsId = DynPageViewHelper.SlotSettingId(ps, "list", "ListPageSettingId");
-    var loadUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "loadUrl", "ListUrl"), DynPageViewHelper.SearchUrl);
-    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "list", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
-
+    var drawerWidth = ps["DrawerWidth"]?.ToString() ?? "40%";
     var execId = "T2-" + Guid.NewGuid().ToString("N");
-    var extIdFilter = "f2-" + Guid.NewGuid().ToString("N");
-    var extIdList = "l2-" + Guid.NewGuid().ToString("N");
-    var extIdDrawer = "dw2-" + Guid.NewGuid().ToString("N");
     var title = Model.Name;
-
-    var extSlots = await Html.LoadPageExtAsync(Model);
 }
-<div id="@execId" class="fldl-root">
+<div id="@execId" class="fld-root" >
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
         ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
     })
 
-    <div class="fldl-card">
-        <div class="fldl-section-title"><span>筛选查询</span></div>
-        @await Html.PartialAsync("~/Views/DynBlocks/AppsV2/FilterApp.cshtml", new ViewDataDictionary(ViewData) {
-            ["ExtId"] = extIdFilter,
-            ["ExecId"] = execId,
-            ["FilterPageSettingId"] = filterPsId
-        })
+    <div class="fld-body">
+        <div class="fld-main">
+            <div class="fld-card">
+                <div class="fld-section-title"><span>筛选查询</span></div>
+                <dyn-inject-host data-block-host="filter"><div class="dyn-loading">加载筛选区…</div></dyn-inject-host>
+            </div>
+            <div class="fld-card">
+                <div class="fld-section-title"><span>数据列表</span></div>
+                <dyn-inject-host data-block-host="list"><div class="dyn-loading">加载列表…</div></dyn-inject-host>
+            </div>
+        </div>
+        <div dyn-init="createApp" id="@(execId)_drawerapp">
+            <el-drawer ref="drawer" :title="model.drawerTitle" direction="ltr" size="@drawerWidth"
+                       v-model="model.visible" :destroy-on-close="false" :modal="true" :append-to-body="false" v-on:closed="onClosed">
+                <dyn-inject-host data-block-host="detail" ><div class="dyn-loading">加载明细…</div></dyn-inject-host>
+            </el-drawer>
+        </div>
     </div>
-
-    <div class="fldl-card">
-        <div class="fldl-section-title"><span>数据列表</span></div>
-        @await Html.PartialAsync("~/Views/DynBlocks/AppsV2/ListApp.cshtml", new ViewDataDictionary(ViewData) {
-            ["ExtId"] = extIdList,
-            ["ExecId"] = execId,
-            ["ListSettingId"] = listPsId,
-            ["TableName"] = tableName,
-            ["KeyField"] = keyField,
-            ["Project"] = project,
-            ["LoadUrl"] = loadUrl,
-            ["DeleteUrl"] = deleteUrl
-        })
-    </div>
-
-    @* 左侧抽屉：由独立 Vue app 控制，监听 add/edit 事件打开 *@
-    <div id="@extIdDrawer" dyn-init="createApp" class="fldl-drawer-host">
-        <el-drawer ref="drawer" class="fldl-drawer" :title="model.drawerTitle" direction="ltr" :size="drawerWidth"
-                   v-model="model.visible" :destroy-on-close="false" :modal="true"
-                   @@closed="onClosed">
-            <div ref="body" class="fld-drawer-body" style="padding:0px;overflow:auto;"></div>
-        </el-drawer>
-        <script type="text/plain" tag="dynconfig">
-        var __execId = '@execId';
-        var __modalPageId = '@modalPageId';
-        var __project = '@project';
-        var __keyField = '@keyField';
-        var __drawerWidth = '@drawerWidth';
-
-        var dynConfig = {
-            data: function () {
-                return {
-                    model: { visible: false, drawerTitle: '' },
-                    drawerWidth: __drawerWidth
-                };
-            },
-            methods: {
-                open: function (rowId) {
-                    var self = this;
-                    this.model.drawerTitle = rowId ? ('编辑记录 #' + rowId) : '新增记录';
-                    this.model.visible = true;
-                    this.$nextTick(function () {
-                        var body = self.$refs.body;
-                        if (!body) return;
-                        body.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
-                        var q = '/Platform/Page/DetailModalV2?id=' + __modalPageId +
-                            '&rowId=' + (rowId || '') +
-                            '&execId=' + __execId +
-                            '&project=' + encodeURIComponent(__project || '');
-                        window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
-                            window.dyn.html(body, html);
-                               
-                        }).catch(function (e) {
-                            body.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
-                        });
-                    });
-                },
-                onClosed: function () {
-                    var body = this.$refs.body;
-                    if (body) {
-                        var apps = body.querySelectorAll('[data-dyn-mode="createApp"]');
-                        [].forEach.call(apps, function (ae) { try { window.dyn.unmount(ae); } catch (e) { } });
-                        body.innerHTML = '';
-                    }
-                }
-            },
-            mounted: function () {
-                var self = this;
-                if (!window.DynEventBus || !__execId) return;
-                window.DynEventBus.on(__execId, 'add', function () { self.open(null); });
-                window.DynEventBus.on(__execId, 'edit', function (p) {
-                    var row = p && p.row;
-                    var rowId = row ? row[__keyField] : null;
-                    self.open(rowId);
-                });
-            }
-        };
-        </script>
-    </div>
+       
 </div>
 
 <style>
-    .fldl-root { min-height: 100vh; box-sizing: border-box; padding: 0 0 20px;
-        background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .fldl-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
-    .fldl-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #303133; }
-    .fldl-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #409eff; border-radius: 2px; margin-right: 8px; }
-    .fldl-drawer .el-drawer__header { margin-bottom: 0px; padding: 8px 12px; font-size: 14px; }
-    .fldl-drawer .el-drawer__body { padding: 0 8px 8px; }
+    .fld-root { min-height: 100vh; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .fld-body { display: flex; }
+    .fld-main { flex: 1; min-width: 0; }
+    .fld-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
+    .fld-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #303133; }
+    .fld-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #409eff; border-radius: 2px; margin-right: 8px; }
+    .fld-drawer-body { padding: 0; }
+    .dyn-loading { padding: 20px; text-align: center; color: #909399; font-size: 13px; }
 </style>
 
 @section Scripts {
-    <script src="~/dyn/blocks/dyn-blocks-common.js" asp-append-version="true"></script>
-    <script>
+  <script>
     DynLib.ready(function () {
         var ROOT_ID = '@execId';
+        var WEBPAGE_ID = @(Model.Id);
+        var KEY_FIELD = '@keyField';
         var rootEl = document.getElementById(ROOT_ID);
         window.DynEventBus.registerRoot(rootEl);
-        console.log('[FilterListDrawerLeft] V2 就绪, execId=' + ROOT_ID);
+
+        function loadBlockInto(blockName, hostEl, rowId) {
+            var url = '/Platform/Page/LoadBlock?blockName=' + blockName
+                + '&webpageId=' + WEBPAGE_ID
+                + '&execId=' + ROOT_ID;
+            if (rowId) url += '&rowId=' + rowId;
+            return dyn.fetchPartial(url, {}, 'GET', 'text').then(function (html) {
+                return dyn.html(hostEl, html, true);
+            });
+        }
+
+        // 1. filter + list
+        loadBlockInto('filter', rootEl.querySelector('[data-block-host="filter"]'));
+        loadBlockInto('list', rootEl.querySelector('[data-block-host="list"]'));
+        debugger;
+        // 2. 抽屉
+       
+
+            function openDetailDrawer(rowId) {
+                var drawerVm = dyn.getProxy("#@(execId)_drawerapp");
+               if (!drawerVm) { dyn.showMessage('抽屉未就绪', 'error'); return; }
+
+                drawerVm.model.drawerTitle = rowId ? ('编辑记录 #' + rowId) : '新增记录';
+                drawerVm.model.visible = true;
+                setTimeout(()=>{
+
+                    loadBlockInto('detail', rootEl.querySelector('[data-block-host="detail"]'), rowId).catch(function (e) {
+                        body.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+                    });
+                },100);
+                
+            }
+
+        window.DynEventBus.on(ROOT_ID, 'add', function () { openDetailDrawer(null); });
+        window.DynEventBus.on(ROOT_ID, 'edit', function (p) {
+            var row = p && p.row;
+            openDetailDrawer(row ? row[KEY_FIELD] : null);
+        });
+        window.DynEventBus.on(ROOT_ID, 'saved', function () {
+            if (drawerVm) drawerVm.model.visible = false;
+        });
     });
     </script>
 }

@@ -1,22 +1,10 @@
+@model dynamic
 @inject IPageSettingService pageSettingService
 @{
-    // =====================================================================================
-    // FilterAppV2 —— 筛选 Block（DynEventBus 版）
-    //
-    // 与旧版 FilterApp 的区别：
-    //   不再依赖 DynBlocks.createBlockHandle / wire 编排。
-    //   通过 config.execId 拿到 Template 根元素上的 eventBus，直接 emit('search', payload)。
-    //   ListApp 用 on('search') 监听，快照机制自动解决时序问题。
-    //
-    // 契约：
-    //   config: { filterConfig, filterDefault, execId }
-    //   emit:  search  payload={字段:{op,value}}  （查询/重置都发这个）
-    // =====================================================================================
-    var extId = (ViewData["ExtId"] as string) ?? ("fb2" + Guid.NewGuid().ToString("N"));
-    var execId = (ViewData["ExecId"] as string) ?? "";
-    var pagsettingId = ViewData["FilterPageSettingId"] != null ? Convert.ToInt32(ViewData["FilterPageSettingId"]) : 0;
+    var extId = (string)(Model?.ExtId ?? ("fb2" + Guid.NewGuid().ToString("N")));
+    var execId = (string)(Model?.ExecId ?? "");
+    var pagsettingId = Convert.ToInt32(Model?.FilterPageSettingId ?? ViewData["FilterPageSettingId"] ?? 0);
     var pageSetting = pagsettingId > 0 ? pageSettingService.GetById(pagsettingId) : null;
-   
 }
 
 

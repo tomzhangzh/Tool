@@ -1,38 +1,18 @@
+@model dynamic
 @inject IPageSettingService pageSettingService
 @{
-    // =====================================================================================
-    // DetailAppV2 —— 明细表单 Block（DynEventBus 版，服务端渲染配置）
-    //
-    // ViewData 入参：
-    //   ExtId          元素 ID
-    //   ExecId         Template 根事件总线 ID
-    //   DetailSettingId  PageSetting ID（ConfigJson=表单UI树, DefaultJson=表单骨架）
-    //   TableName      业务表名
-    //   KeyField       主键字段（默认 Id）
-    //   Project        数据域
-    //   RowId          编辑态主键（可空）
-    //   AddUrl / EditUrl / DeleteUrl  接口（可选）
-    //
-    // 事件：
-    //   on:    newForm   payload={preFill:{...}}  新增态
-    //          editForm  payload={row:{...}}      编辑态回填
-    //   emit:  saved     payload={action, row}
-    //          refresh   payload 可空              通知列表刷新
-    //          cancel
-    // =====================================================================================
-    var extId = (ViewData["ExtId"] as string) ?? ("db2" + Guid.NewGuid().ToString("N"));
-    var execId = (ViewData["ExecId"] as string) ?? "";
-    var detailPsId = (ViewData["DetailSettingId"] as int?) ?? 0;
-    var tableName = (ViewData["TableName"] as string) ?? "";
-    var keyField = (ViewData["KeyField"] as string) ?? "Id";
-    var project = (ViewData["Project"] as string) ?? "";
-    var rowId = (ViewData["RowId"] as string) ?? "";
-    var addUrl = (ViewData["AddUrl"] as string) ?? "";
-    var editUrl = (ViewData["EditUrl"] as string) ?? "";
-    var deleteUrl = (ViewData["DeleteUrl"] as string) ?? "";
+    var extId = (string)(Model?.ExtId ?? ("db2" + Guid.NewGuid().ToString("N")));
+    var execId = (string)(Model?.ExecId ?? "");
+    var detailPsId = Convert.ToInt32(Model?.DetailSettingId ?? ViewData["DetailSettingId"] ?? 0);
+    var tableName = (string)(Model?.TableName ?? "");
+    var keyField = (string)(Model?.KeyField ?? "Id");
+    var project = (string)(Model?.Project ?? "");
+    var rowId = (string)(Model?.RowId ?? "");
+    var addUrl = (string)(Model?.AddUrl ?? DynPageViewHelper.SaveUrl);
+    var editUrl = (string)(Model?.EditUrl ?? DynPageViewHelper.SaveUrl);
+    var deleteUrl = (string)(Model?.DeleteUrl ?? DynPageViewHelper.DeleteUrl);
 
     var detailSetting = detailPsId > 0 ? pageSettingService.GetById(detailPsId) : null;
-    if (detailSetting == null) { detailSetting = null; }
 }
 <div id="@extId" dyn-init="createApp" class="dyn-blk-detail">
     <div class="dyn-blk-detail__btns">
@@ -41,6 +21,9 @@
         </button>
         <button type="button" class="el-button el-button--danger el-button--small" :disabled="loading || !canDelete" @@click="onDelete()">
             <el-icon><Delete /></el-icon> 删除
+        </button>
+        <button type="button" class="el-button el-button--small" :disabled="loading || !canDelete" @@click="onCopy()">
+            <el-icon><DocumentCopy /></el-icon> 复制
         </button>
         <button type="button" class="el-button el-button--small" @@click="onCancel()">
             <el-icon><Close /></el-icon> 取消
@@ -173,6 +156,15 @@
                 if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
                     window.dyn.confirmAsync('确定删除该条记录吗？').then(function (ok) { if (ok) doDelete(); });
                 } else { doDelete(); }
+            },
+            onCopy: function () {
+                var kf = this.keyField;
+                // 深拷贝当前表单，主键清零 → 下次保存走新增接口
+                var cloned = JSON.parse(JSON.stringify(this.form));
+                cloned[kf] = 0;
+                this.form = cloned;
+                this.formError = '';
+                dyn.showMessage('已复制为新记录，修改后点击保存即可新增', 'success');
             }
         },
         mounted: function () {

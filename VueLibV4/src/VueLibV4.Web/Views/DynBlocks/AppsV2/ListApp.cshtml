@@ -1,33 +1,16 @@
+@model dynamic
 @inject IPageSettingService pageSettingService
 @{
-    // =====================================================================================
-    // ListAppV2 —— 列表 Block（DynEventBus 版，服务端渲染配置）
-    //
-    // ViewData 入参：
-    //   ExtId        元素 ID
-    //   ExecId       Template 根事件总线 ID
-    //   ListSettingId  PageSetting ID（ConfigJson 里是 columns 数组）
-    //   TableName    业务表名
-    //   KeyField     主键字段（默认 Id）
-    //   Project      数据域
-    //   LoadUrl / DeleteUrl  接口（可选，默认统一端点）
-    //
-    // 事件：
-    //   on:    filter.query  payload={字段:{op,value}}  → 回到第1页加载
-    //          refresh       payload 可空                 → 按当前条件刷新
-    //   emit:  add / edit{row} / rowSelected{row}
-    // =====================================================================================
-    var extId = (ViewData["ExtId"] as string) ?? ("lb2" + Guid.NewGuid().ToString("N"));
-    var execId = (ViewData["ExecId"] as string) ?? "";
-    var listPsId = (ViewData["ListSettingId"] as int?) ?? 0;
-    var tableName = (ViewData["TableName"] as string) ?? "";
-    var keyField = (ViewData["KeyField"] as string) ?? "Id";
-    var project = (ViewData["Project"] as string) ?? "";
-    var loadUrl = (ViewData["LoadUrl"] as string) ?? "";
-    var deleteUrl = (ViewData["DeleteUrl"] as string) ?? "";
+    var extId = (string)(Model?.ExtId ?? ("lb2" + Guid.NewGuid().ToString("N")));
+    var execId = (string)(Model?.ExecId ?? "");
+    var listPsId = Convert.ToInt32(Model?.ListSettingId ?? ViewData["ListSettingId"] ?? 0);
+    var tableName = (string)(Model?.TableName ?? "");
+    var keyField = (string)(Model?.KeyField ?? "Id");
+    var project = (string)(Model?.Project ?? "");
+    var loadUrl = (string)(Model?.LoadUrl ?? DynPageViewHelper.SearchUrl);
+    var deleteUrl = (string)(Model?.DeleteUrl ?? DynPageViewHelper.DeleteUrl);
 
     var listSetting = listPsId > 0 ? pageSettingService.GetById(listPsId) : null;
-    if (listSetting == null) { listSetting = null; }
 }
 <div id="@extId" dyn-init="createApp" class="dyn-blk-list">
     <div class="dyn-blk-list__toolbar">
