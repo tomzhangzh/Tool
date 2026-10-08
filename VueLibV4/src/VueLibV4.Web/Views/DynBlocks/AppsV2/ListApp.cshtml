@@ -1,14 +1,19 @@
 @model dynamic
 @inject IPageSettingService pageSettingService
+@using System.Dynamic
 @{
-    var extId = (string)(Model?.ExtId ?? ("lb2" + Guid.NewGuid().ToString("N")));
-    var execId = (string)(Model?.ExecId ?? "");
-    var listPsId = Convert.ToInt32(Model?.ListSettingId ?? ViewData["ListSettingId"] ?? 0);
-    var tableName = (string)(Model?.TableName ?? "");
-    var keyField = (string)(Model?.KeyField ?? "Id");
-    var project = (string)(Model?.Project ?? "");
-    var loadUrl = (string)(Model?.LoadUrl ?? DynPageViewHelper.SearchUrl);
-    var deleteUrl = (string)(Model?.DeleteUrl ?? DynPageViewHelper.DeleteUrl);
+    IDictionary<string, object?> M = Model != null ? (IDictionary<string, object?>)Model : new Dictionary<string, object?>();
+    string S(string k, string dft = "") => M.TryGetValue(k, out var v) && v != null ? v.ToString() ?? dft : dft;
+    int I(string k, int dft = 0) => M.TryGetValue(k, out var v) && v != null ? Convert.ToInt32(v) : dft;
+
+    var extId = S("ExtId", "lb2-" + Guid.NewGuid().ToString("N")[..12]);
+    var execId = S("ExecId");
+    var listPsId = I("ListSettingId", ViewData["ListSettingId"] != null ? Convert.ToInt32(ViewData["ListSettingId"]) : 0);
+    var tableName = S("TableName");
+    var keyField = S("KeyField", "Id");
+    var project = S("Project");
+    var loadUrl = S("LoadUrl", DynPageViewHelper.SearchUrl);
+    var deleteUrl = S("DeleteUrl", DynPageViewHelper.DeleteUrl);
 
     var listSetting = listPsId > 0 ? pageSettingService.GetById(listPsId) : null;
 }

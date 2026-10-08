@@ -1,16 +1,21 @@
 @model dynamic
 @inject IPageSettingService pageSettingService
+@using System.Dynamic
 @{
-    var extId = (string)(Model?.ExtId ?? ("db2" + Guid.NewGuid().ToString("N")));
-    var execId = (string)(Model?.ExecId ?? "");
-    var detailPsId = Convert.ToInt32(Model?.DetailSettingId ?? ViewData["DetailSettingId"] ?? 0);
-    var tableName = (string)(Model?.TableName ?? "");
-    var keyField = (string)(Model?.KeyField ?? "Id");
-    var project = (string)(Model?.Project ?? "");
-    var rowId = (string)(Model?.RowId ?? "");
-    var addUrl = (string)(Model?.AddUrl ?? DynPageViewHelper.SaveUrl);
-    var editUrl = (string)(Model?.EditUrl ?? DynPageViewHelper.SaveUrl);
-    var deleteUrl = (string)(Model?.DeleteUrl ?? DynPageViewHelper.DeleteUrl);
+    IDictionary<string, object?> M = Model != null ? (IDictionary<string, object?>)Model : new Dictionary<string, object?>();
+    string S(string k, string dft = "") => M.TryGetValue(k, out var v) && v != null ? v.ToString() ?? dft : dft;
+    int I(string k, int dft = 0) => M.TryGetValue(k, out var v) && v != null ? Convert.ToInt32(v) : dft;
+
+    var extId = S("ExtId", "db2-" + Guid.NewGuid().ToString("N")[..12]);
+    var execId = S("ExecId");
+    var detailPsId = I("DetailSettingId", ViewData["DetailSettingId"] != null ? Convert.ToInt32(ViewData["DetailSettingId"]) : 0);
+    var tableName = S("TableName");
+    var keyField = S("KeyField", "Id");
+    var project = S("Project");
+    var rowId = S("RowId");
+    var addUrl = S("AddUrl", DynPageViewHelper.SaveUrl);
+    var editUrl = S("EditUrl", DynPageViewHelper.SaveUrl);
+    var deleteUrl = S("DeleteUrl", DynPageViewHelper.DeleteUrl);
 
     var detailSetting = detailPsId > 0 ? pageSettingService.GetById(detailPsId) : null;
 }

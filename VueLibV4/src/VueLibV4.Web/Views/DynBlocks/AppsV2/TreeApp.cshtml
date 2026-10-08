@@ -1,0 +1,291 @@
+@model dynamic
+@using VueLibV4.Web.Core
+@using System.Dynamic
+@{
+    IDictionary<string, object?> M = Model != null ? (IDictionary<string, object?>)Model : new Dictionary<string, object?>();
+    string S(string k, string dft = "") => M.TryGetValue(k, out var v) && v != null ? v.ToString() : dft;
+    bool B(string k, bool dft = false) => M.TryGetValue(k, out var v) && v != null && Convert.ToBoolean(v);
+
+    var extId = S("ExtId", "tree-" + Guid.NewGuid().ToString("N")[..12]);
+    var execId = S("ExecId");
+    var tableName = S("TableName");
+    var keyField = S("KeyField", "Id");
+    var parentField = S("ParentField", "ParentId");
+    var titleField = S("TitleField", "Name");
+    var iconField = S("IconField", "Icon");
+    var sortField = S("SortField", "SortNo");
+    var project = S("Project");
+    var enableDrag = B("EnableDrag");
+    var dragSameLevelOnly = B("DragSameLevelOnly");
+}
+<div id="@extId" dyn-init="createApp" class="dyn-blk-tree">
+    <div class="tr-pane-head">
+        <span class="tr-pane-title">树</span>
+        <div class="tr-pane-tools">
+            <el-button type="success" size="small" @@click="onAddRoot">+ 新增根</el-button>
+            <el-button type="primary" size="small" @@click="onAddChild" :disabled="!current">+ 子节点</el-button>
+            <el-button type="primary" size="small" text @@click="loadTree" :loading="treeLoading">刷新</el-button>
+        </div>
+    </div>
+    <el-input v-model="filterText" placeholder="搜索节点" clearable size="small"
+              style="margin-bottom:8px;width:100%;"></el-input>
+    <div class="tr-tree-wrap">
+        <el-tree ref="treeEl" :key="treeKey" :data="filteredTreeData"
+                 :props="{ children: 'children', label: titleField }"
+                 node-key="__key" default-expand-all highlight-current
+                 :expand-on-click-node="false" v-loading="treeLoading"
+                 @@node-click="onNodeClick">
+            <template #default="{ data }">
+                <span class="tr-node" :data-key="data.__key" @@click.stop="onNodeClick(data)">
+                    <span>{{ (data.children && data.children.length) ? (data[iconField] || '📁') : (data[iconField] || '📄') }}</span>
+                    <span>{{ data[titleField] }}</span>
+                    <el-tag v-if="data.IsActive === false || data.IsActive === 0" size="small" type="info" style="margin-left:4px">停用</el-tag>
+                </span>
+            </template>
+        </el-tree>
+    </div>
+
+    <script type="text/plain" tag="dynconfig">
+    var __execId = '@execId';
+    var __table = '@tableName';
+    var __keyField = '@keyField';
+    var __parentField = '@parentField';
+    var __titleField = '@titleField';
+    var __iconField = '@iconField';
+    var __sortField = '@sortField';
+    var __project = '@project';
+    var __enableDrag = @(enableDrag ? "true" : "false");
+    var __dragSameLevelOnly = @(dragSameLevelOnly ? "true" : "false");
+
+    var dynConfig = {
+        data: function () {
+            return {
+                tableName: __table, keyField: __keyField, parentField: __parentField,
+                titleField: __titleField, iconField: __iconField, sortField: __sortField,
+                project: __project, enableDrag: __enableDrag, dragSameLevelOnly: __dragSameLevelOnly,
+                treeData: [], treeLoading: false, filterText: '', treeKey: 0, current: null
+            };
+        },
+        computed: {
+            filteredTreeData: function () {
+                var val = this.filterText || '';
+                if (!val) return this.treeData;
+                var tf = this.titleField;
+                function walk(list) {
+                    var out = [];
+                    list.forEach(function (n) {
+                        var hit = String(n[tf] || '').indexOf(val) !== -1;
+                        var kids = (n.children && n.children.length) ? walk(n.children) : [];
+                        if (hit || kids.length) out.push(Object.assign({}, n, { children: kids }));
+                    });
+                    return out;
+                }
+                return walk(this.treeData);
+            }
+        },
+        watch: {
+            treeKey: function () {
+                var self = this;
+                this.$nextTick(function () { if (self.enableDrag) self.initSortable(); });
+            }
+        },
+        methods: {
+            buildTree: function (rows) {
+                var keyField = this.keyField, parentField = this.parentField, sortField = this.sortField;
+                var map = {}, roots = [];
+                rows.forEach(function (r) {
+                    map[r[keyField]] = Object.assign({}, r, { children: [], __key: String(r[keyField]) });
+                });
+                rows.forEach(function (r) {
+                    var node = map[r[keyField]];
+                    var pid = r[parentField];
+                    var parent = (pid !== null && pid !== undefined && pid !== '') ? map[pid] : null;
+                    if (parent) parent.children.push(node); else roots.push(node);
+                });
+                (function sort(list) {
+                    list.sort(function (a, b) {
+                        return ((a[sortField] != null ? a[sortField] : 0) - (b[sortField] != null ? b[sortField] : 0));
+                    });
+                    list.forEach(function (n) { if (n.children && n.children.length) sort(n.children); });
+                })(roots);
+                return roots;
+            },
+            loadTree: function () {
+                var self = this;
+                this.treeLoading = true;
+                var body = {
+                    table: this.tableName, page: 1, size: 100000,
+                    sort: { field: this.sortField, order: 'asc' }, project: this.project
+                };
+                DynCall.post('/api/dyndata/search', body, { scopeEl: element, silent: true })
+                    .then(function (res) {
+                        var rows = (res && res.rows) || (res && res.data && res.data.rows) || [];
+                        self.treeData = self.buildTree(rows);
+                        self.treeKey = self.treeKey + 1;
+                        self.scheduleInitSortable();
+                    })
+                    .catch(function () { dyn.showMessage('加载树失败', 'error'); })
+                    .finally(function () { self.treeLoading = false; });
+            },
+            onNodeClick: function (data) {
+                this.current = data;
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'nodeClick', { row: data });
+            },
+            onAddRoot: function () {
+                this.current = null;
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'addRoot', {});
+            },
+            onAddChild: function () {
+                var c = this.current;
+                if (!c || c[this.keyField] == null || c[this.keyField] === '') {
+                    dyn.showMessage('请先选择一个父节点', 'warning'); return;
+                }
+                var pre = {}; pre[this.parentField] = c[this.keyField];
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'addChild', { preFill: pre });
+            },
+            // ---------- 拖拽排序 ----------
+            initSortable: function () {
+                if (!this.enableDrag) return;
+                var self = this;
+                this.destroySortable();
+                var treeRef = this.$refs.treeEl;
+                if (!treeRef || !treeRef.$el) return;
+                var rootEl = treeRef.$el;
+                var lists = [rootEl];
+                rootEl.querySelectorAll('.el-tree-node__children').forEach(function (l) { lists.push(l); });
+                this._sortables = [];
+                lists.forEach(function (list) {
+                    var s = Sortable.create(list, {
+                        group: 'dyn-tree-sort', animation: 150, handle: '.tr-node',
+                        forceFallback: true, fallbackOnBody: true, fallbackTolerance: 2,
+                        ghostClass: 'dyn-tree-ghost', chosenClass: 'dyn-tree-chosen', dragClass: 'dyn-tree-drag',
+                        onMove: function (evt) {
+                            if (self.filterText) return false;
+                            if (self.dragSameLevelOnly && evt.from !== evt.to) return false;
+                            var dragged = evt.dragged;
+                            if (dragged && (evt.to === dragged || dragged.contains(evt.to))) return false;
+                            return true;
+                        },
+                        onStart: function () {
+                            document.body.style.userSelect = 'none';
+                            document.body.style.webkitUserSelect = 'none';
+                        },
+                        onEnd: function (evt) {
+                            document.body.style.userSelect = '';
+                            document.body.style.webkitUserSelect = '';
+                            self.saveOrder(evt);
+                        }
+                    });
+                    self._sortables.push(s);
+                });
+            },
+            destroySortable: function () {
+                if (this._sortables) {
+                    this._sortables.forEach(function (s) { try { s.destroy(); } catch (e) { } });
+                    this._sortables = [];
+                }
+            },
+            scheduleInitSortable: function () {
+                var self = this;
+                if (!this.enableDrag) return;
+                var tries = 0;
+                (function tryInit() {
+                    tries++;
+                    var treeRef = self.$refs.treeEl;
+                    var ready = treeRef && treeRef.$el && treeRef.$el.querySelectorAll('.el-tree-node__children').length > 0;
+                    if (ready) { self.initSortable(); return; }
+                    if (tries <= 10) setTimeout(tryInit, 120);
+                })();
+            },
+            parentKeyOfList: function (listEl) {
+                if (!listEl || listEl.classList.contains('el-tree')) return '';
+                var nodeEl = listEl.closest('.el-tree-node');
+                if (!nodeEl) return '';
+                var keyEl = nodeEl.querySelector(':scope > .el-tree-node__content [data-key]');
+                return keyEl ? keyEl.getAttribute('data-key') : '';
+            },
+            buildParentMap: function () {
+                var map = {};
+                (function walk(list, parentKey) {
+                    (list || []).forEach(function (n) {
+                        map[n.__key] = parentKey || '';
+                        if (n.children && n.children.length) walk(n.children, n.__key);
+                    });
+                })(this.treeData, '');
+                return map;
+            },
+            collectOrder: function (listEl, updates) {
+                var parent = this.parentKeyOfList(listEl);
+                var nodes = listEl.querySelectorAll(':scope > .el-tree-node');
+                for (var i = 0; i < nodes.length; i++) {
+                    var keyEl = nodes[i].querySelector(':scope > .el-tree-node__content [data-key]');
+                    var key = keyEl ? keyEl.getAttribute('data-key') : '';
+                    if (key) updates[key] = { key: key, sortNo: (i + 1) * 100, parent: parent };
+                }
+            },
+            saveOrder: function (evt) {
+                var self = this;
+                if (!evt || !evt.from) return;
+                var updates = {};
+                this.collectOrder(evt.from, updates);
+                if (evt.to && evt.to !== evt.from) this.collectOrder(evt.to, updates);
+                var keys = Object.keys(updates);
+                if (!keys.length) { this.loadTree(); return; }
+                var currentParent = this.buildParentMap();
+                var tasks = keys.map(function (k) {
+                    var u = updates[k];
+                    var oldParent = currentParent[k] != null ? currentParent[k] : '';
+                    var flat = {};
+                    flat[self.keyField] = u.key;
+                    flat[self.sortField] = Number(u.sortNo);
+                    if (oldParent !== (u.parent || '')) flat[self.parentField] = u.parent || null;
+                    return { table: self.table, data: flat, project: self.project };
+                });
+                var chain = Promise.resolve();
+                tasks.forEach(function (t) {
+                    chain = chain.then(function () {
+                        return DynCall.post('/api/dyndata/save', t, { scopeEl: element, silent: true });
+                    });
+                });
+                chain.then(function () {
+                    dyn.showMessage('排序已保存', 'success');
+                    self.loadTree();
+                }).catch(function () {
+                    dyn.showMessage('排序保存失败，已还原', 'error');
+                    self.loadTree();
+                });
+            }
+        },
+        mounted: function () {
+            var self = this;
+            // reload 命令
+            if (window.DynEventBus && __execId) {
+                window.DynEventBus.on(__execId, 'reload', function () { self.loadTree(); });
+            }
+            this.$nextTick(function () { self.loadTree(); });
+        },
+        beforeUnmount: function () {
+            this.destroySortable();
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-tree { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .tr-pane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .tr-pane-tools { display: flex; align-items: center; gap: 4px; }
+    .tr-pane-title { font-size: 13px; font-weight: 600; color: #303133; }
+    .tr-tree-wrap { flex: 1; min-height: 0; overflow: auto; }
+    .tr-node { display: inline-flex; align-items: center; gap: 4px; user-select: none; -webkit-user-select: none; }
+    .dyn-tree-ghost { opacity: 0.5; background: #d9ecff !important; border: 1px dashed #409eff !important; border-radius: 4px; }
+    .dyn-tree-chosen { background: #ecf5ff; }
+    .dyn-tree-drag { opacity: 0.9; }
+    .tr-tree-wrap .sortable-ghost {
+        height: 28px !important; background: #d9ecff !important;
+        border: 1px dashed #409eff !important; border-radius: 4px !important; list-style: none;
+    }
+</style>
