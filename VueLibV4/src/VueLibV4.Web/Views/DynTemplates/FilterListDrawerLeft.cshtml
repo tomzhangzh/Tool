@@ -102,12 +102,7 @@
                             '&project=' + encodeURIComponent(__project || '');
                         window.dyn.fetchPartial(q, {}, 'GET').then(function (html) {
                             window.dyn.html(body, html, false);
-                            var apps = body.querySelectorAll('[data-dyn-mode="createApp"]');
-                            var chain = window.Promise.resolve();
-                            [].forEach.call(apps, function (ae) {
-                                chain = chain.then(function () { return window.dyn.mount(ae); });
-                            });
-                            chain.catch(function (e) { console.error('[FilterListDrawerLeft] Detail 挂载失败', e); });
+                                window.dyn.initActions(body);
                         }).catch(function (e) {
                             body.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
                         });

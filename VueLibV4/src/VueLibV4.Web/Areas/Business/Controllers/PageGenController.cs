@@ -52,4 +52,11 @@ public class PageGenController : ControllerBase
         var r = _pageGen.Preview(req);
         return ApiResult.Ok(new { filter = r.FilterCfg, list = r.ListCfg, detail = r.DetailCfg });
     }
+
+    /// <summary>返回支持三屏生成的模板列表（SupportGen=1），供向导下拉选择。</summary>
+    [HttpGet("templates")]
+    public ApiResult Templates()
+    {
+        return ApiResult.Ok(_pageGen.ListGenTemplates());
+    }
 }

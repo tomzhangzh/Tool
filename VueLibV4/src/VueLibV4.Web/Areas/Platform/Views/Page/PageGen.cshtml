@@ -154,10 +154,9 @@
                     <el-form-item label="页面名称">
                         <el-input v-model="form.name" placeholder="如 学生管理" style="width:260px"></el-input>
                     </el-form-item>
-                    <el-form-item label="页面形态">
-                        <el-select v-model="form.layout" style="width:320px">
-                            <el-option label="标准：筛选列表 + 编辑弹窗" value=""></el-option>
-                            <el-option label="同屏：筛选+列表+明细（master-detail）" value="list-master-detail"></el-option>
+                    <el-form-item label="页面模板">
+                        <el-select v-model="form.tplCode" style="width:320px" placeholder="选择三屏模板">
+                            <el-option v-for="t in genTemplates" :key="t.Id" :label="(t.Icon||'') + ' ' + t.Name" :value="t.Code"></el-option>
                         </el-select>
                     </el-form-item>
                     <el-form-item label="筛选布局">
@@ -225,7 +224,8 @@
                     loadingCols: false, generating: false, previewing: false,
                     previewFilterCfg: null, previewDetailCfg: null,
                     filterModel: {}, detailModel: {},
-                    form: { project: '', table: '', code: '', name: '', layout: '', rememberLabels: true }
+                    form: { project: '', table: '', code: '', name: '', tplCode: '', rememberLabels: true },
+                    genTemplates: []
                 };
             },
             mounted: function () {
@@ -237,6 +237,11 @@
                     self.projects = list;
                 });
                 self.loadTables(); // 进来就加载默认业务库的表，不必先选项目
+                fetch('/api/business/pagegen/templates', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (res) {
+                    var list = (res && res.code === 0) ? (res.data || []) : [];
+                    self.genTemplates = list;
+                    if (list.length && !self.form.tplCode) self.form.tplCode = list[0].Code;
+                });
             },
             methods: {
                 go: function (url) { window.location.href = url; },
@@ -389,7 +394,7 @@
                     var payload = {
                         project: self.form.project || null,
                         rememberLabels: self.form.rememberLabels !== false,
-                        layout: self.form.layout || '',
+                        tplCode: self.form.tplCode || '',
                         table: self.form.table, pk: pkField,
                         code: self.form.code, name: self.form.name,
                         filterCols: self.filterCols, detailCols: self.detailCols,

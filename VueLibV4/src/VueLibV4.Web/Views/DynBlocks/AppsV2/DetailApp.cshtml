@@ -35,10 +35,6 @@
     if (detailSetting == null) { detailSetting = null; }
 }
 <div id="@extId" dyn-init="createApp" class="dyn-blk-detail">
-    <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
-    <div class="dyn-blk-detail__body">
-        <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
-    </div>
     <div class="dyn-blk-detail__btns">
         <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" @@click="onSave()">
             <el-icon><Check /></el-icon> 保存
@@ -50,6 +46,11 @@
             <el-icon><Close /></el-icon> 取消
         </button>
     </div>
+    <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
+    <div class="dyn-blk-detail__body">
+        <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+    </div>
+    
     <script type="text/plain" tag="dynconfig">
     var __execId = '@execId';
     var __detailCfg = @Html.Raw(detailSetting?.ConfigJson ?? "null");

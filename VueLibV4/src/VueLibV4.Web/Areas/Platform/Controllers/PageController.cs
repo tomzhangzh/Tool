@@ -157,6 +157,7 @@ public class PageController : Controller
             || string.Equals(template.Code, "filter-list-open-window", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filter-list-open-windowV2", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filter-list-drawer-leftV2", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "detail-modal-v2", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);

@@ -51,7 +51,7 @@ var comConfig = {
         // 不得随 v-bind 透传到 Element 组件根节点（否则泄漏为 optionvalues=... 等无效 attribute）
         const COM_OPTION_PRIVATE_KEYS = {
             sourceType: 1, optionValues: 1, optionValuesText: 1, dictType: 1,
-            projectId: 1, table: 1, valueField: 1, textField: 1,
+            projectId: 1, table: 1, valueField: 1, textField: 1, sql: 1,
             parentField: 1, parentValuePath: 1, parentValue: 1,
             url: 1, valueKey: 1, labelKey: 1
         };
@@ -242,6 +242,15 @@ var comConfig = {
                     .then(function (r) { return r.json(); })
                     .then(function (res) { if (res && res.code === 0) comInnerInfo.options = _normOptionList(res.data); })
                     .catch(function (e) { console.warn('[table options]', e); });
+                return;
+            }
+            if (t === 'sql') {
+                if (!s.sql) return;
+                var q = 'projectId=' + encodeURIComponent(s.projectId || '') + '&sql=' + encodeURIComponent(s.sql);
+                fetch('/api/dyncommon/sqloptions?' + q)
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) { if (res && res.code === 0) comInnerInfo.options = _normOptionList(res.data); })
+                    .catch(function (e) { console.warn('[sql options]', e); });
                 return;
             }
             if (t === 'ajax') {

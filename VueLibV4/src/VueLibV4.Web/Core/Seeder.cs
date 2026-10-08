@@ -183,6 +183,7 @@ CREATE TABLE SysMenu (
         SeedSysMenu(conn);
         // DynTemplate 外壳视图路径列（旧库幂等补齐；新库 platform.sql 已包含）
         EnsureColumn(conn, "DynTemplate", "ViewPath", "TEXT NULL");
+        EnsureColumn(conn, "DynTemplate", "SupportGen", "INTEGER NOT NULL DEFAULT 0");
         // DynWebPage 实例扩展视图路径列（页面级扩展：真实 cshtml，具名槽位 + dynconfig-ext 脚本合并）
         EnsureColumn(conn, "DynWebPage", "ExtViewPath", "TEXT NULL");
         // 布局壳规格列（壳模型 v1.1：spec 与老模板 ParamsJson 分家；旧库幂等补列，空值回退 ParamsJson）
@@ -206,6 +207,8 @@ CREATE TABLE SysMenu (
         SeedFilterListOpenWindowShell(conn);
         // V2 布局壳：filter-list-drawer-left（顶筛选+列表+左侧抽屉编辑）
         SeedFilterListDrawerLeftShell(conn);
+        // V2 详情弹窗片段模板（layui layer 加载，Layout=null）
+        SeedDetailModalV2(conn);
         // 早期手工入库模板的 class 名图标修正为 Emoji（平台图标统一 Emoji 直出）
         SeedBuiltinTemplateIcons(conn);
         // 系统日志表（异常/操作日志持久化）
@@ -948,12 +951,12 @@ DELETE FROM DynActionHelper
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = @"
-INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive)
+INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive, SupportGen)
 SELECT 'filter-list-open-windowV2','筛选列表弹窗(壳)V2','布局壳','🪟','~/Views/DynTemplates/FilterListOpenWindow.cshtml',@def,NULL,
-'V2版：DynEventBus 通信；filter 查询→list 加载；list 新增/编辑→打开 detail 弹窗(layer)；detail 保存→emit refresh 刷新 list。',31,1
+'V2版：DynEventBus 通信；filter 查询→list 加载；list 新增/编辑→打开 detail 弹窗(layer)；detail 保存→emit refresh 刷新 list。',31,1,1
 WHERE NOT EXISTS (SELECT 1 FROM DynTemplate WHERE Code='filter-list-open-windowV2');
 UPDATE DynTemplate SET Name='筛选列表弹窗(壳)V2', Category='布局壳', Icon='🪟', ViewPath='~/Views/DynTemplates/FilterListOpenWindow.cshtml',
-    DefaultJson=@def,
+    DefaultJson=@def, SupportGen=1,
     Description='V2版：DynEventBus 通信；filter 查询→list 加载；list 新增/编辑→打开 detail 弹窗(layer)；detail 保存→emit refresh 刷新 list。'
 WHERE Code='filter-list-open-windowV2';";
             cmd.Parameters.AddWithValue("@def", tplDef);
@@ -982,6 +985,22 @@ WHERE Code='sysmenu-filter-openwindow-demo';";
         _logger.LogInformation("[Init] 布局壳 filter-list-open-windowV2 模板与演示页种子同步完成");
     }
 
+    /// <summary>V2 弹窗片段模板：DetailModalV2.cshtml（Layout=null，layui layer 加载的片段）。</summary>
+    private void SeedDetailModalV2(SqliteConnection conn)
+    {
+        if (!TableExists(conn, "DynTemplate")) return;
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive)
+SELECT 'detail-modal-v2','详情弹窗(V2)','布局壳','🪟','~/Views/DynTemplates/DetailModalV2.cshtml',NULL,NULL,
+'V2 弹窗片段：Layout=null，layui layer 加载，DynEventBus 通信。',33,1
+WHERE NOT EXISTS (SELECT 1 FROM DynTemplate WHERE Code='detail-modal-v2');
+UPDATE DynTemplate SET ViewPath='~/Views/DynTemplates/DetailModalV2.cshtml', IsActive=1
+WHERE Code='detail-modal-v2';";
+        cmd.ExecuteNonQuery();
+        _logger.LogInformation("[Init] detail-modal-v2 模板种子同步完成");
+    }
+
     /// <summary>
     /// V2 布局壳：filter-list-drawer-left（顶筛选 + 列表 + 左侧抽屉编辑，DynEventBus 通信）。
     /// 只注册模板，不建演示页（演示页由用户自行创建）。
@@ -997,12 +1016,12 @@ WHERE Code='sysmenu-filter-openwindow-demo';";
 
         using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
-INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive)
+INSERT INTO DynTemplate (Code, Name, Category, Icon, ViewPath, DefaultJson, ConfigJson, Description, SortNo, IsActive, SupportGen)
 SELECT 'filter-list-drawer-leftV2','筛选列表左侧抽屉(V2)','布局壳','📂','~/Views/DynTemplates/FilterListDrawerLeft.cshtml',@def,NULL,
-'V2版：顶筛选+列表+左侧抽屉编辑；DynEventBus 通信；filter 查询→list 加载；list 新增/编辑→左侧抽屉滑出 detail；detail 保存→emit refresh 刷新 list。',32,1
+'V2版：顶筛选+列表+左侧抽屉编辑；DynEventBus 通信；filter 查询→list 加载；list 新增/编辑→左侧抽屉滑出 detail；detail 保存→emit refresh 刷新 list。',32,1,1
 WHERE NOT EXISTS (SELECT 1 FROM DynTemplate WHERE Code='filter-list-drawer-leftV2');
 UPDATE DynTemplate SET Name='筛选列表左侧抽屉(V2)', Category='布局壳', Icon='📂', ViewPath='~/Views/DynTemplates/FilterListDrawerLeft.cshtml',
-    DefaultJson=@def,
+    DefaultJson=@def, SupportGen=1,
     Description='V2版：顶筛选+列表+左侧抽屉编辑；DynEventBus 通信；filter 查询→list 加载；list 新增/编辑→左侧抽屉滑出 detail；detail 保存→emit refresh 刷新 list。'
 WHERE Code='filter-list-drawer-leftV2';";
         cmd.Parameters.AddWithValue("@def", tplDef);

@@ -91,6 +91,27 @@ public class DynCommonController : ControllerBase
         return ApiResult.Ok(rows.Select(d => new { value = d.DictCode, label = d.DictName }).ToList());
     }
 
+    /// <summary>
+    /// 执行只读 SQL 返回 [{value,label}] 下拉选项。
+    /// SQL 必须返回 Value/Text 两列（SELECT DISTINCT Col AS Value, Col AS Text FROM ...）。
+    /// </summary>
+    [HttpGet("sqloptions")]
+    public ApiResult SqlOptions(string project, string projectId = null, string sql = null)
+    {
+        if (string.IsNullOrWhiteSpace(sql)) return ApiResult.Fail("缺少 sql 参数");
+        if (string.IsNullOrWhiteSpace(project)) project = projectId;
+        // projectId=0 表示平台元数据库
+        if (string.IsNullOrWhiteSpace(project) || project == "0") project = ProjectDbResolver.PlatformProjectKey;
+        using var db = _projects.Resolve(project);
+        var dt = db.Ado.GetDataTable(sql);
+        var list = new List<object>();
+        foreach (System.Data.DataRow row in dt.Rows)
+        {
+            list.Add(new { value = row[0], label = row[1] });
+        }
+        return ApiResult.Ok(list);
+    }
+
     // ---------------- 工程表列表（下拉数据源） ----------------
 
     [HttpGet("tables")]
