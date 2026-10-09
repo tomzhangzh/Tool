@@ -1,5 +1,6 @@
 ﻿using System.Dynamic;
 using System.IO;
+using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
@@ -343,6 +344,115 @@ public class PageController : Controller
         public string? ExecId { get; set; }
         public long? RowId { get; set; }
         public JObject? Config { get; set; }
+    }
+
+    /// <summary>
+    /// Inspector 数据：返回 WebPage 的 provide + 各 slot 的当前值 + 对应 Block 的 ParamConfigJson。
+    /// 前端 Inspector 面板据此动态渲染参数表单。
+    /// </summary>
+    [HttpGet("/Platform/Page/InspectorData")]
+    public IActionResult InspectorData(long webpageId)
+    {
+        var page = _webPages.GetById((int)webpageId);
+        if (page == null) return Json(new { code = 1, msg = "页面不存在" });
+
+        JObject ps;
+        try { ps = JObject.Parse(page.ParamsJson ?? "{}"); }
+        catch { ps = new JObject(); }
+
+        // provide：优先 ps.provide，否则把顶层非 blocks 字段当 provide（兼容旧结构）
+        var provide = ps["provide"] as JObject;
+        if (provide == null || !provide.HasValues)
+        {
+            provide = new JObject();
+            foreach (var prop in ps.Properties())
+            {
+                if (prop.Name is "provide" or "blocks") continue;
+                provide[prop.Name] = prop.Value.DeepClone();
+            }
+        }
+
+        // blocks[slot] 当前值
+        var blocksObj = ps["blocks"] as JObject ?? new JObject();
+
+        // 查模板-槽位关系
+        var slots = new List<object>();
+        var knownSlots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (page.TemplateId != null)
+        {
+            var tplBlocks = _tplBlocks.Query(x => x.TemplateId == page.TemplateId.Value).OrderBy(x => x.SortNo).ToList();
+            foreach (var tb in tplBlocks)
+            {
+                knownSlots.Add(tb.Slot);
+                var blk = _blocks.GetById(tb.BlockId);
+                if (blk == null) continue;
+                JObject? pcfg = null;
+                try { if (!string.IsNullOrWhiteSpace(blk.ParamConfigJson)) pcfg = JObject.Parse(blk.ParamConfigJson); } catch { }
+                var current = blocksObj[tb.Slot] as JObject ?? new JObject();
+                slots.Add(new
+                {
+                    slot = tb.Slot,
+                    blockCode = blk.Code,
+                    blockName = blk.Name,
+                    description = blk.Description,
+                    paramConfig = pcfg,
+                    paramDefault = blk.ParamDefaultJson,
+                    current = current
+                });
+            }
+        }
+        // 兜底：blocksObj 里出现但 DynTemplateBlock 没记录的 slot，按 blockName 反查 Block
+        foreach (var prop in blocksObj.Properties())
+        {
+            if (knownSlots.Contains(prop.Name)) continue;
+            var blk = _blocks.Query(x => x.Code == prop.Name && x.IsActive).ToList().FirstOrDefault();
+            if (blk == null) continue;
+            JObject? pcfg = null;
+            try { if (!string.IsNullOrWhiteSpace(blk.ParamConfigJson)) pcfg = JObject.Parse(blk.ParamConfigJson); } catch { }
+            var current = prop.Value as JObject ?? new JObject();
+            slots.Add(new
+            {
+                slot = prop.Name,
+                blockCode = blk.Code,
+                blockName = blk.Name,
+                description = blk.Description,
+                paramConfig = pcfg,
+                paramDefault = blk.ParamDefaultJson,
+                current = current
+            });
+        }
+
+        return Json(new
+        {
+            code = 0,
+            data = new
+            {
+                webpageId = page.Id,
+                pageName = page.Name,
+                templateId = page.TemplateId,
+                provide = provide,
+                blocks = blocksObj,
+                slots = slots
+            }
+        });
+    }
+
+    /// <summary>保存 WebPage.ParamsJson（Inspector 编辑后调用）</summary>
+    [HttpPost("/Platform/Page/SaveParams")]
+    public IActionResult SaveParams([FromBody] SaveParamsRequest req)
+    {
+        if (req?.WebpageId == null) return Json(new { code = 1, msg = "缺少 webpageId" });
+        var page = _webPages.GetById((int)req.WebpageId.Value);
+        if (page == null) return Json(new { code = 1, msg = "页面不存在" });
+        page.ParamsJson = req.ParamsJson?.ToString(Newtonsoft.Json.Formatting.None) ?? "{}";
+        _webPages.Update(page);
+        return Json(new { code = 0, msg = "ok" });
+    }
+
+    public class SaveParamsRequest
+    {
+        public long? WebpageId { get; set; }
+        public JObject? ParamsJson { get; set; }
     }
 
     /// <summary>TableName 自动补齐 dyndata 免 model 接口 Url（手动填写优先）</summary>

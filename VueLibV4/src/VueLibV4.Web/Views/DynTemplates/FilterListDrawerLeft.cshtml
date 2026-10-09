@@ -42,6 +42,11 @@
        
 </div>
 
+@if (Context.Request.Query.ContainsKey("dyndebug")) {
+    ViewBag.WebpageId = Model.Id;
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/InspectorPanel.cshtml")
+}
+
 <style>
     .fld-root { min-height: 100vh; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .fld-body { display: flex; }

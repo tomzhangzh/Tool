@@ -23,7 +23,8 @@
             <el-icon style="margin-right:4px"><Plus /></el-icon>新增
         </button>
     </div>
-    <el-table :data="model.rows" v-loading="model.loading" size="small" border>
+    <el-table :data="model.rows" v-loading="model.loading" size="small" border
+               :row-class-name="rowClassName" :key="animKey">
         <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label"
             :width="col.width || undefined" :min-width="col.minWidth || undefined"
             :align="col.align || undefined" :fixed="col.fixed || undefined"
@@ -73,7 +74,8 @@
                 loadUrl: __loadUrl,
                 deleteUrl: __deleteUrl,
                 project: __project,
-                dictMap: {}
+                dictMap: {},
+                animKey: 0
             };
         },
         methods: {
@@ -89,6 +91,7 @@
                     self.model.loading = false;
                     self.model.rows = (data && data.rows) || [];
                     self.model.total = (data && data.total) || 0;
+                    self.animKey = self.animKey + 1;
                 })
                 .catch(function () { self.model.loading = false; });
             },
@@ -130,6 +133,9 @@
                 if (o && o.type) return o.type;
                 if (col.tagType) return o.tagType;
                 return v ? 'success' : 'info';
+            },
+            rowClassName: function (row) {
+                return 'list-row-in';
             },
             onAdd: function () {
                 if (window.DynEventBus && __execId)
@@ -191,4 +197,19 @@
     .dyn-blk-list__toolbar { margin-bottom: 12px; }
     .dyn-blk-list .el-table { width: 100%; }
     .dyn-blk-list__page { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .dyn-blk-list .el-table__body tr.list-row-in > td {
+        animation: listRowIn .32s ease both;
+    }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(1) > td { animation-delay: 0ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(2) > td { animation-delay: 25ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(3) > td { animation-delay: 50ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(4) > td { animation-delay: 75ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(5) > td { animation-delay: 100ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(6) > td { animation-delay: 125ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(7) > td { animation-delay: 150ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(n+8) > td { animation-delay: 175ms; }
+    @@keyframes listRowIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
 </style>

@@ -20,19 +20,30 @@
     var detailSetting = detailPsId > 0 ? pageSettingService.GetById(detailPsId) : null;
 }
 <div id="@extId" dyn-init="createApp" class="dyn-blk-detail">
-    <div class="dyn-blk-detail__btns">
-        <button type="button" class="el-button el-button--primary el-button--small" :disabled="loading" @@click="onSave()">
-            <el-icon><Check /></el-icon> 保存
-        </button>
-        <button type="button" class="el-button el-button--danger el-button--small" :disabled="loading || !canDelete" @@click="onDelete()">
-            <el-icon><Delete /></el-icon> 删除
-        </button>
-        <button type="button" class="el-button el-button--small" :disabled="loading || !canDelete" @@click="onCopy()">
-            <el-icon><DocumentCopy /></el-icon> 复制
-        </button>
-        <button type="button" class="el-button el-button--small" @@click="onCancel()">
-            <el-icon><Close /></el-icon> 取消
-        </button>
+    <div class="dyn-actionbar">
+        <div class="dyn-actionbar__group">
+            <button type="button" class="dyn-actionbar__btn dyn-actionbar__btn--primary"
+                    :disabled="loading" @@click="onSave()">
+                <el-icon><Check /></el-icon><span>保存</span>
+            </button>
+        </div>
+        <span class="dyn-actionbar__divider"></span>
+        <div class="dyn-actionbar__group">
+            <button type="button" class="dyn-actionbar__btn "
+                    :disabled="loading || !canDelete" @@click="onCopy()">
+                <el-icon><Copy-Document /></el-icon><span>复制</span>
+            </button>
+        </div>
+        <div class="dyn-actionbar__right">
+            <button type="button" class="dyn-actionbar__btn dyn-actionbar__btn--danger"
+                    :disabled="loading || !canDelete" @@click="onDelete()">
+                <el-icon><Delete /></el-icon><span>删除</span>
+            </button>
+            <button type="button" class="dyn-actionbar__btn dyn-actionbar__btn--text"
+                    @@click="onCancel()">
+                <el-icon><Close /></el-icon><span>取消</span>
+            </button>
+        </div>
     </div>
     <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
     <div class="dyn-blk-detail__body">
@@ -202,8 +213,30 @@
     .dyn-blk-detail__errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
         border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
     .dyn-blk-detail__body { flex: 1; }
-    .dyn-blk-detail__btns {
-        display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
-        padding: 10px 16px; border-top: 1px solid #e4e7ed; background: #fafafa;
+
+    /* ===== ProUI 风格紧凑操作栏 ===== */
+    .dyn-actionbar {
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 12px; background: #fafbfc;
+        border: 1px solid #e4e7ed; border-radius: 6px;
+        margin-bottom: 12px; flex-wrap: wrap;
     }
+    .dyn-actionbar__group { display: flex; align-items: center; gap: 4px; }
+    .dyn-actionbar__right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+    .dyn-actionbar__divider { width: 1px; height: 18px; background: #dcdfe6; margin: 0 4px; }
+    .dyn-actionbar__btn {
+        display: inline-flex; align-items: center; gap: 4px;
+        height: 28px; padding: 0 10px; font-size: 12px;
+        border: 1px solid #dcdfe6; border-radius: 4px;
+        background: #fff; color: #606266; cursor: pointer;
+        transition: all .15s ease; line-height: 1;
+    }
+    .dyn-actionbar__btn:hover:not(:disabled) { border-color: #c0c4cc; background: #f5f7fa; }
+    .dyn-actionbar__btn:disabled { opacity: .5; cursor: not-allowed; }
+    .dyn-actionbar__btn--primary { background: #409eff; border-color: #409eff; color: #fff; }
+    .dyn-actionbar__btn--primary:hover:not(:disabled) { background: #66b1ff; border-color: #66b1ff; color: #fff; }
+    .dyn-actionbar__btn--danger { background: #fff; border-color: #fbc4c4; color: #f56c6c; }
+    .dyn-actionbar__btn--danger:hover:not(:disabled) { background: #fef0f0; border-color: #f56c6c; color: #f56c6c; }
+    .dyn-actionbar__btn--text { border-color: transparent; background: transparent; color: #909399; }
+    .dyn-actionbar__btn--text:hover:not(:disabled) { background: #f5f7fa; color: #606266; }
 </style>
