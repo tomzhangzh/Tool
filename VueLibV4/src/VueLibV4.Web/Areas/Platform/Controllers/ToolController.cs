@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
+using System.Text.Json;
 using VueLibV4.Platform.Services;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
@@ -51,62 +52,252 @@ public class ToolController : Controller
         var param = string.IsNullOrEmpty(wp.ParamsJson) ? new JObject() : JObject.Parse(wp.ParamsJson);
         var blocksNode = param["blocks"] as JObject ?? new JObject();
 
-        // 取 Template 槽位定义
-        var slots = tpl != null
-            ? _tplBlocks.Query(x => x.TemplateId == tpl.Id).OrderBy(x => x.SortNo).ToList()
-            : new List<VueLibV4.Platform.Models.DynTemplateBlock>();
+        // ===== 仅 V2 架构：模板 ViewPath 必须包含 DynTemplates =====
+        bool isV2 = tpl != null && (tpl.ViewPath?.Contains("DynTemplates") ?? false);
+        if (!isV2)
+        {
+            ViewData["ErrorMsg"] = $"WebPage(id={id}) 使用的是 V1 壳模板（{tpl?.Code ?? "无"}），PageGraphDemo 仅支持 V2 架构页面。";
+            ViewData["GraphJson"] = "{}";
+            ViewData["WpName"] = wp.Name;
+            ViewData["IsV2"] = false;
+            return View(string.Format(Page, "PageGraphDemo"));
+        }
 
-        // 拼 Mermaid
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("flowchart LR");
-        // WebPage 节点
-        sb.AppendLine($"    WP[\"📄 {wp.Name}<br/><small>id={wp.Id}</small>\"]:::wp");
-        // Template
+        // ===== 积木装配（规范来源：DynTemplateBlock 模板-槽位关系表，SortNo 排序，不写死）=====
+        var allBlocks = _blocks.Query(x => true).ToList();
+        var blkById = allBlocks.ToDictionary(b => b.Id);
+
+        // 实例级槽位配置：ParamsJson.blocks[slot].settingId（树等无 PageSetting 的槽位可能没有）
+        int SlotSetting(string slot) =>
+            blocksNode[slot] is JObject sv && int.TryParse(sv["settingId"]?.ToString(), out var sid2) ? sid2 : 0;
+
+        var blockInfos = new List<(string slot, VueLibV4.Platform.Models.DynBlock blk, int settingId, bool required)>();
+        var seenSlots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (wp.TemplateId != null)
+        {
+            foreach (var row in _tplBlocks.ListByTemplate(wp.TemplateId.Value))
+            {
+                seenSlots.Add(row.Slot);
+                blkById.TryGetValue(row.BlockId, out var blk0);
+                blockInfos.Add((row.Slot, blk0, SlotSetting(row.Slot), row.Required));
+            }
+        }
+        // 并集兜底：实例 ParamsJson.blocks 声明、但模板关系表缺失的槽位（按 role/code 匹配积木）
+        foreach (var prop in blocksNode.Properties())
+        {
+            var slot = prop.Name;
+            if (seenSlots.Contains(slot)) continue;
+            var extra = allBlocks.FirstOrDefault(b => string.Equals(b.ImplementsRole, slot, StringComparison.OrdinalIgnoreCase))
+                        ?? allBlocks.FirstOrDefault(b => string.Equals(b.Code, slot, StringComparison.OrdinalIgnoreCase));
+            blockInfos.Add((slot, extra, SlotSetting(slot), false));
+        }
+
+        // ===== 各类资源的 modal 编辑页（固定 code → modal id）=====
+        // WP modal（code=dynwebpage-modal, id=35）、T modal（code=dyntemplate-modal, id=32）
+        // Block modal（code=dynblock-modal, id=33）、PageSetting modal（code=pagesetting-modal, id=27）
+        var modalCodes = new[] { "dynwebpage-modal", "dyntemplate-modal", "dynblock-modal", "pagesetting-modal" };
+        var modalWps = _webPages.Query(x => modalCodes.Contains(x.Code)).ToList();
+        // code → (modal 页面 Id, modal 所属 ProjectId)：点击节点时用 DetailModalV2 片段 + rowId 回填该实体
+        var modalMap = modalWps.ToDictionary(
+            m => m.Code,
+            m => (id: m.Id.ToString(), project: m.ProjectId?.ToString() ?? ""));
+        (string id, string project) Modal(string code) =>
+            modalMap.TryGetValue(code, out var v) ? v : ("", "");
+
+        var wpM = Modal("dynwebpage-modal");
+        var tplM = Modal("dyntemplate-modal");
+        var blkM = Modal("dynblock-modal");
+        var psM = Modal("pagesetting-modal");
+
+        // ===== 组装 X6 Graph JSON =====
+        var nodes = new List<object>();
+        var edges = new List<object>();
+
+        // ===== 四类节点配色（视觉区分）：WP 蓝 / Template 绿 / Block 橙 / PageSetting 紫 =====
+        string C_WP_FILL = "#e3f2fd", C_WP_STROKE = "#1e88e5", C_WP_TEXT = "#0d47a1";
+        string C_T_FILL = "#e8f5e9",  C_T_STROKE = "#43a047",  C_T_TEXT = "#1b5e20";
+        string C_B_FILL = "#fff3e0",  C_B_STROKE = "#fb8c00",  C_B_TEXT = "#e65100";
+        string C_PS_FILL = "#f4f0fa", C_PS_STROKE = "#9b59b6", C_PS_TEXT = "#5b2c6f";
+
+        // WP 节点
+        nodes.Add(new {
+            id = "WP", x = 60, y = 200, width = 230, height = 70, shape = "rect",
+            attrs = new {
+                body = new { fill = C_WP_FILL, stroke = C_WP_STROKE, strokeWidth = 2, rx = 6, ry = 6, cursor = "pointer" },
+                label = new { text = $"📄 {wp.Name}\nid={wp.Id} · {wp.Code}", fill = C_WP_TEXT, fontSize = 13 }
+            },
+            data = new {
+                kind = "wp", name = wp.Name, code = wp.Code, rowId = wp.Id,
+                modalId = wpM.id, project = wpM.project
+            }
+        });
+
+        // Template 节点
         if (tpl != null)
         {
-            sb.AppendLine($"    T[\"📐 {tpl.Name}<br/><small>{tpl.Code}</small>\"]:::tpl");
-            sb.AppendLine("    WP --- T");
+            nodes.Add(new {
+                id = "T", x = 330, y = 200, width = 230, height = 70, shape = "rect",
+                attrs = new {
+                    body = new { fill = C_T_FILL, stroke = C_T_STROKE, strokeWidth = 2, rx = 6, ry = 6, cursor = "pointer" },
+                    label = new { text = $"🧩 {tpl.Name}\nid={tpl.Id} · {tpl.Code}", fill = C_T_TEXT, fontSize = 13 }
+                },
+                data = new {
+                    kind = "tpl", name = tpl.Name, code = tpl.Code, rowId = tpl.Id,
+                    modalId = tplM.id, project = tplM.project
+                }
+            });
+            edges.Add(new {
+                source = "WP", target = "T", router = new { name = "orth" },
+                attrs = new { line = new { stroke = "#909399", strokeWidth = 1.5, targetMarker = new { name = "block" } } }
+            });
         }
-        // 每个槽位一个 Block 节点 + 一个 PageSetting 节点
+
+        // Block 列 + PageSetting 列
+        const int BLOCK_X = 610;
+        const int SETTING_X = 880;
+        const int Y_GAP = 140;
+        const int Y_BASE = 120;
+
+        var blockDict = new Dictionary<string, (List<string> emits, List<string> listens)>();
         int idx = 0;
-        foreach (var s in slots)
+
+        foreach (var (slot, blk, settingId, required) in blockInfos)
         {
-            var slot = s.Slot;
-            var blk = _blocks.GetById(s.BlockId);
-            var blkName = blk != null ? blk.Name : $"Block#{s.BlockId}";
-            var role = blk != null ? (blk.ImplementsRole ?? "") : "";
-
             var bId = $"B{idx}";
-            var psId = $"PS{idx}";
-            var icon = role == "filter" ? "🔍" : role == "list" ? "📋" : role == "detail" ? "📝" : "🧩";
-            sb.AppendLine($"    {bId}[\"{icon} {blkName}<br/><small>slot={slot}</small>\"]:::blk");
+            var y = Y_BASE + idx * Y_GAP;
+            idx++;
 
-            // PageSetting
-            int settingId = 0;
-            if (blocksNode[slot] != null) int.TryParse(blocksNode[slot]["settingId"]?.ToString(), out settingId);
+            string role = blk?.ImplementsRole ?? slot;
+            string blkName = blk != null ? blk.Name : $"Block#{slot}";
+
+            var emits = new List<string>();
+            var listens = new List<string>();
+            if (blk != null && !string.IsNullOrEmpty(blk.Events))
+                try { emits = JsonSerializer.Deserialize<List<string>>(blk.Events) ?? new List<string>(); }
+                catch { }
+            if (blk != null && !string.IsNullOrEmpty(blk.Commands))
+                try { listens = JsonSerializer.Deserialize<List<string>>(blk.Commands) ?? new List<string>(); }
+                catch { }
+            blockDict[bId] = (emits, listens);
+
+            var icon = role == "filter" ? "🔍" : role == "list" ? "📋"
+                     : role == "detail" ? "📝" : role == "tree" ? "🌳" : "🧩";
+            string blkLabel = blk != null
+                ? $"{icon} {blkName}\nid={blk.Id} · {blk.Code} · slot={slot}"
+                : $"{icon} {blkName}\nslot={slot}（未注册积木）";
+
+            nodes.Add(new {
+                id = bId, x = BLOCK_X, y = y, width = 250, height = 70, shape = "rect",
+                attrs = new {
+                    // 非必选槽位虚线边框（Required 来自 DynTemplateBlock，数据驱动）
+                    body = new { fill = C_B_FILL, stroke = C_B_STROKE, strokeWidth = 2, strokeDasharray = required ? null : "6 4", rx = 6, ry = 6, cursor = "pointer" },
+                    label = new { text = blkLabel, fill = C_B_TEXT, fontSize = 13 }
+                },
+                data = new {
+                    kind = "blk", name = blkName, code = blk?.Code ?? "", slot,
+                    rowId = blk?.Id ?? 0, modalId = blkM.id, project = blkM.project,
+                    emits = string.Join(",", emits), listens = string.Join(",", listens)
+                }
+            });
+
+            if (tpl != null)
+                edges.Add(new {
+                    source = "T", target = bId, router = new { name = "orth" },
+                    attrs = new { line = new { stroke = "#909399", strokeWidth = 1, targetMarker = new { name = "block" } } }
+                });
+
             if (settingId > 0)
             {
                 var ps = _settings.GetById(settingId);
                 if (ps != null)
                 {
-                    sb.AppendLine($"    {psId}[\"📄 {ps.Name}<br/><small>{ps.Code}</small>\"]:::ps");
-                    sb.AppendLine($"    {bId} -.->|配置| {psId}");
+                    var psId = $"PS{idx}";
+                    nodes.Add(new {
+                        id = psId, x = SETTING_X, y = y, width = 250, height = 70, shape = "rect",
+                        attrs = new {
+                            body = new { fill = C_PS_FILL, stroke = C_PS_STROKE, strokeWidth = 1.5, rx = 6, ry = 6, cursor = "pointer" },
+                            label = new { text = $"⚙️ {ps.Name}\nid={ps.Id} · {ps.Code}", fill = C_PS_TEXT, fontSize = 13 }
+                        },
+                        data = new {
+                            kind = "ps", name = ps.Name, code = ps.Code,
+                            rowId = ps.Id, modalId = psM.id, project = psM.project
+                        }
+                    });
+                    edges.Add(new {
+                        source = bId, target = psId, router = new { name = "orth" },
+                        attrs = new { line = new { stroke = "#9b59b6", strokeWidth = 1.5, strokeDasharray = "5 5", targetMarker = new { name = "block" } } },
+                        labels = new[] { new { attrs = new { text = "配置", fill = "#9b59b6", fontSize = 11 }, position = 0.5 } }
+                    });
                 }
             }
-            idx++;
         }
-        // 内置消息流（filter->list）
-        if (slots.Count >= 2)
-        {
-            sb.AppendLine("    B0 ==>|筛选条件| B1");
-        }
-        sb.AppendLine("    classDef wp fill:#eaf2ff,stroke:#409eff,stroke-width:2px,color:#1f3a68");
-        sb.AppendLine("    classDef tpl fill:#fdf6ec,stroke:#e6a23c,stroke-width:2px,color:#7a5b17");
-        sb.AppendLine("    classDef blk fill:#ecf5ff,stroke:#409eff,stroke-width:1.5px,color:#1f3a68");
-        sb.AppendLine("    classDef ps fill:#f4f0fa,stroke:#9b59b6,stroke-width:1.5px,color:#5b2c6f");
 
-        ViewData["Mermaid"] = sb.ToString();
+        // ===== 事件总线通信边 =====
+        var queryEdges = new HashSet<string>();
+        var signalPairs = new Dictionary<string, List<string>>(); // create / update 合并
+        var savedEdges = new HashSet<string>();
+
+        foreach (var kv in blockDict)
+        {
+            var fromId = kv.Key;
+            var (emits, listens) = kv.Value;
+            foreach (var emitEv in emits)
+            {
+                foreach (var toKv in blockDict)
+                {
+                    var toId = toKv.Key;
+                    if (toId == fromId) continue;
+                    var (_, toListens) = toKv.Value;
+                    if (!toListens.Contains(emitEv)) continue;
+
+                    string pair = $"{fromId}→{toId}";
+                    switch (emitEv)
+                    {
+                        case "query": queryEdges.Add(pair); break;
+                        case "create":
+                        case "update":
+                            if (!signalPairs.ContainsKey(pair)) signalPairs[pair] = new List<string>();
+                            signalPairs[pair].Add(emitEv);
+                            break;
+                        case "saved": savedEdges.Add(pair); break;
+                    }
+                }
+            }
+        }
+
+        foreach (var pair in queryEdges)
+        {
+            var p = pair.Split('→');
+            edges.Add(new {
+                source = p[0], target = p[1], router = new { name = "orth" },
+                attrs = new { line = new { stroke = "#e6a23c", strokeWidth = 2.5, targetMarker = new { name = "classic" } } },
+                labels = new[] { new { attrs = new { text = "query", fill = "#e6a23c", fontSize = 12, fontWeight = "bold" }, position = 0.5 } }
+            });
+        }
+        foreach (var kv in signalPairs)
+        {
+            var p = kv.Key.Split('→');
+            edges.Add(new {
+                source = p[0], target = p[1], router = new { name = "orth" },
+                attrs = new { line = new { stroke = "#409eff", strokeWidth = 2, targetMarker = new { name = "classic" } } },
+                labels = new[] { new { attrs = new { text = string.Join("/", kv.Value), fill = "#409eff", fontSize = 12, fontWeight = "bold" }, position = 0.5 } }
+            });
+        }
+        foreach (var pair in savedEdges)
+        {
+            var p = pair.Split('→');
+            edges.Add(new {
+                source = p[0], target = p[1], router = new { name = "orth" },
+                attrs = new { line = new { stroke = "#f56c6c", strokeWidth = 3, targetMarker = new { name = "classic" } } },
+                labels = new[] { new { attrs = new { text = "saved", fill = "#f56c6c", fontSize = 12, fontWeight = "bold" }, position = 0.5 } }
+            });
+        }
+
+        var json = JsonSerializer.Serialize(new { nodes, edges }, new JsonSerializerOptions { WriteIndented = false });
+
+        ViewData["GraphJson"] = json;
         ViewData["WpName"] = wp.Name;
+        ViewData["IsV2"] = true;
         return View(string.Format(Page, "PageGraphDemo"));
     }
 

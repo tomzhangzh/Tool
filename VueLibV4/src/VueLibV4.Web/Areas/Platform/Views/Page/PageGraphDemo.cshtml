@@ -1,22 +1,205 @@
 @{
     ViewData["Title"] = ViewData["Title"];
-    var mermaid = ViewData["Mermaid"] as string ?? "";
+    var graphJson = ViewData["GraphJson"] as string ?? "{}";
+    var wpName = ViewData["WpName"] as string ?? "";
+    var isV2 = ViewData["IsV2"] as bool? ?? false;
+    var errorMsg = ViewData["ErrorMsg"] as string;
 }
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.css" />
+<link rel="stylesheet" href="~/lib/element-plus/index.css" />
 <div style="padding:20px; background:#fff; min-height:100vh;">
-    <h2 style="margin:0 0 4px;">🕸️ 页面组成图（Demo）</h2>
+    <h2 style="margin:0 0 4px;">🧩 页面组成图（V2 架构）</h2>
     <p style="color:#909399; margin:0 0 16px; font-size:13px;">
-        当前页面：<b>@ViewData["WpName"]</b>　·　方块=Block　·　紫文档=PageSetting　·　粗箭头=消息流转　·　虚线=配置关系
+        当前页面：<b>@wpName</b>　
+        <span style="color:#2e7d32; font-weight:bold;">✨ V2 架构（事件总线通信）</span>
+        <span style="color:#909399; margin-left:10px;">· 点击节点在右侧抽屉中编辑该对象（自动回填当前数据）</span>
     </p>
-    <div style="background:#fafafa; border:1px solid #e4e7ed; border-radius:8px; padding:20px; overflow:auto;">
-        <pre class="mermaid" id="graph">@mermaid</pre>
-    </div>
-    <details style="margin-top:12px;">
-        <summary style="cursor:pointer; color:#909399; font-size:12px;">查看 Mermaid 源码</summary>
-        <pre style="font-size:12px; background:#f5f5f5; padding:10px;">@mermaid</pre>
-    </details>
+
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div style="background:#fef0f0; border:1px solid #fbc4c4; color:#f56c6c; border-radius:8px; padding:14px 18px;">
+            ⚠️ @errorMsg
+        </div>
+    }
+    else
+    {
+        <div style="display:flex; gap:20px; align-items:flex-start;">
+            <!-- 图例 -->
+            <div style="width:200px; flex-shrink:0;">
+                <div style="background:#fafafa; border:1px solid #e4e7ed; border-radius:8px; padding:14px; font-size:12px;">
+                    <div style="font-weight:600; margin-bottom:10px; color:#303133;">节点图例</div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#e3f2fd; border:2px solid #1e88e5; border-radius:3px;"></span>
+                        WebPage 页面（可点击）
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#e8f5e9; border:2px solid #43a047; border-radius:3px;"></span>
+                        Template 壳模板
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#fff3e0; border:2px solid #fb8c00; border-radius:3px;"></span>
+                        Block 积木
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#fff3e0; border:2px dashed #fb8c00; border-radius:3px;"></span>
+                        非必选槽位（虚线）
+                    </div>
+                    <div style="margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#f4f0fa; border:1.5px solid #9b59b6; border-radius:3px;"></span>
+                        PageSetting 页面配置
+                    </div>
+
+                    <div style="font-weight:600; margin-bottom:10px; color:#303133; border-top:1px solid #e4e7ed; padding-top:10px;">事件流图例</div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:30px; height:0; border-top:2.5px solid #e6a23c;"></span>
+                        query (sticky)
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:30px; height:0; border-top:2px solid #409eff;"></span>
+                        create/update (signal)
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:30px; height:0; border-top:3px solid #f56c6c;"></span>
+                        saved (signal)
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:30px; height:0; border-top:1.5px dashed #9b59b6;"></span>
+                        配置（虚线）
+                    </div>
+                </div>
+            </div>
+
+            <!-- 画布 -->
+            <div style="flex:1; background:#fafafa; border:1px solid #e4e7ed; border-radius:8px; overflow:hidden;">
+                <div id="graph-container" style="width:100%; height:720px;"></div>
+            </div>
+        </div>
+    }
 </div>
-<script src="~/lib/mermaid.min.js"></script>
+<script src="~/lib/x6.js"></script>
 <script>
-    mermaid.initialize({ startOnLoad: true, theme: 'neutral', flowchart: { curve: 'basis', useMaxWidth: true } });
+    // 两种入口都能正确跑：
+    //   1) 直接访问 /Platform/Page/PageGraphDemo?id=N → Layout 渲染，X6 先加载（<script src>），
+    //      再执行内联脚本；window.X6 此时已可用。
+    //   2) dyn.html() / LoadBlock 片段注入 → dyn-core.js 把所有 <script> 先抽出来，
+    //      外部 src 串行 await onload，全部结束后再执行内联脚本（这个 initGraph）。
+    //   两种都保证了 X6 已就绪才执行 initGraph，不再需要手动 onload 检测。
+
+    var graphJson = @Html.Raw(graphJson);
+    if (!window.X6) { console.error('[PageGraphDemo] X6 未加载'); }
+    else { initGraph(); }
+
+    var KIND_LABEL = { wp: 'WebPage 页面', tpl: 'Template 壳模板', blk: 'Block 积木', ps: 'PageSetting 页面配置' };
+
+    // 片段 URL：DetailModalV2 是无 Layout 片段（fetchPartial 带 X-Requested-With 自动走 _AjaxLayout），
+    // rowId 让 DetailApp 加载该实体当前数据回填表单；
+    // execId 必填——DetailApp.mounted 首行无 execId 会直接 return，rowId 回填逻辑就不会执行。
+    function fragmentUrl(d, execId) {
+        return '/Platform/Page/DetailModalV2?id=' + d.modalId
+            + '&rowId=' + (d.rowId || '')
+            + '&project=' + encodeURIComponent(d.project || '')
+            + '&execId=' + encodeURIComponent(execId || '');
+    }
+
+    // 点击节点：右侧抽屉打开编辑片段（复用 FilterListCrud 的 layer + fetchPartial + dyn.html 挂载契约）
+    function openEditDrawer(d) {
+        if (!d.modalId) { window.dyn && dyn.showMessage ? dyn.showMessage('该节点未配置编辑弹窗', 'warning') : alert('该节点未配置编辑弹窗'); return; }
+        if (!d.rowId) { alert('该积木未注册（DynBlock 表无对应 role 记录），无法编辑'); return; }
+
+        // dyn 运行时不可用（异常场景）→ 退化为浏览器新窗口直开片段
+        if (!window.dyn || !dyn.getLayer || !dyn.fetchPartial) {
+            window.open(fragmentUrl(d), '_blank', 'noopener');
+            return;
+        }
+
+        var holder = document.createElement('div');
+        holder.className = 'dyn-modal-host dyn-layer-fragment';
+        holder.style.padding = '0';
+        holder.innerHTML = '<div style="padding:24px;color:#909399;">加载中…</div>';
+        document.body.appendChild(holder);
+
+        // 关键：在片段注入前注册事件总线 root。
+        // DetailApp 需要 execId 才会执行 rowId 取数回填；片段自身的 saved/cancel 关窗也靠它（getRoot）。
+        var execId = '';
+        if (window.DynEventBus) execId = DynEventBus.registerRoot(holder);
+
+        var title = '✏️ 编辑' + (KIND_LABEL[d.kind] || d.kind) + '：' + (d.name || '') + ' (#' + d.rowId + ')';
+
+        dyn.getLayer().then(function (layer) {
+            var idx = layer.open({
+                type: 1,
+                title: title,
+                shadeClose: false,
+                offset: 'r',                 // 右侧抽屉
+                area: ['55%', '100%'],
+                content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
+                success: function () {
+                    dyn.fetchPartial(fragmentUrl(d, execId), {}, 'GET').then(function (html) {
+                        // boot=true：dyn.html 自动跑 dyn-init 管道（挂载 DetailApp）并返回 Block 句柄表
+                        return dyn.html(holder, html, true);
+                    }).then(function (blocks) {
+                        // 双保险关窗：片段自身 closeSelf（execId getRoot → closest .layui-layer）之外，
+                        // 句柄再监听一次 saved/cancel
+                        var detail = blocks && blocks.detail;
+                        if (detail) {
+                            detail.on('cancel', function () { layer.close(idx); });
+                            detail.on('saved', function () { layer.close(idx); });
+                        }
+                    }).catch(function (e) {
+                        console.error('[PageGraphDemo] 抽屉挂载失败', e);
+                        holder.innerHTML = '<div style="padding:20px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+                    });
+                },
+                end: function () {
+                    var apps = holder.querySelectorAll('[data-dyn-mode="createApp"]');
+                    [].forEach.call(apps, function (ae) { try { dyn.unmount(ae); } catch (e) { } });
+                    try { dyn.unmount(holder); } catch (e) { }
+                    if (execId && window.DynEventBus && DynEventBus.destroy) {
+                        try { DynEventBus.destroy(execId); } catch (e) { }
+                    }
+                    try { holder.remove(); } catch (e) { }
+                }
+            });
+        });
+    }
+
+    function initGraph() {
+        var width = document.getElementById('graph-container').clientWidth;
+        var height = 720;
+
+        var graph = new X6.Graph({
+            container: document.getElementById('graph-container'),
+            width: width,
+            height: height,
+            grid: { visible: true, type: 'dot', size: 10, args: { color: '#e4e7ed', thickness: 1 } },
+            panning: { enabled: true, modifiers: 'shift' },
+            mousewheel: { enabled: true, modifiers: null, minScale: 0.5, maxScale: 2 },
+            connecting: { allowBlank: false, allowLoop: false, allowNode: false, allowEdge: false, allowPort: false }
+        });
+
+        try {
+            graph.fromJSON(graphJson);
+            if (graph.centerContent) graph.centerContent();
+
+            // ===== 节点点击 → 右侧抽屉编辑该实体（rowId 回填）=====
+            graph.on('node:click', function ({ node }) {
+                openEditDrawer(node.getData());
+            });
+
+            // hover：边框加粗 + 控制台打印发/听事件（后续可换成 tooltip）
+            graph.on('node:mouseenter', function ({ node }) {
+                node.attr('body/strokeWidth', 3);
+                var d = node.getData();
+                if (d) console.log('[PageGraphDemo] ' + (d.name || ''),
+                    d.emits ? '📡 发: ' + d.emits : null,
+                    d.listens ? '🎧 听: ' + d.listens : null);
+            });
+            graph.on('node:mouseleave', function ({ node }) {
+                node.attr('body/strokeWidth', 2);
+            });
+        } catch (e) {
+            console.error('[PageGraphDemo] X6 渲染失败', e);
+            document.getElementById('graph-container').innerHTML =
+                '<div style="padding:40px; color:#f56c6c; text-align:center;">渲染失败: ' + e.message + '</div>';
+        }
+    }
 </script>

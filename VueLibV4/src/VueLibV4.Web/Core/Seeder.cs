@@ -1184,17 +1184,30 @@ UPDATE DynTemplate SET DefaultJson=@def WHERE Code=@code AND (DefaultJson IS NUL
         // 槽位关系：(模板Code, 槽位, 积木Code, 必选, 排序)
         var slots = new (string Tpl, string Slot, string Blk, int Required, int Sort)[]
         {
+            // V1 壳
             ("triscreen-blocks", "filter", "filter", 1, 1),
             ("triscreen-blocks", "list", "list", 1, 2),
             ("triscreen-blocks", "detail", "detail", 1, 3),
             ("filterlist-crud", "filter", "filter", 0, 1),
             ("filterlist-crud", "list", "list", 1, 2),
             ("tree-detail", "detail", "detail", 1, 1),
-            ("detail-modal", "detail", "detail", 1, 1)
+            ("detail-modal", "detail", "detail", 1, 1),
+            // V2 壳（DynEventBus 版）：积木装配关系与壳视图内 PartialAsync/LoadBlock 实际组装一致
+            ("filter-list-open-windowV2", "filter", "filter", 1, 1),
+            ("filter-list-open-windowV2", "list", "list", 1, 2),
+            ("filter-list-open-windowV2", "detail", "detail", 1, 3),
+            ("filter-list-drawer-leftV2", "filter", "filter", 1, 1),
+            ("filter-list-drawer-leftV2", "list", "list", 1, 2),
+            ("filter-list-drawer-leftV2", "detail", "detail", 1, 3),
+            ("detail-modal-v2", "detail", "detail", 1, 1),
+            ("tree-detail-v2", "tree", "tree", 1, 1),
+            ("tree-detail-v2", "detail", "detail", 1, 2)
         };
         using var rel = conn.CreateCommand();
         var sql = new StringBuilder();
-        sql.Append("DELETE FROM DynTemplateBlock WHERE TemplateId IN (SELECT Id FROM DynTemplate WHERE Code IN ('triscreen-blocks','filterlist-crud','tree-detail','detail-modal'));");
+        sql.Append("DELETE FROM DynTemplateBlock WHERE TemplateId IN (SELECT Id FROM DynTemplate WHERE Code IN "
+            + "('triscreen-blocks','filterlist-crud','tree-detail','detail-modal',"
+            + "'filter-list-open-windowV2','filter-list-drawer-leftV2','detail-modal-v2','tree-detail-v2'));");
         for (var i = 0; i < slots.Length; i++)
         {
             var s = slots[i];

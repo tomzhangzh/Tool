@@ -761,72 +761,99 @@ function warnIfUnsafeInject(el){
  */
 function html(el, htmlStr, boot) {
   el = resolve(el);
-  if(!el) return undefined;
-  if(boot === undefined) boot = true;
-  if(boot){
+  if (!el) return undefined;
+  if (boot === undefined) boot = true;
+  if (boot) {
     // 片段替换前先释放旧内容中的 App（重复 updateEl/open 防实例泄漏）。
     // boot=false 的链路调用方已自行 unmount（render/reload/mount）。
     unmount(el);
-    if(_injectWarned && !_injectWarned.has(el)) warnIfUnsafeInject(el);
+    if (_injectWarned && !_injectWarned.has(el)) warnIfUnsafeInject(el);
   }
   // 统一参数链接入：片段挂载点从最近上下文 fork（嵌套App/服务端片段/弹窗片段同一约定）。
   // 已存在上下文（如 mount 链路自建）则保留；boot=true 重复注入时旧 fork 已随 unmount 销毁，这里重建。
   // bootInfo.parentCtx 显式指定调用方上下文（updateel 目标 pane 可能与按钮不在同一子树）。
-  if(global.DynParams && !el.__dynParams){
-    try{
-      const bi = arguments[3]||{};
-      if(bi.parentCtx) bi.parentCtx.fork(el,bi.local||{});
+  if (global.DynParams && !el.__dynParams) {
+    try {
+      const bi = arguments[3] || {};
+      if (bi.parentCtx) bi.parentCtx.fork(el, bi.local || {});
       else global.DynParams.attach(el);
-    }catch(e){}
+    } catch (e) { }
   }
   el.innerHTML = "";
   const temp = document.createElement('div');
   temp.innerHTML = htmlStr;
-
   // 【关键】在移动DOM之前，先把所有script节点抓取保存
   const allScripts = Array.from(temp.querySelectorAll('script'));
-
   // 全部节点移入真实容器el
   while (temp.firstChild) {
     el.appendChild(temp.firstChild);
   }
 
   const scriptsToRun = [];
+  const externalScriptList = []; // 收集外部src脚本，保持原始顺序
+
   allScripts.forEach(oldScript => {
     // 此时oldScript的引用已经跟着DOM移动到el内
     const realScript = oldScript;
-
     // 只要存在 tag 属性，直接跳过不执行（comconfig配置节点）
     if (realScript.hasAttribute('tag')) {
       return;
     }
-
-    // 外部src脚本不处理，只处理内联脚本
-    if (realScript.src) return;
-
+    if (realScript.src) {
+      externalScriptList.push(realScript);
+      realScript.remove(); // 先删掉原节点，后面串行新建
+      return;
+    }
     const code = realScript.textContent.trim();
     if (!code) return;
-
     realScript.remove(); // 删除原script标签，避免浏览器原生执行
     scriptsToRun.push(code);
   });
 
-  // 执行脚本，注入局部变量 el
-  scriptsToRun.forEach(code => {
-    try {
-      const fn = new Function('parentElement', code);
-      fn(el);
-    } catch (err) {
-      console.error('脚本执行失败', err);
+  // 异步串行加载外部脚本，全部结束后再跑后续逻辑
+  async function runAfterAllScriptLoaded() {
+    // 串行加载外部脚本，顺序和html书写顺序一致
+    for (const sInfo of externalScriptList) {
+      await new Promise((resolve) => {
+        const fresh = document.createElement('script');
+        for (const attr of sInfo.attributes) {
+          if (attr.name === 'src') continue;
+          fresh.setAttribute(attr.name, attr.value);
+        }
+        fresh.src = sInfo.src;
+        fresh.onload = () => resolve();
+        fresh.onerror = (err) => {
+          console.error(`外部脚本加载失败：${sInfo.src}`, err);
+          resolve(); // 加载失败也继续，不阻塞后面流程
+        };
+        el.appendChild(fresh);
+      })
     }
-  });
-  if(!boot) return undefined;
-  dyn.initActions(el);
-  // 注入即接线：返回片段内全部 Block 句柄（谁注入，谁编排）
-  if(global.DynBlocks && typeof global.DynBlocks.scan==='function'){
-    try{ return global.DynBlocks.scan(el); }catch(e){}
+
+    // ✅ 所有外部脚本加载完毕，再执行内联脚本
+    scriptsToRun.forEach(code => {
+      try {
+        const fn = new Function('parentElement', code);
+        fn(el);
+      } catch (err) {
+        console.error('脚本执行失败', err);
+      }
+    });
+
+    // 原有后续逻辑
+    if (!boot) return undefined;
+    dyn.initActions(el);
+    // 注入即接线：返回片段内全部 Block 句柄（谁注入，谁编排）
+    if (global.DynBlocks && typeof global.DynBlocks.scan === 'function') {
+      try {
+        return global.DynBlocks.scan(el);
+      } catch (e) { }
+    }
+    return undefined;
   }
-  return undefined;
+
+  // ⚠️ 注意：函数变成异步，返回 Promise
+  return runAfterAllScriptLoaded();
 }
 /**
  * @description 挂载。两种签名：
