@@ -2,9 +2,17 @@
 @inject IPageSettingService pageSettingService
 @using System.Dynamic
 @{
-    IDictionary<string, object?> M = Model != null ? (IDictionary<string, object?>)Model : new Dictionary<string, object?>();
-    string S(string k, string dft = "") => M.TryGetValue(k, out var v) && v != null ? v.ToString() ?? dft : dft;
-    int I(string k, int dft = 0) => M.TryGetValue(k, out var v) && v != null ? Convert.ToInt32(v) : dft;
+    // 双模入参：LoadBlock 片段入口传 Dictionary 模型；模板内联 PartialAsync 传 ViewDataDictionary
+    // （此时 Model 是父页模型，如 DynWebPage，不能强转 IDictionary）——统一字典优先、ViewData 回退。
+    IDictionary<string, object> M = Model is IDictionary<string, object> _md
+        ? _md : new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    object V2(string k) {
+        if (M.TryGetValue(k, out var v0) && v0 != null) return v0;
+        if (ViewData.TryGetValue(k, out var v1) && v1 != null) return v1;
+        return null;
+    }
+    string S(string k, string dft = "") { var x = V2(k); return x != null ? x.ToString() ?? dft : dft; }
+    int I(string k, int dft = 0) { var x = V2(k); return x != null ? Convert.ToInt32(x) : dft; }
 
     var extId = S("ExtId", "fb2-" + Guid.NewGuid().ToString("N")[..12]);
     var execId = S("ExecId");
@@ -13,7 +21,7 @@
 }
 
 
-<div id="@extId" dyn-init="createApp">
+<div id="@extId" dyn-init="createApp" class="dyn-blk-filter">
     <div class="dyn-blk-filter__body">
         @if (pageSetting!=null){
             <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
@@ -75,20 +83,21 @@
             },
             query: function () {
                 if (window.DynEventBus && __execId)
-                    window.DynEventBus.emit(__execId, 'filter.query', this.buildSubmit());
+                    window.DynEventBus.emit(__execId, 'query', this.buildSubmit());
             },
             reset: function () {
                 this.filterModel = JSON.parse(JSON.stringify(this.initModel));
                 if (window.DynEventBus && __execId)
-                        window.DynEventBus.emit(__execId, 'filter.query', this.buildSubmit());
+                        window.DynEventBus.emit(__execId, 'query', this.buildSubmit());
             }
         },
         mounted: function () {
             var self = this;
-            this.$nextTick(function () {
-                if (window.DynEventBus && __execId)
-                    window.DynEventBus.emit(__execId, 'filter.query', self.buildSubmit());
-            });
+            // 挂载即推首屏 query（buildSubmit 直接读 filterModel，不依赖子控件挂载完成）。
+            // 必须同步发：与 List 片段并行加载时，List 先注册也能靠总线 sticky 快照拿到条件；
+            // 不能放进 $nextTick——那会让先挂载的 List 误判"无筛选"而多发一次无条件查询。
+            if (window.DynEventBus && __execId)
+                window.DynEventBus.emit(__execId, 'query', self.buildSubmit());
         }
     };
     </script>

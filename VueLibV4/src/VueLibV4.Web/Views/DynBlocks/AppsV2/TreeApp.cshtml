@@ -2,9 +2,17 @@
 @using VueLibV4.Web.Core
 @using System.Dynamic
 @{
-    IDictionary<string, object?> M = Model != null ? (IDictionary<string, object?>)Model : new Dictionary<string, object?>();
-    string S(string k, string dft = "") => M.TryGetValue(k, out var v) && v != null ? v.ToString() : dft;
-    bool B(string k, bool dft = false) => M.TryGetValue(k, out var v) && v != null && Convert.ToBoolean(v);
+    // 双模入参：LoadBlock 片段入口传 Dictionary 模型；模板内联 PartialAsync 传 ViewDataDictionary
+    // （此时 Model 是父页模型，如 DynWebPage，不能强转 IDictionary）——统一字典优先、ViewData 回退。
+    IDictionary<string, object> M = Model is IDictionary<string, object> _md
+        ? _md : new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    object V2(string k) {
+        if (M.TryGetValue(k, out var v0) && v0 != null) return v0;
+        if (ViewData.TryGetValue(k, out var v1) && v1 != null) return v1;
+        return null;
+    }
+    string S(string k, string dft = "") { var x = V2(k); return x != null ? x.ToString() ?? dft : dft; }
+    bool B(string k, bool dft = false) { var x = V2(k); return x != null && Convert.ToBoolean(x) || (x == null && dft); }
 
     var extId = S("ExtId", "tree-" + Guid.NewGuid().ToString("N")[..12]);
     var execId = S("ExecId");
@@ -130,12 +138,12 @@
             onNodeClick: function (data) {
                 this.current = data;
                 if (window.DynEventBus && __execId)
-                    window.DynEventBus.emit(__execId, 'nodeClick', { row: data });
+                    window.DynEventBus.emit(__execId, 'update', { row: data });
             },
             onAddRoot: function () {
                 this.current = null;
                 if (window.DynEventBus && __execId)
-                    window.DynEventBus.emit(__execId, 'addRoot', {});
+                    window.DynEventBus.emit(__execId, 'create', { preFill: {} });
             },
             onAddChild: function () {
                 var c = this.current;
@@ -144,7 +152,7 @@
                 }
                 var pre = {}; pre[this.parentField] = c[this.keyField];
                 if (window.DynEventBus && __execId)
-                    window.DynEventBus.emit(__execId, 'addChild', { preFill: pre });
+                    window.DynEventBus.emit(__execId, 'create', { preFill: pre });
             },
             // ---------- 拖拽排序 ----------
             initSortable: function () {
@@ -261,9 +269,9 @@
         },
         mounted: function () {
             var self = this;
-            // reload 命令
+            // saved（signal）：detail 新增/修改/删除成功后刷新树
             if (window.DynEventBus && __execId) {
-                window.DynEventBus.on(__execId, 'reload', function () { self.loadTree(); });
+                window.DynEventBus.on(__execId, 'saved', function () { self.loadTree(); });
             }
             this.$nextTick(function () { self.loadTree(); });
         },
@@ -278,14 +286,14 @@
     .dyn-blk-tree { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
     .tr-pane-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .tr-pane-tools { display: flex; align-items: center; gap: 4px; }
-    .tr-pane-title { font-size: 13px; font-weight: 600; color: #303133; }
+    .tr-pane-title { font-size: var(--site-font-size); font-weight: 600; color: var(--site-text); }
     .tr-tree-wrap { flex: 1; min-height: 0; overflow: auto; }
     .tr-node { display: inline-flex; align-items: center; gap: 4px; user-select: none; -webkit-user-select: none; }
-    .dyn-tree-ghost { opacity: 0.5; background: #d9ecff !important; border: 1px dashed #409eff !important; border-radius: 4px; }
-    .dyn-tree-chosen { background: #ecf5ff; }
+    .dyn-tree-ghost { opacity: 0.5; background: var(--site-bg-active) !important; border: 1px dashed var(--site-primary) !important; border-radius: var(--site-radius-sm); }
+    .dyn-tree-chosen { background: var(--site-bg-active); }
     .dyn-tree-drag { opacity: 0.9; }
     .tr-tree-wrap .sortable-ghost {
-        height: 28px !important; background: #d9ecff !important;
-        border: 1px dashed #409eff !important; border-radius: 4px !important; list-style: none;
+        height: 28px !important; background: var(--site-bg-active) !important;
+        border: 1px dashed var(--site-primary) !important; border-radius: var(--site-radius-sm) !important; list-style: none;
     }
 </style>

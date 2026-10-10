@@ -1,0 +1,201 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
+@using Newtonsoft.Json.Linq
+@inject IPageSettingService PageSettingService
+@{
+    // =====================================================================================
+    // TreeDetailV2 —— 左树 + 可拖拽分隔条 + 右侧明细表单（V2 架构）。
+    //
+    // 与 V1（TreeDetail.cshtml）的核心区别：
+    //   1. 左树不再是【内联在模板里的 app】，而是通过 PartialAsync 引入独立的
+    //      AppsV2/TreeApp.cshtml；右表单同样引入 AppsV2/DetailApp.cshtml。
+    //   2. 两个 BlockApp 之间不持有对方引用，统一走 window.DynEventBus（同一个 ExecId），
+    //      模板根元素 .tr-root 就是事件总线的根 DOM。
+    //   3. 模板只负责：① 组装 BlockApp 并传参；② 分隔条拖拽（gutter 不属于任何 BlockApp）。
+    //      积木间直接走统一事件契约（同 ExecId），壳不做事件名转换：
+    //      tree 发 update{row}/create{preFill}；detail 发 saved{action}；tree 监听 saved 自刷新。
+    //
+    // 实例参数（ParamsJson）：
+    //   树：TableName/KeyField/ParentField/TitleField/IconField/SortField/LeftWidth/
+    //       EnableDrag/DragSameLevelOnly
+    //   右表单：DetailPageSettingId（或 blocks.detail 槽位），以及 addUrl/editUrl/deleteUrl
+    // =====================================================================================
+    Layout = "_Layout";
+    ViewData["Title"] = Model.Name + " - VueLibV4";
+
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    static string? Top(JObject o, string k)
+    {
+        var v = o[k];
+        return v == null || v.Type == JTokenType.Null ? null : v.ToString();
+    }
+    var tableName = Top(ps, "TableName") ?? "";
+    var keyField = Top(ps, "KeyField") ?? "Id";
+    var parentField = Top(ps, "ParentField") ?? "ParentId";
+    var titleField = Top(ps, "TitleField") ?? "Name";
+    var iconField = Top(ps, "IconField") ?? "Icon";
+    var sortField = Top(ps, "SortField") ?? "SortNo";
+    // 数据域坐标：实例参数 Project 显式声明优先（平台库="__platform__"），否则用页面 ProjectId
+    var project = ps["Project"]?.ToString() ?? Model.ProjectId?.ToString() ?? "";
+    var leftWidth = int.TryParse(Top(ps, "LeftWidth") ?? "30", out int lw) ? lw : 30;
+    static bool ParseBool(string v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return false;
+        if (v.Trim() == "1" || string.Equals(v.Trim(), "true", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+    var enableDrag = ParseBool(Top(ps, "EnableDrag"));
+    var dragSameLevelOnly = ParseBool(Top(ps, "DragSameLevelOnly"));
+    var detailPsId = DynPageViewHelper.SlotSettingId(ps, "detail", "DetailPageSettingId");
+
+    // 右侧表单接口：detail 槽位优先，旧扁平键回退
+    var addUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "addUrl", "AddUrl"), DynPageViewHelper.SaveUrl);
+    var editUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "editUrl", "EditUrl"), DynPageViewHelper.SaveUrl);
+    var deleteUrl = DynPageViewHelper.UrlOr(DynPageViewHelper.SlotValue(ps, "detail", "deleteUrl", "DeleteUrl"), DynPageViewHelper.DeleteUrl);
+
+    // ===== DynEventBus 实例坐标：服务端预生成 ExecId，两个 BlockApp 共用 =====
+    var execId = "tdv2-" + Guid.NewGuid().ToString("N");
+    var rootId = "trroot-" + Guid.NewGuid().ToString("N");
+    var extIdTree = "trv2-tree-" + Guid.NewGuid().ToString("N")[..12];
+    var extIdSplit = "trv2-split-" + Guid.NewGuid().ToString("N")[..12];
+    var extIdGutter = "trv2-gutter-" + Guid.NewGuid().ToString("N")[..12];
+    var extIdDetail = "trv2-detail-" + Guid.NewGuid().ToString("N")[..12];
+    var title = Model.Name;
+    var showDesignEntry = Convert.ToBoolean(ViewData["ShowDesignEntry"] ?? false);
+}
+
+<div id="@rootId" class="tr-root" data-exec-id="@execId">
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = title, ["Code"] = "tree-detail-v2", ["TableName"] = tableName,
+        ["ShowBack"] = true, ["ShowDesign"] = showDesignEntry, ["PageId"] = Model.Id.ToString()
+    })
+
+    <div id="@extIdSplit" class="tr-split">
+        @* ===== 左侧：独立 V2 TreeApp（DynEventBus 通信） ===== *@
+        <div class="tr-pane-left" style="width:@(leftWidth)%">
+            @await Html.PartialAsync("~/Views/DynBlocks/AppsV2/TreeApp.cshtml", new ViewDataDictionary(ViewData) {
+                ["ExtId"] = extIdTree,
+                ["ExecId"] = execId,
+                ["TableName"] = tableName,
+                ["KeyField"] = keyField,
+                ["ParentField"] = parentField,
+                ["TitleField"] = titleField,
+                ["IconField"] = iconField,
+                ["SortField"] = sortField,
+                ["Project"] = project,
+                ["EnableDrag"] = enableDrag,
+                ["DragSameLevelOnly"] = dragSameLevelOnly
+            })
+        </div>
+
+        @* ===== 分隔条：模板自管（gutter 不属于任何 BlockApp） ===== *@
+        <div id="@extIdGutter" class="tr-gutter" title="拖拽调整宽度，双击复位">
+            <div class="tr-gutter-bar"></div>
+        </div>
+
+        @* ===== 右侧：独立 V2 DetailApp（DynEventBus 通信） ===== *@
+        <div class="tr-pane-right">
+            @await Html.PartialAsync("~/Views/DynBlocks/AppsV2/DetailApp.cshtml", new ViewDataDictionary(ViewData) {
+                ["ExtId"] = extIdDetail,
+                ["ExecId"] = execId,
+                ["DetailSettingId"] = detailPsId,
+                ["TableName"] = tableName,
+                ["KeyField"] = keyField,
+                ["Project"] = project,
+                ["RowId"] = "",
+                ["AddUrl"] = addUrl,
+                ["EditUrl"] = editUrl,
+                ["DeleteUrl"] = deleteUrl
+            })
+        </div>
+    </div>
+</div>
+
+<style>
+    .tr-root { height: 100vh; box-sizing: border-box; display: flex; flex-direction: column;
+        background: var(--site-bg, #f0f2f5); font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .tr-split { flex: 1; min-height: 0; display: flex; margin: 14px; box-sizing: border-box;
+        background: var(--site-bg-card, #fff); border: 1px solid var(--site-border, #e4e7ed);
+        border-radius: 8px; overflow: hidden; }
+    .tr-pane-left { flex-shrink: 0; padding: 12px; box-sizing: border-box; overflow: hidden;
+        display: flex; flex-direction: column; min-height: 0; }
+    .tr-pane-right { flex: 1; padding: 12px 16px; box-sizing: border-box; overflow: auto;
+        min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    /* BlockApp 根节点撑满各自 pane */
+    .tr-pane-left > .dyn-blk-tree { flex: 1; min-height: 0; }
+    .tr-pane-right > .dyn-blk-detail { flex: 1; min-height: 0; }
+
+    .tr-gutter { flex-shrink: 0; width: 8px; cursor: col-resize;
+        background: var(--site-bg, #f2f4f7); position: relative;
+        display: flex; align-items: center; justify-content: center; }
+    .tr-gutter:hover, .tr-gutter.tr-gutter--active { background: var(--site-border, #e4e7ed); }
+    .tr-gutter-bar { width: 2px; height: 36px; border-radius: 2px; background: var(--site-border-dark, #c0c4cc); }
+    /* 拖拽时全局禁用文本选择 */
+    body.tr-resizing { cursor: col-resize !important; user-select: none !important; }
+    body.tr-resizing * { cursor: col-resize !important; user-select: none !important; }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            var rootEl = document.getElementById('@rootId');
+            var tEl = document.getElementById('@extIdTree');
+            var dEl = document.getElementById('@extIdDetail');
+            var splitEl = document.getElementById('@extIdSplit');
+            var gutterEl = document.getElementById('@extIdGutter');
+            var leftPane = gutterEl.previousElementSibling;
+
+            // 注册模板根到事件总线（根元素已有 data-exec-id，registerRoot 复用该 ExecId）
+            var execId = window.DynEventBus.registerRoot(rootEl);
+
+            // ===== 显式挂载两个 BlockApp（幂等：initActions 自动扫描时不会重复挂载） =====
+            window.Promise.all([window.dyn.mount(tEl), window.dyn.mount(dEl)]).then(function () {
+
+            // 两个 BlockApp 挂载后无需壳做事件转发：
+            //   tree 点节点/新增根/子节点 → 直接 emit update/create（同 ExecId），detail 直接监听；
+            //   detail 保存/删除成功 → emit saved，tree 直接监听后自行 loadTree。
+            // 壳只保留总线注册与分隔条逻辑。
+
+                // ============================================================
+                // 分隔条拖拽（mousedown / mousemove / mouseup + 双击复位）
+                // ============================================================
+                var DEFAULT_WIDTH = @leftWidth;
+                var dragging = false, startX = 0, startW = 0;
+
+                function onDown(e) {
+                    dragging = true;
+                    startX = e.clientX;
+                    startW = leftPane.getBoundingClientRect().width;
+                    gutterEl.classList.add('tr-gutter--active');
+                    document.body.classList.add('tr-resizing');
+                }
+                function onMove(e) {
+                    if (!dragging) return;
+                    var totalW = splitEl.getBoundingClientRect().width;
+                    var newW = startW + (e.clientX - startX);
+                    // 限制左面板占比 15%~70%
+                    var pct = Math.max(15, Math.min(70, (newW / totalW) * 100));
+                    leftPane.style.width = pct + '%';
+                }
+                function onUp() {
+                    if (!dragging) return;
+                    dragging = false;
+                    gutterEl.classList.remove('tr-gutter--active');
+                    document.body.classList.remove('tr-resizing');
+                }
+                function onDbl() {
+                    leftPane.style.width = DEFAULT_WIDTH + '%';
+                }
+
+                gutterEl.addEventListener('mousedown', onDown);
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+                gutterEl.addEventListener('dblclick', onDbl);
+
+                console.log('[TreeDetailV2] 就绪（TreeApp + DetailApp 经 DynEventBus 通信）');
+            });
+        });
+    </script>
+}

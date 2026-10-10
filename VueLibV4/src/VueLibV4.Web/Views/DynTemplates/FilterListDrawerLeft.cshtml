@@ -16,7 +16,7 @@
     var execId = "T2-" + Guid.NewGuid().ToString("N");
     var title = Model.Name;
 }
-<div id="@execId" class="fld-root" >
+<div id="@execId" class="fld-root" data-exec-id="@execId">
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
         ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
     })
@@ -34,7 +34,7 @@
         </div>
         <div dyn-init="createApp" id="@(execId)_drawerapp" class="fldl-drawer" data-dyn-mode-model="@(new { visible = false, drawerTitle = title }.ToJson())">
             <el-drawer ref="drawer" :title="model.drawerTitle" direction="ltr" size="@drawerWidth"
-                       v-model="model.visible" :destroy-on-close="false" :modal="true" :append-to-body="false" v-on:closed="onClosed">
+                       v-model="model.visible" :destroy-on-close="false" :modal="true" :append-to-body="false">
                 <dyn-inject-host data-block-host="detail" ><div class="dyn-loading">加载明细…</div></dyn-inject-host>
             </el-drawer>
         </div>
@@ -48,12 +48,12 @@
 }
 
 <style>
-    .fld-root { min-height: 100vh; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .fld-root { min-height: 100vh; background: var(--site-bg); }
     .fld-body { display: flex; }
     .fld-main { flex: 1; min-width: 0; }
-    .fld-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
-    .fld-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #303133; }
-    .fld-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #409eff; border-radius: 2px; margin-right: 8px; }
+    .fld-card { background: var(--site-bg-card); margin: 14px 20px 0; padding: 14px 16px; border-radius: var(--site-radius); border: 1px solid var(--site-border); }
+    .fld-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: var(--site-text); }
+    .fld-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--site-primary); border-radius: 2px; margin-right: 8px; }
 
     .fldl-drawer .el-drawer__header {
         margin-bottom: 0px;
@@ -64,7 +64,7 @@
     .fldl-drawer .el-drawer__body {
         padding: 0 8px 8px;
     }
-    .dyn-loading { padding: 20px; text-align: center; color: #909399; font-size: 13px; }
+    .dyn-loading { padding: 20px; text-align: center; color: var(--site-text-muted); font-size: var(--site-font-size); }
 </style>
 
 @section Scripts {
@@ -89,33 +89,48 @@
         // 1. filter + list
         loadBlockInto('filter', rootEl.querySelector('[data-block-host="filter"]'));
         loadBlockInto('list', rootEl.querySelector('[data-block-host="list"]'));
-        debugger;
-        // 2. 抽屉
-       
 
-            function openDetailDrawer(rowId) {
-                var drawerVm = dyn.getProxy("#@(execId)_drawerapp");
-               if (!drawerVm) { dyn.showMessage('抽屉未就绪', 'error'); return; }
+        // 2. 抽屉：drawerVm 在外层持有，saved/cancel 关闭时也要用
+        var drawerVm = null;
+        function getDrawerVm() {
+            return dyn.getProxy("#@(execId)_drawerapp");
+        }
 
-                drawerVm.model.drawerTitle = rowId ? ('编辑记录 #' + rowId) : '新增记录';
-                drawerVm.model.visible = true;
-                setTimeout(()=>{
+        function openDetailDrawer(rowId) {
+            drawerVm = getDrawerVm();
+            if (!drawerVm) { dyn.showMessage('抽屉未就绪', 'error'); return; }
 
-                    loadBlockInto('detail', rootEl.querySelector('[data-block-host="detail"]'), rowId).catch(function (e) {
-                        body.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+            drawerVm.model.drawerTitle = rowId ? ('编辑记录 #' + rowId) : '新增记录';
+            drawerVm.model.visible = true;
+            // el-drawer 内容懒渲染：visible=true 后宿主还没进 DOM，
+            // 必须轮询等到 [data-block-host="detail"] 出现再加载，固定 100ms 会偶发注入空宿主。
+            var tries = 0;
+            (function waitHost() {
+                var detailHost = rootEl.querySelector('[data-block-host="detail"]');
+                if (detailHost) {
+                    loadBlockInto('detail', detailHost, rowId).catch(function (e) {
+                        detailHost.innerHTML = '<div style="padding:16px;color:var(--site-danger);">加载失败：' + ((e && e.message) || e) + '</div>';
                     });
-                },100);
-                
-            }
+                    return;
+                }
+                if (++tries > 60) return;   // 3s 兜底，避免死循环
+                setTimeout(waitHost, 50);
+            })();
+        }
 
-        window.DynEventBus.on(ROOT_ID, 'add', function () { openDetailDrawer(null); });
-        window.DynEventBus.on(ROOT_ID, 'edit', function (p) {
+        function closeDetailDrawer() {
+            drawerVm = drawerVm || getDrawerVm();
+            if (drawerVm) drawerVm.model.visible = false;
+        }
+
+        window.DynEventBus.on(ROOT_ID, 'create', function () { openDetailDrawer(null); });
+        window.DynEventBus.on(ROOT_ID, 'update', function (p) {
             var row = p && p.row;
             openDetailDrawer(row ? row[KEY_FIELD] : null);
         });
-        window.DynEventBus.on(ROOT_ID, 'saved', function () {
-            if (drawerVm) drawerVm.model.visible = false;
-        });
+        // Detail 保存成功 / 取消 → 收起抽屉（列表刷新由 list 直接监听 saved 负责）
+        window.DynEventBus.on(ROOT_ID, 'saved', function () { closeDetailDrawer(); });
+        window.DynEventBus.on(ROOT_ID, 'cancel', function () { closeDetailDrawer(); });
     });
     </script>
 }

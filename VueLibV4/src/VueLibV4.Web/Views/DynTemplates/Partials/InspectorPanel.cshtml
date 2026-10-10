@@ -1,4 +1,4 @@
-@* Inspector 设计器面板：dyndebug=1 时显示浮动按钮，右侧抽屉用 dyn-dynamic-com 渲染各 slot 的 paramConfig *@
+@* Inspector 设计器面板：dyndebug=1 时显示浮动按钮，左侧抽屉用 dyn-dynamic-com 渲染各 slot *@
 @{
     var wpId = ViewBag.WebpageId ?? 0;
 }
@@ -10,36 +10,44 @@
         <span>设计器</span>
     </button>
 
-    <transition name="inspector-fade">
-        <div class="inspector-mask" v-if="visible" @@click="close"></div>
-    </transition>
+    <div class="inspector-mask" v-if="visible" @@click="close"></div>
 
     <div class="inspector-drawer" :class="{ open: visible }">
         <div class="inspector-head">
             <span class="inspector-title">页面设计器</span>
+            <span class="inspector-count">{{ slots.length }} blocks</span>
             <button class="inspector-close" @@click="close">×</button>
         </div>
         <div class="inspector-body">
             <div v-if="loading" class="inspector-loading">加载中…</div>
             <template v-else>
-                <!-- 基础参数 -->
+                <!-- 基础参数（可折叠） -->
                 <div class="inspector-group">
-                    <div class="inspector-group__title">基础参数</div>
-                    <div class="inspector-field"><label>数据表名</label><input v-model="provide.TableName" placeholder="如 SysMenu"></div>
-                    <div class="inspector-field"><label>主键字段</label><input v-model="provide.KeyField" placeholder="Id"></div>
-                    <div class="inspector-field"><label>项目ID</label><input v-model="provide.Project" placeholder="__platform__"></div>
+                    <div class="inspector-group__title" @@click="toggle('provide')">
+                        <span class="inspector-caret" :class="{open: openGroups.provide}">▸</span>
+                        <span>基础参数</span>
+                    </div>
+                    <div class="inspector-group__body" v-show="openGroups.provide">
+                        <div class="inspector-field"><label>数据表名</label><input v-model="provide.TableName" placeholder="如 SysMenu"></div>
+                        <div class="inspector-field"><label>主键字段</label><input v-model="provide.KeyField" placeholder="Id"></div>
+                        <div class="inspector-field"><label>项目ID</label><input v-model="provide.Project" placeholder="__platform__"></div>
+                        <div class="inspector-field"><label>弹窗页ID</label><input v-model="provide.ModalPageId" placeholder="0"></div>
+                    </div>
                 </div>
-                <!-- 各 slot：用 dyn-dynamic-com 渲染 paramConfig -->
+                <!-- 各 slot：可折叠 -->
                 <div class="inspector-group" v-for="s in slots" :key="s.slot">
-                    <div class="inspector-group__title">
+                    <div class="inspector-group__title" @@click="toggle(s.slot)">
+                        <span class="inspector-caret" :class="{open: openGroups[s.slot]}">▸</span>
                         <span class="inspector-dot" :class="'inspector-dot--' + s.slot"></span>
-                        {{ s.blockName }}
+                        <span>{{ s.blockName }}</span>
                         <span class="inspector-slot-tag">{{ s.slot }}</span>
                     </div>
-                    <div v-if="s.description" class="inspector-desc">{{ s.description }}</div>
-                    <dyn-dynamic-com v-if="s.paramConfig"
-                        :jsonconfig="s.paramConfig"
-                        :parentmodelinfo="s.current"></dyn-dynamic-com>
+                    <div class="inspector-group__body" v-show="openGroups[s.slot]">
+                        <div v-if="s.description" class="inspector-desc">{{ s.description }}</div>
+                        <dyn-dynamic-com v-if="s.paramConfig"
+                            :jsonconfig="s.paramConfig"
+                            :parentmodelinfo="s.current"></dyn-dynamic-com>
+                    </div>
                 </div>
             </template>
         </div>
@@ -61,10 +69,12 @@
                 loading: false,
                 saving: false,
                 provide: {},
-                slots: []
+                slots: [],
+                openGroups: { provide: true }
             };
         },
         methods: {
+            toggle: function (k) { this.openGroups[k] = !this.openGroups[k]; },
             open: function () {
                 this.visible = true;
                 if (!this.slots.length) this.load();
@@ -80,6 +90,10 @@
                         if (res.code !== 0) return;
                         self.provide = res.data.provide || {};
                         self.slots = res.data.slots || [];
+                        // 默认展开所有 slot
+                        var g = { provide: true };
+                        self.slots.forEach(function (s) { g[s.slot] = true; });
+                        self.openGroups = g;
                     })
                     .catch(function (e) { self.loading = false; console.error('[Inspector]', e); });
             },
@@ -88,10 +102,9 @@
                 this.saving = true;
                 var blocks = {};
                 this.slots.forEach(function (s) { blocks[s.slot] = s.current; });
-                var payload = { webpageId: __wpId, paramsJson: { provide: this.provide, blocks: blocks } };
                 fetch('/Platform/Page/SaveParams', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ webpageId: __wpId, paramsJson: { provide: this.provide, blocks: blocks } })
                 }).then(function (r) { return r.json(); }).then(function (res) {
                     self.saving = false;
                     if (res.code === 0) { window.location.reload(); }
@@ -104,71 +117,95 @@
 </div>
 
 <style>
-.inspector-host { position: fixed; z-index: 9998; }
+.inspector-host { position: fixed; z-index: 9998; font-family: 'SF Mono', Consolas, monospace; }
 .inspector-fab {
     position: fixed; left: 20px; bottom: 80px;
     display: inline-flex; align-items: center; gap: 6px;
-    height: 36px; padding: 0 14px; border-radius: 18px;
-    background: #409eff; color: #fff; border: none; cursor: pointer;
-    box-shadow: 0 4px 12px rgba(64,158,255,.4); font-size: 13px;
+    height: 34px; padding: 0 14px; border-radius: 6px;
+    background: #3b82f6; color: #fff; border: 1px solid #2563eb; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(59,130,246,.4); font-size: 12px;
 }
-.inspector-fab:hover { background: #66b1ff; }
+.inspector-fab:hover { background: #2563eb; }
 .inspector-drawer {
     position: fixed; top: 0; left: 0; height: 100vh; width: 400px;
-    background: #fff; box-shadow: 4px 0 16px rgba(0,0,0,.1);
+    background: #262626; color: #d4d4d4;
+    box-shadow: 4px 0 24px rgba(0,0,0,.4);
     transform: translateX(-100%); transition: transform .2s ease;
     display: flex; flex-direction: column; z-index: 10000;
 }
 .inspector-drawer.open { transform: translateX(0); }
 .inspector-head {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px; border-bottom: 1px solid #e4e7ed;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px; height: 36px; background: #1f1f1f;
+    border-bottom: 1px solid #333; font-size: 12px;
 }
-.inspector-title { font-size: 14px; font-weight: 600; color: #303133; }
-.inspector-close { background: none; border: none; font-size: 22px; color: #909399; cursor: pointer; line-height: 1; }
-.inspector-close:hover { color: #303133; }
-.inspector-body { flex: 1; overflow-y: auto; padding: 12px 16px; background: #fafbfc; }
-.inspector-loading { padding: 30px; text-align: center; color: #909399; font-size: 13px; }
+.inspector-title { color: #e8e8e8; font-weight: 600; }
+.inspector-count { color: #888; font-size: 11px; }
+.inspector-close {
+    margin-left: auto; background: none; border: none; color: #888;
+    font-size: 18px; cursor: pointer; line-height: 1; padding: 0 4px;
+}
+.inspector-close:hover { color: #fff; }
+.inspector-body { flex: 1; overflow-y: auto; padding: 10px; background: #262626; }
+.inspector-loading { padding: 30px; text-align: center; color: #666; font-size: 12px; }
 .inspector-foot {
-    display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px;
-    border-top: 1px solid #e4e7ed; background: #fff;
+    display: flex; justify-content: flex-end; gap: 8px; padding: 8px 12px;
+    border-top: 1px solid #333; background: #1f1f1f;
 }
 .inspector-group {
-    background: #fff; border: 1px solid #e4e7ed; border-radius: 6px;
-    padding: 10px 12px; margin-bottom: 10px;
+    background: #2d2d2d; border: 1px solid #3a3a3a; border-radius: 4px;
+    margin-bottom: 8px; overflow: hidden;
 }
 .inspector-group__title {
     display: flex; align-items: center; gap: 6px;
-    font-size: 13px; font-weight: 600; color: #303133; margin-bottom: 8px;
+    padding: 6px 10px; background: #333; cursor: pointer;
+    font-size: 11px; font-weight: 600; color: #ccc;
+    user-select: none; letter-spacing: .3px;
 }
+.inspector-caret {
+    display: inline-block; transition: transform .15s;
+    font-size: 9px; color: #888; width: 10px;
+}
+.inspector-caret.open { transform: rotate(90deg); }
+.inspector-group__body { padding: 8px 10px; }
 .inspector-slot-tag {
-    font-size: 11px; color: #909399; background: #f0f2f5;
-    padding: 1px 6px; border-radius: 3px; font-weight: normal;
+    margin-left: auto; font-size: 10px; color: #888;
+    background: #1f1f1f; padding: 1px 6px; border-radius: 3px; font-weight: normal;
 }
-.inspector-desc { font-size: 12px; color: #909399; margin-bottom: 8px; line-height: 1.5; }
-.inspector-dot { width: 6px; height: 6px; border-radius: 50%; background: #409eff; }
-.inspector-dot--filter { background: #67c23a; }
-.inspector-dot--list { background: #409eff; }
-.inspector-dot--detail { background: #e6a23c; }
-.inspector-dot--tree { background: #909399; }
-.inspector-field { margin-bottom: 8px; }
-.inspector-field label { display: block; font-size: 12px; color: #606266; margin-bottom: 4px; }
+.inspector-desc { font-size: 11px; color: #888; margin-bottom: 8px; line-height: 1.5; }
+.inspector-dot { width: 7px; height: 7px; border-radius: 50%; background: #888; }
+.inspector-dot--filter { background: #4ade80; }
+.inspector-dot--list { background: #60a5fa; }
+.inspector-dot--detail { background: #fbbf24; }
+.inspector-dot--tree { background: #a78bfa; }
+.inspector-field { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.inspector-field label { width: 70px; flex-shrink: 0; font-size: 11px; color: #999; text-align: right; }
 .inspector-field input {
-    width: 100%; height: 28px; padding: 0 8px; font-size: 12px;
-    border: 1px solid #dcdfe6; border-radius: 4px; box-sizing: border-box;
+    flex: 1; height: 24px; padding: 0 6px; font-size: 11px; font-family: inherit;
+    background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 3px; color: #e0e0e0;
 }
-.inspector-field input:focus { outline: none; border-color: #409eff; }
+.inspector-field input:focus { outline: none; border-color: #3b82f6; }
 .inspector-btn {
-    height: 30px; padding: 0 14px; font-size: 12px; border-radius: 4px;
-    cursor: pointer; border: 1px solid #dcdfe6; background: #fff; color: #606266;
+    height: 26px; padding: 0 12px; font-size: 11px; border-radius: 3px; cursor: pointer;
+    border: 1px solid #3a3a3a; background: #2d2d2d; color: #ccc; font-family: inherit;
 }
-.inspector-btn--primary { background: #409eff; border-color: #409eff; color: #fff; }
-.inspector-btn--primary:hover { background: #66b1ff; }
+.inspector-btn--primary { background: #3b82f6; border-color: #2563eb; color: #fff; }
+.inspector-btn--primary:hover { background: #2563eb; }
 .inspector-btn--primary:disabled { opacity: .6; cursor: not-allowed; }
-.inspector-btn--ghost:hover { border-color: #c0c4cc; background: #f5f7fa; }
-.inspector-mask {
-    position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 9999;
+.inspector-btn--ghost:hover { background: #3a3a3a; }
+.inspector-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9999; }
+
+/* dyn-dynamic-com 在暗色下协调 */
+.inspector-body .el-form-item { margin-bottom: 8px; }
+.inspector-body .el-form-item__label { color: #999 !important; font-size: 11px !important; }
+.inspector-body .el-input__wrapper,
+.inspector-body .el-select__wrapper,
+.inspector-body .el-textarea__inner {
+    background: #1a1a1a !important;
+    box-shadow: 0 0 0 1px #3a3a3a inset !important;
 }
-.inspector-fade-enter-active, .inspector-fade-leave-active { transition: opacity .2s; }
-.inspector-fade-enter, .inspector-fade-leave-to { opacity: 0; }
+.inspector-body .el-input__inner,
+.inspector-body .el-select__placeholder,
+.inspector-body .el-textarea__inner { color: #e0e0e0 !important; }
+.inspector-body .el-input__inner::placeholder { color: #666 !important; }
 </style>

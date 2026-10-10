@@ -11,6 +11,11 @@
     <title>@(ViewData["Title"] ?? "VueLibV4 企业级低代码平台")</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="~/dyn/dyn.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/dyn/site-theme.css" asp-append-version="true" />
+    <script>
+      // 尽早应用暗色主题，避免闪烁
+      try { if (localStorage.getItem('proui-dark') === '1') document.documentElement.classList.add('proui-dark'); } catch(e){}
+    </script>
     @RenderSection("Head", required: false)
 </head>
 <body>
@@ -79,6 +84,23 @@
             var err = e.detail || {};
             report({ message: '[Vue] ' + (err.message || 'Vue error'), stack: err.stack });
         });
+    })();
+    </script>
+
+    @* ProUI 暗色主题切换按钮 *@
+    <button type="button" class="proui-toggle" id="prouiToggle" title="切换暗色/亮色" aria-label="切换主题">🌙</button>
+    <script>
+    (function () {
+      function sync() {
+        document.getElementById('prouiToggle').textContent =
+          document.documentElement.classList.contains('proui-dark') ? '☀️' : '🌙';
+      }
+      document.getElementById('prouiToggle').addEventListener('click', function () {
+        var on = document.documentElement.classList.toggle('proui-dark');
+        try { localStorage.setItem('proui-dark', on ? '1' : '0'); } catch(e){}
+        sync();
+      });
+      sync();
     })();
     </script>
 </body>

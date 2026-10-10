@@ -2,9 +2,17 @@
 @inject IPageSettingService pageSettingService
 @using System.Dynamic
 @{
-    IDictionary<string, object?> M = Model != null ? (IDictionary<string, object?>)Model : new Dictionary<string, object?>();
-    string S(string k, string dft = "") => M.TryGetValue(k, out var v) && v != null ? v.ToString() ?? dft : dft;
-    int I(string k, int dft = 0) => M.TryGetValue(k, out var v) && v != null ? Convert.ToInt32(v) : dft;
+    // 双模入参：LoadBlock 片段入口传 Dictionary 模型；模板内联 PartialAsync 传 ViewDataDictionary
+    // （此时 Model 是父页模型，如 DynWebPage，不能强转 IDictionary）——统一字典优先、ViewData 回退。
+    IDictionary<string, object> M = Model is IDictionary<string, object> _md
+        ? _md : new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    object V2(string k) {
+        if (M.TryGetValue(k, out var v0) && v0 != null) return v0;
+        if (ViewData.TryGetValue(k, out var v1) && v1 != null) return v1;
+        return null;
+    }
+    string S(string k, string dft = "") { var x = V2(k); return x != null ? x.ToString() ?? dft : dft; }
+    int I(string k, int dft = 0) { var x = V2(k); return x != null ? Convert.ToInt32(x) : dft; }
 
     var extId = S("ExtId", "lb2-" + Guid.NewGuid().ToString("N")[..12]);
     var execId = S("ExecId");
@@ -61,7 +69,7 @@
     var __project = '@project';
     var __loadUrl = '@(string.IsNullOrEmpty(loadUrl) ? DynPageViewHelper.SearchUrl : loadUrl)';
     var __deleteUrl = '@(string.IsNullOrEmpty(deleteUrl) ? DynPageViewHelper.DeleteUrl : deleteUrl)';
-    var __searchHandler = null, __refreshHandler = null;
+    var __queryHandler = null, __savedHandler = null;
 
     var dynConfig = {
         data: function () {
@@ -131,7 +139,7 @@
                 var v = row ? row[col.field] : null;
                 var o = this.cellOption(col, row);
                 if (o && o.type) return o.type;
-                if (col.tagType) return o.tagType;
+                if (col.tagType) return col.tagType;
                 return v ? 'success' : 'info';
             },
             rowClassName: function (row) {
@@ -139,13 +147,11 @@
             },
             onAdd: function () {
                 if (window.DynEventBus && __execId)
-                    window.DynEventBus.emit(__execId, 'add', {});
+                    window.DynEventBus.emit(__execId, 'create', {});
             },
             onEdit: function (row) {
-                if (window.DynEventBus && __execId) {
-                    window.DynEventBus.emit(__execId, 'edit', { row: row });
-                    window.DynEventBus.emit(__execId, 'rowSelected', { row: row });
-                }
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'update', { row: row });
             },
             onDelete: function (row) {
                 var self = this;
@@ -169,23 +175,29 @@
                 this.loadData();
                 return;
             }
-            // 监听 filter.query：快照自动补发首屏
-            __searchHandler = function (payload) {
+            // 监听 query（sticky）：on() 注册时若总线已有条件快照会【同步补发】一次；
+            // 与 Filter 片段并行加载、List 先挂载时，给 Filter 一个宽限期（120ms），
+            // 期间收到 query 就取消自加载——保证有无 Filter 积木首屏都只打一条 search。
+            var gotFilter = false;
+            var selfLoadTimer = null;
+            __queryHandler = function (payload) {
+                gotFilter = true;
+                if (selfLoadTimer) { clearTimeout(selfLoadTimer); selfLoadTimer = null; }
                 self.model.filter = payload || {};
                 self.model.page = 1;
                 self.loadData();
             };
-            window.DynEventBus.on(__execId, 'filter.query', __searchHandler);
-            // 监听 refresh：Detail 保存成功后通知列表刷新
-            __refreshHandler = function () { self.loadData(); };
-            window.DynEventBus.on(__execId, 'refresh', __refreshHandler);
-            // 兜底：如果快照没有补发（Filter 还没 emit），自己先加载一次
-            this.loadData();
+            window.DynEventBus.on(__execId, 'query', __queryHandler);
+            // 监听 saved（signal）：Detail 新增/修改/删除成功后统一刷新列表
+            __savedHandler = function () { self.loadData(); };
+            window.DynEventBus.on(__execId, 'saved', __savedHandler);
+            // 无筛选快照（Filter 片段还没挂载/页面没有 Filter 积木）才兜底自加载
+            if (!gotFilter) selfLoadTimer = setTimeout(function () { self.loadData(); }, 120);
         },
         beforeUnmount: function () {
             if (window.DynEventBus && __execId) {
-                if (__searchHandler) window.DynEventBus.off(__execId, 'filter.query', __searchHandler);
-                if (__refreshHandler) window.DynEventBus.off(__execId, 'refresh', __refreshHandler);
+                if (__queryHandler) window.DynEventBus.off(__execId, 'query', __queryHandler);
+                if (__savedHandler) window.DynEventBus.off(__execId, 'saved', __savedHandler);
             }
         }
     };

@@ -2,9 +2,17 @@
 @inject IPageSettingService pageSettingService
 @using System.Dynamic
 @{
-    IDictionary<string, object?> M = Model != null ? (IDictionary<string, object?>)Model : new Dictionary<string, object?>();
-    string S(string k, string dft = "") => M.TryGetValue(k, out var v) && v != null ? v.ToString() ?? dft : dft;
-    int I(string k, int dft = 0) => M.TryGetValue(k, out var v) && v != null ? Convert.ToInt32(v) : dft;
+    // 双模入参：LoadBlock 片段入口传 Dictionary 模型；模板内联 PartialAsync 传 ViewDataDictionary
+    // （此时 Model 是父页模型，如 DynWebPage，不能强转 IDictionary）——统一字典优先、ViewData 回退。
+    IDictionary<string, object> M = Model is IDictionary<string, object> _md
+        ? _md : new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    object V2(string k) {
+        if (M.TryGetValue(k, out var v0) && v0 != null) return v0;
+        if (ViewData.TryGetValue(k, out var v1) && v1 != null) return v1;
+        return null;
+    }
+    string S(string k, string dft = "") { var x = V2(k); return x != null ? x.ToString() ?? dft : dft; }
+    int I(string k, int dft = 0) { var x = V2(k); return x != null ? Convert.ToInt32(x) : dft; }
 
     var extId = S("ExtId", "db2-" + Guid.NewGuid().ToString("N")[..12]);
     var execId = S("ExecId");
@@ -61,7 +69,7 @@
     var __addUrl = '@(string.IsNullOrEmpty(addUrl) ? DynPageViewHelper.SaveUrl : addUrl)';
     var __editUrl = '@(string.IsNullOrEmpty(editUrl) ? DynPageViewHelper.SaveUrl : editUrl)';
     var __deleteUrl = '@(string.IsNullOrEmpty(deleteUrl) ? DynPageViewHelper.DeleteUrl : deleteUrl)';
-    var __newFormHandler = null, __editFormHandler = null;
+    var __createHandler = null, __updateHandler = null;
 
     var dynConfig = {
         data: function () {
@@ -131,11 +139,10 @@
                         self.loading = false;
                         self.formError = '';
                         dyn.showMessage('保存成功', 'success');
-                        var payload = { action: isEdit ? 'edit' : 'add', row: self.form };
-                        if (window.DynEventBus && __execId) {
+                        // 统一只发 saved（signal）：壳负责关窗，list/tree 自行监听刷新
+                        var payload = { action: isEdit ? 'update' : 'create', row: self.form };
+                        if (window.DynEventBus && __execId)
                             window.DynEventBus.emit(__execId, 'saved', payload);
-                            window.DynEventBus.emit(__execId, 'refresh', null);
-                        }
                     })
                     .catch(function () { self.loading = false; });
             },
@@ -162,10 +169,8 @@
                             var rowKey = {}; rowKey[kf] = id;
                             self.form = JSON.parse(JSON.stringify(self.initForm));
                             self.formError = '';
-                            if (window.DynEventBus && __execId) {
+                            if (window.DynEventBus && __execId)
                                 window.DynEventBus.emit(__execId, 'saved', { action: 'delete', row: rowKey });
-                                window.DynEventBus.emit(__execId, 'refresh', null);
-                            }
                         })
                         .catch(function () { self.loading = false; });
                 };
@@ -186,10 +191,11 @@
         mounted: function () {
             var self = this;
             if (!window.DynEventBus || !__execId) return;
-            __newFormHandler = function (p) { self.newForm((p && p.preFill) || {}); };
-            __editFormHandler = function (p) { self.editForm((p && p.row) || {}); };
-            window.DynEventBus.on(__execId, 'newForm', __newFormHandler);
-            window.DynEventBus.on(__execId, 'editForm', __editFormHandler);
+            __createHandler = function (p) { self.newForm((p && p.preFill) || {}); };
+            __updateHandler = function (p) { self.editForm((p && p.row) || {}); };
+            // create/update 是 signal：只响应实时派发，不读历史快照
+            window.DynEventBus.on(__execId, 'create', __createHandler);
+            window.DynEventBus.on(__execId, 'update', __updateHandler);
             // 编辑态 rowId 兜底
             if (__rowId) {
                 var getUrl = DynBlocks.getUrl(this.table, __rowId, this.project);
@@ -200,8 +206,8 @@
         },
         beforeUnmount: function () {
             if (window.DynEventBus && __execId) {
-                if (__newFormHandler) window.DynEventBus.off(__execId, 'newForm', __newFormHandler);
-                if (__editFormHandler) window.DynEventBus.off(__execId, 'editForm', __editFormHandler);
+                if (__createHandler) window.DynEventBus.off(__execId, 'create', __createHandler);
+                if (__updateHandler) window.DynEventBus.off(__execId, 'update', __updateHandler);
             }
         }
     };
@@ -210,33 +216,35 @@
 
 <style>
     .dyn-blk-detail { display: flex; flex-direction: column; }
-    .dyn-blk-detail__errbar { margin-bottom: 10px; padding: 9px 12px; background: #fef0f0; color: #f56c6c;
-        border: 1px solid #fde2e2; border-radius: 4px; font-size: 13px; font-weight: 500; }
+    .dyn-blk-detail__errbar { margin-bottom: 10px; padding: 9px 12px;
+        background: rgba(245,108,108,.12); color: var(--site-danger);
+        border: 1px solid var(--site-danger); border-radius: var(--site-radius-sm);
+        font-size: var(--site-font-size); font-weight: 500; }
     .dyn-blk-detail__body { flex: 1; }
 
     /* ===== ProUI 风格紧凑操作栏 ===== */
     .dyn-actionbar {
         display: flex; align-items: center; gap: 6px;
-        padding: 8px 12px; background: #fafbfc;
-        border: 1px solid #e4e7ed; border-radius: 6px;
+        padding: 8px 12px; background: var(--site-bg-header);
+        border: 1px solid var(--site-border); border-radius: var(--site-radius);
         margin-bottom: 12px; flex-wrap: wrap;
     }
     .dyn-actionbar__group { display: flex; align-items: center; gap: 4px; }
     .dyn-actionbar__right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-    .dyn-actionbar__divider { width: 1px; height: 18px; background: #dcdfe6; margin: 0 4px; }
+    .dyn-actionbar__divider { width: 1px; height: 18px; background: var(--site-border-dark); margin: 0 4px; }
     .dyn-actionbar__btn {
         display: inline-flex; align-items: center; gap: 4px;
-        height: 28px; padding: 0 10px; font-size: 12px;
-        border: 1px solid #dcdfe6; border-radius: 4px;
-        background: #fff; color: #606266; cursor: pointer;
+        height: 28px; padding: 0 10px; font-size: var(--site-font-size-sm);
+        border: 1px solid var(--site-border-dark); border-radius: var(--site-radius-sm);
+        background: var(--site-bg-card); color: var(--site-text); cursor: pointer;
         transition: all .15s ease; line-height: 1;
     }
-    .dyn-actionbar__btn:hover:not(:disabled) { border-color: #c0c4cc; background: #f5f7fa; }
+    .dyn-actionbar__btn:hover:not(:disabled) { border-color: var(--site-border-dark); background: var(--site-bg-hover); }
     .dyn-actionbar__btn:disabled { opacity: .5; cursor: not-allowed; }
-    .dyn-actionbar__btn--primary { background: #409eff; border-color: #409eff; color: #fff; }
-    .dyn-actionbar__btn--primary:hover:not(:disabled) { background: #66b1ff; border-color: #66b1ff; color: #fff; }
-    .dyn-actionbar__btn--danger { background: #fff; border-color: #fbc4c4; color: #f56c6c; }
-    .dyn-actionbar__btn--danger:hover:not(:disabled) { background: #fef0f0; border-color: #f56c6c; color: #f56c6c; }
-    .dyn-actionbar__btn--text { border-color: transparent; background: transparent; color: #909399; }
-    .dyn-actionbar__btn--text:hover:not(:disabled) { background: #f5f7fa; color: #606266; }
+    .dyn-actionbar__btn--primary { background: var(--site-primary); border-color: var(--site-primary); color: #fff; }
+    .dyn-actionbar__btn--primary:hover:not(:disabled) { background: var(--site-primary-hover); border-color: var(--site-primary-hover); color: #fff; }
+    .dyn-actionbar__btn--danger { background: var(--site-bg-card); border-color: var(--site-danger); color: var(--site-danger); }
+    .dyn-actionbar__btn--danger:hover:not(:disabled) { background: rgba(245,108,108,.12); border-color: var(--site-danger); color: var(--site-danger); }
+    .dyn-actionbar__btn--text { border-color: transparent; background: transparent; color: var(--site-text-muted); }
+    .dyn-actionbar__btn--text:hover:not(:disabled) { background: var(--site-bg-hover); color: var(--site-text); }
 </style>

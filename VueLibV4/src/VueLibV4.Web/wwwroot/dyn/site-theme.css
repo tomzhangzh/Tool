@@ -1,0 +1,206 @@
+/* ============================================================================
+   site-theme.css —— VueLibV4 站点统一变量层
+   ----------------------------------------------------------------------------
+   用法：
+     1. 所有自定义样式一律用 var(--site-*)，禁止再写死颜色/字号/圆角。
+     2. 亮色 = :root 默认值；暗色 = html.proui-dark 覆盖同名变量。
+     3. Element Plus 的 --el-* 统一映射到站点变量，两套 UI 永远同色。
+   ============================================================================ */
+
+/* ===================== 亮色（默认） ===================== */
+:root {
+  /* 背景层级（由深到浅：page < card < header < hover） */
+  --site-bg:           #f0f2f5;
+  --site-bg-card:      #ffffff;
+  --site-bg-header:    #fafafa;
+  --site-bg-hover:     #f5f7fa;
+  --site-bg-active:    #ecf5ff;
+
+  /* 文字 */
+  --site-text:         #303133;
+  --site-text-muted:   #909399;
+  --site-text-faint:   #c0c4cc;
+
+  /* 边框 / 分割线 */
+  --site-border:       #e4e7ed;
+  --site-border-light: #ebeef5;
+  --site-border-dark:  #dcdfe6;
+
+  /* 主题色 */
+  --site-primary:      #409eff;
+  --site-primary-hover:#66b1ff;
+  --site-success:      #67c23a;
+  --site-warning:      #e6a23c;
+  --site-danger:       #f56c6c;
+  --site-info:         #909399;
+
+  /* 尺寸 / 形状 */
+  --site-radius:       6px;
+  --site-radius-sm:    4px;
+  --site-space:        16px;
+  --site-space-sm:     8px;
+  --site-font-size:    13px;
+  --site-font-size-sm: 12px;
+  --site-shadow:       0 2px 12px rgba(0,0,0,.08);
+}
+
+/* ===================== 暗色（ProUI） ===================== */
+html.proui-dark {
+  --site-bg:           #1a1a1a;
+  --site-bg-card:      #262626;
+  --site-bg-header:    #1f1f1f;
+  --site-bg-hover:     #2d3b4f;
+  --site-bg-active:    #1e3a8a;
+
+  --site-text:         #e0e0e0;
+  --site-text-muted:   #999999;
+  --site-text-faint:   #666666;
+
+  --site-border:       #3a3a3a;
+  --site-border-light: #333333;
+  --site-border-dark:  #4a4a4a;
+
+  --site-primary:      #3b82f6;
+  --site-primary-hover:#2563eb;
+  --site-success:      #4ade80;
+  --site-warning:      #fbbf24;
+  --site-danger:       #f87171;
+  --site-info:         #888888;
+
+  --site-shadow:       0 4px 16px rgba(0,0,0,.45);
+}
+
+/* ============================================================================
+   Element Plus --el-* 变量映射到站点变量
+   （Element 官方默认值在亮色下也会被对齐到站点变量，保证自定义区域同色）
+   ============================================================================ */
+:root {
+  --el-color-primary:          var(--site-primary);
+  --el-color-primary-light-3:  var(--site-primary-hover);
+  --el-color-primary-light-8:  var(--site-bg-active);
+  --el-color-primary-light-9:  var(--site-bg-active);
+  --el-color-primary-dark-2:   var(--site-primary-hover);
+
+  --el-color-success:          var(--site-success);
+  --el-color-warning:          var(--site-warning);
+  --el-color-danger:           var(--site-danger);
+  --el-color-error:            var(--site-danger);
+  --el-color-info:             var(--site-info);
+
+  --el-bg-color:               var(--site-bg-card);
+  --el-bg-color-page:          var(--site-bg);
+  --el-bg-color-overlay:       var(--site-bg-card);
+
+  --el-fill-color:             var(--site-bg-hover);
+  --el-fill-color-light:       var(--site-bg-hover);
+  --el-fill-color-lighter:     var(--site-bg-header);
+  --el-fill-color-extra-light: var(--site-bg-card);
+  --el-fill-color-blank:       var(--site-bg-card);
+
+  --el-text-color-primary:     var(--site-text);
+  --el-text-color-regular:     var(--site-text);
+  --el-text-color-secondary:   var(--site-text-muted);
+  --el-text-color-placeholder: var(--site-text-faint);
+
+  --el-border-color:           var(--site-border);
+  --el-border-color-light:     var(--site-border);
+  --el-border-color-lighter:   var(--site-border-light);
+  --el-border-color-extra-light: var(--site-border-light);
+  --el-border-color-dark:      var(--site-border-dark);
+  --el-border-color-darker:    var(--site-border-dark);
+
+  --el-mask-color:             rgba(0,0,0,.55);
+  --el-box-shadow:             var(--site-shadow);
+  --el-box-shadow-light:       var(--site-shadow);
+  --el-box-shadow-lighter:     var(--site-shadow);
+  --el-box-shadow-dark:        var(--site-shadow);
+}
+
+/* ============================================================================
+   全局基础
+   ============================================================================ */
+body {
+  background: var(--site-bg);
+  color: var(--site-text);
+}
+
+/* ============================================================================
+   暗色下 teleport 到 body 的浮层（Element 变量已覆盖，个别需兜底）
+   ============================================================================ */
+html.proui-dark .el-select-dropdown,
+html.proui-dark .el-picker-panel,
+html.proui-dark .el-cascader__dropdown,
+html.proui-dark .el-autocomplete__popper,
+html.proui-dark .el-popper.is-light {
+  background: var(--site-bg-card);
+  border-color: var(--site-border);
+}
+html.proui-dark .el-select-dropdown__item { color: var(--site-text); }
+html.proui-dark .el-select-dropdown__item.hover,
+html.proui-dark .el-select-dropdown__item:hover {
+  background: var(--site-bg-hover);
+  color: #fff;
+}
+html.proui-dark .el-select-dropdown__item.is-selected {
+  background: var(--site-bg-active);
+  color: #fff;
+}
+html.proui-dark .el-popper.is-light .el-popper__arrow::before {
+  background: var(--site-bg-card);
+  border-color: var(--site-border);
+}
+
+/* 暗色表格 */
+html.proui-dark .el-table { background: var(--site-bg-card); color: var(--site-text); }
+html.proui-dark .el-table th.el-table__cell {
+  background: var(--site-bg-header) !important;
+  color: var(--site-text);
+  border-bottom-color: var(--site-border);
+}
+html.proui-dark .el-table td.el-table__cell {
+  background: var(--site-bg-card);
+  border-bottom-color: var(--site-border-light);
+}
+html.proui-dark .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: var(--site-bg-header);
+}
+html.proui-dark .el-table__body tr:hover > td.el-table__cell {
+  background: var(--site-bg-hover) !important;
+}
+
+/* 暗色输入控件 */
+html.proui-dark .el-input__wrapper,
+html.proui-dark .el-textarea__inner,
+html.proui-dark .el-select__wrapper {
+  background: var(--site-bg) !important;
+  box-shadow: 0 0 0 1px var(--site-border) inset !important;
+}
+html.proui-dark .el-input__inner,
+html.proui-dark .el-textarea__inner,
+html.proui-dark .el-select__placeholder { color: var(--site-text) !important; }
+html.proui-dark .el-form-item__label { color: var(--site-text-muted) !important; }
+
+/* 暗色默认按钮 */
+html.proui-dark .el-button--default {
+  background: var(--site-bg-card);
+  border-color: var(--site-border);
+  color: var(--site-text);
+}
+html.proui-dark .el-button--default:hover {
+  background: var(--site-bg-hover);
+  border-color: var(--site-border-dark);
+  color: #fff;
+}
+
+/* ============================================================================
+   主题切换按钮
+   ============================================================================ */
+.proui-toggle {
+  position: fixed; right: 20px; bottom: 50px; z-index: 99999;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--site-bg-card); color: var(--site-warning);
+  border: 1px solid var(--site-border); cursor: pointer; font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--site-shadow); transition: transform .15s;
+}
+.proui-toggle:hover { transform: scale(1.08); }

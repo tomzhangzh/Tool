@@ -16,7 +16,7 @@
     var title = Model.Name;
     var drawerWidth = ps["DrawerWidth"]?.ToString() ?? "55%";
 }
-<div id="@execId" class="flw-root">
+<div id="@execId" class="flw-root" data-exec-id="@execId">
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
         ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
     })
@@ -38,11 +38,11 @@
 }
 
 <style>
-    .flw-root { min-height: 100vh; background: #f0f2f5; font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .flw-card { background: #fff; margin: 14px 20px 0; padding: 14px 16px; border-radius: 8px; border: 1px solid #e4e7ed; }
-    .flw-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: #303133; }
-    .flw-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: #409eff; border-radius: 2px; margin-right: 8px; }
-    .dyn-loading { padding: 20px; text-align: center; color: #909399; font-size: 13px; }
+    .flw-root { min-height: 100vh; background: var(--site-bg); }
+    .flw-card { background: var(--site-bg-card); margin: 14px 20px 0; padding: 14px 16px; border-radius: var(--site-radius); border: 1px solid var(--site-border); }
+    .flw-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: var(--site-text); }
+    .flw-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--site-primary); border-radius: 2px; margin-right: 8px; }
+    .dyn-loading { padding: 20px; text-align: center; color: var(--site-text-muted); font-size: var(--site-font-size); }
 </style>
 
 @section Scripts {
@@ -72,14 +72,20 @@
         loadBlockInto('list', rootEl.querySelector('[data-block-host="list"]'));
 
         // 2. add/edit → 弹窗里直接加载 detail block（不需要 ModalPageId/DetailModalV2）
+        var currentLayerIndex = null;
+        function closeDetail() {
+            if (currentLayerIndex !== null) {
+                dyn.getLayer().then(function (layer) { layer.close(currentLayerIndex); });
+            }
+        }
         function openDetail(rowId) {
             var holder = document.createElement('div');
             holder.style.padding = '0';
-            holder.innerHTML = '<div style="padding:20px;color:#909399;">加载中…</div>';
+            holder.innerHTML = '<div style="padding:20px;color:var(--site-text-muted);">加载中…</div>';
             document.body.appendChild(holder);
 
             dyn.getLayer().then(function (layer) {
-                layer.open({
+                currentLayerIndex = layer.open({
                     type: 1,
                     title: rowId ? ('编辑记录 #' + rowId) : '新增记录',
                     shadeClose: false,
@@ -88,19 +94,27 @@
                     content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
                     success: function () {
                         loadBlockInto('detail', holder, rowId).catch(function (e) {
-                            holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+                            holder.innerHTML = '<div style="padding:16px;color:var(--site-danger);">加载失败：' + ((e && e.message) || e) + '</div>';
                         });
                     },
-                    end: function () { try { holder.remove(); } catch (e) { } }
+                    end: function () {
+                        currentLayerIndex = null;
+                        // 先卸载 Block 实例（移除事件监听/遮罩），再移除 DOM，避免悬垂订阅累积
+                        try { if (window.dyn && dyn.unmount) dyn.unmount(holder); } catch (e) { }
+                        try { holder.remove(); } catch (e) { }
+                    }
                 });
             });
         }
 
-        window.DynEventBus.on(ROOT_ID, 'add', function () { openDetail(null); });
-        window.DynEventBus.on(ROOT_ID, 'edit', function (p) {
+        window.DynEventBus.on(ROOT_ID, 'create', function () { openDetail(null); });
+        window.DynEventBus.on(ROOT_ID, 'update', function (p) {
             var row = p && p.row;
             openDetail(row ? row[KEY_FIELD] : null);
         });
+        // Detail 保存成功 / 取消 → 关闭弹窗（列表刷新由 list 直接监听 saved 负责）
+        window.DynEventBus.on(ROOT_ID, 'saved', function () { closeDetail(); });
+        window.DynEventBus.on(ROOT_ID, 'cancel', function () { closeDetail(); });
     });
     </script>
 }

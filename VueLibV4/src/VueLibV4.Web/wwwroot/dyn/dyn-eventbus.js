@@ -5,23 +5,27 @@
  *  1. 每个 Template 根 DOM 元素拥有一个独立 execId（GUID），事件总线就是这个元素本身。
  *  2. 不手写发布订阅类，直接用 element.addEventListener / dispatchEvent(CustomEvent)。
  *  3. 全局只维护一张 Map：execId -> rootElement，供弹窗（脱离 DOM 树）按 execId 找根节点。
- *  4. 时序问题用「快照」解决：emit 时把 payload 存在 rootEl.__snap_<eventName>；
- *     晚注册的 on() 在 addEventListener 之前先读快照，有就立刻执行一次。
+ *  4. 时序问题用「快照」解决，但仅限 sticky 事件（query）：emit 时把 payload 存在
+ *     rootEl.__snap 上；晚注册的 on() 先读快照，有就立刻执行一次。signal 动作事件
+ *     （create/update/saved/cancel）不存快照、不补发。
  *  5. rootEl 销毁时调 destroy(execId)，清快照 + 删 Map 记录；监听由浏览器随 DOM GC 回收。
  *
  * 用法：
  *   // Template 根元素初始化
  *   const execId = DynEventBus.registerRoot(rootEl);
  *
- *   // Filter 就绪后发 search
- *   DynEventBus.emit(execId, 'search', { keyword: 'xxx', page: 1 });
+ *   // Filter 就绪后发 query（sticky：晚挂载的 List 注册时自动拿到最新条件）
+ *   DynEventBus.emit(execId, 'query', { keyword: 'xxx' });
  *
- *   // List 监听 search（挂载晚也不怕，自动读快照补发）
+ *   // List 监听 query
  *   const handler = (payload) => this.loadData(payload);
- *   DynEventBus.on(execId, 'search', handler);
+ *   DynEventBus.on(execId, 'query', handler);
+ *
+ *   // 动作类事件（create/update/saved/cancel）是 signal：只通知、不补发
+ *   DynEventBus.emit(execId, 'update', { row });
  *
  *   // List 销毁时解绑
- *   DynEventBus.off(execId, 'search', handler);
+ *   DynEventBus.off(execId, 'query', handler);
  *
  *   // 打开弹窗 URL 带上 execId
  *   openModal(`/Page/Lookup?execId=${execId}`);
@@ -37,6 +41,21 @@
 
   /** execId -> rootElement */
   var roots = new Map();
+
+  /**
+   * sticky 事件（状态/条件类）：emit 存快照、on 注册时补发最新值。
+   *   query —— filter → list/tree 的查询条件，晚挂载也要拿到首屏条件。
+   * 其余事件（create/update/saved/cancel 等动作通知）为 signal：
+   *   不存快照、不补发，避免「打开新实例被上一次的动作快照误触发」
+   *   （旧实现里 saved 快照会让弹窗一开就被上次的 saved 关掉）。
+   * 需要覆盖时：emit/on 第四/三参传 { sticky: true|false }。
+   */
+  var STICKY_EVENTS = { query: true };
+
+  function isSticky(eventName, opts) {
+    if (opts && typeof opts.sticky === 'boolean') return opts.sticky;
+    return !!STICKY_EVENTS[eventName];
+  }
 
   function guid() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -71,12 +90,13 @@
   }
 
   /**
-   * 发事件：先存快照，再 dispatch CustomEvent。
+   * 发事件：sticky 事件先存快照再派发；signal 事件只派发、不留快照。
    * @param {string} execId
    * @param {string} eventName
    * @param {*} payload
+   * @param {{sticky?:boolean}} [opts] 覆盖该事件默认的 sticky/signal 归类
    */
-  function emit(execId, eventName, payload) {
+  function emit(execId, eventName, payload, opts) {
     var rootEl = roots.get(execId);
     if (!rootEl) {
       rootEl = document.getElementById(execId);
@@ -88,8 +108,14 @@
         return;
       }
     }
-    // 存最新快照（覆盖旧值，只保留一份）
-    rootEl.__snap[eventName] = payload;
+    rootEl.__snap = rootEl.__snap || {};
+    if (isSticky(eventName, opts)) {
+      // 存最新快照（覆盖旧值，只保留一份）
+      rootEl.__snap[eventName] = payload;
+    } else {
+      // signal 事件不允许历史快照误伤后注册的实例
+      delete rootEl.__snap[eventName];
+    }
     // 派发原生 DOM 事件，bubbles=false 防止窜到外层
     rootEl.dispatchEvent(new CustomEvent('dyn:' + eventName, {
       detail: payload,
@@ -99,13 +125,15 @@
   }
 
   /**
-   * 监听事件：先读快照补发一次，再 addEventListener 后续实时事件。
+   * 监听事件：sticky 事件注册时先读快照补发一次，再 addEventListener；
+   * signal 事件只监听后续实时派发，不补发（语义见 STICKY_EVENTS）。
    * @param {string} execId
    * @param {string} eventName
    * @param {function(*):void} handler 收到 payload
+   * @param {{sticky?:boolean}} [opts] 覆盖该事件默认的 sticky/signal 归类
    * @returns {function|null} 解绑函数（也可手动调 off）
    */
-  function on(execId, eventName, handler) {
+  function on(execId, eventName, handler, opts) {
     var rootEl = roots.get(execId);
     if (!rootEl) {
       // 兜底：DOM 已存在但 registerRoot 还没调，自动注册
@@ -118,10 +146,12 @@
         return null;
       }
     }
-    // 注册监听前先读快照：晚挂载的组件自动拿到最新 payload
-    var snap = rootEl.__snap[eventName];
-    if (snap !== undefined && snap !== null) {
-      try { handler(snap); } catch (e) { console.error('[DynEventBus] 快照补发异常:', e); }
+    // sticky 事件：注册监听前先读快照，晚挂载的组件自动拿到最新 payload
+    if (isSticky(eventName, opts)) {
+      var snap = rootEl.__snap[eventName];
+      if (snap !== undefined && snap !== null) {
+        try { handler(snap); } catch (e) { console.error('[DynEventBus] 快照补发异常:', e); }
+      }
     }
     // 包一层把 CustomEvent.detail 解出来给业务 handler
     var wrapped = function (e) { handler(e.detail); };

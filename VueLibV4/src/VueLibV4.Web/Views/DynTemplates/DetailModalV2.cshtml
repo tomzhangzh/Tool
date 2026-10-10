@@ -39,3 +39,33 @@
         ["DeleteUrl"] = deleteUrl
     })
 </div>
+
+@section Scripts {
+<script>
+DynLib.ready(function () {
+    // 片段自保：保存/取消后关闭所在 layer（调用方只管 open + onclose 刷新）。
+    var execId = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(execId));
+    var root = document.getElementById(@Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(extIdDetail)));
+
+    function closeSelf() {
+        // 先安排卸载积木实例（解绑总线监听/遮罩），再关窗；延迟到事件分发外执行
+        setTimeout(function () { try { if (window.dyn && dyn.unmount) dyn.unmount(root); } catch (e) { } }, 0);
+        dyn.getLayer().then(function (layer) {
+            var layerEl = root && root.closest ? root.closest('.layui-layer') : null;
+            var idx = layerEl && /\d+$/.test(layerEl.id) ? +(layerEl.id.match(/\d+$/)[0]) : null;
+            if (idx !== null) layer.close(idx);
+        });
+    }
+
+    if (window.DynEventBus && execId) {
+        var parentRoot = window.DynEventBus.getRoot(execId);
+        if (parentRoot) {
+            // 必须挂原生监听而不是 DynEventBus.on：片段每次打开都重新注册，
+            // on() 的快照补发会拿到上一次 saved 负载，导致弹窗"一打开就自己关掉"。
+            parentRoot.addEventListener('dyn:saved', closeSelf);
+            parentRoot.addEventListener('dyn:cancel', closeSelf);
+        }
+    }
+});
+</script>
+}

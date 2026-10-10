@@ -1,4 +1,4 @@
-﻿using System.Dynamic;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc;
@@ -155,6 +155,7 @@ public class PageController : Controller
         if (string.Equals(template.Code, "triscreen-blocks", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filterlist-crud", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tree-detail", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "tree-detail-v2", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tree-master-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "list-master-detail", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filter-list-open-window", StringComparison.OrdinalIgnoreCase)
@@ -242,10 +243,10 @@ public class PageController : Controller
         }
         cfgJson ??= new JObject();
 
-        // 2. 查 DynBlock 拿 ViewPath
+        // 2. 查 DynBlock 拿 ViewPath（SqlSugar First() 无记录返回 null，不会抛异常）
         if (string.IsNullOrWhiteSpace(blockName)) return Content("缺少 blockName");
         var block = _blocks.Query(x => x.Code == blockName && x.IsActive).First();
-        if (block == null) return Content("Block 未注册：" + blockName);
+        if (block == null) return Content("Block 未注册或已停用：" + blockName);
         if (string.IsNullOrWhiteSpace(block.ViewPath)) return Content("Block 未配置 ViewPath：" + blockName);
 
         // 3. 动态合并：provide（顶层参数）→ blocks[blockName]（槽位特化）

@@ -1,0 +1,358 @@
+/* ProUI 风格自定义暗色主题：html.proui-dark 时生效 */
+
+html.proui-dark body {
+  background: #1a1a1a !important;
+  color: #d4d4d4;
+}
+
+/* ===== Element Plus CSS 变量覆盖 ===== */
+html.proui-dark {
+  --el-color-primary: #3b82f6;
+  --el-color-primary-light-3: #60a5fa;
+  --el-color-primary-light-5: #3b82f6;
+  --el-color-primary-light-7: #1d4ed8;
+  --el-color-primary-light-8: #1e40af;
+  --el-color-primary-light-9: #1e3a8a;
+  --el-color-primary-dark-2: #2563eb;
+
+  --el-color-success: #4ade80;
+  --el-color-warning: #fbbf24;
+  --el-color-danger: #f87171;
+  --el-color-error: #f87171;
+  --el-color-info: #888;
+
+  --el-bg-color: #262626;
+  --el-bg-color-page: #1a1a1a;
+  --el-bg-color-overlay: #2d2d2d;
+
+  --el-fill-color: #2d2d2d;
+  --el-fill-color-light: #333;
+  --el-fill-color-lighter: #2d2d2d;
+  --el-fill-color-extra-light: #262626;
+  --el-fill-color-blank: #2d2d2d;
+  --el-fill-color-dark: #3a3a3a;
+  --el-fill-color-darker: #4a4a4a;
+
+  --el-text-color-primary: #e0e0e0;
+  --el-text-color-regular: #d4d4d4;
+  --el-text-color-secondary: #999;
+  --el-text-color-placeholder: #666;
+  --el-text-color-disabled: #555;
+  --el-text-color-code: #f87171;
+
+  --el-border-color: #3a3a3a;
+  --el-border-color-light: #3a3a3a;
+  --el-border-color-lighter: #333;
+  --el-border-color-extra-light: #2d2d2d;
+  --el-border-color-dark: #4a4a4a;
+  --el-border-color-darker: #4a4a4a;
+
+  --el-mask-color: rgba(0,0,0,.65);
+  --el-mask-color-extra-light: rgba(0,0,0,.4);
+  --el-disabled-bg-color: #1f1f1f;
+  --el-disabled-text-color: #555;
+  --el-disabled-border-color: #333;
+
+  --el-box-shadow: 0 4px 16px rgba(0,0,0,.45);
+  --el-box-shadow-light: 0 2px 8px rgba(0,0,0,.35);
+  --el-box-shadow-lighter: 0 1px 4px rgba(0,0,0,.3);
+  --el-box-shadow-dark: 0 8px 24px rgba(0,0,0,.55);
+
+  --el-border-radius-base: 4px;
+  --el-border-radius-small: 3px;
+}
+
+/* ===== 通用块 ===== */
+html.proui-dark .el-card,
+html.proui-dark .el-dialog,
+html.proui-dark .el-drawer,
+html.proui-dark .el-popover,
+html.proui-dark .el-popper.is-dark,
+html.proui-dark .el-message-box,
+html.proui-dark .el-card__body {
+  background: #262626;
+  color: #d4d4d4;
+  border-color: #3a3a3a;
+}
+html.proui-dark .el-card__header {
+  background: #1f1f1f;
+  border-bottom-color: #333;
+  color: #e0e0e0;
+}
+html.proui-dark .el-dialog__header,
+html.proui-dark .el-drawer__header {
+  background: #1f1f1f;
+  border-bottom: 1px solid #333;
+  color: #e0e0e0;
+  margin: 0; padding: 12px 16px;
+}
+html.proui-dark .el-dialog__body,
+html.proui-dark .el-drawer__body {
+  background: #262626;
+  color: #d4d4d4;
+}
+html.proui-dark .el-dialog__footer,
+html.proui-dark .el-drawer__footer {
+  background: #1f1f1f;
+  border-top: 1px solid #333;
+}
+html.proui-dark .el-dialog__title,
+html.proui-dark .el-drawer__title { color: #e0e0e0; }
+html.proui-dark .el-dialog__headerbtn .el-dialog__close,
+html.proui-dark .el-drawer__close-btn { color: #888; }
+html.proui-dark .el-dialog__headerbtn:hover .el-dialog__close { color: #fff; }
+
+/* ===== 表格 ===== */
+html.proui-dark .el-table,
+html.proui-dark .el-table__expanded-cell {
+  background: #262626;
+  color: #d4d4d4;
+}
+html.proui-dark .el-table th.el-table__cell {
+  background: #1f1f1f !important;
+  color: #ccc;
+  border-bottom-color: #3a3a3a;
+}
+html.proui-dark .el-table td.el-table__cell {
+  background: #262626;
+  border-bottom-color: #333;
+}
+html.proui-dark .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: #2a2a2a;
+}
+html.proui-dark .el-table__body tr:hover > td.el-table__cell,
+html.proui-dark .el-table__body tr.hover-row > td.el-table__cell {
+  background: #2d3b4f !important;
+}
+html.proui-dark .el-table__empty-text { color: #666; }
+html.proui-dark .el-table__border-left-patch { background: #1f1f1f; }
+
+/* ===== 表单 ===== */
+html.proui-dark .el-form-item__label { color: #999 !important; }
+html.proui-dark .el-input__wrapper,
+html.proui-dark .el-textarea__inner,
+html.proui-dark .el-select__wrapper,
+html.proui-dark .el-input-number,
+html.proui-dark .el-date-editor.el-input__wrapper {
+  background: #1a1a1a !important;
+  box-shadow: 0 0 0 1px #3a3a3a inset !important;
+}
+html.proui-dark .el-input__wrapper.is-focus,
+html.proui-dark .el-select__wrapper.is-focused,
+html.proui-dark .el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px #3b82f6 inset !important;
+}
+html.proui-dark .el-input__inner,
+html.proui-dark .el-textarea__inner,
+html.proui-dark .el-select__placeholder { color: #e0e0e0 !important; }
+html.proui-dark .el-input__inner::placeholder,
+html.proui-dark .el-textarea__inner::placeholder { color: #666 !important; }
+html.proui-dark .el-input__prefix,
+html.proui-dark .el-input__suffix { color: #888; }
+html.proui-dark .el-input-number__decrease,
+html.proui-dark .el-input-number__increase {
+  background: #1f1f1f;
+  color: #888;
+  border-color: #333;
+}
+
+/* ===== Select 下拉（teleport 到 body） ===== */
+html.proui-dark .el-select-dropdown,
+html.proui-dark .el-picker-panel,
+html.proui-dark .el-cascader__dropdown,
+html.proui-dark .el-autocomplete__popper {
+  background: #2d2d2d;
+  border-color: #3a3a3a;
+}
+html.proui-dark .el-select-dropdown__item {
+  color: #ccc;
+}
+html.proui-dark .el-select-dropdown__item.hover,
+html.proui-dark .el-select-dropdown__item:hover {
+  background: #2d3b4f;
+  color: #fff;
+}
+html.proui-dark .el-select-dropdown__item.is-selected {
+  background: #1e3a8a;
+  color: #fff;
+}
+html.proui-dark .el-popper.is-light {
+  background: #2d2d2d;
+  border-color: #3a3a3a;
+}
+html.proui-dark .el-popper.is-light .el-popper__arrow::before {
+  background: #2d2d2d;
+  border-color: #3a3a3a;
+}
+
+/* ===== 菜单 ===== */
+html.proui-dark .el-menu {
+  background: #1f1f1f;
+  border-right-color: #333;
+}
+html.proui-dark .el-menu-item,
+html.proui-dark .el-sub-menu__title {
+  color: #bbb;
+}
+html.proui-dark .el-menu-item:hover,
+html.proui-dark .el-sub-menu__title:hover {
+  background: #2d2d2d;
+  color: #fff;
+}
+html.proui-dark .el-menu-item.is-active {
+  background: #2d3b4f;
+  color: #fff;
+}
+html.proui-dark .el-sub-menu .el-menu {
+  background: #1a1a1a;
+}
+
+/* ===== 按钮 ===== */
+html.proui-dark .el-button--default {
+  background: #2d2d2d;
+  border-color: #3a3a3a;
+  color: #ccc;
+}
+html.proui-dark .el-button--default:hover {
+  background: #3a3a3a;
+  border-color: #4a4a4a;
+  color: #fff;
+}
+html.proui-dark .el-button--primary {
+  background: #3b82f6;
+  border-color: #2563eb;
+}
+html.proui-dark .el-button--primary:hover { background: #2563eb; }
+html.proui-dark .el-button--success { background: #166534; border-color: #15803d; }
+html.proui-dark .el-button--warning { background: #92400e; border-color: #b45309; }
+html.proui-dark .el-button--danger { background: #991b1b; border-color: #b91c1c; }
+html.proui-dark .el-button--info { background: #374151; border-color: #4b5563; color: #ccc; }
+
+/* ===== 分页 ===== */
+html.proui-dark .el-pagination,
+html.proui-dark .el-pagination button {
+  background: transparent;
+  color: #999;
+}
+html.proui-dark .el-pager li {
+  background: #1f1f1f;
+  color: #999;
+}
+html.proui-dark .el-pager li.is-active {
+  background: #3b82f6;
+  color: #fff;
+}
+html.proui-dark .el-pagination__total,
+html.proui-dark .el-pagination__jump { color: #999; }
+
+/* ===== Tag / Badge ===== */
+html.proui-dark .el-tag {
+  background: #2d2d2d;
+  border-color: #3a3a3a;
+  color: #ccc;
+}
+
+/* ===== Tree ===== */
+html.proui-dark .el-tree {
+  background: #262626;
+  color: #ccc;
+}
+html.proui-dark .el-tree-node__content:hover { background: #2d2d2d; }
+html.proui-dark .el-tree-node.is-current > .el-tree-node__content {
+  background: #2d3b4f;
+  color: #fff;
+}
+
+/* ===== Tabs / Collapse ===== */
+html.proui-dark .el-tabs__item { color: #999; }
+html.proui-dark .el-tabs__item.is-active { color: #60a5fa; }
+html.proui-dark .el-tabs__nav-wrap::after { background-color: #333; }
+html.proui-dark .el-collapse {
+  background: #262626;
+  border-color: #3a3a3a;
+}
+html.proui-dark .el-collapse-item__header {
+  background: #2d2d2d;
+  color: #ccc;
+  border-bottom-color: #333;
+}
+html.proui-dark .el-collapse-item__wrap {
+  background: #262626;
+  border-bottom-color: #333;
+}
+html.proui-dark .el-collapse-item__content { color: #ccc; }
+
+/* ===== Message / Notification / Loading ===== */
+html.proui-dark .el-message,
+html.proui-dark .el-notification {
+  background: #2d2d2d;
+  border-color: #3a3a3a;
+  color: #e0e0e0;
+}
+html.proui-dark .el-message__content { color: #e0e0e0; }
+html.proui-dark .el-loading-mask {
+  background: rgba(0,0,0,.6);
+}
+html.proui-dark .el-loading-spinner .el-loading-text { color: #999; }
+
+/* ===== 描述列表 / 分割线 ===== */
+html.proui-dark .el-descriptions__label {
+  background: #1f1f1f !important;
+  color: #999 !important;
+  border-color: #333 !important;
+}
+html.proui-dark .el-descriptions__content {
+  background: #262626 !important;
+  color: #d4d4d4 !important;
+  border-color: #333 !important;
+}
+html.proui-dark .el-divider { background-color: #333; }
+html.proui-dark .el-divider__text { background: #262626; color: #999; }
+
+/* ===== 开关 / 复选 / 单选 ===== */
+html.proui-dark .el-checkbox__label,
+html.proui-dark .el-radio__label { color: #ccc; }
+html.proui-dark .el-switch.is-checked .el-switch__core {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+/* ===== layui layer（我们模板用的弹窗） ===== */
+html.proui-dark .layui-layer {
+  background: #262626 !important;
+  color: #d4d4d4;
+}
+html.proui-dark .layui-layer-title {
+  background: #1f1f1f !important;
+  color: #e0e0e0 !important;
+  border-bottom-color: #333 !important;
+}
+html.proui-dark .layui-layer-content {
+  background: #262626 !important;
+  color: #d4d4d4 !important;
+}
+html.proui-dark .layui-layer-btn a {
+  background: #2d2d2d !important;
+  border-color: #3a3a3a !important;
+  color: #ccc !important;
+}
+html.proui-dark .layui-layer-btn .layui-layer-btn0 {
+  background: #3b82f6 !important;
+  border-color: #2563eb !important;
+  color: #fff !important;
+}
+
+/* ===== 切换按钮 ===== */
+.proui-toggle {
+  position: fixed; right: 20px; bottom: 20px; z-index: 99999;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: #333; color: #fbbf24; border: 1px solid #4a4a4a;
+  cursor: pointer; font-size: 18px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  transition: transform .15s;
+}
+.proui-toggle:hover { transform: scale(1.08); }
+html.proui-dark .proui-toggle {
+  background: #fbbf24; color: #1a1a1a; border-color: #f59e0b;
+}
