@@ -162,6 +162,8 @@ public class PageController : Controller
             || string.Equals(template.Code, "filter-list-open-windowV2", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filter-list-drawer-leftV2", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "detail-modal-v2", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "filter-list-tabbed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "tab-host", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);
@@ -281,9 +283,9 @@ public class PageController : Controller
             }
         }
 
-        // blocks[slot] 覆盖
+        // blocks[slot] 覆盖；兼容顶层槽位形状 params[blockName]（如 {"filter":{"settingId":1},"list":{...}}）
         var blocksObj = cfgJson["blocks"] as JObject;
-        var slot = blocksObj?[blockName] as JObject;
+        var slot = blocksObj?[blockName] as JObject ?? cfgJson[blockName] as JObject;
         if (slot != null)
             foreach (var prop in slot.Properties())
             {

@@ -32,7 +32,8 @@
         </button>
     </div>
     <el-table :data="model.rows" v-loading="model.loading" size="small" border
-               :row-class-name="rowClassName" :key="animKey">
+               :row-class-name="rowClassName" :key="animKey"
+               @@row-click="onRowClick">
         <el-table-column v-for="col in columns" :key="col.field" :prop="col.field" :label="col.label"
             :width="col.width || undefined" :min-width="col.minWidth || undefined"
             :align="col.align || undefined" :fixed="col.fixed || undefined"
@@ -46,10 +47,10 @@
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
             <template #default="scope">
-                <button type="button" class="el-button el-button--primary el-button--small el-button--plain" @@click="onEdit(scope.row)">
+                <button type="button" class="el-button el-button--primary el-button--small el-button--plain" @@click.stop="onEdit(scope.row)">
                     <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
                 </button>
-                <button type="button" class="el-button el-button--danger el-button--small el-button--plain" @@click="onDelete(scope.row)">
+                <button type="button" class="el-button el-button--danger el-button--small el-button--plain" @@click.stop="onDelete(scope.row)">
                     <el-icon style="margin-right:2px"><Delete /></el-icon>删除
                 </button>
             </template>
@@ -148,6 +149,11 @@
             onAdd: function () {
                 if (window.DynEventBus && __execId)
                     window.DynEventBus.emit(__execId, 'create', {});
+            },
+            onRowClick: function (row) {
+                if (!row) return;
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'select', { row: row });
             },
             onEdit: function (row) {
                 if (window.DynEventBus && __execId)

@@ -1,0 +1,183 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using VueLibV4.Services.Extensions
+@using VueLibV4.Web.Core
+@using Newtonsoft.Json.Linq;
+@inject IPageSettingService PageSettingService
+@{
+    Layout = Context.Request.Headers.TryGetValue("X-Requested-With", out var __xrw)
+                && __xrw == "XMLHttpRequest" ? "_AjaxLayout" : "_Layout";
+    ViewData["Title"] = Model.Name + " - VueLibV4";
+
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    string P(string k, string d = "") => ps[k]?.ToString() ?? d;
+    var tableName = P("TableName");
+    var keyField = P("KeyField", "Id");
+    var project = P("Project", "__platform__");
+    var filterPsId = DynPageViewHelper.SlotSettingId(ps, "filter", "FilterPageSettingId");
+    var listPsId = DynPageViewHelper.SlotSettingId(ps, "list", "ListSettingId");
+    var masterDetailPsId = Convert.ToInt32(ps["masterDetailSettingId"] ?? ps["MasterDetailSettingId"] ?? 0);
+
+    var child = ps["child"] as JObject ?? new JObject();
+    string CP(string k, string d = "") => child[k]?.ToString() ?? d;
+    var childTable = CP("table", "DynTemplateBlock");
+    var childFk = CP("foreignKey", "TemplateId");
+    var childListPsId = Convert.ToInt32(child["listSettingId"] ?? 0);
+    var childDetailPsId = Convert.ToInt32(child["detailSettingId"] ?? 0);
+    // 主从页签宿主页面（tab-host 模板的 DynWebPage 实例）：实例参数配置，不硬编码
+    var tabDialogPageId = Convert.ToInt32(ps["tabDialogPageId"] ?? ps["TabDialogPageId"] ?? 0);
+
+    var execId = "T2-" + Guid.NewGuid().ToString("N");
+    var title = Model.Name;
+}
+<div id="@execId" class="flw-root" data-exec-id="@execId">
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
+        ["Title"] = title, ["Code"] = Model.Code, ["TableName"] = tableName
+    })
+
+    <div class="flw-card">
+        <div class="flw-section-title"><span>筛选查询</span></div>
+        <dyn-inject-host data-block-host="filter"><div class="dyn-loading">加载筛选区…</div></dyn-inject-host>
+    </div>
+
+    <div class="flw-card">
+        <div class="flw-section-title"><span>数据列表</span></div>
+        <dyn-inject-host data-block-host="list"><div class="dyn-loading">加载列表…</div></dyn-inject-host>
+    </div>
+</div>
+
+@if (Context.Request.Query.ContainsKey("dyndebug")) {
+    ViewBag.WebpageId = Model.Id;
+    @await Html.PartialAsync("~/Views/DynTemplates/Partials/InspectorPanel.cshtml")
+}
+
+<style>
+    .flw-root { min-height: 100vh; background: var(--site-bg); }
+    .flw-card { background: var(--site-bg-card); margin: 14px 20px 0; padding: 14px 16px; border-radius: var(--site-radius); border: 1px solid var(--site-border); }
+    .flw-section-title { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; font-weight: 600; color: var(--site-text); }
+    .flw-section-title::before { content: ''; display: inline-block; width: 3px; height: 14px; background: var(--site-primary); border-radius: 2px; margin-right: 8px; }
+    .dyn-loading { padding: 20px; text-align: center; color: var(--site-text-muted); font-size: var(--site-font-size); }
+    .tabdlg { padding: 0 8px; }
+    .tabdlg__head { display: flex; gap: 4px; border-bottom: 1px solid #dcdfe6; margin-bottom: 12px; }
+    .tabdlg__tab { appearance: none; border: none; background: transparent; cursor: pointer;
+        padding: 9px 16px; font-size: 14px; color: #606266;
+        border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tabdlg__tab:hover { color: #409eff; }
+    .tabdlg__tab.is-active { color: #409eff; border-bottom-color: #409eff; font-weight: 600; }
+    .tabdlg-pane { min-height: 260px; }
+    .tabdlg .tabdlg-locked { padding: 60px 0; text-align: center; color: var(--site-text-muted); font-size: 13px; }
+</style>
+
+@section Scripts {
+<script>
+DynLib.ready(function () {
+    var ROOT_ID = '@execId';
+    var WEBPAGE_ID = @(Model.Id);
+    var KEY_FIELD = '@keyField';
+    var PROJECT = '@project';
+    var TABLE = '@tableName';
+    var MASTER_DETAIL_PSID = @(masterDetailPsId);
+    var CHILD_TABLE = '@childTable';
+    var CHILD_FK = '@childFk';
+    var CHILD_LIST_PSID = @(childListPsId);
+    var CHILD_DETAIL_PSID = @(childDetailPsId);
+
+    var rootEl = document.getElementById(ROOT_ID);
+    window.DynEventBus.registerRoot(rootEl);
+
+    function blockUrl(blockName, extra) {
+        var u = '/Platform/Page/LoadBlock?blockName=' + blockName
+            + '&webpageId=' + WEBPAGE_ID
+            + '&execId=' + ROOT_ID;
+        if (extra) u += '&' + extra;
+        return u;
+    }
+    function loadBlockInto(blockName, hostEl, extra) {
+        return dyn.fetchPartial(blockUrl(blockName, extra), {}, 'GET', 'text').then(function (html) {
+            return dyn.html(hostEl, html, true);
+        });
+    }
+    // POST 模式：显式 provide + slot.settingId，不依赖 webpage ParamsJson（用于子表不同表/不同配置）
+    function loadBlockPost(blockName, hostEl, execId, slotSettingId, rowId) {
+        var cfg = {
+            provide: { TableName: CHILD_TABLE, KeyField: 'Id', Project: PROJECT },
+            blocks: {}
+        };
+        cfg.blocks[blockName] = { settingId: slotSettingId };
+        var url = '/Platform/Page/LoadBlock?blockName=' + blockName + '&execId=' + encodeURIComponent(execId);
+        if (rowId) url += '&rowId=' + rowId;
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blockName: blockName, execId: execId, rowId: rowId, config: cfg })
+        }).then(function (r) { return r.text(); }).then(function (html) {
+            return dyn.html(hostEl, html, true);
+        });
+    }
+
+    // 主表 filter + list
+    loadBlockInto('filter', rootEl.querySelector('[data-block-host="filter"]'),
+        'FilterPageSettingId=' + @filterPsId);
+    loadBlockInto('list', rootEl.querySelector('[data-block-host="list"]'),
+        'ListSettingId=' + @listPsId + '&TableName=' + encodeURIComponent('@tableName')
+        + '&KeyField=' + '@keyField' + '&Project=' + encodeURIComponent('@project'));
+
+    // ===== 页签弹窗：打开实例参数 tabDialogPageId 指向的 tab-host 页面，页签逻辑在该页面内 =====
+    var TAB_DIALOG_PAGE_ID = @(tabDialogPageId);
+    var dialogIndex = null;
+
+    function openDialog(rowId) {
+        if (!TAB_DIALOG_PAGE_ID) {
+            dyn.showMessage('未配置 tabDialogPageId（tab-host 宿主页面实例 Id）', 'error');
+            return;
+        }
+        var holder = document.createElement('div');
+        holder.style.padding = '0';
+        holder.innerHTML = '<div class="dyn-loading">加载中…</div>';
+        document.body.appendChild(holder);
+        var dlgExec = ROOT_ID + '.dlg';
+        var dirty = false;
+        var markDirty = function () { dirty = true; };
+        var q = '/Platform/Page/DynWebPage?id=' + TAB_DIALOG_PAGE_ID
+            + '&rowId=' + (rowId || '')
+            + '&execId=' + dlgExec;
+
+        dyn.getLayer().then(function (layer) {
+            dialogIndex = layer.open({
+                type: 1, title: rowId ? ('编辑模板 #' + rowId) : '新增模板',
+                shadeClose: false, area: ['760px', '82%'], maxmin: true,
+                content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
+                success: function () {
+                    dyn.fetchPartial(q, {}, 'GET').then(function (html) {
+                        return dyn.html(holder, html, false);
+                    }).then(function () {
+                        // TabHost 脚本已注册 dlgExec 根；主表真保存过才在关窗后刷新主列表
+                        window.DynEventBus.on(dlgExec, 'saved', markDirty);
+                        // 主详情取消：直接关弹窗（end 里 dirty=false 不会刷新主列表）
+                        window.DynEventBus.on(dlgExec, 'cancel', function () {
+                            if (dialogIndex !== null) layer.close(dialogIndex);
+                        });
+                    }).catch(function (e) {
+                        holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+                    });
+                },
+                end: function () {
+                    dialogIndex = null;
+                    try { window.DynEventBus.off(dlgExec, 'saved', markDirty); } catch (e) {}
+                    try { if (window.dyn && dyn.unmount) dyn.unmount(holder); } catch (e) {}
+                    try { holder.remove(); } catch (e) {}
+                    // 仅真实保存后刷新主列表；取消/关闭不刷新
+                    if (dirty) window.DynEventBus.emit(ROOT_ID, 'saved', {});
+                }
+            });
+        });
+    }
+
+    window.DynEventBus.on(ROOT_ID, 'create', function () { openDialog(null); });
+    window.DynEventBus.on(ROOT_ID, 'update', function (p) {
+        var row = p && p.row;
+        openDialog(row ? row[KEY_FIELD] : null);
+    });
+});
+</script>
+}

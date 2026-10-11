@@ -1,0 +1,91 @@
+@{
+    // DynElArray：多行数组编辑器
+    // modelname 绑定到一个数组（如 tabs）。childrenctrls 定义“一行”里要渲染的字段模板；
+    // 渲染第 i 行时把每个子项的 modelname 改写成 [i].原字段名，配合父级前缀拼成 tabs[i].字段，
+    // lodash get/set 原生支持 bracket 下标路径，无需额外包装组件。
+    Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
+}
+
+<div class="dyn-array">
+    <div v-for="(row, i) in rows" :key="i" class="dyn-array__row">
+        <div class="dyn-array__row-head">
+            <span class="dyn-array__row-tag">{{ itemLabel }} #{{ i + 1 }}</span>
+            <span class="dyn-array__row-ops">
+                <button v-if="sortable && i > 0" type="button" class="dyn-array__op" title="上移" @@click="moveRow(i, -1)">↑</button>
+                <button v-if="sortable && i < rows.length - 1" type="button" class="dyn-array__op" title="下移" @@click="moveRow(i, 1)">↓</button>
+                <button v-if="removable" type="button" class="dyn-array__op dyn-array__op--del" title="删除此行" @@click="removeRow(i)">✕</button>
+            </span>
+        </div>
+        <div class="dyn-array__row-body">
+            <n-dynamic-com v-for="(child, ci) in rowChildren(i)"
+                            :key="child.modelname"
+                            :jsonconfig="child"
+                            :parentmodelinfo="props.parentmodelinfo"></n-dynamic-com>
+        </div>
+    </div>
+    <div v-if="rows.length === 0" class="dyn-array__empty">{{ emptyText }}</div>
+    <button v-if="addable" type="button" class="dyn-array__add" @@click="addRow">＋ 新增{{ itemLabel }}</button>
+</div>
+
+@section setupScripts{
+    DVALUE = null;
+    // comoptions: { itemLabel:'项', addable, removable, sortable, emptyText }
+    const co = computed(() => jc.options && jc.options.comoptions ? jc.options.comoptions : {});
+    const addable = computed(() => co.value.addable !== false);
+    const removable = computed(() => co.value.removable !== false);
+    const sortable = computed(() => co.value.sortable !== false);
+    const itemLabel = computed(() => co.value.itemLabel || '项');
+    const emptyText = computed(() => co.value.emptyText || '暂无内容，点击下方按钮新增');
+
+    const rows = computed(() => {
+        const v = modelinfo.value;
+        return Array.isArray(v) ? v : [];
+    });
+
+    function ensureArr() {
+        let v = modelinfo.value;
+        if (!Array.isArray(v)) {
+            v = [];
+            setByPath(parentModel.value, fullModelName.value, v);
+        }
+        return v;
+    }
+    function addRow() { ensureArr().push({}); }
+    function removeRow(i) { ensureArr().splice(i, 1); }
+    function moveRow(i, d) {
+        const a = ensureArr();
+        const j = i + d;
+        if (j < 0 || j >= a.length) return;
+        const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    // 一行 = childrenctrls 模板克隆；每个子项 modelname 前缀 [i]，拼成 数组路径[i].字段
+    function rowChildren(i) {
+        return (jc.childrenctrls || []).map(function (c) {
+            const clone = JSON.parse(JSON.stringify(c));
+            const mn = clone.modelname || '';
+            clone.modelname = '[' + i + ']' + (mn ? '.' + mn : '');
+            return clone;
+        });
+    }
+    Object.assign(comExtra, {
+        rows: rows, addable: addable, removable: removable, sortable: sortable,
+        itemLabel: itemLabel, emptyText: emptyText,
+        addRow: addRow, removeRow: removeRow, moveRow: moveRow, rowChildren: rowChildren
+    });
+}
+
+<style>
+.dyn-array { width: 100%; }
+.dyn-array__row { border: 1px solid var(--site-border, #e4e7ed); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+.dyn-array__row-head { display: flex; align-items: center; justify-content: space-between; padding: 3px 10px; background: var(--site-bg-header, #fafafa); border-bottom: 1px solid var(--site-border-light, #ebeef5); }
+.dyn-array__row-tag { font-size: 12px; font-weight: 600; color: var(--site-text-muted, #909399); }
+.dyn-array__row-ops { display: flex; gap: 4px; }
+.dyn-array__op { width: 20px; height: 20px; line-height: 18px; text-align: center; border: 1px solid var(--site-border, #dcdfe6); background: var(--site-bg-card, #fff); border-radius: 4px; cursor: pointer; font-size: 11px; color: var(--site-text, #606266); padding: 0; }
+.dyn-array__op:hover { background: var(--site-bg-hover, #f5f7fa); }
+.dyn-array__op--del { color: var(--site-danger, #f56c6c); }
+.dyn-array__row-body { padding: 8px 10px; }
+.dyn-array__row-body > div { margin-bottom: 4px; }
+.dyn-array__empty { padding: 14px; text-align: center; color: var(--site-text-faint, #c0c4cc); font-size: 12px; border: 1px dashed var(--site-border, #e4e7ed); border-radius: 6px; margin-bottom: 8px; }
+.dyn-array__add { width: 100%; padding: 6px; border: 1px dashed var(--site-border, #c0c4cc); background: transparent; color: var(--site-primary, #409eff); border-radius: 6px; cursor: pointer; font-size: 12px; }
+.dyn-array__add:hover { background: var(--site-bg-active, #ecf5ff); }
+</style>

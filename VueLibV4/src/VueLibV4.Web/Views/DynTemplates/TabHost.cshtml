@@ -1,0 +1,270 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using Newtonsoft.Json.Linq
+@{
+    Layout = Context.Request.Headers.TryGetValue("X-Requested-With", out var __xrw)
+                && __xrw == "XMLHttpRequest" ? "_AjaxLayout" : "_Layout";
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    var provide = ps["provide"] as JObject ?? new JObject();
+    string P(string k, string d = "") => (provide[k] ?? ps[k])?.ToString() ?? d;
+    var tableName = P("TableName");
+    var keyField = P("KeyField", "Id");
+    var project = P("Project", "__platform__");
+    var masterDetailPsId = Convert.ToInt32(ps["masterDetailSettingId"] ?? ps["MasterDetailSettingId"] ?? 0);
+    var child = ps["child"] as JObject ?? new JObject();
+    string CP(string k, string d = "") => child[k]?.ToString() ?? d;
+    var childTable = CP("table", "DynTemplateBlock");
+    var childFk = CP("foreignKey", "TemplateId");
+    var childListPsId = Convert.ToInt32(child["listSettingId"] ?? 0);
+    var childDetailPsId = Convert.ToInt32(child["detailSettingId"] ?? 0);
+    var execId = Context.Request.Query["execId"].ToString();
+    if (string.IsNullOrEmpty(execId)) execId = "TH-" + Guid.NewGuid().ToString("N");
+    var rowId = Context.Request.Query["rowId"].ToString();
+    var childExecId = execId + ".child";
+    var masterId = execId + ".master";
+}
+<div id="@execId" class="tabhost" data-exec-id="@execId">
+    <div class="tabhost__head">
+        <div class="tabhost__tab is-active" data-pane="master">基本信息</div>
+        <div class="tabhost__tab tabhost__tab--child" data-pane="child">关联积木</div>
+    </div>
+    <div class="tabhost__pane" data-pane-host="master" id="@masterId">
+        <div class="dyn-loading">加载主表…</div>
+    </div>
+    <div class="tabhost__pane" data-pane-host="child" id="@childExecId" style="display:none;">
+        <div class="dyn-loading">加载子表…</div>
+    </div>
+</div>
+
+<style>
+    .tabhost { box-sizing: border-box; }
+    .tabhost__head { display: flex; gap: 4px; border-bottom: 1px solid #dcdfe6; margin-bottom: 12px; }
+    .tabhost__tab { padding: 9px 16px; font-size: 14px; color: #606266; cursor: pointer;
+        border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tabhost__tab:hover { color: #409eff; }
+    .tabhost__tab.is-active { color: #409eff; border-bottom-color: #409eff; font-weight: 600; }
+    .tabhost__tab--disabled { color: #c0c4cc; cursor: not-allowed; }
+    .tabhost__tab--disabled:hover { color: #c0c4cc; }
+    .tabhost__pane { min-height: 260px; }
+    .tabhost__hint { padding: 30px 10px; text-align: center; color: #909399; font-size: 13px; }
+    .tabhost__error { padding: 16px; color: #f56c6c; font-size: 13px; background: #fef0f0; border-radius: 4px; }
+</style>
+
+<script>
+DynLib.ready(function () {
+    var ROOT = '@execId';
+    var CHILD_EXEC = '@childExecId';
+    var CHILD_FK = '@childFk';
+    var MASTER_ROW_ID = '@rowId';
+    var CHILD_TABLE = '@childTable';
+    var PROJECT = '@project';
+    var MASTER_TABLE = '@tableName';
+    var KEY_FIELD = '@keyField';
+    var MASTER_PSID = @masterDetailPsId;
+    var CHILD_LIST_PSID = @childListPsId;
+    var CHILD_DETAIL_PSID = @childDetailPsId;
+
+    var rootEl = document.getElementById(ROOT);
+    var childTabBtn = null;
+    var masterLoaded = false;
+    var childLoaded = false;
+
+    window.DynEventBus.registerRoot(rootEl);
+    window.DynEventBus.registerRoot(document.getElementById(CHILD_EXEC));
+
+    var holder = rootEl;
+    var masterPane = holder.querySelector('[data-pane-host="master"]');
+    var childPane = holder.querySelector('[data-pane-host="child"]');
+    childTabBtn = holder.querySelector('[data-pane="child"]');
+
+    // ---- 工具：POST LoadBlock ----
+    function loadBlockPost(blockName, hostEl, targetExecId, settingId, rowIdVal, provideTable) {
+        var cfg = {
+            provide: { TableName: provideTable || CHILD_TABLE, KeyField: 'Id', Project: PROJECT },
+            blocks: {}
+        };
+        cfg.blocks[blockName] = { settingId: settingId };
+        var url = '/Platform/Page/LoadBlock?blockName=' + blockName + '&execId=' + encodeURIComponent(targetExecId);
+        if (rowIdVal) url += '&rowId=' + rowIdVal;
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blockName: blockName, execId: targetExecId, rowId: rowIdVal ? Number(rowIdVal) : null, config: cfg })
+        }).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+        }).then(function (html) {
+            return dyn.html(hostEl, html, true);
+        });
+    }
+
+    // ---- 子 Tab 禁用/启用 ----
+    function setChildTabDisabled(disabled, hint) {
+        if (!childTabBtn) return;
+        if (disabled) {
+            childTabBtn.classList.add('tabhost__tab--disabled');
+            if (hint) childPane.innerHTML = '<div class="tabhost__hint">' + hint + '</div>';
+        } else {
+            childTabBtn.classList.remove('tabhost__tab--disabled');
+        }
+    }
+
+    // ---- 页签切换 ----
+    holder.querySelector('.tabhost__head').addEventListener('click', function (e) {
+        var btn = e.target.closest('.tabhost__tab');
+        if (!btn || btn.classList.contains('tabhost__tab--disabled')) return;
+        holder.querySelectorAll('.tabhost__tab').forEach(function (b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        var paneName = btn.getAttribute('data-pane');
+        holder.querySelectorAll('.tabhost__pane').forEach(function (pn) {
+            pn.style.display = pn.getAttribute('data-pane-host') === paneName ? '' : 'none';
+        });
+        if (paneName === 'child') loadChildList();
+    });
+
+    // ---- 子表新增/编辑：弹层加载子 detail 积木（CHILD_DETAIL_PSID）----
+    var childDlgSeq = 0;
+    function openChildDetail(mode, row) {
+        var rowIdVal = mode === 'edit' && row ? row.Id : null;
+        var holder = document.createElement('div');
+        holder.style.padding = '0';
+        holder.innerHTML = '<div class="dyn-loading">加载中…</div>';
+        document.body.appendChild(holder);
+
+        // 子 detail 用独立 execId，避免 registerRoot 覆盖子 list 的 root 映射。
+        // 先写 data-exec-id 再 registerRoot —— registerRoot 会复用已有 id 而非新生成 GUID。
+        var dlgExec = CHILD_EXEC + '.dlg' + (++childDlgSeq);
+        holder.setAttribute('data-exec-id', dlgExec);
+        window.DynEventBus.registerRoot(holder);
+
+        var requeryChild = function () {
+            var f = {}; f[CHILD_FK] = { op: 'eq', value: Number(MASTER_ROW_ID) };
+            window.DynEventBus.emit(CHILD_EXEC, 'query', f);
+        };
+
+        dyn.getLayer().then(function (layer) {
+            var idx = layer.open({
+                type: 1,
+                title: rowIdVal ? ('编辑关联积木 #' + rowIdVal) : '新增关联积木',
+                shadeClose: false,
+                area: ['720px', '82%'],
+                content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
+                success: function () {
+                    loadBlockPost('detail', holder, dlgExec, CHILD_DETAIL_PSID, rowIdVal, CHILD_TABLE).then(function () {
+                        // DetailApp 的 create 是 signal：挂载后实时派发，preFill 带上外键
+                        if (mode === 'create') {
+                            var pre = {}; pre[CHILD_FK] = Number(MASTER_ROW_ID);
+                            window.DynEventBus.emit(dlgExec, 'create', { preFill: pre });
+                        }
+                    }).catch(function (err) {
+                        holder.innerHTML = '<div class="tabhost__error">子表详情加载失败：' + ((err && err.message) || err) + '</div>';
+                    });
+                },
+                end: function () {
+                    try { dyn.unmount(holder); } catch (e) {}
+                    try { window.DynEventBus.destroy(dlgExec); } catch (e) {}
+                    try { holder.remove(); } catch (e) {}
+                }
+            });
+            // 保存成功：关窗 + 刷新子列表（detail 只发 saved 到弹窗自己的 execId）
+            window.DynEventBus.on(dlgExec, 'saved', function () {
+                requeryChild();
+                layer.close(idx);
+            });
+            // 取消：仅关窗，不刷新
+            window.DynEventBus.on(dlgExec, 'cancel', function () {
+                layer.close(idx);
+            });
+        });
+    }
+
+    // ---- 子表 list 的新增/编辑事件（CHILD_EXEC 与 list 同总线）----
+    window.DynEventBus.on(CHILD_EXEC, 'create', function () {
+        if (MASTER_ROW_ID) openChildDetail('create', null);
+    });
+    window.DynEventBus.on(CHILD_EXEC, 'update', function (p) {
+        var row = p && p.row;
+        if (row) openChildDetail('edit', row);
+    });
+
+    // ---- 加载主表 detail ----
+    loadBlockPost('detail', masterPane, ROOT, MASTER_PSID, MASTER_ROW_ID, MASTER_TABLE).then(function () {
+        masterLoaded = true;
+        // 编辑模式：主记录已有 ID，启用子 Tab
+        if (MASTER_ROW_ID) {
+            setChildTabDisabled(false);
+        } else {
+            // 新增模式：提示先保存
+            setChildTabDisabled(true, '请先在「基本信息」保存主记录，再配置关联积木。');
+        }
+    }).catch(function (err) {
+        masterPane.innerHTML = '<div class="tabhost__error">主表加载失败：' + ((err && err.message) || err) + '</div>';
+        setChildTabDisabled(true, '主表加载失败，无法加载关联积木。');
+    });
+
+    // ---- 加载子表 list（懒加载：首次点 Tab 才加载） ----
+    function loadChildList() {
+        if (!MASTER_ROW_ID) {
+            childPane.innerHTML = '<div class="tabhost__hint">请先在「基本信息」保存主记录，再配置关联积木。</div>';
+            return;
+        }
+        if (childLoaded) {
+            var f = {}; f[CHILD_FK] = { op: 'eq', value: Number(MASTER_ROW_ID) };
+            window.DynEventBus.emit(CHILD_EXEC, 'query', f);
+            return;
+        }
+        childLoaded = true;
+        childPane.innerHTML = '<div class="dyn-loading">加载子表…</div>';
+        loadBlockPost('list', childPane, CHILD_EXEC, CHILD_LIST_PSID, null, CHILD_TABLE).then(function () {
+            var f = {}; f[CHILD_FK] = { op: 'eq', value: Number(MASTER_ROW_ID) };
+            window.DynEventBus.emit(CHILD_EXEC, 'query', f);
+        }).catch(function (err) {
+            childPane.innerHTML = '<div class="tabhost__error">子表加载失败：' + ((err && err.message) || err) + '</div>';
+        });
+    }
+
+    // ---- 主表保存成功后：记录新主键并解锁子 Tab；已加载过子表则刷新 ----
+    var onSaved = function (payload) {
+        // 新增模式首保后，DetailApp 已把后端返回的新主键回写到 payload.row，这里接住
+        if (!MASTER_ROW_ID && payload && payload.row) {
+            var newId = payload.row[KEY_FIELD];
+            if (newId !== null && newId !== undefined && String(newId) !== '' && Number(newId) > 0) {
+                MASTER_ROW_ID = String(newId);
+            }
+        }
+        if (!MASTER_ROW_ID) return;
+        if (childLoaded) {
+            var f = {}; f[CHILD_FK] = { op: 'eq', value: Number(MASTER_ROW_ID) };
+            window.DynEventBus.emit(CHILD_EXEC, 'query', f);
+        } else if (masterLoaded) {
+            // 保存后从新增变编辑，启用子 Tab
+            setChildTabDisabled(false);
+        }
+    };
+    window.DynEventBus.on(ROOT, 'saved', onSaved);
+
+    // ---- 清理：DOM 被移除时（弹窗关闭）销毁 EventBus、unmount 子组件 ----
+    function cleanup() {
+        try { window.DynEventBus.off(ROOT, 'saved', onSaved); } catch (e) {}
+        try { window.DynEventBus.destroy(ROOT); } catch (e) {}
+        try { window.DynEventBus.destroy(CHILD_EXEC); } catch (e) {}
+        // unmount 内部 dyn apps
+        try {
+            holder.querySelectorAll('[data-dyn-mode="createApp"]').forEach(function (ae) {
+                try { dyn.unmount(ae); } catch (e) {}
+            });
+        } catch (e) {}
+        if (mo) mo.disconnect();
+    }
+    var mo = new MutationObserver(function (mutations) {
+        mutations.forEach(function (m) {
+            m.removedNodes.forEach(function (n) {
+                if (n === rootEl || (n.contains && n.contains(rootEl))) {
+                    cleanup();
+                }
+            });
+        });
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+});
+</script>

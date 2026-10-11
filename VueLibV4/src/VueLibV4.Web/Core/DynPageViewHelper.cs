@@ -99,9 +99,12 @@ public static class DynPageViewHelper
     public static JObject ParseShellSpec(VueLibV4.Platform.Models.DynWebPage page)
         => ParseParams(!string.IsNullOrWhiteSpace(page.SpecJson) ? page.SpecJson : page.ParamsJson);
 
-    /// <summary>取某槽位 Block 的保存节点：params.blocks[slot]（无则 null）。</summary>
+    /// <summary>
+    /// 取某槽位 Block 的保存节点：params.blocks[slot] 优先；
+    /// 回退顶层 params[slot]（部分页面实例直接用 {"filter":{"settingId":..},"list":{...}} 形状）。
+    /// </summary>
     public static JObject? SlotBlock(JObject ps, string slot)
-        => ps["blocks"]?[slot] as JObject;
+        => ps["blocks"]?[slot] as JObject ?? ps[slot] as JObject;
 
     /// <summary>
     /// 取槽位接线的 PageSetting Id：blocks[slot].settingId 优先，回退旧扁平键

@@ -135,9 +135,19 @@
                 var isEdit = this.form[kf] !== null && this.form[kf] !== undefined && this.form[kf] !== '';
                 var req = DynBlocks.saveRequest(isEdit ? this.editUrl : this.addUrl, this.table, this.form, this.project);
                 DynCall.post(req.url, req.body, { scopeEl: element })
-                    .then(function () {
+                    .then(function (res) {
                         self.loading = false;
                         self.formError = '';
+                        // 新增：后端返回新自增主键（update 返回影响行数，不能覆盖）。
+                        // 不回写会导致再点保存仍判新增 → 重复插入，且 saved.row.Id 为 null 断主子链路。
+                        if (!isEdit) {
+                            var newId = null;
+                            if (res !== null && typeof res === 'object') newId = res[kf] !== undefined ? res[kf] : res.Id;
+                            else newId = res;
+                            if (newId !== null && newId !== undefined && newId !== '' && Number(newId) > 0) {
+                                self.form[kf] = newId;
+                            }
+                        }
                         dyn.showMessage('保存成功', 'success');
                         // 统一只发 saved（signal）：壳负责关窗，list/tree 自行监听刷新
                         var payload = { action: isEdit ? 'update' : 'create', row: self.form };

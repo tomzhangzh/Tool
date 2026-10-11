@@ -8,6 +8,10 @@
  *  4. 时序问题用「快照」解决，但仅限 sticky 事件（query）：emit 时把 payload 存在
  *     rootEl.__snap 上；晚注册的 on() 先读快照，有就立刻执行一次。signal 动作事件
  *     （create/update/saved/cancel）不存快照、不补发。
+ *     tree 发 update{row}/create{preFill}；detail 发 saved{action}；tree 监听 saved 自刷新。
+ *     事件词表：query(条件,sticky) / create(新增表单,可带 preFill) / update(打开记录编辑) /
+ *     saved(保存或删除成功,可带{action,row}) / cancel(取消) /
+ *     select(列表行单击选中,主从联动用；与"打开编辑"语义的 update 区分)。除 query 外均为 signal。
  *  5. rootEl 销毁时调 destroy(execId)，清快照 + 删 Map 记录；监听由浏览器随 DOM GC 回收。
  *
  * 用法：

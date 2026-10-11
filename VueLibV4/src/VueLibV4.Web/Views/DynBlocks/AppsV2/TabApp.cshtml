@@ -1,0 +1,168 @@
+@model dynamic
+@inject IPageSettingService pageSettingService
+@using System.Dynamic
+@{
+    // TabApp：页签容器（弹窗主从 / 多页签）
+    // 配置（ConfigJson）：
+    //   {
+    //     "masterKeyField": "Id",
+    //     "tabs": [
+    //       { "title":"基本信息", "isMaster":true,  "url":"/Platform/Page/DynWebPage?id=39" },
+    //       { "title":"关联积木", "isMaster":false, "url":"/Platform/Page/DynWebPage?id=40",
+    //         "paramMap": { "TemplateId":"row.Id" } }
+    //     ]
+    //   }
+    // 机制：
+    //   主 tab URL 追加 execId=<本容器 execId>；其内部 DetailApp 保存后 emit('saved',{row})。
+    //   容器监听 saved，记录 masterRow；子 tab 按 paramMap 从 masterRow 取值拼 URL，懒加载。
+    //   masterKeyField 有值（非0/空）才解锁子 tab。
+    IDictionary<string, object> M = Model is IDictionary<string, object> _md
+        ? _md : new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    object V2(string k) {
+        if (M.TryGetValue(k, out var v0) && v0 != null) return v0;
+        if (ViewData.TryGetValue(k, out var v1) && v1 != null) return v1;
+        return null;
+    }
+    string S(string k, string dft = "") { var x = V2(k); return x != null ? x.ToString() ?? dft : dft; }
+
+    var extId = S("ExtId", "tab-" + Guid.NewGuid().ToString("N")[..12]);
+    var execId = S("ExecId");
+    var masterKeyField = S("masterKeyField", "Id");
+    var tabsJson = S("tabs", "[]");
+}
+<div id="@extId" dyn-init="createApp" class="dyn-blk-tabapp">
+    <el-tabs v-model="activeTab" type="card" class="ta-tabs" @@tab-change="onTabChange">
+        <el-tab-pane v-for="(t, i) in tabs" :key="i"
+                     :label="t.title" :name="String(i)"
+                     :disabled="!t.isMaster && !masterReady">
+            <template #label>
+                <span>{{ t.title }}<el-tag v-if="t.isMaster" size="small" type="primary" effect="plain" style="margin-left:4px;">主</el-tag></span>
+            </template>
+            <div class="ta-pane-wrap" v-loading="loadingIdx === i">
+                <div :ref="'pane_' + i" class="ta-pane"></div>
+            </div>
+        </el-tab-pane>
+    </el-tabs>
+    <div v-if="hasNonMaster && !masterReady" class="ta-hint">请先在「基本信息」保存主记录，关联页签将随之加载。</div>
+
+    <script type="text/plain" tag="dynconfig">
+    var __execId = '@execId';
+    var __masterKeyField = '@masterKeyField';
+    var __tabs = @Html.Raw(tabsJson);
+
+    var dynConfig = {
+        data: function () {
+            return {
+                tabs: Array.isArray(__tabs) ? __tabs : [],
+                masterKeyField: __masterKeyField || 'Id',
+                activeTab: '0',
+                masterRow: null,
+                loadedMap: {},
+                loadingIdx: -1,
+                _savedHandler: null
+            };
+        },
+        computed: {
+            masterReady: function () {
+                var r = this.masterRow;
+                if (!r) return false;
+                var v = r[this.masterKeyField];
+                return v !== null && v !== undefined && String(v) !== '' && String(v) !== '0';
+            },
+            hasNonMaster: function () {
+                return this.tabs.some(function (t) { return !t.isMaster; });
+            },
+            masterIndex: function () {
+                for (var i = 0; i < this.tabs.length; i++) if (this.tabs[i].isMaster) return i;
+                return 0;
+            }
+        },
+        methods: {
+            rowVal: function (expr) {
+                // "row.ProjectId" → masterRow.ProjectId
+                var f = String(expr || '').replace(/^row\./, '');
+                return this.masterRow ? this.masterRow[f] : null;
+            },
+            buildUrl: function (t) {
+                var params = {};
+                if (t.isMaster && __execId) params.execId = __execId;
+                if (!t.isMaster && t.paramMap) {
+                    var pm = t.paramMap;
+                    if (typeof pm === 'string') {
+                        try { pm = JSON.parse(pm); } catch (e) { pm = {}; }
+                    }
+                    Object.keys(pm).forEach(function (k) {
+                        var v = this.rowVal(pm[k]);
+                        params[k] = (v === null || v === undefined) ? '' : v;
+                    }, this);
+                }
+                var url = t.url || '';
+                if (Object.keys(params).length) {
+                    var qs = Object.keys(params).map(function (k) {
+                        return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+                    }).join('&');
+                    url += (url.indexOf('?') >= 0 ? '&' : '?') + qs;
+                }
+                return url;
+            },
+            loadTab: function (idx, force) {
+                var t = this.tabs[idx];
+                if (!t || !t.url) return;
+                if (!force && this.loadedMap[idx]) return;
+                if (!t.isMaster && !this.masterReady) return;
+                var self = this;
+                var refs = this.$refs['pane_' + idx];
+                var paneEl = Array.isArray(refs) ? refs[0] : refs;
+                if (!paneEl) return;
+                var url = this.buildUrl(t);
+                this.loadingIdx = idx;
+                window.dyn.fetchPartial(url, {}, 'GET').then(function (html) {
+                    return window.dyn.html(paneEl, html, true, {});
+                }).then(function () {
+                    self.loadedMap[idx] = true;
+                }).catch(function (e) {
+                    paneEl.innerHTML = '<div style="padding:16px;color:#f56c6c;font-size:13px;">加载失败：' + ((e && e.message) || e) + '</div>';
+                }).finally(function () { self.loadingIdx = -1; });
+            },
+            onSaved: function (payload) {
+                if (!payload || !payload.row) return;
+                this.masterRow = payload.row;
+                // 主记录变化后，已加载过的子 tab 按新参数重建
+                var self = this;
+                this.tabs.forEach(function (t, i) {
+                    if (!t.isMaster && self.loadedMap[i]) self.loadedMap[i] = false;
+                });
+                var ai = Number(this.activeTab);
+                if (this.tabs[ai] && !this.tabs[ai].isMaster && this.masterReady) {
+                    this.loadTab(ai, true);
+                }
+            },
+            onTabChange: function (name) {
+                this.loadTab(Number(name), false);
+            }
+        },
+        mounted: function () {
+            var self = this;
+            this.activeTab = String(this.masterIndex);
+            if (window.DynEventBus && __execId) {
+                this._savedHandler = function (p) { self.onSaved(p); };
+                window.DynEventBus.on(__execId, 'saved', this._savedHandler);
+            }
+            this.$nextTick(function () { self.loadTab(Number(self.activeTab), false); });
+        },
+        beforeUnmount: function () {
+            if (window.DynEventBus && __execId && this._savedHandler) {
+                window.DynEventBus.off(__execId, 'saved', this._savedHandler);
+            }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-tabapp { box-sizing: border-box; }
+    .ta-tabs { background: transparent; }
+    .ta-pane-wrap { min-height: 200px; padding: 4px 2px; }
+    .ta-pane:empty::after { content: ''; display: block; height: 80px; }
+    .ta-hint { padding: 24px; text-align: center; color: var(--site-text-faint, #c0c4cc); font-size: 13px; }
+</style>
