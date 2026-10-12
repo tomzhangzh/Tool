@@ -1,24 +1,39 @@
+@using VueLibV4.Web
+@using VueLibV4.Services.Extensions
 @* =============================================================================
    自动生成视图：PageSetting #110（Filter / 模板管理 - 筛选区）
    生成器：VueLibV4.Web.Services.ViewGenerateService。可自由修改本文件，
    修改后即时生效（Razor 运行时编译）；再次点“生成视图”会【覆盖】本文件。
    宿主模型变量：filterModel（由嵌入的 Filter Block 提供，勿改名）。
-   JSON 写法：@{ } 内 C# 逐字字符串（双引号写两个），属性 comoptions="@co0" 由 Razor 自动转义；
+   选项写法：@{ } 内 new DynNodeViewOptions { comoptions = new { ... }.ToJson() }，
+   属性写 comoptions="@n0.comoptions"，Razor 自动 HTML 转义；
    也可直接改成 Vue 绑定，如 :comoptions="{ placeholder: 'x' }"。
    ============================================================================ *@
 @{
-    var co0 = @"{""direction"":""vertical"",""size"":""small""}";
-    var lo0 = @"{""required"":false,""show"":false,""labelposition"":""right"",""labelwidth"":""120px""}";
-    var io0 = @"{""class"":""grid grid-cols-4 gap-x-3 gap-y-2 items-center""}";
-    var co1 = @"{""size"":""small"",""placeholder"":""请输入编码"",""clearable"":true}";
-    var lo1 = @"{""label"":""编码"",""required"":false,""show"":true}";
-    var co2 = @"{""size"":""small"",""placeholder"":""请输入名称"",""clearable"":true}";
-    var lo2 = @"{""label"":""名称"",""required"":false,""show"":true}";
-    var co3 = @"{""size"":""small"",""sourceType"":""sql"",""sql"":""SELECT DISTINCT [Category] AS [Value], [Category] AS [Text] FROM [DynTemplate] WHERE [Category] IS NOT NULL AND [Category] <> ''"",""projectId"":2,""placeholder"":""请选择"",""clearable"":true,""filterable"":true,""allowCreate"":true}";
-    var lo3 = @"{""label"":""分类"",""required"":false,""show"":true}";
+    var n0 = new DynNodeViewOptions {
+        comoptions = new { direction = "vertical", size = "small" }.ToJson(),
+        labeloptions = new { required = false, show = false, labelposition = "right", labelwidth = "120px" }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["class"] = "grid grid-cols-4 gap-x-3 gap-y-2 items-center" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var n1 = new DynNodeViewOptions {
+        comoptions = new { size = "small", placeholder = "请输入编码", clearable = true }.ToJson(),
+        labeloptions = new { label = "编码", required = false, show = true }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var n2 = new DynNodeViewOptions {
+        comoptions = new { size = "small", placeholder = "请输入名称", clearable = true }.ToJson(),
+        labeloptions = new { label = "名称", required = false, show = true }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var n3 = new DynNodeViewOptions {
+        comoptions = new { size = "small", sourceType = "sql", sql = "SELECT DISTINCT [Category] AS [Value], [Category] AS [Text] FROM [DynTemplate] WHERE [Category] IS NOT NULL AND [Category] <> ''", projectId = 2, placeholder = "请选择", clearable = true, filterable = true, allowCreate = true }.ToJson(),
+        labeloptions = new { label = "分类", required = false, show = true }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
 }
-  <dyn-grid-container :parentmodelinfo="filterModel" comoptions="@co0" labeloptions="@lo0" itemoptions="@io0" compassthrough="comoptions.size,labeloptions.labelposition,labeloptions.labelwidth">
-    <dyn-el-input modelname="Code.value" comoptions="@co1" labeloptions="@lo1" compassthrough="comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"></dyn-el-input>
-    <dyn-el-input modelname="Name.value" comoptions="@co2" labeloptions="@lo2" compassthrough="comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"></dyn-el-input>
-    <dyn-el-select modelname="Category.value" comoptions="@co3" labeloptions="@lo3" compassthrough="comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"></dyn-el-select>
+  <dyn-grid-container :parentmodelinfo="filterModel" comoptions="@n0.comoptions" labeloptions="@n0.labeloptions" itemoptions="@n0.itemoptions" compassthrough="@n0.compassthrough">
+    <dyn-el-input modelname="Code.value" comoptions="@n1.comoptions" labeloptions="@n1.labeloptions" compassthrough="@n1.compassthrough"></dyn-el-input>
+    <dyn-el-input modelname="Name.value" comoptions="@n2.comoptions" labeloptions="@n2.labeloptions" compassthrough="@n2.compassthrough"></dyn-el-input>
+    <dyn-el-select modelname="Category.value" comoptions="@n3.comoptions" labeloptions="@n3.labeloptions" compassthrough="@n3.compassthrough"></dyn-el-select>
   </dyn-grid-container>

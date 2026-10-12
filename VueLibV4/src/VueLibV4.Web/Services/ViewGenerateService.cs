@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -13,12 +14,18 @@ namespace VueLibV4.Web.Services;
 /// 视图生成服务：把一条 PageSetting 的组件配置树（ConfigJson：component/options/
 /// modelname/childrenctrls）生成为【可手工修改的真实 cshtml】，例如：
 /// <code>
-/// &lt;dyn-grid-container :parentmodelinfo="form" comoptions="@co0"&gt;
-///   &lt;dyn-el-input modelname="Code" labeloptions="@lo1" comoptions="@co1"&gt;&lt;/dyn-el-input&gt;
+/// @{
+///     var n0 = new DynNodeViewOptions {
+///         comoptions = new { direction = "vertical", size = "small" }.ToJson()
+///     };
+/// }
+/// &lt;dyn-grid-container :parentmodelinfo="form" comoptions="@n0.comoptions"&gt;
+///   &lt;dyn-el-input modelname="Code" labeloptions="@n1.labeloptions"&gt;&lt;/dyn-el-input&gt;
 /// &lt;/dyn-grid-container&gt;
 /// </code>
-/// JSON 不手工转义：组件 JSON 写在 @{ } 内的 C# 逐字字符串变量里，属性写成
-/// <c>comoptions="@co1"</c>，由 Razor 渲染时自动 HTML 编码（双引号 → &amp;quot;）。
+/// 选项不手写 JSON 转义：@{ } 内用 <see cref="VueLibV4.Web.DynNodeViewOptions"/>
+/// + 匿名对象 <c>.ToJson()</c> 生成 JSON 字符串（IDE 有补全、编译期检查键名），
+/// 属性写成 <c>comoptions="@n0.comoptions"</c>，由 Razor 渲染时自动 HTML 编码。
 /// 组件标签与运行时注册名保持同一规则：dyn- + kebab 组件名
 /// （DynGridContainer → dyn-grid-container，DynElInput → dyn-el-input）。
 /// 默认输出路径（相对 Web ContentRoot）：
@@ -141,8 +148,12 @@ public class ViewGenerateService : IViewGenerateService
 
     /// <summary>序列化为属性值的 JSON 选项组（节点 options 下，值为对象）。</summary>
     private static readonly string[] JsonOptionGroups = { "comoptions", "labeloptions", "itemoptions", "wrapperoptions" };
-    /// <summary>字符串型选项（直接以普通属性输出）。</summary>
-    private static readonly string[] StringOptions = { "compassthrough", "evalCondition" };
+    /// <summary>字符串型选项：配置键名 → DynNodeViewOptions 属性名（evalCondition 是配置契约里唯一的驼峰键）。</summary>
+    private static readonly (string ConfigKey, string Member)[] StringOptions =
+    {
+        ("compassthrough", "compassthrough"),
+        ("evalCondition", "evalcondition")
+    };
 
     public string RenderView(JObject? config, string settingType, int settingId, string? settingName)
     {
@@ -150,13 +161,14 @@ public class ViewGenerateService : IViewGenerateService
             throw new InvalidOperationException("ConfigJson 根节点缺少 component，不是组件树型配置。");
         var hostVar = HostModelVar(settingType);
 
-        var vars = new List<string>();   // @{} 内的变量声明
+        var inits = new List<string>();   // @{} 内的 DynNodeViewOptions 初始化
         var body = new StringBuilder();
         var seq = 0;
 
         void RenderNode(JObject node, int depth, bool isRoot)
         {
             var idx = seq++;
+            var varName = "n" + idx;
             var pad = new string(' ', depth * 2);
             var tag = ToTagName(node["component"]!.ToString());
             body.Append(pad).Append('<').Append(tag);
@@ -168,6 +180,8 @@ public class ViewGenerateService : IViewGenerateService
             if (!string.IsNullOrEmpty(modelName))
                 body.Append(" modelname=\"").Append(WebUtility.HtmlEncode(modelName)).Append('"');
 
+            var assigned = new List<string>(); // 已赋值的成员名，决定输出哪些属性
+            var initLines = new List<string>();
             var options = node["options"] as JObject;
             if (options != null)
             {
@@ -175,17 +189,28 @@ public class ViewGenerateService : IViewGenerateService
                 {
                     if (options[g] is JObject jo && jo.Count > 0)
                     {
-                        var varName = OptionVarPrefix(g) + idx; // comoptions→co0、labeloptions→lo0…
-                        vars.Add($"    var {varName} = {ToVerbatim(jo.ToString(Formatting.None))};");
-                        body.Append(' ').Append(g).Append("=\"@").Append(varName).Append('"');
+                        initLines.Add($"        {g} = {RenderOptionsExpr(jo)},");
+                        assigned.Add(g);
                     }
                 }
-                foreach (var g in StringOptions)
+                foreach (var (configKey, member) in StringOptions)
                 {
-                    var s = options[g]?.ToString();
+                    var s = options[configKey]?.ToString();
                     if (!string.IsNullOrEmpty(s))
-                        body.Append(' ').Append(g).Append("=\"").Append(WebUtility.HtmlEncode(s)).Append('"');
+                    {
+                        initLines.Add($"        {member} = {ToVerbatimLiteral(s)},");
+                        assigned.Add(member);
+                    }
                 }
+            }
+
+            if (initLines.Count > 0)
+            {
+                inits.Add($"    var {varName} = new DynNodeViewOptions {{");
+                inits.AddRange(initLines);
+                inits.Add("    };");
+                foreach (var m in assigned)
+                    body.Append(' ').Append(m).Append("=\"@").Append(varName).Append('.').Append(m).Append('"');
             }
 
             var children = node["childrenctrls"] as JArray;
@@ -205,16 +230,19 @@ public class ViewGenerateService : IViewGenerateService
         RenderNode(config, 1, true);
 
         var sb = new StringBuilder();
+        sb.AppendLine("@using VueLibV4.Web");
+        sb.AppendLine("@using VueLibV4.Services.Extensions");
         sb.AppendLine("@* =============================================================================");
         sb.AppendLine($"   自动生成视图：PageSetting #{settingId}（{settingType} / {settingName}）");
         sb.AppendLine("   生成器：VueLibV4.Web.Services.ViewGenerateService。可自由修改本文件，");
         sb.AppendLine("   修改后即时生效（Razor 运行时编译）；再次点“生成视图”会【覆盖】本文件。");
         sb.AppendLine($"   宿主模型变量：{hostVar}（由嵌入的 {settingType} Block 提供，勿改名）。");
-        sb.AppendLine("   JSON 写法：@{ } 内 C# 逐字字符串（双引号写两个），属性 comoptions=\"@co0\" 由 Razor 自动转义；");
+        sb.AppendLine("   选项写法：@{ } 内 new DynNodeViewOptions { comoptions = new { ... }.ToJson() }，");
+        sb.AppendLine("   属性写 comoptions=\"@n0.comoptions\"，Razor 自动 HTML 转义；");
         sb.AppendLine("   也可直接改成 Vue 绑定，如 :comoptions=\"{ placeholder: 'x' }\"。");
         sb.AppendLine("   ============================================================================ *@");
         sb.AppendLine("@{");
-        foreach (var v in vars) sb.AppendLine(v);
+        foreach (var l in inits) sb.AppendLine(l);
         sb.AppendLine("}");
         sb.Append(body);
         return sb.ToString();
@@ -242,19 +270,159 @@ public class ViewGenerateService : IViewGenerateService
         return kebab;
     }
 
-    /// <summary>选项组 → cshtml 变量前缀：comoptions=co / labeloptions=lo / itemoptions=io / wrapperoptions=wo。</summary>
-    private static string OptionVarPrefix(string group) => group switch
-    {
-        "comoptions" => "co",
-        "labeloptions" => "lo",
-        "itemoptions" => "io",
-        "wrapperoptions" => "wo",
-        _ => "op"
-    };
+    // ------------------------------------------------------------------
+    //  JToken → C# 初始化表达式（让生成的选项是“代码”而不是“字符串里的 JSON”）
+    // ------------------------------------------------------------------
 
-    /// <summary>紧凑 JSON → Razor 安全的 C# 逐字字符串：@"..."（内部双引号翻倍）。</summary>
-    private static string ToVerbatim(string compactJson)
-        => "@\"" + compactJson.Replace("\"", "\"\"") + "\"";
+    /// <summary>
+    /// 选项组 → C# 表达式：优先 <c>new { k = v, ... }.ToJson()</c>（IDE 可补全/查错）；
+    /// 仅当键名不是合法 C# 标识符时回退为 C#11 原始字符串 """..."""（JSON 本体）。
+    /// </summary>
+    private static string RenderOptionsExpr(JToken token)
+    {
+        if (token is JObject jo && TryRenderObject(jo, out var expr))
+            return expr + ".ToJson()";
+        return ToRawStringLiteral(token.ToString(Formatting.None));
+    }
+
+    private static bool TryRenderObject(JObject jo, out string expr)
+    {
+        // 键值对保留原始键名；含 C# 关键字键（如 class）时改用 Dictionary 初始化器
+        // （["class"]=...），避免在 Razor @{} 块里出现 @class —— @ 是 Razor 保留切换符。
+        var pairs = new List<(string Key, string Val)>();
+        var needDictionary = false;
+        foreach (var p in jo.Properties())
+        {
+            if (!IsSimpleIdentifier(p.Name))
+            {
+                expr = null!;
+                return false;
+            }
+            if (!TryRenderValue(p.Value, out var val))
+            {
+                expr = null!;
+                return false;
+            }
+            if (CSharpKeywords.Contains(p.Name)) needDictionary = true;
+            pairs.Add((p.Name, val));
+        }
+        if (pairs.Count == 0) { expr = "new { }"; return true; }
+        if (needDictionary)
+        {
+            expr = "new Dictionary<string, object?> { "
+                + string.Join(", ", pairs.Select(kv => $"[\"{kv.Key}\"] = {kv.Val}")) + " }";
+        }
+        else
+        {
+            expr = "new { " + string.Join(", ", pairs.Select(kv => $"{kv.Key} = {kv.Val}")) + " }";
+        }
+        return true;
+    }
+
+    private static bool TryRenderValue(JToken? token, out string expr)
+    {
+        switch (token)
+        {
+            case null:
+            case JValue { Type: JTokenType.Null }:
+                expr = "null";
+                return true;
+            case JObject jo:
+                return TryRenderObject(jo, out expr);
+            case JArray ja:
+                var items = new List<string>();
+                foreach (var it in ja)
+                {
+                    if (!TryRenderValue(it, out var v))
+                    {
+                        expr = null!;
+                        return false;
+                    }
+                    items.Add(v);
+                }
+                expr = items.Count == 0
+                    ? "new object?[0]"
+                    : "new object?[] { " + string.Join(", ", items) + " }";
+                return true;
+            case JValue jv:
+                switch (jv.Type)
+                {
+                    case JTokenType.Boolean:
+                        expr = jv.Value<bool>() ? "true" : "false";
+                        return true;
+                    case JTokenType.Integer:
+                        expr = ((IFormattable)jv.Value!).ToString(null, CultureInfo.InvariantCulture);
+                        return true;
+                    case JTokenType.Float:
+                        expr = ((IFormattable)jv.Value!).ToString(null, CultureInfo.InvariantCulture);
+                        return true;
+                    case JTokenType.String:
+                        expr = ToVerbatimLiteral(jv.Value<string>() ?? "");
+                        return true;
+                    case JTokenType.Date:
+                        expr = ToVerbatimLiteral(jv.Value<DateTime>().ToString("yyyy-MM-ddTHH:mm:ss.FFFFFFFK", CultureInfo.InvariantCulture));
+                        return true;
+                    case JTokenType.Guid:
+                        expr = ToVerbatimLiteral(jv.Value<Guid>().ToString());
+                        return true;
+                    default:
+                        expr = null!;
+                        return false; // 未知类型让上层整组回退原始字符串
+                }
+            default:
+                expr = null!;
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// 字符串 → C# 字面量：普通内容用常规 "...";（转义 \ 和 " 及制表符/换行），
+    /// 含引号/反斜杠/换行等时用逐字字符串 @"..."（双引号翻倍），保证任意内容都安全。
+    /// </summary>
+    private static string ToVerbatimLiteral(string s)
+    {
+        var needVerbatim = s.IndexOfAny(new[] { '"', '\\', '\r', '\n', '\t', '\0' }) >= 0;
+        if (!needVerbatim)
+            return "\"" + s + "\"";
+        return "@\"" + s.Replace("\"", "\"\"") + "\"";
+    }
+
+    /// <summary>
+    /// C#11 原始字符串字面量：定界引号数取内容中最长连续引号 +2（至少 3 个），
+    /// 保证首尾恰好是引号时也不会误判定界符；JSON 首尾空白由浏览器 JSON.parse 容忍。
+    /// </summary>
+    private static string ToRawStringLiteral(string s)
+    {
+        var maxRun = 0;
+        var run = 0;
+        foreach (var c in s)
+        {
+            if (c == '"') { run++; if (run > maxRun) maxRun = run; }
+            else run = 0;
+        }
+        var q = new string('"', Math.Max(3, maxRun + 2));
+        return q + s + q;
+    }
+
+    private static bool IsSimpleIdentifier(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return false;
+        if (!(char.IsLetter(s[0]) || s[0] == '_')) return false;
+        foreach (var c in s)
+            if (!(char.IsLetterOrDigit(c) || c == '_')) return false;
+        return true;
+    }
+
+    private static readonly HashSet<string> CSharpKeywords = new()
+    {
+        "abstract","as","base","bool","break","byte","case","catch","char","checked","class","const","continue",
+        "decimal","default","delegate","do","double","else","enum","event","explicit","extern","false","finally",
+        "fixed","float","for","foreach","goto","if","implicit","in","int","interface","internal","is","lock",
+        "long","namespace","new","null","object","operator","out","override","params","private","protected",
+        "public","readonly","ref","return","sbyte","sealed","short","sizeof","stackalloc","static","string",
+        "struct","switch","this","throw","true","try","typeof","uint","ulong","unchecked","unsafe","ushort",
+        "using","virtual","void","volatile","while"
+    };
 
     // ------------------------------------------------------------------
     //  其它
