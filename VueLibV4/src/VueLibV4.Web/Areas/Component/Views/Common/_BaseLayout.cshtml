@@ -11,6 +11,15 @@ var comConfig = {
         label: { type: String, default: null },
         required: { type: Boolean, default: false },
         placeholder: { type: String, default: null },
+        // 生成视图（ViewGenerateService）/手写模板的裸标签：options 各组以属性传入。
+        // cshtml 侧用 Razor 双写 at 符号转义（属性值里的变量引用由生成器写成 co0 形式），浏览器侧拿到的是 JSON 字符串；
+        // 也支持 v-bind 对象形式 :comoptions="{...}" 直接传对象。
+        comoptions: { type: [Object, String], default: null },
+        labeloptions: { type: [Object, String], default: null },
+        itemoptions: { type: [Object, String], default: null },
+        wrapperoptions: { type: [Object, String], default: null },
+        compassthrough: { type: String, default: null },
+        evalcondition: { type: String, default: null },
         modelValue: { default: null }
     },
     // v-model 直连通道：modelinfo setter 在无 parentmodelinfo+modelname 路径时 emit update:modelValue
@@ -63,18 +72,38 @@ var comConfig = {
                 return undefined;
             });
         }
+        // 裸标签 JSON 属性归一：对象直接用；字符串按 JSON 解析（生成视图的 comoptions 属性到浏览器是 JSON 字符串）；
+        // null/空串/解析失败回落到 dft，且不抛异常——手写模板写错一个属性不该让整页挂掉。
+        function parseAttrJson(v, dft) {
+            if (v === null || v === undefined) return dft;
+            if (typeof v === 'object') return v;
+            var s = String(v).trim();
+            if (!s) return dft;
+            try { var o = JSON.parse(s); return (o && typeof o === 'object') ? o : dft; }
+            catch (e) { console.warn('[裸标签属性 JSON 解析失败]', e, s.slice(0, 120)); return dft; }
+        }
         // 直连模式（裸标签未传 jsonconfig）：用直连 props 合成内存 jc（不落库、不参与设计器导出），
-        // 让下方全部配置驱动逻辑（label/绑定/校验/穿透）无差别复用
+        // 让下方全部配置驱动逻辑（label/绑定/校验/穿透）无差别复用。
+        // 优先级：JSON 属性（生成视图/手写 comoptions=".."）打底；label/required/placeholder 直连 props 覆盖。
         const directMode = !props.jsonconfig;
         const syntheticJc = directMode ? {
             component: (inst && inst.type && inst.type.name) || null,
             modelname: props.modelname || null,
-            options: {
-                comoptions: props.placeholder ? { placeholder: props.placeholder } : {},
-                // 直连无 label/required 时不渲染空 label 壳
-                labeloptions: { label: props.label || '', required: !!props.required, show: !!(props.label || props.required) },
-                itemoptions: { style: {}, class: '' }
-            },
+            options: Object.assign(
+                {
+                    comoptions: props.placeholder
+                        ? Object.assign(parseAttrJson(props.comoptions, {}), { placeholder: props.placeholder })
+                        : parseAttrJson(props.comoptions, {}),
+                    labeloptions: Object.assign(
+                        { label: props.label || '', required: !!props.required, show: !!(props.label || props.required) },
+                        parseAttrJson(props.labeloptions, null) || {}
+                    ),
+                    itemoptions: parseAttrJson(props.itemoptions, { style: {}, class: '' }),
+                    wrapperoptions: parseAttrJson(props.wrapperoptions, {})
+                },
+                props.compassthrough ? { compassthrough: props.compassthrough } : null,
+                props.evalcondition ? { evalCondition: props.evalcondition } : null
+            ),
             validators: [],
             childrenctrls: [],
             slots: {},

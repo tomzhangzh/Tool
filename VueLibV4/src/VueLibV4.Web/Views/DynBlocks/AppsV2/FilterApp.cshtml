@@ -24,7 +24,16 @@
 <div id="@extId" dyn-init="createApp" class="dyn-blk-filter">
     <div class="dyn-blk-filter__body">
         @if (pageSetting!=null){
-            <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
+            // GeneratedViewPath 有值：渲染程序员可手改的生成视图（其中根节点绑定 :parentmodelinfo="filterModel"）；
+            // 为空才走 ConfigJson → dyn-dynamic-com 动态渲染
+            if (!string.IsNullOrWhiteSpace(pageSetting.GeneratedViewPath))
+            {
+                @await Html.PartialAsync(pageSetting.GeneratedViewPath)
+            }
+            else
+            {
+                <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>
+            }
         }
         else{
             <div>暂无筛选配置</div>

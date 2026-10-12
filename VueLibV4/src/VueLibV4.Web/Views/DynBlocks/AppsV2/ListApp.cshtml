@@ -45,7 +45,7 @@
                 <span v-else>{{ formatCell(col, scope.row) }}</span>
             </template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" :width="180 + (rowActions || []).length * 110" fixed="right">
             <template #default="scope">
                 <button type="button" class="el-button el-button--primary el-button--small el-button--plain" @@click.stop="onEdit(scope.row)">
                     <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
@@ -53,6 +53,13 @@
                 <button type="button" class="el-button el-button--danger el-button--small el-button--plain" @@click.stop="onDelete(scope.row)">
                     <el-icon style="margin-right:2px"><Delete /></el-icon>删除
                 </button>
+                <template v-for="(act, ai) in rowActions" :key="'ra-' + ai">
+                    <button type="button" class="el-button el-button--small el-button--plain"
+                            :class="act.type ? ('el-button--' + act.type) : 'el-button--success'"
+                            @@click.stop="runRowAction(act, scope.row)">
+                        <el-icon v-if="act.icon" style="margin-right:2px"><component :is="act.icon" /></el-icon>{{ act.label }}
+                    </button>
+                </template>
             </template>
         </el-table-column>
     </el-table>
@@ -75,11 +82,14 @@
     var dynConfig = {
         data: function () {
             var cols = __columns;
+            // 列表配置支持顶层扩展：{ columns:[...], rowActions:[{label,type?,icon?,confirm?,api:{url,method?,idField?},okMsg?,refresh?}] }
+            var actions = (cols && !Array.isArray(cols) && Array.isArray(cols.rowActions)) ? cols.rowActions : [];
             if (cols && !Array.isArray(cols) && cols.columns) cols = cols.columns;
             return {
                 columns: cols || [],
-                keyField: __keyField,
+                rowActions: actions,
                 table: __table,
+                keyField: __keyField,
                 loadUrl: __loadUrl,
                 deleteUrl: __deleteUrl,
                 project: __project,
@@ -158,6 +168,27 @@
             onEdit: function (row) {
                 if (window.DynEventBus && __execId)
                     window.DynEventBus.emit(__execId, 'update', { row: row });
+            },
+            // 通用行扩展动作（列表配置 rowActions）：confirm → POST {Id: row[idField]} → 提示 → 刷新本列表
+            runRowAction: function (act, row) {
+                var self = this;
+                if (!act || !act.api || !act.api.url) { dyn.showMessage('行动作未配置 api.url', 'error'); return; }
+                var doRun = function () {
+                    var idField = act.api.idField || self.keyField;
+                    var body = {}; body[idField] = row[idField];
+                    var method = (act.api.method || 'POST').toUpperCase();
+                    var req = method === 'GET'
+                        ? DynCall.get(act.api.url, body, { scopeEl: element })
+                        : DynCall.post(act.api.url, body, { scopeEl: element });
+                    req.then(function (res) {
+                        var msg = act.okMsg || (res && res.ViewPath ? ('视图已生成：' + res.ViewPath) : '操作成功');
+                        dyn.showMessage(msg, 'success');
+                        if (act.refresh !== false) self.loadData();
+                    }).catch(function () { });
+                };
+                if (act.confirm) {
+                    window.dyn.confirmAsync(act.confirm).then(function (ok) { if (ok) doRun(); });
+                } else { doRun(); }
             },
             onDelete: function (row) {
                 var self = this;

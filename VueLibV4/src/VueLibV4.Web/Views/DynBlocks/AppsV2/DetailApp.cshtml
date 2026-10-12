@@ -55,7 +55,18 @@
     </div>
     <div class="dyn-blk-detail__errbar" v-if="formError">{{ formError }}</div>
     <div class="dyn-blk-detail__body">
-        <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+        @{
+            // GeneratedViewPath 有值：渲染程序员可手改的生成视图（根节点绑定 :parentmodelinfo="form"）；
+            // 为空才走 ConfigJson → dyn-dynamic-com 动态渲染
+        }
+        @if (!string.IsNullOrWhiteSpace(detailSetting?.GeneratedViewPath))
+        {
+            @await Html.PartialAsync(detailSetting.GeneratedViewPath)
+        }
+        else
+        {
+            <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
+        }
     </div>
     
     <script type="text/plain" tag="dynconfig">

@@ -138,6 +138,7 @@ CREATE TABLE PageSetting (
     ConfigJson      TEXT NULL,
     RenderMode      TEXT NOT NULL DEFAULT 'Front',
     PartialPath     TEXT NULL,
+    GeneratedViewPath TEXT NULL,
     DefaultJson     TEXT NULL,
     SortNo          INTEGER NOT NULL DEFAULT 0,
     IsActive        INTEGER NOT NULL DEFAULT 1,
@@ -148,6 +149,7 @@ CREATE TABLE PageSetting (
         }
         EnsureColumn(conn, "PageSetting", "RenderMode", "TEXT NOT NULL DEFAULT 'Front'");
         EnsureColumn(conn, "PageSetting", "PartialPath", "TEXT NULL");
+        EnsureColumn(conn, "PageSetting", "GeneratedViewPath", "TEXT NULL");
         EnsureColumn(conn, "PageSetting", "DefaultJson", "TEXT NULL");
         // 系统菜单 SysMenu（桌面快捷方式数据源，树形）；旧库幂等建表 + 初始种子
         if (!TableExists(conn, "SysMenu"))

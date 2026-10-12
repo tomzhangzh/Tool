@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS PageSetting (
     ConfigJson      TEXT NULL,
     RenderMode      TEXT NOT NULL DEFAULT 'Front',
     PartialPath     TEXT NULL,
+    GeneratedViewPath TEXT NULL,
     DefaultJson     TEXT NULL,
     SortNo          INTEGER NOT NULL DEFAULT 0,
     IsActive        INTEGER NOT NULL DEFAULT 1,

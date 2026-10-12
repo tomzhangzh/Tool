@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using SqlSugar;
 using VueLibV4.Platform.Models;
 using VueLibV4.Platform.Services;
 using VueLibV4.Web.Core;
+using VueLibV4.Web.Services;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
@@ -17,7 +18,12 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 public class PageSettingController : ControllerBase
 {
     private readonly IPageSettingService _svc;
-    public PageSettingController(IPageSettingService svc) { _svc = svc; }
+    private readonly IViewGenerateService _viewGen;
+    public PageSettingController(IPageSettingService svc, IViewGenerateService viewGen)
+    {
+        _svc = svc;
+        _viewGen = viewGen;
+    }
 
     /// <summary>全部（可按 type=Filter/List/Detail、projectId 过滤）</summary>
     [HttpGet("all")]
@@ -59,5 +65,41 @@ public class PageSettingController : ControllerBase
         if (id <= 0) return ApiResult.Fail("缺少 Id");
         _svc.DeleteById(id);
         return ApiResult.Ok(true, "删除成功");
+    }
+
+    /// <summary>
+    /// 按 ConfigJson 生成可手改的 cshtml 视图，并把虚拟路径回写 PageSetting.GeneratedViewPath；
+    /// 之后该设置的 Front 渲染直接加载该文件。body：{ Id: 110, path: "可选自定义输出路径" }
+    /// </summary>
+    [HttpPost("generateview")]
+    public async Task<ApiResult> GenerateView([FromBody] JObject body)
+    {
+        var id = body["Id"]?.Value<int?>() ?? body["id"]?.Value<int?>() ?? 0;
+        if (id <= 0) return ApiResult.Fail("缺少 Id");
+        var setting = _svc.GetById(id);
+        if (setting == null) return ApiResult.Fail($"PageSetting 不存在：Id={id}");
+
+        var path = body["path"]?.ToString();
+        ViewGenerateResult r;
+        try
+        {
+            r = await _viewGen.GenerateAsync(id, string.IsNullOrWhiteSpace(path) ? null : path);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // 业务前置条件不满足（如 List 型 columns 配置不是组件树）
+            return ApiResult.Fail(ex.Message);
+        }
+
+        setting.GeneratedViewPath = r.ViewPath;
+        _svc.Update(setting);
+
+        return ApiResult.Ok(new
+        {
+            r.ViewPath,
+            r.PhysicalPath,
+            r.TagCount,
+            r.SettingType
+        }, $"视图已生成并切换为文件渲染：{r.ViewPath}（重新生成会覆盖）");
     }
 }

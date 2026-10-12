@@ -384,6 +384,14 @@ public class PageSetting
     [SugarColumn(Length = 200, IsNullable = true)]
     public string? PartialPath { get; set; }
 
+    /// <summary>
+    /// 生成的 Razor 视图虚拟路径（如 ~/ViewsAutoGenerate/Platform/DynTemplate/Filter_110.cshtml）。
+    /// 有值时 Front 渲染直接加载该文件（程序员可自由手改）；为空则按 ConfigJson 动态渲染。
+    /// 由 ViewGenerateService 生成并回写。
+    /// </summary>
+    [SugarColumn(Length = 300, IsNullable = true)]
+    public string? GeneratedViewPath { get; set; }
+
     public string? DefaultJson { get; set; }
 
     public int SortNo { get; set; } = 0;
