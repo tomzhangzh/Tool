@@ -1,0 +1,275 @@
+@using VueLibV4.Web
+@using VueLibV4.Services.Extensions
+@* =============================================================================
+   固定视图：PageSetting #118（DynWebPage 页面实例 - 详情区）
+   宿主：DetailApp（form 为页面实例数据，保存/删除由宿主统一处理，勿改 modelname）。
+   三个页签：基本信息 / 页面组成图（X6 只读小图，可弹大图）/ 参数配置。
+   ============================================================================ *@
+@{
+    var gridBase = new DynNodeViewOptions {
+        comoptions = new { direction = "vertical", size = "small" }.ToJson(),
+        labeloptions = new { required = false, show = false, labelposition = "right", labelwidth = "110px" }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "grid grid-cols-2 gap-x-3 gap-y-2 items-start" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var hidden = new DynNodeViewOptions {
+        comoptions = new { placeholder = "" }.ToJson(),
+        labeloptions = new { label = "", required = false, show = false }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { display = "none" }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var code = new DynNodeViewOptions {
+        comoptions = new { size = "small", placeholder = "请输入编码", clearable = true }.ToJson(),
+        labeloptions = new { label = "编码", required = true, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var name = new DynNodeViewOptions {
+        comoptions = new { size = "small", placeholder = "请输入名称", clearable = true }.ToJson(),
+        labeloptions = new { label = "名称", required = true, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var project = new DynNodeViewOptions {
+        comoptions = new { size = "small", sourceType = "table", table = "DynProject", valueField = "Id", textField = "Name", projectId = 2, placeholder = "请选择", clearable = true }.ToJson(),
+        labeloptions = new { label = "项目", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var tpl = new DynNodeViewOptions {
+        comoptions = new { size = "small", sourceType = "table", table = "DynTemplate", valueField = "Id", textField = "Name", projectId = 2, placeholder = "请选择", clearable = true }.ToJson(),
+        labeloptions = new { label = "壳模板", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var url = new DynNodeViewOptions {
+        comoptions = new { size = "small", placeholder = "请输入链接", clearable = true }.ToJson(),
+        labeloptions = new { label = "链接", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "col-span-2" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var active = new DynNodeViewOptions {
+        comoptions = new { size = "small", activeValue = 1, inactiveValue = 0 }.ToJson(),
+        labeloptions = new { label = "启用", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var resKey = new DynNodeViewOptions {
+        comoptions = new { size = "small", placeholder = "请输入 Resource Key", clearable = true }.ToJson(),
+        labeloptions = new { label = "Resource Key", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var gridParams = new DynNodeViewOptions {
+        comoptions = new { direction = "vertical", size = "small" }.ToJson(),
+        labeloptions = new { required = false, show = false, labelposition = "top", labelwidth = "110px" }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "grid grid-cols-1 gap-y-2 items-start" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var paramsJson = new DynNodeViewOptions {
+        comoptions = new { size = "small", rows = 10, placeholder = "{}", title = "参数配置 配置设计器" }.ToJson(),
+        labeloptions = new { label = "参数配置 ParamsJson", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var extJson = new DynNodeViewOptions {
+        comoptions = new { size = "small", rows = 8, placeholder = "{}", title = "扩展配置 配置设计器" }.ToJson(),
+        labeloptions = new { label = "扩展配置 ExtJson", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+    var extView = new DynNodeViewOptions {
+        comoptions = new { size = "small", rows = 2, placeholder = "请输入扩展视图路径" }.ToJson(),
+        labeloptions = new { label = "扩展视图 ExtViewPath", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
+}
+<el-tabs v-model="fixedViewTab" type="border-card" class="wp-edit-tabs">
+    <el-tab-pane label="基本信息" name="base">
+        <dyn-grid-container :parentmodelinfo="form" comoptions="@gridBase.comoptions" labeloptions="@gridBase.labeloptions" itemoptions="@gridBase.itemoptions" compassthrough="@gridBase.compassthrough">
+            <dyn-el-input modelname="Id" comoptions="@hidden.comoptions" labeloptions="@hidden.labeloptions" itemoptions="@hidden.itemoptions" compassthrough="@hidden.compassthrough"></dyn-el-input>
+            <dyn-el-input modelname="Code" comoptions="@code.comoptions" labeloptions="@code.labeloptions" itemoptions="@code.itemoptions" compassthrough="@code.compassthrough"></dyn-el-input>
+            <dyn-el-input modelname="Name" comoptions="@name.comoptions" labeloptions="@name.labeloptions" itemoptions="@name.itemoptions" compassthrough="@name.compassthrough"></dyn-el-input>
+            <dyn-el-select modelname="ProjectId" comoptions="@project.comoptions" labeloptions="@project.labeloptions" itemoptions="@project.itemoptions" compassthrough="@project.compassthrough"></dyn-el-select>
+            <dyn-el-select modelname="TemplateId" comoptions="@tpl.comoptions" labeloptions="@tpl.labeloptions" itemoptions="@tpl.itemoptions" compassthrough="@tpl.compassthrough"></dyn-el-select>
+            <dyn-el-input modelname="Url" comoptions="@url.comoptions" labeloptions="@url.labeloptions" itemoptions="@url.itemoptions" compassthrough="@url.compassthrough"></dyn-el-input>
+            <dyn-el-switch modelname="IsActive" comoptions="@active.comoptions" labeloptions="@active.labeloptions" itemoptions="@active.itemoptions" compassthrough="@active.compassthrough"></dyn-el-switch>
+            <dyn-el-input modelname="ResourceKey" comoptions="@resKey.comoptions" labeloptions="@resKey.labeloptions" itemoptions="@resKey.itemoptions" compassthrough="@resKey.compassthrough"></dyn-el-input>
+        </dyn-grid-container>
+    </el-tab-pane>
+    <el-tab-pane label="页面组成图" name="graph">
+        <div class="wp-graph-toolbar">
+            <button type="button" class="wp-graph-btn" id="wp-graph-refresh">&#128260; 刷新组成图</button>
+            <button type="button" class="wp-graph-btn wp-graph-btn--primary" id="wp-graph-big">&#128269; 弹出大图</button>
+            <span class="wp-graph-title" id="wp-graph-title"></span>
+            <span class="wp-graph-legend"><b style="color:#c0392b;">&#128274;红框</b>=固定视图&nbsp; <b style="color:#6366f1;">页签</b>&nbsp; <b style="color:#00838f;">&#128279;自定义片段</b>&nbsp; 蓝虚框=子页面</span>
+        </div>
+        <div class="wp-graph-box">
+            <div id="wp-graph-container" :data-wp-id="form.Id"></div>
+            <div class="wp-graph-msg" id="wp-graph-msg"></div>
+        </div>
+    </el-tab-pane>
+    <el-tab-pane label="参数配置" name="params">
+        <dyn-grid-container :parentmodelinfo="form" comoptions="@gridParams.comoptions" labeloptions="@gridParams.labeloptions" itemoptions="@gridParams.itemoptions" compassthrough="@gridParams.compassthrough">
+            <dyn-json-designer modelname="ParamsJson" comoptions="@paramsJson.comoptions" labeloptions="@paramsJson.labeloptions" itemoptions="@paramsJson.itemoptions" compassthrough="@paramsJson.compassthrough"></dyn-json-designer>
+            <dyn-json-designer modelname="ExtJson" comoptions="@extJson.comoptions" labeloptions="@extJson.labeloptions" itemoptions="@extJson.itemoptions" compassthrough="@extJson.compassthrough"></dyn-json-designer>
+            <dyn-el-textarea modelname="ExtViewPath" comoptions="@extView.comoptions" labeloptions="@extView.labeloptions" itemoptions="@extView.itemoptions" compassthrough="@extView.compassthrough"></dyn-el-textarea>
+        </dyn-grid-container>
+    </el-tab-pane>
+</el-tabs>
+
+<style>
+    .wp-edit-tabs { width: 100%; }
+    .wp-edit-tabs .el-tabs__content { padding: 12px; }
+    .wp-graph-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .wp-graph-btn {
+        height: 28px; padding: 0 12px; font-size: 12px; line-height: 1;
+        border: 1px solid #d0d5dd; border-radius: 4px; background: #fff; color: #303133; cursor: pointer;
+    }
+    .wp-graph-btn:hover { border-color: #1e88e5; color: #1e88e5; }
+    .wp-graph-btn--primary { background: #1e88e5; border-color: #1e88e5; color: #fff; }
+    .wp-graph-btn--primary:hover { background: #1976d2; color: #fff; }
+    .wp-graph-title { font-size: 13px; font-weight: 600; color: #0d47a1; }
+    .wp-graph-legend { margin-left: auto; font-size: 12px; color: #909399; }
+    .wp-graph-box { position: relative; background: #fafafa; border: 1px solid #e4e7ed; border-radius: 6px; overflow: hidden; }
+    #wp-graph-container { width: 100%; height: 460px; }
+    .wp-graph-msg {
+        position: absolute; inset: 0; display: none;
+        align-items: center; justify-content: center; text-align: center;
+        background: #fafafa; color: #909399; font-size: 13px; padding: 24px;
+    }
+    .wp-graph-msg.show { display: flex; }
+    .wp-graph-msg.error { color: #f56c6c; }
+</style>
+
+<script src="~/lib/x6.js"></script>
+<script>
+// 页面组成图内嵌小图（只读）：
+//  - tab 容器未激活时 display:none，轮询到可见（offsetParent != null）再初始化 X6，避免 0 宽渲染；
+//  - wpId 从容器 data-wp-id（绑定 form.Id）读取，轮询等待保存出 Id；
+//  - 数据走 /Platform/Page/PageGraphData，与大图 PageGraphDemo 同一套后端 JSON。
+(function () {
+    // 容器由 el-tab-pane 渲染（默认 pane 立即挂载、未激活时 display:none）；
+    // 极端情况下脚本先于容器执行，也先等待容器出现。
+    var bootTries = 0;
+    var bootTimer = setInterval(function () {
+        bootTries++;
+        var c = document.getElementById('wp-graph-container');
+        if (!c && bootTries <= 60) return;
+        clearInterval(bootTimer);
+        if (!c) return;
+        init(c);
+    }, 100);
+
+    function init(container) {
+    var msgBox = document.getElementById('wp-graph-msg');
+    var titleBox = document.getElementById('wp-graph-title');
+
+    var graph = null;
+    var renderedId = null;
+    var stopped = false;
+
+    function showMsg(text, isError) {
+        msgBox.textContent = text || '';
+        msgBox.className = 'wp-graph-msg' + (text ? ' show' : '') + (isError ? ' error' : '');
+    }
+
+    function disposeGraph() {
+        if (graph) { try { graph.dispose(); } catch (e) { } graph = null; }
+    }
+
+    function render(id) {
+        if (!window.X6) { showMsg('X6 图形库未加载，请刷新重试', true); return; }
+        showMsg('正在加载组成图…');
+        fetch('/Platform/Page/PageGraphData?id=' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                var d = res && res.data ? res.data : null;
+                if (!d) { showMsg((res && res.msg) || '加载失败', true); return; }
+                if (d.isV2 === false) {
+                    titleBox.textContent = '';
+                    disposeGraph();
+                    showMsg(d.error || '该页面不是 V2 架构，页面组成图仅支持 V2 页面', true);
+                    renderedId = String(id);
+                    return;
+                }
+                if (!d.nodes || !d.nodes.length) {
+                    disposeGraph();
+                    showMsg('该页面暂无组成数据（未配置壳模板/槽位）');
+                    renderedId = String(id);
+                    return;
+                }
+                showMsg('');
+                titleBox.textContent = d.wpName ? ('当前页面：' + d.wpName + '  (#' + id + ')') : '';
+                disposeGraph();
+                var w = container.clientWidth || 600;
+                graph = new X6.Graph({
+                    container: container,
+                    width: w,
+                    height: 460,
+                    autoResize: true,
+                    grid: { visible: true, type: 'dot', size: 10, args: { color: '#e4e7ed', thickness: 1 } },
+                    panning: { enabled: true, modifiers: 'shift' },
+                    mousewheel: { enabled: true, modifiers: null, minScale: 0.4, maxScale: 2 },
+                    interacting: false,
+                    connecting: { allowBlank: false, allowLoop: false, allowNode: false, allowEdge: false, allowPort: false }
+                });
+                graph.fromJSON({ nodes: d.nodes, edges: d.edges || [] });
+                // 兜底：组框与组内节点的 embed 关系（父先于子已在后端排序）
+                graph.getNodes().forEach(function (n) {
+                    try {
+                        var pid = n.getParentId && n.getParentId();
+                        if (pid) {
+                            var p = graph.getCellById(pid);
+                            if (p) p.addChild(n, { showParentState: false });
+                        }
+                    } catch (e3) { }
+                });
+                try { graph.zoomToFit({ padding: 24, maxScale: 1 }); }
+                catch (e) { try { graph.centerContent(); } catch (e2) { } }
+                renderedId = String(id);
+            })
+            .catch(function (e) {
+                console.error('[wp-graph] 加载失败', e);
+                showMsg('组成图加载失败：' + ((e && e.message) || e), true);
+            });
+    }
+
+    function currentId() {
+        var v = container.getAttribute('data-wp-id');
+        if (v === null || v === '' || v === '0') return null;
+        return v;
+    }
+
+    function tick() {
+        if (stopped) return;
+        var visible = !!container.offsetParent && container.clientWidth > 0;
+        if (!visible) { renderedId = null; return; } // 切走后允许回来重绘（X6 在 display:none 下尺寸会失真）
+        var id = currentId();
+        if (!id) { showMsg('请先在“基本信息”中保存页面实例，保存后此处自动显示组成图'); return; }
+        if (renderedId !== id) render(id);
+    }
+
+    var ticks = 0;
+    var timer = setInterval(function () {
+        ticks++;
+        tick();
+        // 5 分钟后停止轮询，省资源；手动刷新按钮不受影响
+        if (ticks > 600) { clearInterval(timer); stopped = true; }
+    }, 500);
+
+    document.getElementById('wp-graph-refresh').addEventListener('click', function () {
+        var id = currentId();
+        if (!id) { showMsg('请先在“基本信息”中保存页面实例后再查看组成图', true); return; }
+        renderedId = null;
+        render(id);
+    });
+    document.getElementById('wp-graph-big').addEventListener('click', function () {
+        var id = currentId();
+        if (!id) { window.dyn && dyn.showMessage ? dyn.showMessage('请先保存页面实例', 'warning') : alert('请先保存页面实例'); return; }
+        window.open('/Platform/Page/PageGraphDemo?id=' + id, '_blank');
+    });
+    } // end init
+})();
+</script>

@@ -141,13 +141,32 @@
                             var aLabel = Str(act["label"]);
                             var aType = string.IsNullOrEmpty(Str(act["type"])) ? "success" : Str(act["type"]);
                             var aIcon = Str(act["icon"]);
-                            <button type="button" class="el-button el-button--small el-button--plain el-button--@aType"
-                                    @@click.stop="onRowAction(@i, scope.row)">
-                                @if (!string.IsNullOrEmpty(aIcon))
-                                {
-                                    <el-icon style="margin-right:2px"><component :is="'@aIcon'"></component></el-icon>
-                                }@aLabel
-                            </button>
+                            var aClick = Str(act["click"]);
+                            if (!string.IsNullOrEmpty(aClick))
+                            {
+                                // 管道串作为 JS 字符串字面量走 :dyn-click 绑定（V1 已验证写法）：
+                                // 避免静态属性中 {{占位}}/双引号 在 in-DOM 模板编译期被错误解释。
+                                var aClickJs = aClick.Replace("\\", "\\\\").Replace("'", "\\'");
+                                @* 行字段经 v-bind 铺成 data-* 供 {{字段名}} 占位；@click.stop 仅阻止触发行点击 *@
+                                <button type="button" class="el-button el-button--small el-button--plain el-button--@aType"
+                                        :dyn-click="'@aClickJs'" v-bind="rowDataAttrs(scope.row)"
+                                        @@click.stop="noop">
+                                    @if (!string.IsNullOrEmpty(aIcon))
+                                    {
+                                        <el-icon style="margin-right:2px"><component :is="'@aIcon'"></component></el-icon>
+                                    }@aLabel
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="el-button el-button--small el-button--plain el-button--@aType"
+                                        @@click.stop="onRowAction(@i, scope.row)">
+                                    @if (!string.IsNullOrEmpty(aIcon))
+                                    {
+                                        <el-icon style="margin-right:2px"><component :is="'@aIcon'"></component></el-icon>
+                                    }@aLabel
+                                </button>
+                            }
                         }
                     </template>
                 </el-table-column>
@@ -173,7 +192,9 @@
     var dynConfig = {
         data: function () {
             var cols = __columns;
-            // 列表配置支持顶层扩展：{ columns:[...], rowActions:[{label,type?,icon?,confirm?,api:{url,method?,idField?},okMsg?,refresh?}] }
+            // 列表配置支持顶层扩展：{ columns:[...], rowActions:[{label,type?,icon?,click?,confirm?,api?,okMsg?,refresh?}] }
+            // click = ActionHelper 管道字符串（如 OpenWindow 打开 layer 窗），行字段以小写 {{id}} 占位；
+            //       配了 click 走统一动作管道；否则走旧 api 行动作（兼容）。
             var actions = (cols && !Array.isArray(cols) && Array.isArray(cols.rowActions)) ? cols.rowActions : [];
             if (cols && !Array.isArray(cols) && cols.columns) cols = cols.columns;
             return {
@@ -275,6 +296,22 @@
             // 操作列扩展按钮：静态模板传 rowActions 索引
             onRowAction: function (index, row) {
                 this.runRowAction(this.rowActions[index], row);
+            },
+            // 管道按钮自身的 click 已由 dyn-action 文档级委托处理；这里仅吞掉事件防止冒泡触发行点击。
+            // 必须是函数（Vue .stop 修饰符不接受布尔值，否则 _withMods 报错导致整列渲染失败）。
+            noop: function () { },
+            // 行字段 -> data-* 属性映射：ActionHelper 管道按钮（dyn-click）的 {{字段名}} 占位由此取值。
+            // DOM 属性名一律小写，占位符请用小写字段名（如 {{id}}、{{code}}）。
+            rowDataAttrs: function (row) {
+                var attrs = {};
+                if (row) {
+                    Object.keys(row).forEach(function (k) {
+                        var v = row[k];
+                        if (v === null || v === undefined || typeof v === 'object') return;
+                        attrs['data-' + String(k).toLowerCase()] = String(v);
+                    });
+                }
+                return attrs;
             },
             // 通用行扩展动作（列表配置 rowActions）：confirm → POST {Id: row[idField]} → 提示 → 刷新本列表
             runRowAction: function (act, row) {

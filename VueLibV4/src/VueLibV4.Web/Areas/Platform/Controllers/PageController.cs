@@ -600,6 +600,6 @@ public class PageController : Controller
         ViewBag.RoleId = roleId ?? 0;
         ViewBag.Project = project;
         ViewBag.ExecId = execId ?? ("PG-" + Guid.NewGuid().ToString("N")[..10]);
-        return View("~/Views/DynBlocks/AppsV2/PermissionGrid.cshtml");
+        return View("PermissionGrid.cshtml");
     }
 }

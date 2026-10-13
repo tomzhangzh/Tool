@@ -109,6 +109,8 @@
                 form: JSON.parse(JSON.stringify(__defaultJson)),
                 formError: '',
                 loading: false,
+                // 固定视图（GeneratedViewPath）内部如需多页签，统一用该 v-model 状态
+                fixedViewTab: 'base',
                 table: __table,
                 addUrl: __addUrl,
                 editUrl: __editUrl,
@@ -170,9 +172,14 @@
                     DynCall.get('/api/dyndata/getrelations', { table: this.table, id: row[this.keyField], relations: relQuery, project: this.project || '' }, { silent: true })
                         .then(function (fullRow) {
                             if (fullRow) {
+                                // 关系数据是异步到齐的：先收集再整体替换 form 引用，
+                                // 而不是逐字段 self.form[field]=... —— 后者会被字段变更标记(diff marker)
+                                // 当成"用户手动修改"而误亮左上角红三角；整体换引用会触发基线重置。
+                                var patch = {};
                                 Object.keys(self.relations).forEach(function (field) {
-                                    if (fullRow[field] !== undefined) self.form[field] = fullRow[field];
+                                    if (fullRow[field] !== undefined) patch[field] = fullRow[field];
                                 });
+                                if (Object.keys(patch).length) self.form = Object.assign({}, self.form, patch);
                                 // 权限树：回显已有权限（等树加载完再 build）
                                 if (self.showPermTree) {
                                     var perms = Array.isArray(fullRow.Permissions) ? fullRow.Permissions : [];

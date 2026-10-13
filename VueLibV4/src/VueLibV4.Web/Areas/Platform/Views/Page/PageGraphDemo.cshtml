@@ -8,20 +8,22 @@
 <link rel="stylesheet" href="~/lib/element-plus/index.css" />
 <div style="padding:20px; background:#fff; min-height:100vh;">
     <h2 style="margin:0 0 4px;">🧩 页面组成图（V2 架构）</h2>
-    <p style="color:#909399; margin:0 0 16px; font-size:13px;">
-        当前页面：<b>@wpName</b>　
-        <span style="color:#2e7d32; font-weight:bold;">✨ V2 架构（事件总线通信）</span>
-        <span style="color:#909399; margin-left:10px;">· 点击节点在右侧抽屉中编辑该对象（自动回填当前数据）</span>
-    </p>
-
     @if (!string.IsNullOrEmpty(errorMsg))
     {
+        <p style="color:#909399; margin:0 0 16px; font-size:13px;">
+            当前页面：<b>@wpName</b>
+        </p>
         <div style="background:#fef0f0; border:1px solid #fbc4c4; color:#f56c6c; border-radius:8px; padding:14px 18px;">
             ⚠️ @errorMsg
         </div>
     }
     else
     {
+        <p style="color:#909399; margin:0 0 16px; font-size:13px;">
+            当前页面：<b>@wpName</b>　
+            <span style="color:#2e7d32; font-weight:bold;">✨ V2 架构（事件总线通信）</span>
+            <span style="color:#909399; margin-left:10px;">· 点击节点在右侧抽屉中编辑该对象（自动回填当前数据）；Shift+拖动平移，滚轮缩放</span>
+        </p>
         <div style="display:flex; gap:20px; align-items:flex-start;">
             <!-- 图例 -->
             <div style="width:200px; flex-shrink:0;">
@@ -44,8 +46,32 @@
                         非必选槽位（虚线）
                     </div>
                     <div style="margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#f4f0fa; border:2.5px solid #c0392b; border-radius:3px;"></span>
+                        PageSetting 🔒固定视图
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
                         <span style="display:inline-block; width:18px; height:12px; background:#f4f0fa; border:1.5px solid #9b59b6; border-radius:3px;"></span>
-                        PageSetting 页面配置
+                        PageSetting 动态配置
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#eef2ff; border:2px solid #6366f1; border-radius:3px;"></span>
+                        页签（主信息/子表/子页面）
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#f3eefb; border:2px solid #7e57c2; border-radius:3px;"></span>
+                        编辑弹窗（tabDialog）
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#e0f7fa; border:1.5px solid #00838f; border-radius:3px;"></span>
+                        🔗 自定义片段（URL）
+                    </div>
+                    <div style="margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#fcfdff; border:1.5px dashed #1e88e5; border-radius:3px;"></span>
+                        WebPage 子页面组框
+                    </div>
+                    <div style="margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                        <span style="display:inline-block; width:18px; height:12px; background:#e3f2fd; border:1.5px dashed #1e88e5; border-radius:3px;"></span>
+                        ↩ 复用/循环引用折叠
                     </div>
 
                     <div style="font-weight:600; margin-bottom:10px; color:#303133; border-top:1px solid #e4e7ed; padding-top:10px;">事件流图例</div>
@@ -102,8 +128,13 @@
 
     // 点击节点：右侧抽屉打开编辑片段（复用 FilterListCrud 的 layer + fetchPartial + dyn.html 挂载契约）
     function openEditDrawer(d) {
-        if (!d.modalId) { window.dyn && dyn.showMessage ? dyn.showMessage('该节点未配置编辑弹窗', 'warning') : alert('该节点未配置编辑弹窗'); return; }
-        if (!d.rowId) { alert('该积木未注册（DynBlock 表无对应 role 记录），无法编辑'); return; }
+        // 仅实体节点可编辑：wp/tpl/blk/ps；页签/弹窗/自定义片段/缺失节点静默忽略
+        if (!d || ['wp', 'tpl', 'blk', 'ps'].indexOf(d.kind) < 0) return;
+        if (!d.modalId) return;
+        if (!d.rowId) {
+            if (d.kind === 'blk') { window.dyn && dyn.showMessage ? dyn.showMessage('该积木未注册（DynBlock 表无对应 role 记录），无法编辑', 'warning') : alert('该积木未注册，无法编辑'); }
+            return;
+        }
 
         // dyn 运行时不可用（异常场景）→ 退化为浏览器新窗口直开片段
         if (!window.dyn || !dyn.getLayer || !dyn.fetchPartial) {
@@ -178,6 +209,16 @@
 
         try {
             graph.fromJSON(graphJson);
+            // 兜底：保证组框与组内节点的 embed 关系（父先于子已在后端排序，这里再补一次）
+            graph.getNodes().forEach(function (n) {
+                try {
+                    var pid = n.getParentId && n.getParentId();
+                    if (pid) {
+                        var p = graph.getCellById(pid);
+                        if (p) p.addChild(n, { showParentState: false });
+                    }
+                } catch (e2) { }
+            });
             if (graph.centerContent) graph.centerContent();
 
             // ===== 节点点击 → 右侧抽屉编辑该实体（rowId 回填）=====
@@ -187,14 +228,17 @@
 
             // hover：边框加粗 + 控制台打印发/听事件（后续可换成 tooltip）
             graph.on('node:mouseenter', function ({ node }) {
-                node.attr('body/strokeWidth', 3);
+                var oldW = node.attr('body/strokeWidth');
+                node.setData(Object.assign({}, node.getData(), { _oldStrokeWidth: oldW }));
+                node.attr('body/strokeWidth', (Number(oldW) || 1.5) + 1);
                 var d = node.getData();
                 if (d) console.log('[PageGraphDemo] ' + (d.name || ''),
                     d.emits ? '📡 发: ' + d.emits : null,
                     d.listens ? '🎧 听: ' + d.listens : null);
             });
             graph.on('node:mouseleave', function ({ node }) {
-                node.attr('body/strokeWidth', 2);
+                var d = node.getData();
+                node.attr('body/strokeWidth', d && d._oldStrokeWidth != null ? d._oldStrokeWidth : 2);
             });
         } catch (e) {
             console.error('[PageGraphDemo] X6 渲染失败', e);
