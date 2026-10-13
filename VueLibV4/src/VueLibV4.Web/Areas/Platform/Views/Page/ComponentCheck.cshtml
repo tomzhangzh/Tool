@@ -335,6 +335,8 @@ DynLib.ready(function () {
                     probes = self.installProbes();
                     var host = document.getElementById('ck-prophost-' + r.name);
                     if (!host) throw new Error('属性栏容器不存在');
+                    // 本体挂载完成到属性栏阶段之间窗口被关：不再挂载属性栏实例
+                    if (self.cancelled || !host.isConnected) { self.cancelled = true; r.propStatus = 'skip'; if (probes) probes.restore(); return; }
                     var t0 = performance.now();
                     var mountP = window.dyn && dyn.mount
                         ? Promise.resolve(dyn.mount(propCfg, host, parentModel))
@@ -347,6 +349,7 @@ DynLib.ready(function () {
                         r.propCostMs = Math.round(performance.now() - t0);
                     });
                 }).then(function () { return sleep(SETTLE_MS); }).then(function () {
+                    if (self.cancelled) { r.propStatus = 'skip'; return; } // SETTLE 期间关窗：跳过收口，保留已 restore 的探针
                     if (probes) Array.prototype.push.apply(r.propErrors, probes.bucket);
                     if (r.propErrors.length) { r.propStatus = 'fail'; return; }
                     var host = document.getElementById('ck-prophost-' + r.name);
@@ -401,6 +404,9 @@ DynLib.ready(function () {
                             probes = self.installProbes();
                             var host = document.getElementById('ck-host-' + r.name);
                             if (!host) throw new Error('挂载容器不存在');
+                            // checkDefine 的 fetch await 期间窗口可能已被关闭：
+                            // 绝不能向游离 host 挂载（无人卸载的孤儿应用）
+                            if (self.cancelled || !host.isConnected) { self.cancelled = true; throw new Error('__CK_CANCELLED__'); }
                             var t0 = performance.now();
                             var mountP = window.dyn && dyn.mount
                                 ? Promise.resolve(dyn.mount(r.cfg, host, TEST_MODEL))
@@ -430,6 +436,12 @@ DynLib.ready(function () {
                             return { status: status };
                         }, function (e) {
                             if (probes) Array.prototype.push.apply(r.errors, probes.bucket);
+                            // 关窗中止：先恢复 console/事件探针（否则全局 console.error 被永久替换），
+                            // 再向上抛穿透整条质检链，不记为组件失败
+                            if (e && e.message === '__CK_CANCELLED__') {
+                                if (probes) probes.restore();
+                                throw e;
+                            }
                             r.errors.push((e && e.message) || String(e));
                             return { status: 'fail' };
                         }).then(function (out) {
@@ -458,6 +470,7 @@ DynLib.ready(function () {
                 var self = this;
                 if (this.running) return;
                 this.running = true;
+                this.cancelled = false; // 新一轮质检：清除上一轮可能的关窗中止标记
                 this.doneCount = 0;
                 // 重跑：清掉旧挂载的 DOM 与子应用（本体 + 属性栏两个 host），并把配置恢复到出厂基线
                 this.results.forEach(function (r) {

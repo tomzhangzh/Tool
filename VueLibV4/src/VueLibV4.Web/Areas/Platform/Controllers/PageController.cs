@@ -164,6 +164,7 @@ public class PageController : Controller
             || string.Equals(template.Code, "detail-modal-v2", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "filter-list-tabbed", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tab-host", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(template.Code, "tab-container", StringComparison.OrdinalIgnoreCase)
             || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
         {
             return View(viewPath, page);
@@ -287,6 +288,7 @@ public class PageController : Controller
         var blocksObj = cfgJson["blocks"] as JObject;
         var slot = blocksObj?[blockName] as JObject ?? cfgJson[blockName] as JObject;
         if (slot != null)
+        {
             foreach (var prop in slot.Properties())
             {
                 var v = prop.Value;
@@ -300,6 +302,25 @@ public class PageController : Controller
                     _ => v?.ToString()
                 };
             }
+            // 展开 slot.model 子对象：block 专属参数（Relations/Mode/IsMaster 等）平铺到 merged，
+            // 不覆盖 slot 顶层已有的 settingId 等键。
+            var slotModel = slot["model"] as JObject;
+            if (slotModel != null)
+                foreach (var prop in slotModel.Properties())
+                {
+                    if (merged.ContainsKey(prop.Name)) continue;
+                    var v = prop.Value;
+                    merged[prop.Name] = v?.Type switch
+                    {
+                        JTokenType.Integer => (object)v.Value<long>(),
+                        JTokenType.Float => v.Value<double>(),
+                        JTokenType.Boolean => v.Value<bool>(),
+                        JTokenType.Object or JTokenType.Array => v.ToString(Newtonsoft.Json.Formatting.None),
+                        JTokenType.Null => null,
+                        _ => v?.ToString()
+                    };
+                }
+        }
 
         // 4. 从 DynWebPage.ProjectId 兜底 Project（provide 里没传就用页面本身的 ProjectId）
         if (page != null && page.ProjectId.HasValue && page.ProjectId.Value > 0
@@ -570,5 +591,15 @@ public class PageController : Controller
         public string? DefaultJson { get; set; }
         public string? RenderMode { get; set; }
         public string? PartialPath { get; set; }
+    }
+
+    /// <summary>权限配置 Grid（el-table tree）：按 roleId 加载资源树 + 已有权限回显</summary>
+    [HttpGet("/Platform/Page/PermissionGrid")]
+    public IActionResult PermissionGrid(long? roleId = null, string project = "__platform__", string execId = null)
+    {
+        ViewBag.RoleId = roleId ?? 0;
+        ViewBag.Project = project;
+        ViewBag.ExecId = execId ?? ("PG-" + Guid.NewGuid().ToString("N")[..10]);
+        return View("~/Views/DynBlocks/AppsV2/PermissionGrid.cshtml");
     }
 }

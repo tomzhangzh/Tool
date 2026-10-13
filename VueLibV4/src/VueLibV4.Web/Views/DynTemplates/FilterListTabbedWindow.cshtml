@@ -71,8 +71,11 @@
 @section Scripts {
 <script>
 DynLib.ready(function () {
-    var ROOT_ID = '@execId';
+    var ROOT_ID = @Json.Serialize(execId);
     var WEBPAGE_ID = @(Model.Id);
+    // 页面名走 JSON 序列化输出：含引号/换行不破脚本；且为回调内局部变量，
+    // 桌面多内嵌窗口并存时不会互相覆盖（原 window.__PAGE_TITLE 会串台）
+    var PAGE_TITLE = @Json.Serialize(title);
     var KEY_FIELD = '@keyField';
     var PROJECT = '@project';
     var TABLE = '@tableName';
@@ -144,7 +147,7 @@ DynLib.ready(function () {
 
         dyn.getLayer().then(function (layer) {
             dialogIndex = layer.open({
-                type: 1, title: rowId ? ('编辑模板 #' + rowId) : '新增模板',
+                type: 1, title: rowId ? '编辑' + PAGE_TITLE + ' #' + rowId : '新增' + PAGE_TITLE,
                 shadeClose: false, area: ['760px', '82%'], maxmin: true,
                 content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
                 success: function () {

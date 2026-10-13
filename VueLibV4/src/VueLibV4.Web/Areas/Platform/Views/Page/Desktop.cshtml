@@ -1079,7 +1079,7 @@
                         if (w.useIframe === false) {
                             var el = document.querySelector('[data-inline-frame="' + id + '"]');
                             if (el) {
-                                el.__dynClosed = true; // 页面自有异步链可据此中止（见质检页 runAll）
+                                el.__dynClosed = true; // 片段页面可据此中止自身异步链（质检页据此停止质检）
                                 try { if (typeof dyn !== 'undefined' && typeof dyn.unmount === 'function') dyn.unmount(el); }
                                 catch (e) { console.error('[Desktop] 窗口卸载异常', e); }
                                 try { el.innerHTML = ''; } catch (e) { }

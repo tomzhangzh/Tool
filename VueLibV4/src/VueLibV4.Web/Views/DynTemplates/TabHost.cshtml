@@ -17,6 +17,8 @@
     var childFk = CP("foreignKey", "TemplateId");
     var childListPsId = Convert.ToInt32(child["listSettingId"] ?? 0);
     var childDetailPsId = Convert.ToInt32(child["detailSettingId"] ?? 0);
+    var childUrl = ps["childUrl"]?.ToString() ?? "";
+    var childTabTitle = ps["childTabTitle"]?.ToString() ?? "关联积木";
     var execId = Context.Request.Query["execId"].ToString();
     if (string.IsNullOrEmpty(execId)) execId = "TH-" + Guid.NewGuid().ToString("N");
     var rowId = Context.Request.Query["rowId"].ToString();
@@ -26,7 +28,7 @@
 <div id="@execId" class="tabhost" data-exec-id="@execId">
     <div class="tabhost__head">
         <div class="tabhost__tab is-active" data-pane="master">基本信息</div>
-        <div class="tabhost__tab tabhost__tab--child" data-pane="child">关联积木</div>
+        <div class="tabhost__tab tabhost__tab--child" data-pane="child">@childTabTitle</div>
     </div>
     <div class="tabhost__pane" data-pane-host="master" id="@masterId">
         <div class="dyn-loading">加载主表…</div>
@@ -63,6 +65,8 @@ DynLib.ready(function () {
     var MASTER_PSID = @masterDetailPsId;
     var CHILD_LIST_PSID = @childListPsId;
     var CHILD_DETAIL_PSID = @childDetailPsId;
+    var CHILD_URL = @Json.Serialize(childUrl);
+    var CHILD_TAB_TITLE = @Json.Serialize(childTabTitle);
 
     var rootEl = document.getElementById(ROOT);
     var childTabBtn = null;
@@ -202,25 +206,53 @@ DynLib.ready(function () {
         setChildTabDisabled(true, '主表加载失败，无法加载关联积木。');
     });
 
-    // ---- 加载子表 list（懒加载：首次点 Tab 才加载） ----
+    // ---- 加载子表（懒加载：首次点 Tab 才加载） ----
     function loadChildList() {
         if (!MASTER_ROW_ID) {
-            childPane.innerHTML = '<div class="tabhost__hint">请先在「基本信息」保存主记录，再配置关联积木。</div>';
+            childPane.innerHTML = '<div class="tabhost__hint">请先在「基本信息」保存主记录，再配置' + CHILD_TAB_TITLE + '。</div>';
             return;
         }
         if (childLoaded) {
-            var f = {}; f[CHILD_FK] = { op: 'eq', value: Number(MASTER_ROW_ID) };
-            window.DynEventBus.emit(CHILD_EXEC, 'query', f);
+            if (CHILD_URL) {
+                // 自定义URL模式：重新加载页面片段
+                var url = resolveChildUrl();
+                dyn.fetchPartial(url, {}, 'GET').then(function (html) {
+                    return dyn.html(childPane, html, true);
+                }).catch(function (err) {
+                    childPane.innerHTML = '<div class="tabhost__error">加载失败：' + ((err && err.message) || err) + '</div>';
+                });
+            } else {
+                var f = {}; f[CHILD_FK] = { op: 'eq', value: Number(MASTER_ROW_ID) };
+                window.DynEventBus.emit(CHILD_EXEC, 'query', f);
+            }
             return;
         }
         childLoaded = true;
-        childPane.innerHTML = '<div class="dyn-loading">加载子表…</div>';
-        loadBlockPost('list', childPane, CHILD_EXEC, CHILD_LIST_PSID, null, CHILD_TABLE).then(function () {
-            var f = {}; f[CHILD_FK] = { op: 'eq', value: Number(MASTER_ROW_ID) };
-            window.DynEventBus.emit(CHILD_EXEC, 'query', f);
-        }).catch(function (err) {
-            childPane.innerHTML = '<div class="tabhost__error">子表加载失败：' + ((err && err.message) || err) + '</div>';
-        });
+        childPane.innerHTML = '<div class="dyn-loading">加载中…</div>';
+
+        if (CHILD_URL) {
+            // 自定义URL模式：直接 fetchPartial 加载外部页面
+            var url = resolveChildUrl();
+            dyn.fetchPartial(url, {}, 'GET').then(function (html) {
+                return dyn.html(childPane, html, true);
+            }).catch(function (err) {
+                childPane.innerHTML = '<div class="tabhost__error">加载失败：' + ((err && err.message) || err) + '</div>';
+            });
+        } else {
+            // 原生子表列表模式
+            loadBlockPost('list', childPane, CHILD_EXEC, CHILD_LIST_PSID, null, CHILD_TABLE).then(function () {
+                var f = {}; f[CHILD_FK] = { op: 'eq', value: Number(MASTER_ROW_ID) };
+                window.DynEventBus.emit(CHILD_EXEC, 'query', f);
+            }).catch(function (err) {
+                childPane.innerHTML = '<div class="tabhost__error">子表加载失败：' + ((err && err.message) || err) + '</div>';
+            });
+        }
+    }
+
+    function resolveChildUrl() {
+        var url = CHILD_URL;
+        url = url.replace(/\{rowId\}/g, MASTER_ROW_ID).replace(/\{execId\}/g, CHILD_EXEC);
+        return url;
     }
 
     // ---- 主表保存成功后：记录新主键并解锁子 Tab；已加载过子表则刷新 ----

@@ -1,0 +1,219 @@
+@{
+    Layout = null;
+    var roleId = ViewBag.RoleId as long? ?? 0L;
+    var project = ViewBag.Project as string ?? "__platform__";
+    var execId = ViewBag.ExecId as string ?? "PG-" + Guid.NewGuid().ToString("N")[..10];
+}
+<div id="@execId" class="perm-grid" data-exec-id="@execId" dyn-init="createApp" v-cloak>
+    <div class="perm-grid__toolbar">
+        <span class="perm-grid__title">权限配置</span>
+        <span class="perm-grid__count" v-if="treeData.length">共 {{ checkedCount }} 项已授权</span>
+        <div class="perm-grid__actions">
+            <el-button size="small" @@click="expandAll">展开</el-button>
+            <el-button size="small" @@click="collapseAll">折叠</el-button>
+            <el-button size="small" type="primary" :loading="saving" @@click="save">保存权限</el-button>
+        </div>
+    </div>
+    <el-table
+        ref="table"
+        :data="treeData"
+        row-key="Id"
+        border
+        default-expand-all
+        :tree-props="{children: 'children'}"
+        style="width: 100%;"
+        size="small">
+        <el-table-column prop="Name" label="资源名称" min-width="200"></el-table-column>
+        <el-table-column prop="Key" label="标识" min-width="160">
+            <template #default="s">
+                <span style="color:#909399;font-size:12px;">{{ s.row.Key }}</span>
+            </template>
+        </el-table-column>
+        <el-table-column prop="Type" label="类型" width="80">
+            <template #default="s">
+                <el-tag size="small" :type="typeTag(s.row.Type)">{{ typeLabel(s.row.Type) }}</el-tag>
+            </template>
+        </el-table-column>
+        <el-table-column label="读" width="50" align="center">
+            <template #default="s">
+                <el-checkbox v-model="s.row.Read" @@change="onCheckChange(s.row)"></el-checkbox>
+            </template>
+        </el-table-column>
+        <el-table-column label="改" width="50" align="center">
+            <template #default="s">
+                <el-checkbox v-model="s.row.Edit" @@change="onCheckChange(s.row)"></el-checkbox>
+            </template>
+        </el-table-column>
+        <el-table-column label="删" width="50" align="center">
+            <template #default="s">
+                <el-checkbox v-model="s.row.Delete" @@change="onCheckChange(s.row)"></el-checkbox>
+            </template>
+        </el-table-column>
+    </el-table>
+    <script type="text/plain" tag="dynconfig">
+var __roleId = @roleId;
+var __project = @Json.Serialize(project);
+var __execId = @Json.Serialize(execId);
+
+window.DynEventBus.registerRoot(document.getElementById(__execId));
+
+var dynConfig = {
+    data: function () {
+        return {
+            roleId: __roleId,
+            project: __project,
+            treeData: [],
+            saving: false,
+            checkedIds: {}
+        };
+    },
+    computed: {
+        checkedCount: function () {
+            return Object.keys(this.checkedIds).length;
+        }
+    },
+    mounted: function () {
+        this.loadAll();
+    },
+    methods: {
+        typeLabel: function (t) {
+            return ({20:'模块',30:'菜单',40:'页面',50:'操作',60:'字段'})[t] || t;
+        },
+        typeTag: function (t) {
+            return ({20:'',30:'success',40:'warning',50:'danger',60:'info'})[t] || 'info';
+        },
+        expandAll: function () {
+            var self = this;
+            this.$nextTick(function () {
+                if (self.$refs.table && self.$refs.table.store && self.$refs.table.store.nodesMap) {
+                    Object.values(self.$refs.table.store.nodesMap).forEach(function (n) { n.expanded = true; });
+                }
+            });
+        },
+        collapseAll: function () {
+            var self = this;
+            this.$nextTick(function () {
+                if (self.$refs.table && self.$refs.table.store && self.$refs.table.store.nodesMap) {
+                    Object.values(self.$refs.table.store.nodesMap).forEach(function (n) { n.expanded = false; });
+                }
+            });
+        },
+        loadAll: function () {
+            var self = this;
+            // /api/dyndata/search 只接 POST；参数是 size（不是 pageSize）；信封拆包后分页数据在 res.rows
+            DynCall.post('/api/dyndata/search', { table: 'SysResource', project: self.project, page: 1, size: 500 }, { silent: true }).then(function (res) {
+                var rows = (res && res.rows) || (res && res.data && res.data.rows) || [];
+                self.treeData = self.buildTree(rows);
+                if (self.roleId > 0) {
+                    return self.loadPerms();
+                }
+            }).then(function () {
+                self.refreshChecked();
+            }).catch(function (e) {
+                console.error('[PermissionGrid] load failed', e);
+            });
+        },
+        buildTree: function (rows) {
+            var map = {}, roots = [];
+            rows.forEach(function (r) {
+                r.Read = false; r.Edit = false; r.Delete = false;
+                map[r.Id] = r; r.children = [];
+            });
+            rows.forEach(function (r) {
+                if (r.ParentId && map[r.ParentId]) map[r.ParentId].children.push(r);
+                else roots.push(r);
+            });
+            return roots;
+        },
+        loadPerms: function () {
+            var self = this;
+            var rel = JSON.stringify({Permissions:{table:'SysResourcePermission',leftField:'RoleId',rightField:'ResourceId',extraFields:['Read','Edit','Delete']}});
+            return DynCall.get('/api/dyndata/getrelations', {
+                table: 'SysRole', id: self.roleId, relations: rel, project: self.project
+            }, { silent: true }).then(function (res) {
+                var perms = (res && res.Permissions) || [];
+                self.permMap = {};
+                perms.forEach(function (p) {
+                    self.permMap[p.ResourceId] = p;
+                });
+                function apply(nodes) {
+                    nodes.forEach(function (n) {
+                        var p = self.permMap[n.Id];
+                        if (p) { n.Read = !!p.Read; n.Edit = !!p.Edit; n.Delete = !!p.Delete; }
+                        if (n.children && n.children.length) apply(n.children);
+                    });
+                }
+                apply(self.treeData);
+            });
+        },
+        onCheckChange: function (row) {
+            var self = this;
+            function walk(nodes) {
+                nodes.forEach(function (n) {
+                    if (n.Read || n.Edit || n.Delete) self.checkedIds[n.Id] = true;
+                    else delete self.checkedIds[n.Id];
+                    if (n.children && n.children.length) walk(n.children);
+                });
+            }
+            walk(this.treeData);
+        },
+        refreshChecked: function () {
+            this.checkedIds = {};
+            var self = this;
+            function walk(nodes) {
+                nodes.forEach(function (n) {
+                    if (n.Read || n.Edit || n.Delete) self.checkedIds[n.Id] = true;
+                    if (n.children && n.children.length) walk(n.children);
+                });
+            }
+            walk(this.treeData);
+        },
+        save: function () {
+            var self = this;
+            if (self.roleId <= 0) { dyn.showMessage('请先保存主记录再配置权限', 'warning'); return; }
+            var list = [];
+            function walk(nodes) {
+                nodes.forEach(function (n) {
+                    if (n.Read || n.Edit || n.Delete) {
+                        list.push({ ResourceId: n.Id, Read: !!n.Read, Edit: !!n.Edit, Delete: !!n.Delete });
+                    }
+                    if (n.children && n.children.length) walk(n.children);
+                });
+            }
+            walk(self.treeData);
+
+            self.saving = true;
+            // 契约：data 放主表字段 + 关系数组（Permissions）；relations 只放每个关系字段的配置。
+            // 只提交 Id + Permissions 时，服务端跳过主表更新，仅重建中间表。
+            DynCall.post('/api/dyndata/saverelations', {
+                table: 'SysRole',
+                data: { Id: self.roleId, Permissions: list },
+                relations: {
+                    Permissions: {
+                        table: 'SysResourcePermission',
+                        leftField: 'RoleId',
+                        rightField: 'ResourceId',
+                        extraFields: ['Read', 'Edit', 'Delete']
+                    }
+                },
+                project: self.project
+            }, { silent: true }).then(function (res) {
+                self.saving = false;
+                dyn.showMessage('权限已保存', 'success');
+            }).catch(function (e) {
+                self.saving = false;
+                dyn.showMessage('保存失败：' + ((e && e.message) || e), 'error');
+            });
+        }
+    }
+};
+    </script>
+</div>
+
+<style>
+    .perm-grid { padding: 4px 0; }
+    .perm-grid__toolbar { display: flex; align-items: center; margin-bottom: 10px; gap: 12px; }
+    .perm-grid__title { font-weight: 600; font-size: 14px; }
+    .perm-grid__count { color: #67c23a; font-size: 12px; }
+    .perm-grid__actions { margin-left: auto; display: flex; gap: 6px; }
+</style>

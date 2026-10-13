@@ -24,6 +24,8 @@
     var addUrl = S("AddUrl", DynPageViewHelper.SaveUrl);
     var editUrl = S("EditUrl", DynPageViewHelper.SaveUrl);
     var deleteUrl = S("DeleteUrl", DynPageViewHelper.DeleteUrl);
+    // 多对多关系配置 JSON：{"RoleIds":{"table":"SysUserRole","leftField":"UserName","leftValueField":"UserName","rightField":"RoleId"}}
+    var relationsJson = S("Relations");
 
     var detailSetting = detailPsId > 0 ? pageSettingService.GetById(detailPsId) : null;
 }
@@ -68,6 +70,23 @@
             <dyn-dynamic-com v-if="detailCfg" :jsonconfig="detailCfg" :parentmodelinfo="form"></dyn-dynamic-com>
         }
     </div>
+    @* 权限树区域：当 Relations 含 Permissions 时显示 *@
+    <div class="dyn-blk-detail__perm" v-if="showPermTree">
+        <div class="dyn-blk-detail__perm-title">权限配置</div>
+        <div class="dyn-blk-detail__perm-tree">
+            <el-tree ref="permTree" :data="permTreeData" default-expand-all node-key="Id"
+                     :props="{ children: 'children', label: 'Name' }">
+                <template #default="{ data }">
+                    <span class="perm-node">
+                        <span>{{ data.Name }}</span>
+                        <el-checkbox v-model="permMap[data.Id].Read" size="small" label="读" @@change="onPermChange"></el-checkbox>
+                        <el-checkbox v-model="permMap[data.Id].Edit" size="small" label="改" @@change="onPermChange"></el-checkbox>
+                        <el-checkbox v-model="permMap[data.Id].Delete" size="small" label="删" @@change="onPermChange"></el-checkbox>
+                    </span>
+                </template>
+            </el-tree>
+        </div>
+    </div>
     
     <script type="text/plain" tag="dynconfig">
     var __execId = '@execId';
@@ -80,6 +99,7 @@
     var __addUrl = '@(string.IsNullOrEmpty(addUrl) ? DynPageViewHelper.SaveUrl : addUrl)';
     var __editUrl = '@(string.IsNullOrEmpty(editUrl) ? DynPageViewHelper.SaveUrl : editUrl)';
     var __deleteUrl = '@(string.IsNullOrEmpty(deleteUrl) ? DynPageViewHelper.DeleteUrl : deleteUrl)';
+    var __relations = @Html.Raw(string.IsNullOrWhiteSpace(relationsJson) ? "null" : relationsJson);
     var __createHandler = null, __updateHandler = null;
 
     var dynConfig = {
@@ -95,8 +115,19 @@
                 deleteUrl: __deleteUrl,
                 keyField: __keyField,
                 project: __project,
-                initForm: __defaultJson
+                relations: __relations,
+                initForm: __defaultJson,
+                // 权限树
+                showPermTree: !!(__relations && __relations.Permissions),
+                permTreeData: [],
+                permMap: {}
             };
+        },
+        watch: {
+            permMap: {
+                deep: true,
+                handler: function () { this._syncFormPerms(); }
+            }
         },
         computed: {
             canDelete: function () {
@@ -132,6 +163,27 @@
             editForm: function (row) {
                 this.form = Object.assign({}, JSON.parse(JSON.stringify(this.initForm)), row || {});
                 this.formError = '';
+                // 有 relations 配置：加载主记录后回查中间表，填充 relation 数组字段
+                if (this.relations && Object.keys(this.relations).length > 0 && row && row[this.keyField]) {
+                    var self = this;
+                    var relQuery = encodeURIComponent(JSON.stringify(this.relations));
+                    DynCall.get('/api/dyndata/getrelations', { table: this.table, id: row[this.keyField], relations: relQuery, project: this.project || '' }, { silent: true })
+                        .then(function (fullRow) {
+                            if (fullRow) {
+                                Object.keys(self.relations).forEach(function (field) {
+                                    if (fullRow[field] !== undefined) self.form[field] = fullRow[field];
+                                });
+                                // 权限树：回显已有权限（等树加载完再 build）
+                                if (self.showPermTree) {
+                                    var perms = Array.isArray(fullRow.Permissions) ? fullRow.Permissions : [];
+                                    var applyPerms = function () { self._buildPermMap(perms); };
+                                    if (self.permTreeData && self.permTreeData.length) applyPerms();
+                                    else self._pendingPerms = perms;
+                                }
+                            }
+                        })
+                        .catch(function (e) { console.warn('[DetailApp] 加载关系失败', e); });
+                }
             },
             onSave: function () {
                 var self = this;
@@ -144,8 +196,16 @@
                 this.loading = true;
                 var kf = this.keyField;
                 var isEdit = this.form[kf] !== null && this.form[kf] !== undefined && this.form[kf] !== '';
-                var req = DynBlocks.saveRequest(isEdit ? this.editUrl : this.addUrl, this.table, this.form, this.project);
-                DynCall.post(req.url, req.body, { scopeEl: element })
+                // 有 relations 配置时走 saverelations 端点（事务保存主表+中间表）
+                var useRelations = this.relations && Object.keys(this.relations).length > 0;
+                var req, savePromise;
+                if (useRelations) {
+                    req = { url: '/api/dyndata/saverelations', body: { table: this.table, data: this.form, relations: this.relations, project: this.project || undefined } };
+                } else {
+                    req = DynBlocks.saveRequest(isEdit ? this.editUrl : this.addUrl, this.table, this.form, this.project);
+                }
+                savePromise = DynCall.post(req.url, req.body, { scopeEl: element });
+                savePromise
                     .then(function (res) {
                         self.loading = false;
                         self.formError = '';
@@ -207,10 +267,68 @@
                 this.form = cloned;
                 this.formError = '';
                 dyn.showMessage('已复制为新记录，修改后点击保存即可新增', 'success');
+            },
+            // ===== 权限树辅助方法 =====
+            _buildPermMap: function (permList) {
+                var self = this;
+                var map = {};
+                // 先把所有树节点都初始化为 false
+                this._walkTree(this.permTreeData, function (node) {
+                    map[node.Id] = { Read: false, Edit: false, Delete: false };
+                });
+                // 再填充已有权限
+                (permList || []).forEach(function (p) {
+                    if (map[p.ResourceId]) {
+                        map[p.ResourceId].Read = !!p.Read;
+                        map[p.ResourceId].Edit = !!p.Edit;
+                        map[p.ResourceId].Delete = !!p.Delete;
+                    }
+                });
+                this.permMap = map;
+            },
+            _walkTree: function (nodes, fn) {
+                (nodes || []).forEach(function (n) { fn(n); if (n.children) this._walkTree(n.children, fn); }, this);
+            },
+            _syncFormPerms: function () {
+                var self = this;
+                var arr = [];
+                Object.keys(this.permMap).forEach(function (rid) {
+                    var p = self.permMap[rid];
+                    if (p.Read || p.Edit || p.Delete) {
+                        arr.push({ ResourceId: Number(rid), Read: p.Read, Edit: p.Edit, Delete: p.Delete });
+                    }
+                });
+                this.form.Permissions = arr;
+            },
+            onPermChange: function () {
+                this._syncFormPerms();
+            },
+            loadPermTree: function () {
+                var self = this;
+                DynCall.post('/api/dyndata/search', { table: 'SysResource', page: 1, size: 100000, sort: { field: 'SortNo', order: 'asc' }, project: this.project || '' }, { silent: true })
+                    .then(function (res) {
+                        var rows = (res && res.rows) || (res && res.data && res.data.rows) || [];
+                        self.permTreeData = self._buildTree(rows, 'Id', 'ParentId');
+                        var pending = self._pendingPerms || (Array.isArray(self.form.Permissions) ? self.form.Permissions : []);
+                        self._pendingPerms = null;
+                        self._buildPermMap(pending);
+                    })
+                    .catch(function (e) { console.warn('[DetailApp] 加载权限树失败', e); });
+            },
+            _buildTree: function (rows, keyFk, parentFk) {
+                var map = {}, roots = [];
+                rows.forEach(function (r) { r.children = []; map[r[keyFk]] = r; });
+                rows.forEach(function (r) {
+                    if (r[parentFk] && map[r[parentFk]]) map[r[parentFk]].children.push(r);
+                    else roots.push(r);
+                });
+                return roots;
             }
         },
         mounted: function () {
             var self = this;
+            // 权限树加载
+            if (this.showPermTree) this.loadPermTree();
             if (!window.DynEventBus || !__execId) return;
             __createHandler = function (p) { self.newForm((p && p.preFill) || {}); };
             __updateHandler = function (p) { self.editForm((p && p.row) || {}); };
@@ -268,4 +386,9 @@
     .dyn-actionbar__btn--danger:hover:not(:disabled) { background: rgba(245,108,108,.12); border-color: var(--site-danger); color: var(--site-danger); }
     .dyn-actionbar__btn--text { border-color: transparent; background: transparent; color: var(--site-text-muted); }
     .dyn-actionbar__btn--text:hover:not(:disabled) { background: var(--site-bg-hover); color: var(--site-text); }
+    .dyn-blk-detail__perm { margin-top: 14px; border-top: 1px solid var(--site-border); padding-top: 12px; }
+    .dyn-blk-detail__perm-title { font-size: 13px; font-weight: 600; color: var(--site-text); margin-bottom: 8px; }
+    .dyn-blk-detail__perm-tree { max-height: 360px; overflow-y: auto; border: 1px solid var(--site-border); border-radius: var(--site-radius-sm); padding: 8px; }
+    .perm-node { display: flex; align-items: center; gap: 12px; flex: 1; }
+    .perm-node .el-checkbox { margin-right: 0; }
 </style>

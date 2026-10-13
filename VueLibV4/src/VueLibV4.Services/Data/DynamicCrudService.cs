@@ -308,6 +308,346 @@ public class DynamicCrudService
         return db.Ado.ExecuteCommand($"DELETE FROM {QuoteIdent(table)} WHERE {where}", pars.ToArray());
     }
 
+    // ---------------- 多对多关系 ----------------
+
+    /// <summary>
+    /// 多对多关系配置（前端提交，描述一个字段如何对应中间表）。
+    /// 简单例：SysUser.RoleIds → SysUserRole(UserName=当前UserName, RoleId∈[1,2,3])
+    /// 带额外列例：SysRole.Permissions → SysResourcePermission(RoleId,ResourceId,Read,Edit,Delete)
+    ///   此时 data[fieldName] 为对象数组 [{ResourceId:1,Read:true,Edit:false,Delete:false}]，
+    ///   ExtraFields=["Read","Edit","Delete"] 指定额外写入的列。
+    /// </summary>
+    public class RelationConfig
+    {
+        public string Table { get; set; }          // 中间表名
+        public string LeftField { get; set; }      // 中间表左列（如 UserName / RoleId）
+        public string LeftValueField { get; set; } // 主表取值列（如 UserName），缺省用主键
+        public string RightField { get; set; }     // 中间表右列（如 RoleId / ResourceId）
+        /// <summary>额外列名数组（如 Read/Edit/Delete）；为空时右值数组是纯 id 列表，非空时右值是对象数组</summary>
+        public string[] ExtraFields { get; set; }
+    }
+
+    /// <summary>
+    /// 保存主表 + 多对多中间表。在一个事务内：
+    /// 1. Insert/Update 主表记录（仅提交主键、无其它列时视为"只维护关系"，跳过主表写入）
+    /// 2. 对每个 relation 字段做"差量同步"（<see cref="SyncRelation"/>）：
+    ///    提交集合视为目标完整状态，只删被移除的、只插新增的、只更新额外列变化的，
+    ///    未变化的中间行原样保留（自增 Id / 审计列 / 触发器引用不被破坏）。
+    /// 任一步失败整体回滚，不会出现主表已存、中间表半成的脏状态。
+    /// </summary>
+    public object SaveWithRelations(SqlSugarClient db, string table, JObject data, JObject relations)
+    {
+        EnsureTable(db, table);
+        var pks = PrimaryKeys(db, table);
+        if (pks.Count == 0) throw new Exception($"表 {table} 没有主键，无法保存关系");
+
+        // 分离 relation 字段（不写主表列）。配置值必须是对象：
+        // 前端误把数组直接塞进 relations 时静默跳过该字段，而不是 ToObject 抛 500。
+        var mainData = (JObject)data.DeepClone();
+        var relList = new List<(string fieldName, RelationConfig cfg)>();
+        if (relations != null)
+        {
+            foreach (var prop in relations.Properties())
+            {
+                var cfgObj = prop.Value as JObject;
+                if (cfgObj == null) continue;
+                RelationConfig cfg;
+                try { cfg = cfgObj.ToObject<RelationConfig>(); }
+                catch { continue; }
+                if (cfg == null || string.IsNullOrWhiteSpace(cfg.Table)
+                    || string.IsNullOrWhiteSpace(cfg.LeftField) || string.IsNullOrWhiteSpace(cfg.RightField)) continue;
+                relList.Add((prop.Name, cfg));
+                mainData.Remove(prop.Name); // relation 字段不是主表列，从主表数据剔除
+            }
+        }
+
+        var hasPk = pks.All(p => mainData[p] != null && mainData[p].Type != JTokenType.Null && IsUsablePk(mainData[p]));
+        // 除主键外是否还有要写主表的列：没有就是"仅维护关系"（如角色权限页只提交 {Id}+Permissions）
+        var hasMainColumns = mainData.Properties().Any(p => !pks.Contains(p.Name));
+
+        object mainResult = hasPk ? mainData[pks[0]]?.Value<object>() : null;
+
+        db.Ado.BeginTran();
+        try
+        {
+            if (hasPk)
+            {
+                if (hasMainColumns) mainResult = Update(db, table, mainData);
+                // else：只更新关系，主表不动
+            }
+            else
+            {
+                if (!hasMainColumns) throw new Exception("新增数据为空：既无主键也无任何字段");
+                mainResult = Insert(db, table, mainData);
+            }
+
+            // 左值解析：更新时主键/业务键本就在提交数据里，直接用、省一次回查；
+            // 提交数据里没有（典型：insert 后的自增 Id）才回查主记录，整单最多查一次。
+            JObject mainRow = null;
+            JObject GetMainRow()
+            {
+                if (mainRow != null) return mainRow;
+                var kv = hasPk ? mainData[pks[0]]?.ToString() : mainResult?.ToString();
+                mainRow = First(db, table, $"{QuoteIdent(pks[0])}=@v", new { v = kv });
+                if (mainRow == null) throw new Exception("主表记录保存后回查失败，已中止关系写入");
+                return mainRow;
+            }
+            string LeftValOf(string field)
+            {
+                var t = mainData[field];
+                if (t != null && t.Type != JTokenType.Null && IsUsablePk(t)) return t.ToString();
+                return GetMainRow()[field]?.ToString();
+            }
+
+            foreach (var (fieldName, cfg) in relList)
+            {
+                var leftValueField = string.IsNullOrWhiteSpace(cfg.LeftValueField) ? pks[0] : cfg.LeftValueField;
+                var leftVal = LeftValOf(leftValueField);
+                if (leftVal == null) continue;
+                // 差量同步：只写变化的中间行，未变化行的 Id/审计列原样保留
+                SyncRelation(db, cfg, leftVal, data[fieldName]);
+            }
+            db.Ado.CommitTran();
+        }
+        catch
+        {
+            db.Ado.RollbackTran();
+            throw;
+        }
+        return mainResult;
+    }
+
+    /// <summary>宽松布尔转换：JSON bool / 0,1 / "true","false" 均可；无法识别一律 false。</summary>
+    private static bool ToBool(JToken v)
+    {
+        if (v == null || v.Type == JTokenType.Null) return false;
+        if (v.Type == JTokenType.Boolean) return v.Value<bool>();
+        if (v.Type == JTokenType.Integer) return v.Value<long>() != 0;
+        try { return v.ToObject<bool>(); } catch { return false; }
+    }
+
+    // 单条 SQL 的参数上限：SQLite 老版本 999、SQL Server 2100，统一保守取 900 分块。
+    private const int SqlVarLimit = 900;
+
+    /// <summary>
+    /// 单个多对多关系的差量同步（须在外部事务内调用）。
+    /// submitted 是该左值的目标完整集合：缺失/非数组 = 目标为空（清空，兼容旧契约）。
+    /// 比对库内现状后分组落库：
+    ///   删 —— 库里有、提交没有：一条 DELETE ... IN（分块）
+    ///   增 —— 提交有、库里没有：一条多行 VALUES INSERT（分块）
+    ///   改 —— 两边都有但额外列变化：每个变化列一条 CASE WHEN 批量 UPDATE（分块）
+    /// 提交数组按右值去重（后出现的覆盖先出现的）；列名先过中间表 schema 预校验。
+    /// </summary>
+    private void SyncRelation(SqlSugarClient db, RelationConfig cfg, string leftVal, JToken submitted)
+    {
+        EnsureTable(db, cfg.Table);
+        // 列名先过真实 schema：给友好错误，也让任何非白名单列名在拼 SQL 前失败
+        var cols = ColumnMap(db, cfg.Table);
+        if (!cols.ContainsKey(cfg.LeftField)) throw new Exception($"中间表 {cfg.Table} 不存在左列 {cfg.LeftField}");
+        if (!cols.ContainsKey(cfg.RightField)) throw new Exception($"中间表 {cfg.Table} 不存在右列 {cfg.RightField}");
+        var extras = cfg.ExtraFields ?? Array.Empty<string>();
+        foreach (var ef in extras)
+            if (!cols.ContainsKey(ef)) throw new Exception($"中间表 {cfg.Table} 不存在额外列 {ef}");
+        bool hasExtra = extras.Length > 0;
+
+        // 1. 解析目标集合：右值 → 额外列值（简单模式为空数组）；按右值去重，后者覆盖前者
+        var target = new Dictionary<long, bool[]>();
+        if (submitted is JArray arr)
+        {
+            foreach (var item in arr)
+            {
+                long rid;
+                bool[] efVals;
+                if (!hasExtra)
+                {
+                    if (!TryRid(item, out rid) || rid == 0) continue;
+                    efVals = Array.Empty<bool>();
+                }
+                else
+                {
+                    var obj = item as JObject;
+                    if (obj == null || !TryRid(obj[cfg.RightField], out rid) || rid == 0) continue;
+                    efVals = extras.Select(ef => ToBool(obj[ef])).ToArray();
+                }
+                target[rid] = efVals;
+            }
+        }
+
+        // 2. 读库内现状（一条 SQL）
+        var existing = new Dictionary<long, bool[]>();
+        var selectCols = hasExtra
+            ? string.Join(", ", new[] { cfg.RightField }.Concat(extras).Select(QuoteIdent))
+            : QuoteIdent(cfg.RightField);
+        var dt = db.Ado.GetDataTable(
+            $"SELECT {selectCols} FROM {QuoteIdent(cfg.Table)} WHERE {QuoteIdent(cfg.LeftField)} = @lv",
+            new SugarParameter("@lv", leftVal));
+        foreach (DataRow r in dt.Rows)
+        {
+            var rid = Convert.ToInt64(r[cfg.RightField]);
+            existing[rid] = hasExtra
+                ? extras.Select(ef => !r.IsNull(ef) && Convert.ToBoolean(r[ef])).ToArray()
+                : Array.Empty<bool>();
+        }
+
+        // 3. diff 分组
+        var toDelete = existing.Keys.Where(k => !target.ContainsKey(k)).ToList();
+        var toInsert = new List<KeyValuePair<long, bool[]>>();
+        var toUpdate = new List<KeyValuePair<long, bool[]>>();
+        foreach (var kv in target)
+        {
+            if (!existing.TryGetValue(kv.Key, out var old))
+                toInsert.Add(kv);
+            else if (hasExtra && !old.AsSpan().SequenceEqual(kv.Value))
+                toUpdate.Add(kv);
+        }
+
+        var t = QuoteIdent(cfg.Table);
+        var lf = QuoteIdent(cfg.LeftField);
+        var rf = QuoteIdent(cfg.RightField);
+
+        // 4. 批量删：DELETE ... WHERE Left=@lv AND Right IN (...)
+        for (int i = 0; i < toDelete.Count;)
+        {
+            var chunk = toDelete.Skip(i).Take(SqlVarLimit - 1).ToList();
+            var pars = new List<SugarParameter> { new("@lv", leftVal) };
+            var names = chunk.Select((rid, j) =>
+            {
+                pars.Add(new SugarParameter("@d" + j, rid));
+                return "@d" + j;
+            }).ToList();
+            db.Ado.ExecuteCommand(
+                $"DELETE FROM {t} WHERE {lf} = @lv AND {rf} IN ({string.Join(",", names)})",
+                pars.ToArray());
+            i += chunk.Count;
+        }
+
+        // 5. 批量增：多行 VALUES（@lv 全组共用，每行 @r/@e 唯一名）
+        if (toInsert.Count > 0)
+        {
+            var colList = string.Join(", ", new[] { cfg.LeftField, cfg.RightField }.Concat(extras).Select(QuoteIdent));
+            int perRow = 1 + extras.Length;
+            int chunkSize = Math.Max(1, (SqlVarLimit - 1) / perRow);
+            for (int i = 0; i < toInsert.Count;)
+            {
+                var chunk = toInsert.Skip(i).Take(chunkSize).ToList();
+                var sb = new StringBuilder();
+                sb.Append($"INSERT INTO {t} ({colList}) VALUES ");
+                var pars = new List<SugarParameter> { new("@lv", leftVal) };
+                for (int j = 0; j < chunk.Count; j++)
+                {
+                    sb.Append(j == 0 ? "(" : ",(");
+                    sb.Append("@lv,@r").Append(j);
+                    pars.Add(new SugarParameter("@r" + j, chunk[j].Key));
+                    for (int k = 0; k < extras.Length; k++)
+                    {
+                        sb.Append(",@e").Append(j).Append('_').Append(k);
+                        pars.Add(new SugarParameter("@e" + j + "_" + k, chunk[j].Value[k]));
+                    }
+                    sb.Append(')');
+                }
+                db.Ado.ExecuteCommand(sb.ToString(), pars.ToArray());
+                i += chunk.Count;
+            }
+        }
+
+        // 6. 批量改：每个变化列一条 CASE WHEN（只针对该列真正变化的行，避免无谓写入）
+        for (int k = 0; k < extras.Length; k++)
+        {
+            var changed = toUpdate.Where(kv => existing[kv.Key][k] != target[kv.Key][k]).ToList();
+            for (int i = 0; i < changed.Count;)
+            {
+                var chunk = changed.Skip(i).Take((SqlVarLimit - 1) / 2).ToList();
+                var sb = new StringBuilder();
+                sb.Append($"UPDATE {t} SET {QuoteIdent(extras[k])} = CASE {rf}");
+                var pars = new List<SugarParameter> { new("@lv", leftVal) };
+                var whenNames = new List<string>();
+                for (int j = 0; j < chunk.Count; j++)
+                {
+                    sb.Append(" WHEN @w").Append(j).Append(" THEN @v").Append(j);
+                    pars.Add(new SugarParameter("@w" + j, chunk[j].Key));
+                    pars.Add(new SugarParameter("@v" + j, chunk[j].Value[k]));
+                    whenNames.Add("@w" + j);
+                }
+                sb.Append($" END WHERE {lf} = @lv AND {rf} IN ({string.Join(",", whenNames)})");
+                db.Ado.ExecuteCommand(sb.ToString(), pars.ToArray());
+                i += chunk.Count;
+            }
+        }
+    }
+
+    /// <summary>右值容错解析：数字或数字字符串均可；无法解析返回 false（该条跳过）。</summary>
+    private static bool TryRid(JToken token, out long rid)
+    {
+        if (token == null || token.Type == JTokenType.Null || token.Type == JTokenType.Undefined) { rid = 0; return false; }
+        return long.TryParse(token.ToString(), out rid);
+    }
+
+    /// <summary>
+    /// 读取主表记录 + 多对多中间表数组。
+    /// 简单模式：row[fieldName] = [id1, id2, ...]
+    /// 带额外列：row[fieldName] = [{RightField:id, ef1:bool, ef2:bool, ...}, ...]
+    /// </summary>
+    public JObject GetWithRelations(SqlSugarClient db, string table, object keyValue, JObject relations)
+    {
+        EnsureTable(db, table);
+        var pks = PrimaryKeys(db, table);
+        if (pks.Count == 0) return null;
+        var row = First(db, table, $"{QuoteIdent(pks[0])}=@v", new { v = keyValue });
+        if (row == null || relations == null) return row;
+
+        foreach (var prop in relations.Properties())
+        {
+            RelationConfig cfg;
+            try { cfg = (prop.Value as JObject)?.ToObject<RelationConfig>(); }
+            catch { continue; }
+            if (cfg == null || string.IsNullOrWhiteSpace(cfg.Table)
+                || string.IsNullOrWhiteSpace(cfg.LeftField) || string.IsNullOrWhiteSpace(cfg.RightField)) continue;
+
+            var leftValueField = string.IsNullOrWhiteSpace(cfg.LeftValueField) ? pks[0] : cfg.LeftValueField;
+            var leftVal = row[leftValueField]?.ToString();
+            if (leftVal == null) { row[prop.Name] = new JArray(); continue; }
+
+            var hasExtra = cfg.ExtraFields != null && cfg.ExtraFields.Length > 0;
+            var selectCols = hasExtra
+                ? string.Join(", ", new[] { cfg.RightField }.Concat(cfg.ExtraFields).Select(QuoteIdent))
+                : QuoteIdent(cfg.RightField);
+
+            var dt = db.Ado.GetDataTable(
+                $"SELECT {selectCols} FROM {QuoteIdent(cfg.Table)} WHERE {QuoteIdent(cfg.LeftField)} = @lv",
+                new SugarParameter("@lv", leftVal));
+            var arr = new JArray();
+            foreach (System.Data.DataRow r in dt.Rows)
+            {
+                if (!hasExtra)
+                {
+                    arr.Add(Convert.ToInt64(r[cfg.RightField]));
+                }
+                else
+                {
+                    var obj = new JObject();
+                    obj[cfg.RightField] = Convert.ToInt64(r[cfg.RightField]);
+                    foreach (var ef in cfg.ExtraFields)
+                    {
+                        // 可空布尔列存 NULL 时 DataRow 值为 DBNull，直接 Convert.ToBoolean 会抛异常
+                        obj[ef] = r.IsNull(ef) ? false : Convert.ToBoolean(r[ef]);
+                    }
+                    arr.Add(obj);
+                }
+            }
+            row[prop.Name] = arr;
+        }
+        return row;
+    }
+
+    private static bool IsUsablePk(JToken v)
+    {
+        if (v == null || v.Type == JTokenType.Null || v.Type == JTokenType.Undefined) return false;
+        if (v.Type == JTokenType.Integer) return v.Value<long>() != 0;
+        if (v.Type == JTokenType.Float) return v.Value<double>() != 0;
+        if (v.Type == JTokenType.String) return !string.IsNullOrWhiteSpace(v.Value<string>());
+        return true;
+    }
+
     // ---------------- 辅助 ----------------
 
     /// <summary>匿名对象/单参/SugarParameter 数组 → SugarParameter[]（SqlSugar dynamic 实体需要显式参数数组）</summary>

@@ -1,0 +1,106 @@
+@model VueLibV4.Platform.Models.DynWebPage
+@using VueLibV4.Platform.Services
+@using Newtonsoft.Json.Linq;
+@{
+    Layout = Context.Request.Headers.TryGetValue("X-Requested-With", out var __xrw)
+                && __xrw == "XMLHttpRequest" ? "_AjaxLayout" : "_Layout";
+    var ps = DynPageViewHelper.ParseParams(Model.ParamsJson);
+    var execId = Context.Request.Query["execId"].ToString();
+    if (string.IsNullOrEmpty(execId)) execId = "TC-" + Guid.NewGuid().ToString("N");
+    var rowId = Context.Request.Query["rowId"].ToString();
+    var tabs = ps["tabs"] as JArray ?? new JArray();
+}
+<div id="@execId" class="tabcontainer" data-exec-id="@execId">
+    <div class="tabcontainer__head">
+        @for (int i = 0; i < tabs.Count; i++)
+        {
+            var t = tabs[i] as JObject;
+            var title = t?["title"]?.ToString() ?? "Tab";
+            <div class="tabcontainer__tab @(i == 0 ? "is-active" : "")" data-pane-host="@i">@title</div>
+        }
+    </div>
+    @for (int i = 0; i < tabs.Count; i++)
+    {
+        <div class="tabcontainer__pane" data-pane-host="@i" style="@(i == 0 ? "" : "display:none;")">
+            <div class="dyn-loading">加载中…</div>
+        </div>
+    }
+</div>
+
+<style>
+    .tabcontainer { box-sizing: border-box; }
+    .tabcontainer__head { display: flex; gap: 4px; border-bottom: 1px solid #dcdfe6; margin-bottom: 12px; }
+    .tabcontainer__tab { padding: 9px 16px; font-size: 14px; color: #606266; cursor: pointer;
+        border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tabcontainer__tab:hover { color: #409eff; }
+    .tabcontainer__tab.is-active { color: #409eff; border-bottom-color: #409eff; font-weight: 600; }
+    .tabcontainer__pane { min-height: 300px; }
+    .tabcontainer__pane.is-hidden { display: none !important; }
+    .tabcontainer__hint { padding: 40px 10px; text-align: center; color: #909399; font-size: 13px; }
+</style>
+
+<script>
+DynLib.ready(function () {
+    var ROOT = '@execId';
+    var ROW_ID = '@rowId';
+    var rootEl = document.getElementById(ROOT);
+    if (!rootEl) { console.error('[TabContainer] root not found:', ROOT); return; }
+    window.DynEventBus.registerRoot(rootEl);
+
+    // tab 配置由服务端 Razor 渲染为 JSON 内联
+    var TABS = @Html.Raw(tabs.ToString(Newtonsoft.Json.Formatting.None));
+    var loaded = {};
+
+    function resolveUrl(url) {
+        if (!url) return url;
+        return url.replace(/\{rowId\}/g, ROW_ID).replace(/\{execId\}/g, ROOT);
+    }
+
+    function loadPane(index) {
+        if (loaded[index]) return;
+        var pane = rootEl.querySelector('[data-pane-host="' + index + '"]');
+        var cfg = TABS[index];
+        if (!cfg || !cfg.url) {
+            pane.innerHTML = '<div class="tabcontainer__hint">未配置 URL</div>';
+            return;
+        }
+        pane.innerHTML = '<div class="dyn-loading">加载中…</div>';
+        var resolved = resolveUrl(cfg.url);
+        fetch(resolved, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.text(); })
+            .then(function (html) {
+                return dyn.html(pane, html, true);
+            }).then(function () {
+                loaded[index] = true;
+            }).catch(function (e) {
+                pane.innerHTML = '<div class="tabcontainer__hint" style="color:#f56c6c;">加载失败：' + ((e && e.message) || e) + '</div>';
+            });
+    }
+
+    loadPane(0);
+
+    rootEl.querySelector('.tabcontainer__head').addEventListener('click', function (e) {
+        var btn = e.target.closest('.tabcontainer__tab');
+        if (!btn) return;
+        var idx = btn.getAttribute('data-pane-host');
+        rootEl.querySelectorAll('.tabcontainer__tab').forEach(function (b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        rootEl.querySelectorAll('.tabcontainer__pane').forEach(function (p) {
+            p.style.display = p.getAttribute('data-pane-host') == idx ? '' : 'none';
+        });
+        loadPane(parseInt(idx));
+    });
+
+    var mo = new MutationObserver(function (mutations) {
+        mutations.forEach(function (m) {
+            m.removedNodes.forEach(function (n) {
+                if (n === rootEl || (n.contains && n.contains(rootEl))) {
+                    try { window.DynEventBus.destroy(ROOT); } catch (e) {}
+                    mo.disconnect();
+                }
+            });
+        });
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+});
+</script>

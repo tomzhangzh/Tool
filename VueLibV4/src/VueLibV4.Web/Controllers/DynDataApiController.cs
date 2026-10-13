@@ -192,6 +192,59 @@ public class DynDataApiController : ControllerBase
         catch (Exception ex) { return ApiResult.Fail("保存失败：" + ex.GetBaseException().Message); }
     }
 
+    /// <summary>
+    /// 保存主表 + 多对多中间表（事务）。
+    /// body={table, data:{...}, relations:{FieldName:{table,leftField,leftValueField,rightField}}, project?}
+    /// relations 的 key 是主表表单中的字段名（值为数组），不是真实列。
+    /// </summary>
+    [HttpPost("saverelations")]
+    public async Task<ApiResult> SaveRelations([FromBody] JObject req)
+    {
+        var table = req["table"]?.ToString();
+        var data = req["data"] as JObject;
+        var relations = req["relations"] as JObject;
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (data == null) return ApiResult.Fail("缺少 data");
+        if (!await TableAllowedAsync(table, "Edit")) return ApiResult.Fail($"没有权限保存 {table}", 403);
+        try
+        {
+            using var db = Resolve(req["project"]?.ToString());
+            var result = _svc.SaveWithRelations(db, table, data, relations);
+            return ApiResult.Ok(result, "保存成功（含多对多关系）");
+        }
+        catch (Exception ex) { return ApiResult.Fail("保存失败：" + ex.GetBaseException().Message); }
+    }
+
+    /// <summary>
+    /// 读取主表记录 + 多对多中间表数组。
+    /// query: table/id/relations(JSON字符串)/project
+    /// relations 同 saverelations 的 relations 结构。
+    /// </summary>
+    [HttpGet("getrelations")]
+    public async Task<ApiResult> GetRelations(string table, string id, string relations, string project = null)
+    {
+        if (string.IsNullOrWhiteSpace(table)) return ApiResult.Fail("缺少 table");
+        if (!await TableAllowedAsync(table, "Read")) return ApiResult.Fail($"没有权限读取 {table}", 403);
+        try
+        {
+            using var db = Resolve(project);
+            JObject relObj = null;
+            if (!string.IsNullOrWhiteSpace(relations))
+            {
+                try
+                {
+                    var decoded = relations;
+                    if (decoded.StartsWith("%") || decoded.Contains("%22"))
+                        decoded = Uri.UnescapeDataString(decoded);
+                    relObj = JObject.Parse(decoded);
+                } catch { }
+            }
+            var row = _svc.GetWithRelations(db, table, id, relObj);
+            return ApiResult.Ok(row);
+        }
+        catch (Exception ex) { return ApiResult.Fail(ex.GetBaseException().Message); }
+    }
+
     /// <summary>删除：body={table,keys:{Id:...},project?}</summary>
     [HttpPost("delete")]
     public async Task<ApiResult> Delete([FromBody] JObject req)
