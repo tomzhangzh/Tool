@@ -19,7 +19,7 @@
     <el-button size="small" type="primary" @@click="onSave(false)">保存</el-button>
     <el-switch v-model="model.openConfig" size="small"></el-switch>
     <span class="text-gray-400 text-xs">开放配置</span>
-    <el-button size="small" type="warning">存组合</el-button>
+    <el-button size="small" type="warning" @@click="onSaveComposition">存组合</el-button>
     <el-button size="small" :disabled="model.undoStack.length === 0" @@click="onUndo">↩ 撤销</el-button>
     <el-button size="small" :disabled="model.redoStack.length === 0" @@click="onRedo">↪ 重做</el-button>
 
@@ -54,6 +54,50 @@
   <script tag="dynconfig">
   var dynConfig = {
     methods: {
+      // ---------- 存组合：选中子树（未选中则整页）存入浏览器本地组合库，左侧「组合」tab 可拖入复用 ----------
+      onSaveComposition: function () {
+        var self = this;
+        var layer = window.layui && window.layui.layer;
+        var sel = this.model.selected;
+        var base = sel || this.model.pageJson;
+        var fromWho = sel ? '选中组件' : '整个页面';
+        var defName = sel
+          ? ((((sel.options || {}).labeloptions || {}).label) || sel.component || '我的组合')
+          : (this.model.pageName || '整页组合');
+        var doSave = function (name) {
+          var cleaned = window.DynDesignerOps.cleanJson(base);
+          if (!cleaned) { if (layer) layer.msg('组合内容为空', { icon: 2 }); return; }
+          var list = [];
+          try { list = JSON.parse(localStorage.getItem('dyn-designer-compositions') || '[]') || []; } catch (e) {}
+          if (!Array.isArray(list)) list = [];
+          var item = {
+            id: 'cmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+            name: name,
+            icon: '📦',
+            cfg: JSON.parse(JSON.stringify(cleaned)),
+            ts: Date.now()
+          };
+          list.unshift(item);
+          try {
+            localStorage.setItem('dyn-designer-compositions', JSON.stringify(list));
+            window.dispatchEvent(new Event('dyn-compositions-changed'));
+            if (layer) layer.msg('组合「' + name + '」已存入本地组合库', { icon: 1 });
+          } catch (e) {
+            if (layer) layer.msg('保存失败：本地存储空间不足', { icon: 2 });
+          }
+        };
+        if (layer) {
+          layer.prompt({ title: '存组合（来源：' + fromWho + '）', value: defName }, function (val, idx) {
+            var name = (val || '').trim();
+            if (!name) { layer.msg('组合名称不能为空'); return; }
+            layer.close(idx);
+            doSave(name);
+          });
+        } else {
+          var name2 = (window.prompt('组合名称', defName) || '').trim();
+          if (name2) doSave(name2);
+        }
+      },
       onViewJson: function () {
         this.model.showJsonEditor = true;
       },

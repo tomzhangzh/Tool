@@ -17,8 +17,25 @@
            @@dragover.prevent="onDragOverRoot"
            @@drop.prevent="onDropRoot">
 
+  @* ===== JSON 模式：直接编辑整页配置，应用后写回画布（可撤销） ===== *@
+  <div v-if="model.mode === 'json'" class="dyn-json-mode p-4">
+    <div class="bg-white shadow-lg rounded p-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-semibold text-gray-700">页面配置 JSON</span>
+        <span class="flex gap-2">
+          <el-button size="small" @@click="formatJsonMode">格式化</el-button>
+          <el-button size="small" @@click="refreshJsonMode">重新读取</el-button>
+          <el-button size="small" type="primary" @@click="applyJsonMode">应用到画布</el-button>
+        </span>
+      </div>
+      <textarea v-model="jsonModeText" rows="28" spellcheck="false"></textarea>
+      <div v-if="jsonModeError" class="text-xs text-red-500 mt-1">{{ jsonModeError }}</div>
+      <div v-else class="text-xs text-gray-400 mt-1">应用前校验 JSON 语法与 component 字段；空字段会在保存时自动清理。</div>
+    </div>
+  </div>
+
   <!-- 页面纸张（design mode：所有 n-dynamic-com 节点自带 data-dyn-uid + 可拖拽） -->
-  <div class="bg-white shadow-lg m-4 relative design-mode"
+  <div v-show="model.mode !== 'json'" class="bg-white shadow-lg m-4 relative design-mode"
        data-designer-canvas
        :style="{ width: (model.pageWidth || 1200) + 'px', minHeight: (model.pageHeight || 800) + 'px', transform: 'scale(' + (model.zoom / 100) + ')', '--dyn-zoom': (model.zoom / 100), transformOrigin: '0 0' }"
        @@click.self="onCanvasClick">
@@ -27,15 +44,18 @@
 
     <!-- drop 指示线/高亮 -->
     <div v-if="model.dropIndicator.show && model.dropIndicator.insertInto"
+         data-designer-drop-indicator
          class="absolute border-2 border-dashed border-blue-400 bg-blue-50 opacity-60 pointer-events-none z-20 rounded"
          :style="{ top: model.dropIndicator.top + 'px', left: model.dropIndicator.left + 'px', width: model.dropIndicator.width + 'px', height: model.dropIndicator.height + 'px' }"></div>
     <div v-if="model.dropIndicator.show && (model.dropIndicator.insertBefore || model.dropIndicator.insertAfter)"
+         data-designer-drop-indicator
          class="absolute bg-blue-500 pointer-events-none z-20"
          style="height:3px;border-radius:2px;"
          :style="{ top: model.dropIndicator.top + 'px', left: model.dropIndicator.left + 'px', width: model.dropIndicator.width + 'px' }"></div>
 
     <!-- overlay：不干扰容器自身 style/class，纯绝对定位覆盖层 -->
     <div v-if="model.overlay.uid && designMode"
+         data-designer-overlay
          class="absolute border-2 border-blue-400 pointer-events-none z-30"
          :style="{ top: model.overlay.top + 'px', left: model.overlay.left + 'px', width: model.overlay.width + 'px', height: model.overlay.height + 'px' }">
       <div class="absolute -top-7 left-0 bg-blue-500 text-white text-xs px-2 py-0.5 flex items-center gap-1 pointer-events-auto rounded whitespace-nowrap" @@click.stop>
@@ -205,10 +225,31 @@
     </template>
   </el-dialog>
 
+  @* ===== 渲染 HTML 查看器（TopBar「HTML」开关）===== *@
+  <el-dialog v-model="htmlViewerOpen" title="渲染 HTML（当前画布快照）" width="820px" top="6vh" append-to-body>
+    <div class="mb-2 flex items-center justify-between">
+      <span class="text-xs text-gray-400">画布真实渲染 DOM 快照（已剥离设计器标记），可编辑后复制</span>
+      <span class="flex gap-2">
+        <el-button size="small" @@click="captureHtml">重新抓取</el-button>
+        <el-button size="small" type="primary" @@click="copyHtml">复制</el-button>
+      </span>
+    </div>
+    <textarea v-model="htmlViewerText" rows="22" spellcheck="false"
+              style="width:100%;font-family:Consolas,monospace;font-size:12px;border:1px solid #dcdfe6;border-radius:4px;padding:8px;resize:vertical;"></textarea>
+  </el-dialog>
+
   <script tag="dynconfig">
   var dynConfig = {
     data: function () {
-      return { ops: window.DynDesignerOps, _rulerH: null, _rulerV: null, _stopWatchZoom: null, _stopWatchRuler: null, _csScroll: null, _onWinResize: null };
+      return { ops: window.DynDesignerOps, _rulerH: null, _rulerV: null, _stopWatchZoom: null, _stopWatchRuler: null, _csScroll: null, _onWinResize: null,
+               jsonModeText: '', jsonModeError: '', htmlViewerOpen: false, htmlViewerText: '' };
+    },
+    watch: {
+      // 切入 JSON 模式：拉取最新清理后的整页配置
+      'model.mode': function (v) { if (v === 'json') this.refreshJsonMode(); },
+      // TopBar「HTML」开关：打开渲染 HTML 查看器
+      'model.showCode': function (v) { if (v) { this.htmlViewerOpen = true; this.captureHtml(); } },
+      htmlViewerOpen: function (v) { if (!v && this.model.showCode) this.model.showCode = false; }
     },
     computed: {
       // 选中组件的设计器扩展操作（designerOperates）
@@ -525,6 +566,63 @@
         this.$message.success('列配置已更新');
         var thisModel = this.model;
         setTimeout(function () { window.DynDesignerOps.updateOverlay(thisModel); }, 50);
+      },
+      // ===== JSON 模式：编辑/格式化/应用整页配置 =====
+      refreshJsonMode: function () {
+        try {
+          this.jsonModeText = JSON.stringify(window.DynDesignerOps.getCleanJson(this.model), null, 2);
+          this.jsonModeError = '';
+        } catch (e) { this.jsonModeError = '序列化失败：' + e.message; }
+      },
+      formatJsonMode: function () {
+        try {
+          this.jsonModeText = JSON.stringify(JSON.parse(this.jsonModeText), null, 2);
+          this.jsonModeError = '';
+        } catch (e) { this.jsonModeError = 'JSON 语法错误：' + e.message; }
+      },
+      applyJsonMode: function () {
+        var obj;
+        try { obj = JSON.parse(this.jsonModeText); }
+        catch (e) { this.jsonModeError = 'JSON 语法错误：' + e.message; return; }
+        if (!obj || typeof obj !== 'object' || !obj.component) { this.jsonModeError = '必须是包含 component 字段的组件配置对象'; return; }
+        window.DynDesignerOps.saveSnapshot(this.model);
+        this.model.pageJson = obj;
+        this.model.canvasVersion = (this.model.canvasVersion || 0) + 1;
+        window.DynDesignerOps.select(this.model, null);
+        this.jsonModeError = '';
+        this.$message.success('JSON 已应用到画布，可撤销');
+      },
+      // ===== 渲染 HTML 查看器 =====
+      captureHtml: function () {
+        var paper = document.querySelector('[data-designer-canvas]');
+        if (!paper) { this.htmlViewerText = '（未找到画布）'; return; }
+        var clone = paper.cloneNode(true);
+        // 剥离设计器专用标记/浮层/缩放样式，得到接近运行时的静态 HTML
+        clone.querySelectorAll('[data-designer-overlay],[data-designer-drop-indicator]').forEach(function (n) { n.parentNode && n.parentNode.removeChild(n); });
+        clone.querySelectorAll('[data-dyn-uid]').forEach(function (n) { n.removeAttribute('data-dyn-uid'); });
+        clone.removeAttribute('data-designer-canvas');
+        clone.classList.remove('design-mode');
+        clone.style.transform = '';
+        clone.style.setProperty('--dyn-zoom', '');
+        var html = clone.outerHTML.replace(/></g, '>\n<');
+        this.htmlViewerText = html;
+      },
+      copyHtml: function () {
+        var text = this.htmlViewerText || '';
+        var self = this;
+        var done = function () { self.$message && self.$message.success('已复制到剪贴板'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(); });
+        } else { fallbackCopy(); }
+        function fallbackCopy() {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); done(); } catch (e) { self.$message && self.$message.warning('复制失败，请手动选择复制'); }
+          document.body.removeChild(ta);
+        }
       }
     }
   };

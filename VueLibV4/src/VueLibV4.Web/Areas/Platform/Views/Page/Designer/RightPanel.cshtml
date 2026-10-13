@@ -1,8 +1,18 @@
-@* 右侧属性面板：基础(含控件类型+组件属性) / 布局样式 / 校验规则 / 高级 *@
-<aside class="w-80 shrink-0 bg-white border-l border-gray-200 flex flex-col min-h-0"
+@* 右侧属性面板：基础(含控件类型+组件属性) / 布局样式 / 校验规则 / 高级；可折叠为窄轨 *@
+<aside class="dyn-panel shrink-0 bg-white border-l border-gray-200 flex flex-col min-h-0"
+       :style="{ width: model.rightCollapsed ? '26px' : '320px' }"
        dyn-init="createapp" data-dyn-use-scope="designer">
+
+  @* ===== 折叠态窄轨 ===== *@
+  <div v-show="model.rightCollapsed" class="dyn-panel-rail flex flex-col items-center pt-2">
+    <button class="dyn-rail-btn" title="展开属性面板" @@click="setCollapsed(false)">◀</button>
+    <span class="dyn-rail-text">属性</span>
+  </div>
+
+  <div v-show="!model.rightCollapsed" class="dyn-panel-body flex flex-col min-h-0" style="width:320px;">
 <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
     <span class="font-semibold text-gray-700">属性配置</span>
+    <button class="px-2 py-0.5 text-xs rounded hover:bg-gray-100" title="收起面板" @@click="setCollapsed(true)">▶</button>
   </div>
 
   <div v-if="!model.current" class="p-6 text-sm text-gray-300 text-center">选中组件后在此配置属性</div>
@@ -128,6 +138,7 @@
       </el-tab-pane>
     </el-tabs>
   </template>
+  </div>
 
   <script tag="dynconfig">
   var dynConfig = {
@@ -218,6 +229,7 @@
       }
     },
     methods: {
+      setCollapsed: function (v) { this.model.rightCollapsed = !!v; },
       ruleNeedsValue: function (type) {
         return ['pattern', 'min', 'max', 'length', 'custom'].indexOf(type) >= 0;
       },
@@ -319,7 +331,13 @@
         }
       }
     },
+    mounted: function () {
+      try { if (localStorage.getItem('dyn-designer-right-collapsed') === '1') this.model.rightCollapsed = true; } catch (e) {}
+    },
     watch: {
+      'model.rightCollapsed': function (v) {
+        try { localStorage.setItem('dyn-designer-right-collapsed', v ? '1' : '0'); } catch (e) {}
+      },
       // 规则增删/类型变化时同步必填星标
       'model.current.validators': {
         handler: function () { this.syncRequiredFlag(); },

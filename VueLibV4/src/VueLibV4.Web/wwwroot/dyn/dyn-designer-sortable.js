@@ -190,16 +190,28 @@ var __plugin = {
                         (evt.item && evt.item.getAttribute && evt.item.getAttribute("data-meta"));
                     if (!componentName) return;
 
+                    var newCfg;
+                    if (componentName === '__composition__') {
+                        // 本地组合库卡片：compCfg 是已去内部字段的组件子树模板，整棵重新发号 uid
+                        var tpl = inserted.compCfg;
+                        if (!tpl) return;
+                        newCfg = JSON.parse(JSON.stringify(tpl));
+                        if (window.DynDesignerOps && window.DynDesignerOps.regenerateUids) {
+                            window.DynDesignerOps.regenerateUids(newCfg);
+                        } else {
+                            newCfg.__uid = genUid();
+                        }
+                    } else {
                     var meta = findMeta(componentName, scope);
                     var defaults = meta && (meta.DefaultConfigJson || meta.defaultConfigJson);
 
-                    var newCfg;
                     if (typeof defaults === "string") newCfg = JSON.parse(defaults);
                     else if (defaults && typeof defaults === "object") newCfg = JSON.parse(JSON.stringify(defaults));
                     else newCfg = { component: componentName, modelname: "", options: { comoptions:{}, labeloptions:{ label:"", show:true }, itemoptions:{ style:{}, class:"" } }, childrenctrls: [], validators: [], slots: {}, extendinfo: {} };
 
                     newCfg.__uid = genUid();
-                    if (!newCfg.component) newCfg.component = componentName;
+                    }
+                    if (!newCfg.component) newCfg.component = componentName === '__composition__' ? (newCfg.component || 'DynElContainer') : componentName;
                     if (!newCfg.options) newCfg.options = {};
 
                     if (isGrid) {

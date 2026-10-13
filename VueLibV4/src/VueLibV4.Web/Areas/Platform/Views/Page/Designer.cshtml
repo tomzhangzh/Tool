@@ -1,4 +1,4 @@
-﻿@{
+@{
     var isEmbed = ViewBag.Embed as string == "1";
     Layout = isEmbed ? null : "_Layout";
 }
@@ -20,7 +20,7 @@
 *@
 <div class="dyn-designer-root flex flex-col h-screen m-0 bg-gray-100"
      data-dyn-shared-scope="designer"
-     data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "previewActive": { "uid": "", "index": 0 }, "viewState": { "open": false, "name": "", "node": null, "columns": [] }, "undoStack": [], "redoStack": [], "canvasVersion": 0, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 }, "zoom": 100, "embed": @(isEmbed ? "true" : "false"), "pageId": 0, "pageCode": "", "defaultModel": {} }'>
+     data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "previewActive": { "uid": "", "index": 0 }, "viewState": { "open": false, "name": "", "node": null, "columns": [] }, "undoStack": [], "redoStack": [], "canvasVersion": 0, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 }, "zoom": 100, "leftCollapsed": false, "rightCollapsed": false, "embed": @(isEmbed ? "true" : "false"), "pageId": 0, "pageCode": "", "defaultModel": {} }'>
 
   <partial name="~/Areas/Platform/Views/Page/Designer/TopBar.cshtml" />
 
@@ -43,6 +43,47 @@
 .dyn-designer-root .el-tab-pane.overflow-y-auto,
 .dyn-designer-root .el-tab-pane.overflow-auto { overflow: auto; }
 .dyn-designer-root #component-lib-wrap { flex: 1; min-height: 0; }
+/* ===== 左右面板折叠（窄轨） ===== */
+.dyn-designer-root .dyn-panel { transition: width .18s ease; overflow: hidden; }
+.dyn-designer-root .dyn-panel-body { height: 100%; min-width: 0; }
+.dyn-designer-root .dyn-panel-rail { width: 26px; height: 100%; }
+.dyn-designer-root .dyn-rail-btn {
+  width: 22px; height: 24px; border: 1px solid #e5e7eb; border-radius: 4px;
+  background: #fff; color: #6b7280; cursor: pointer; line-height: 20px; font-size: 11px;
+}
+.dyn-designer-root .dyn-rail-btn:hover { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+.dyn-designer-root .dyn-rail-text { writing-mode: vertical-rl; letter-spacing: 4px; font-size: 12px; color: #9ca3af; margin-top: 8px; user-select: none; }
+/* ===== 组件树：hover 操作按钮 + 拖拽态 ===== */
+.dyn-designer-root .dyn-comp-tree .el-tree-node__content { height: 28px; }
+.dyn-designer-root .dyn-tree-row { display: flex; align-items: center; width: 100%; padding-right: 6px; min-width: 0; }
+.dyn-designer-root .dyn-tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dyn-designer-root .dyn-tree-slot .dyn-tree-label { color: #9ca3af; }
+.dyn-designer-root .dyn-tree-ops { display: none; align-items: center; gap: 1px; flex-shrink: 0; margin-left: 4px; }
+.dyn-designer-root .dyn-comp-tree .el-tree-node__content:hover .dyn-tree-ops,
+.dyn-designer-root .dyn-comp-tree .el-tree-node.is-current > .el-tree-node__content .dyn-tree-ops { display: inline-flex; }
+.dyn-designer-root .dyn-tree-ops button {
+  width: 18px; height: 18px; padding: 0; line-height: 16px; font-size: 11px;
+  border: 1px solid transparent; border-radius: 3px; background: transparent; color: #6b7280; cursor: pointer;
+}
+.dyn-designer-root .dyn-tree-ops button:hover { background: #dbeafe; color: #2563eb; }
+.dyn-designer-root .dyn-tree-ops button.dyn-tree-op-del:hover { background: #fee2e2; color: #dc2626; }
+.dyn-designer-root .dyn-comp-tree .el-tree-node.is-drop-inner > .el-tree-node__content { background: #dbeafe; border-radius: 3px; }
+.dyn-designer-root .dyn-comp-tree .el-tree-node[draggable="true"] .dyn-tree-row { cursor: default; }
+.dyn-designer-root .dyn-tree-hint { font-size: 11px; color: #9ca3af; padding: 2px 4px 6px; user-select: none; }
+.dyn-designer-root .dyn-tree-filter { margin: 2px 0 6px; }
+.dyn-designer-root .dyn-tree-userlabel { color: #9ca3af; font-size: 11px; margin-left: 2px; }
+/* ===== 组合卡片 ===== */
+.dyn-designer-root .dyn-comp-card { position: relative; }
+.dyn-designer-root .dyn-comp-card .dyn-comp-del {
+  position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; line-height: 14px;
+  border: none; border-radius: 50%; background: rgba(0,0,0,.45); color: #fff; font-size: 10px;
+  cursor: pointer; display: none; padding: 0;
+}
+.dyn-designer-root .dyn-comp-card:hover .dyn-comp-del { display: block; }
+.dyn-designer-root .dyn-comp-card .dyn-comp-del:hover { background: #dc2626; }
+/* ===== JSON 模式编辑区 ===== */
+.dyn-designer-root .dyn-json-mode textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 4px; padding: 10px; font-family: Consolas, monospace; font-size: 12px; outline: none; resize: none; }
+.dyn-designer-root .dyn-json-mode textarea:focus { border-color: #3b82f6; }
 </style></div>
 
 @if (isEmbed)

@@ -307,15 +307,25 @@ var __plugin = {
     arr.splice(j, 0, cfg);
   }
 
+  // 递归重新生成整棵子树 __uid：复制组件/粘贴组合时避免与原节点 uid 冲突
+  // （findNode / data-dyn-uid / overlay 定位都依赖 uid 唯一）
+  function regenerateUids(cfg) {
+    if (!cfg || typeof cfg !== 'object') return cfg;
+    delete cfg.__uid;
+    uidOf(cfg);
+    (cfg.childrenctrls || []).forEach(regenerateUids);
+    const slots = cfg.slots || {};
+    for (const k in slots) (slots[k] || []).forEach(regenerateUids);
+    return cfg;
+  }
+
   function duplicateSelected(scope) {
     const cfg = scope.selected;
     if (!cfg) return;
     const hit = findParent(scope.pageJson, cfg);
     if (!hit) return;
     saveSnapshot(scope);
-    const copy = JSON.parse(JSON.stringify(cfg));
-    delete copy.__uid;
-    uidOf(copy);
+    const copy = regenerateUids(JSON.parse(JSON.stringify(cfg)));
     const i = hit.parent.childrenctrls.indexOf(cfg);
     hit.parent.childrenctrls.splice(i + 1, 0, copy);
     select(scope, copy);
@@ -338,14 +348,78 @@ var __plugin = {
     function walk(node) {
       const m = metaOf(node.component);
       const kids = (node.childrenctrls || []).map(walk);
+      const typeLabel = (m && m.Label) || node.component || '';
+      const userLabel = (((node.options || {}).labeloptions || {}).label) || '';
+      const mn = node.modelname || '';
       if (node.slots) {
         for (const k in node.slots) {
-          (node.slots[k] || []).forEach(c => kids.push({ uid: 'slot-' + uidOf(c), label: '#' + k, icon: '📥', cfg: null, children: [] }));
+          (node.slots[k] || []).forEach(c => kids.push({ uid: 'slot-' + uidOf(c), label: '#' + k, icon: '📥', cfg: null, search: '#' + k, children: [] }));
         }
       }
-      return { uid: uidOf(node), label: (m && m.Label) || node.component, icon: (m && m.Icon) || '🧩', cfg: node, children: kids };
+      // 展示：组件类型（modelname）；检索覆盖 类型/组件名/modelname/label
+      return {
+        uid: uidOf(node),
+        label: typeLabel + (mn ? '（' + mn + '）' : ''),
+        icon: (m && m.Icon) || '🧩',
+        type: typeLabel,
+        modelname: mn,
+        userLabel: userLabel,
+        search: [typeLabel, node.component, mn, userLabel].filter(Boolean).join(' '),
+        cfg: node,
+        children: kids
+      };
     }
     return [walk(root)];
+  }
+
+  /* ============ 组件树拖拽（el-tree draggable 回写 pageJson） ============
+   * 树中 cfg 节点全部位于 childrenctrls（slots 子节点在 buildTreeData 里
+   * 只渲染为 cfg:null 的占位叶，不参与拖拽）。
+   * dropType：'before' | 'after' | 'inner'（el-tree 原生取值）
+   */
+  function treeAllowDrop(scope, dragCfg, dropCfg, dropType) {
+    if (!dragCfg || !dropCfg) return false;
+    if (dragCfg === scope.pageJson || dropCfg === dragCfg) return false;
+    // 禁止拖入自身或自己的后代节点
+    if (isDescendantOf(dropCfg, dragCfg)) return false;
+    if (dropType === 'inner') {
+      return isContainer(dropCfg.component) && checkCanDrop(dropCfg.component, dragCfg.component);
+    }
+    // before/after：与目标节点同级，校验目标父容器的接收白名单
+    if (dropCfg === scope.pageJson) return checkCanDrop(scope.pageJson.component, dragCfg.component);
+    const hit = findParent(scope.pageJson, dropCfg);
+    if (!hit) return false;
+    return checkCanDrop(hit.parent.component, dragCfg.component);
+  }
+
+  function treeReorder(scope, dragCfg, dropCfg, dropType) {
+    if (!treeAllowDrop(scope, dragCfg, dropCfg, dropType)) {
+      if (global.ElementPlus && ElementPlus.ElMessage) ElementPlus.ElMessage.warning('目标位置不接受该组件');
+      return false;
+    }
+    saveSnapshot(scope);
+    // 先从原位置摘出
+    const from = findParent(scope.pageJson, dragCfg);
+    if (from && from.slot === 'childrenctrls') from.parent.childrenctrls.splice(from.index, 1);
+
+    if (dropType === 'inner') {
+      dropCfg.childrenctrls = dropCfg.childrenctrls || [];
+      dropCfg.childrenctrls.push(dragCfg);
+    } else if (dropCfg === scope.pageJson) {
+      const arr = scope.pageJson.childrenctrls = scope.pageJson.childrenctrls || [];
+      if (dropType === 'before') arr.unshift(dragCfg); else arr.push(dragCfg);
+    } else {
+      const hit = findParent(scope.pageJson, dropCfg);
+      if (hit) {
+        const arr = hit.slot === 'childrenctrls' ? hit.parent.childrenctrls : (hit.parent.slots || {})[hit.slot];
+        if (arr) {
+          const idx = arr.indexOf(dropCfg);
+          arr.splice(dropType === 'before' ? Math.max(0, idx) : idx + 1, 0, dragCfg);
+        }
+      }
+    }
+    select(scope, dragCfg);
+    return true;
   }
 
   // 清理 JSON 中的空值：删除 {}、[]、null、""、undefined 的字段
@@ -613,6 +687,7 @@ var __plugin = {
     defaultCfg, select, updateOverlay,
     onDragStartMeta, onDragStartCfg, onDragOver, onDragLeave, onDrop, dropToRoot, clearDrag,
     moveSelected, duplicateSelected, removeSelected, buildTreeData,
+    regenerateUids, treeAllowDrop, treeReorder,
     cleanJson, getCleanJson,
     parseJsonStr, designerMetaOf, designerOperatesOf, getPath, childListOf, activeIndex,
     addChildItem, removeActiveChild, stepActive, moveActiveChild,
