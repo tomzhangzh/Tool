@@ -1,0 +1,371 @@
+@using Newtonsoft.Json.Linq
+@using System.Net
+@using System.Text
+@using Microsoft.AspNetCore.Html
+@model VueLibV4.Platform.Models.PageSetting
+@{
+    // _ListLayout：列表类 Block 的【完整壳】——工具条 + 表格 + 分页 + dynmodel + dynconfig + style。
+    // 任何 App（ListApp / 未来的 ViewApp…）只需解析自己的入参后 PartialAsync 本模板，
+    // 即自动获得 add/edit/delete/reload、查询分页、字典、事件总线（query/saved）全套能力。
+    // 参数：Model = List 型 PageSetting（无配置时可传 new PageSetting()）；
+    //       其余坐标通过 ViewData 传入：ExtId/ExecId/TableName/KeyField/Project/LoadUrl/DeleteUrl/Readonly。
+    // 表格区两条来源（方案A：结构固化、逻辑共享）：
+    //   1) PageSetting.GeneratedViewPath 有值 → 渲染固化片段（烘焙好的静态 el-table-column，可自由手改）；
+    //   2) 无值 → 服务端按 ConfigJson（[{...}] 或 {columns,rowActions}）foreach 展开真实列标签。
+    // 两条来源的数据行为都由下方同一份 dynconfig 驱动，固化页不复制任何 JS。
+    string LV(string k, string dft = "") { var v = ViewData[k]; return v == null ? dft : v.ToString() ?? dft; }
+    bool LB(string k, bool dft = false) { var v = ViewData[k]; return v == null ? dft : Convert.ToBoolean(v); }
+
+    var extId = LV("ExtId", "lb-" + Guid.NewGuid().ToString("N")[..12]);
+    var execId = LV("ExecId");
+    var tableName = LV("TableName");
+    var keyField = LV("KeyField", "Id");
+    var project = LV("Project");
+    var loadUrl = LV("LoadUrl", DynPageViewHelper.SearchUrl);
+    var deleteUrl = LV("DeleteUrl", DynPageViewHelper.DeleteUrl);
+    var isReadonly = LB("Readonly");
+
+    var cols = new JArray();
+    var acts = new JArray();
+    if (!string.IsNullOrWhiteSpace(Model?.ConfigJson))
+    {
+        try
+        {
+            var tok = JToken.Parse(Model.ConfigJson);
+            if (tok is JArray ja) { cols = ja; }
+            else if (tok is JObject jo)
+            {
+                if (jo["columns"] is JArray jc) cols = jc;
+                if (jo["rowActions"] is JArray jr) acts = jr;
+            }
+        }
+        catch { /* 非法配置按空列表渲染（仍保留操作列） */ }
+    }
+
+    string Str(JToken? t) => (t == null || t.Type == JTokenType.Null) ? "" : t.ToString();
+
+    // 有值才输出 name="value"
+    static IHtmlContent Attr(string name, string? value) =>
+        string.IsNullOrEmpty(value)
+            ? HtmlString.Empty
+            : new HtmlString(" " + name + "=\"" + WebUtility.HtmlEncode(value) + "\"");
+
+    // field 输出为 JS 单引号字符串字面量（'Field'），供 formatCell/cellTagType 调用
+    static string Js(string s) =>
+        "'" + s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "").Replace("\n", "\\n") + "'";
+
+    // fixed 支持 true / 'left' / 'right' / false
+    IHtmlContent FixedAttr(JToken? t)
+    {
+        if (t is JValue fv && fv.Type != JTokenType.Null)
+        {
+            if (fv.Type == JTokenType.Boolean)
+                return fv.Value<bool>() ? new HtmlString(" fixed") : HtmlString.Empty;
+            var s = fv.ToString();
+            if (!string.IsNullOrEmpty(s)) return Attr("fixed", s);
+        }
+        return HtmlString.Empty;
+    }
+
+    // 列属性一次拼好（前导空格），注入到真实 <el-table-column> 标签内——
+    // 标签必须真实存在于标记里，否则 Razor 解析期报 RZ1026（结束标签无匹配开始标签）
+    IHtmlContent ColumnAttrs(JObject col)
+    {
+        var isTag = Str(col["cellType"]) == "tag";
+        var sb = new StringBuilder();
+        sb.Append(Attr("prop", Str(col["field"])));
+        sb.Append(Attr("label", Str(col["label"])));
+        sb.Append(Attr("width", Str(col["width"])));
+        // 配置键兼容驼峰 minWidth 与短横线 min-width
+        var minWidth = Str(col["minWidth"]);
+        if (string.IsNullOrEmpty(minWidth)) minWidth = Str(col["min-width"]);
+        sb.Append(Attr("min-width", minWidth));
+        sb.Append(Attr("align", Str(col["align"])));
+        sb.Append(FixedAttr(col["fixed"]));
+        if (!isTag) sb.Append(" show-overflow-tooltip");
+        return new HtmlString(sb.ToString());
+    }
+}
+<div id="@extId" dyn-init="createApp" class="dyn-blk-list">
+    @if (!isReadonly)
+    {
+        <div class="dyn-blk-list__toolbar">
+            <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd()">
+                <el-icon style="margin-right:4px"><Plus /></el-icon>新增
+            </button>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model?.GeneratedViewPath))
+    {
+        @* —— 固化片段：烘焙好的静态 el-table（列/操作列均可手改），逻辑仍走本页 dynConfig —— *@
+        @await Html.PartialAsync(Model!.GeneratedViewPath)
+    }
+    else
+    {
+        <el-table :data="model.rows" v-loading="model.loading" size="small" border
+                   :row-class-name="rowClassName" :key="animKey"
+                   @@row-click="onRowClick">
+            @foreach (var col in cols.OfType<JObject>())
+            {
+                var field = Str(col["field"]);
+                var isTag = Str(col["cellType"]) == "tag";
+                var fieldJs = Js(field);
+                <el-table-column @ColumnAttrs(col)>
+                    <template #default="scope">
+                        @if (isTag)
+                        {
+                            <el-tag :type="cellTagType(@fieldJs, scope.row)" size="small" effect="light">
+                                {{ formatCell(@fieldJs, scope.row) }}
+                            </el-tag>
+                        }
+                        else
+                        {
+                            <span>{{ formatCell(@fieldJs, scope.row) }}</span>
+                        }
+                    </template>
+                </el-table-column>
+            }
+            @if (!isReadonly)
+            {
+                <el-table-column label="操作" :width="@(180 + acts.Count * 110)" fixed="right">
+                    <template #default="scope">
+                        <button type="button" class="el-button el-button--primary el-button--small el-button--plain" @@click.stop="onEdit(scope.row)">
+                            <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
+                        </button>
+                        <button type="button" class="el-button el-button--danger el-button--small el-button--plain" @@click.stop="onDelete(scope.row)">
+                            <el-icon style="margin-right:2px"><Delete /></el-icon>删除
+                        </button>
+                        @for (var i = 0; i < acts.Count; i++)
+                        {
+                            if (acts[i] is not JObject act) { continue; }
+                            var aLabel = Str(act["label"]);
+                            var aType = string.IsNullOrEmpty(Str(act["type"])) ? "success" : Str(act["type"]);
+                            var aIcon = Str(act["icon"]);
+                            <button type="button" class="el-button el-button--small el-button--plain el-button--@aType"
+                                    @@click.stop="onRowAction(@i, scope.row)">
+                                @if (!string.IsNullOrEmpty(aIcon))
+                                {
+                                    <el-icon style="margin-right:2px"><component :is="'@aIcon'"></component></el-icon>
+                                }@aLabel
+                            </button>
+                        }
+                    </template>
+                </el-table-column>
+            }
+        </el-table>
+    }
+    <div class="dyn-blk-list__page">
+        <el-pagination background layout="total, prev, pager, next, sizes"
+            :total="model.total" :current-page="model.page" :page-size="model.size"
+            :page-sizes="[10, 20, 50, 100]" @@current-change="onPage" @@size-change="onSize"></el-pagination>
+    </div>
+    <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
+    <script type="text/plain" tag="dynconfig">
+    var __execId = '@execId';
+    var __columns = @Html.Raw(Model?.ConfigJson ?? "[]");
+    var __table = '@tableName';
+    var __keyField = '@keyField';
+    var __project = '@project';
+    var __loadUrl = '@(string.IsNullOrEmpty(loadUrl) ? DynPageViewHelper.SearchUrl : loadUrl)';
+    var __deleteUrl = '@(string.IsNullOrEmpty(deleteUrl) ? DynPageViewHelper.DeleteUrl : deleteUrl)';
+    var __queryHandler = null, __savedHandler = null;
+
+    var dynConfig = {
+        data: function () {
+            var cols = __columns;
+            // 列表配置支持顶层扩展：{ columns:[...], rowActions:[{label,type?,icon?,confirm?,api:{url,method?,idField?},okMsg?,refresh?}] }
+            var actions = (cols && !Array.isArray(cols) && Array.isArray(cols.rowActions)) ? cols.rowActions : [];
+            if (cols && !Array.isArray(cols) && cols.columns) cols = cols.columns;
+            return {
+                columns: cols || [],
+                rowActions: actions,
+                table: __table,
+                keyField: __keyField,
+                loadUrl: __loadUrl,
+                deleteUrl: __deleteUrl,
+                project: __project,
+                dictMap: {},
+                animKey: 0
+            };
+        },
+        methods: {
+            loadData: function () {
+                var self = this;
+                if (!this.table || !this.loadUrl) return Promise.resolve(null);
+                this.model.loading = true;
+                return DynBlocks.search(this.loadUrl, {
+                    table: this.table, page: this.model.page, size: this.model.size,
+                    filter: this.model.filter || {}, project: this.project
+                }, element)
+                .then(function (data) {
+                    self.model.loading = false;
+                    self.model.rows = (data && data.rows) || [];
+                    self.model.total = (data && data.total) || 0;
+                    self.animKey = self.animKey + 1;
+                })
+                .catch(function () { self.model.loading = false; });
+            },
+            onPage: function (p) { this.model.page = p; this.loadData(); },
+            onSize: function (s) { this.model.size = s; this.model.page = 1; this.loadData(); },
+            loadDicts: function () {
+                var types = [], self = this;
+                (this.columns || []).forEach(function (c) {
+                    if (c.dictType && types.indexOf(c.dictType) < 0) types.push(c.dictType);
+                });
+                types.forEach(function (t) {
+                    fetch('/api/dyncommon/dicts?type=' + encodeURIComponent(t))
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) { if (res && res.code === 0) self.dictMap[t] = res.data; })
+                        .catch(function () {});
+                });
+            },
+            // 列标签由服务端静态展开（动态 foreach / 固化片段同构），按字段名反查列配置
+            colOf: function (field) {
+                var cols = this.columns || [];
+                for (var i = 0; i < cols.length; i++) {
+                    if (cols[i].field === field) return cols[i];
+                }
+                return null;
+            },
+            cellOption: function (field, row) {
+                var col = this.colOf(field);
+                if (!col) return null;
+                var v = row ? row[field] : null;
+                var list = col.options;
+                if ((!list || !list.length) && col.dictType) list = this.dictMap[col.dictType];
+                if (list && list.length) {
+                    for (var i = 0; i < list.length; i++) {
+                        if (String(list[i].value) === String(v)) return list[i];
+                    }
+                }
+                return null;
+            },
+            formatCell: function (field, row) {
+                var col = this.colOf(field);
+                var v = row ? row[field] : null;
+                if (v === null || v === undefined || v === '') return (col && col.emptyText) || '-';
+                var o = this.cellOption(field, row);
+                if (o && o.label !== undefined && o.label !== null) return o.label;
+                return v;
+            },
+            cellTagType: function (field, row) {
+                var col = this.colOf(field);
+                var v = row ? row[field] : null;
+                var o = this.cellOption(field, row);
+                if (o && o.type) return o.type;
+                if (col && col.tagType) return col.tagType;
+                return v ? 'success' : 'info';
+            },
+            rowClassName: function (row) {
+                return 'list-row-in';
+            },
+            onAdd: function () {
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'create', {});
+            },
+            onRowClick: function (row) {
+                if (!row) return;
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'select', { row: row });
+            },
+            onEdit: function (row) {
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'update', { row: row });
+            },
+            // 操作列扩展按钮：静态模板传 rowActions 索引
+            onRowAction: function (index, row) {
+                this.runRowAction(this.rowActions[index], row);
+            },
+            // 通用行扩展动作（列表配置 rowActions）：confirm → POST {Id: row[idField]} → 提示 → 刷新本列表
+            runRowAction: function (act, row) {
+                var self = this;
+                if (!act || !act.api || !act.api.url) { dyn.showMessage('行动作未配置 api.url', 'error'); return; }
+                var doRun = function () {
+                    var idField = act.api.idField || self.keyField;
+                    var body = {}; body[idField] = row[idField];
+                    var method = (act.api.method || 'POST').toUpperCase();
+                    var req = method === 'GET'
+                        ? DynCall.get(act.api.url, body, { scopeEl: element })
+                        : DynCall.post(act.api.url, body, { scopeEl: element });
+                    req.then(function (res) {
+                        var msg = act.okMsg || (res && res.ViewPath ? ('视图已生成：' + res.ViewPath) : '操作成功');
+                        dyn.showMessage(msg, 'success');
+                        if (act.refresh !== false) self.loadData();
+                    }).catch(function () { });
+                };
+                if (act.confirm) {
+                    window.dyn.confirmAsync(act.confirm).then(function (ok) { if (ok) doRun(); });
+                } else { doRun(); }
+            },
+            onDelete: function (row) {
+                var self = this;
+                var id = row && row[this.keyField];
+                if (id === null || id === undefined) return;
+                var doDelete = function () {
+                    var req = DynBlocks.deleteRequest(self.deleteUrl, self.table, id, self.keyField, self.project);
+                    DynCall.post(req.url, req.body, { scopeEl: element })
+                        .then(function () { dyn.showMessage('删除成功', 'success'); self.loadData(); })
+                        .catch(function () {});
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该条记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else { doDelete(); }
+            }
+        },
+        mounted: function () {
+            var self = this;
+            this.loadDicts();
+            if (!window.DynEventBus || !__execId) {
+                this.loadData();
+                return;
+            }
+            // 监听 query（sticky）：on() 注册时若总线已有条件快照会【同步补发】一次；
+            // 与 Filter 片段并行加载、List 先挂载时，给 Filter 一个宽限期（120ms），
+            // 期间收到 query 就取消自加载——保证有无 Filter 积木首屏都只打一条 search。
+            var gotFilter = false;
+            var selfLoadTimer = null;
+            __queryHandler = function (payload) {
+                gotFilter = true;
+                if (selfLoadTimer) { clearTimeout(selfLoadTimer); selfLoadTimer = null; }
+                self.model.filter = payload || {};
+                self.model.page = 1;
+                self.loadData();
+            };
+            window.DynEventBus.on(__execId, 'query', __queryHandler);
+            // 监听 saved（signal）：Detail 新增/修改/删除成功后统一刷新列表
+            __savedHandler = function () { self.loadData(); };
+            window.DynEventBus.on(__execId, 'saved', __savedHandler);
+            // 无筛选快照（Filter 片段还没挂载/页面没有 Filter 积木）才兜底自加载
+            if (!gotFilter) selfLoadTimer = setTimeout(function () { self.loadData(); }, 120);
+        },
+        beforeUnmount: function () {
+            if (window.DynEventBus && __execId) {
+                if (__queryHandler) window.DynEventBus.off(__execId, 'query', __queryHandler);
+                if (__savedHandler) window.DynEventBus.off(__execId, 'saved', __savedHandler);
+            }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-list { display: flex; flex-direction: column; }
+    .dyn-blk-list__toolbar { margin-bottom: 12px; }
+    .dyn-blk-list .el-table { width: 100%; }
+    .dyn-blk-list__page { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .dyn-blk-list .el-table__body tr.list-row-in > td {
+        animation: listRowIn .32s ease both;
+    }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(1) > td { animation-delay: 0ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(2) > td { animation-delay: 25ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(3) > td { animation-delay: 50ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(4) > td { animation-delay: 75ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(5) > td { animation-delay: 100ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(6) > td { animation-delay: 125ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(7) > td { animation-delay: 150ms; }
+    .dyn-blk-list .el-table__body tr.list-row-in:nth-child(n+8) > td { animation-delay: 175ms; }
+    @@keyframes listRowIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+</style>

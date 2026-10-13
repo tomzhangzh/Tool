@@ -38,8 +38,8 @@ public interface IViewGenerateService : IScopeDependency
     /// 按 pageSettingId 读 PageSetting 并生成 cshtml 到 outputPath；
     /// outputPath 为空时使用默认路径 ViewsAutoGenerate/{Project}/{TableName}/{SettingType}_{Id}.cshtml。
     /// 每次调用都重新生成并【覆盖】（文件是可手改的派生产物，按钮二次生成前需确认覆盖）。
-    /// 仅组件树型设置（Filter/Detail，根节点含 component）可生成；
-    /// List 的 {columns:[...]} 不是组件树，抛 InvalidOperationException。
+    /// 两种配置形态均支持：组件树（Filter/Detail，根节点含 component）→ 完整视图；
+    /// List 列配置（裸数组或 {columns,rowActions}）→ 仅 el-table 的固化片段（壳与逻辑仍在 _ListLayout）。
     /// </summary>
     Task<ViewGenerateResult> GenerateAsync(int pageSettingId, string? outputPath = null, CancellationToken ct = default);
 
@@ -48,6 +48,12 @@ public interface IViewGenerateService : IScopeDependency
     /// settingType 决定嵌入宿主的模型变量名（Filter=filterModel，Detail=form）。
     /// </summary>
     string RenderView(JObject? config, string settingType, int settingId, string? settingName);
+
+    /// <summary>
+    /// 纯函数：List 列配置（裸数组 [{field,label,...}] 或 {columns:[...],rowActions:[...]}）
+    /// → 列表【固化片段】cshtml（只含静态 el-table，由 _ListLayout.cshtml 承载其余壳与逻辑）。
+    /// </summary>
+    string RenderListView(JToken? listConfig, int settingId, string? settingName);
 
     /// <summary>计算默认输出物理路径（相对 ContentRoot 的 ViewsAutoGenerate/...）。</summary>
     string ResolveDefaultPhysicalPath(PageSetting setting, string? projectCode);
@@ -86,10 +92,36 @@ public class ViewGenerateService : IViewGenerateService
     {
         var setting = _settings.GetById(pageSettingId)
             ?? throw new InvalidOperationException($"PageSetting 不存在：Id={pageSettingId}");
-        if (string.IsNullOrWhiteSpace(setting.ConfigJson) || !TryParseTree(setting.ConfigJson, out var config))
-            throw new InvalidOperationException($"PageSetting #{pageSettingId} 的 ConfigJson 为空或不是组件树（根节点需含 component）。");
+        if (string.IsNullOrWhiteSpace(setting.ConfigJson))
+            throw new InvalidOperationException($"PageSetting #{pageSettingId} 的 ConfigJson 为空。");
 
-        var markup = RenderView(config, setting.SettingType, setting.Id, setting.Name);
+        JToken parsed;
+        try { parsed = JToken.Parse(setting.ConfigJson); }
+        catch (JsonException ex)
+        { throw new InvalidOperationException($"PageSetting #{pageSettingId} 的 ConfigJson 不是合法 JSON：{ex.Message}"); }
+
+        bool isTree = parsed is JObject tjo && tjo["component"]?.ToString() is { Length: > 0 };
+        bool isListConfig = string.Equals((setting.SettingType ?? "").Trim(), "List", StringComparison.OrdinalIgnoreCase)
+            && (parsed is JArray || parsed is JObject { } ljo && ljo["columns"] is JArray);
+
+        string markup;
+        int tagCount;
+        if (isTree)
+        {
+            var tree = (JObject)parsed;
+            markup = RenderView(tree, setting.SettingType, setting.Id, setting.Name);
+            tagCount = CountTags(tree);
+        }
+        else if (isListConfig)
+        {
+            markup = RenderListView(parsed, setting.Id, setting.Name);
+            tagCount = CountListColumns(parsed);
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"PageSetting #{pageSettingId} 无法生成：根节点需含 component（组件树），或 SettingType=List 且配置为列数组/{{columns,...}}。");
+        }
 
         var projectCode = ResolveProjectCode(setting.ProjectId);
         var physical = !string.IsNullOrWhiteSpace(outputPath)
@@ -111,7 +143,7 @@ public class ViewGenerateService : IViewGenerateService
             SettingType = setting.SettingType,
             TableName = setting.TableName,
             ProjectCode = projectCode,
-            TagCount = CountTags(config!),
+            TagCount = tagCount,
             ViewPath = viewPath,
             PhysicalPath = physical
         };
@@ -121,29 +153,13 @@ public class ViewGenerateService : IViewGenerateService
     //  组件树 → cshtml
     // ------------------------------------------------------------------
 
-    /// <summary>组件树根节点必须带 component；List 的 {columns:[...]} 在此被拦下。</summary>
-    private static bool TryParseTree(string json, out JObject? tree)
-    {
-        tree = null;
-        try
-        {
-            if (JToken.Parse(json) is JObject jo && jo["component"]?.ToString() is { Length: > 0 })
-            {
-                tree = jo;
-                return true;
-            }
-        }
-        catch { /* 非法 JSON 按非组件树处理 */ }
-        return false;
-    }
-
     /// <summary>设置类型 → 嵌入宿主 Block 的 Vue 模型变量名（与 FilterApp/DetailApp 模板一致）。</summary>
     private static string HostModelVar(string settingType) => (settingType ?? "").Trim() switch
     {
         "Filter" => "filterModel",
         "Detail" => "form",
         _ => throw new InvalidOperationException(
-            $"暂不支持为 SettingType='{settingType}' 生成视图：仅组件树型设置（Filter/Detail）可生成，List 列配置不是组件树。")
+            $"暂不支持为 SettingType='{settingType}' 生成组件树视图：仅 Filter（filterModel）/Detail（form）可嵌入宿主 Block。")
     };
 
     /// <summary>序列化为属性值的 JSON 选项组（节点 options 下，值为对象）。</summary>
@@ -256,6 +272,169 @@ public class ViewGenerateService : IViewGenerateService
                 if (c is JObject co && co["component"] != null) n += CountTags(co);
         return n;
     }
+
+    // ------------------------------------------------------------------
+    //  List 列配置 → 固化 el-table 片段（方案A：结构固化、逻辑共享）
+    // ------------------------------------------------------------------
+
+    /// <summary>裸数组 → (数组, 空actions)；{columns,rowActions} → 两者拆出；其余 → 空。</summary>
+    private static (JArray Columns, JArray RowActions) ParseListConfig(JToken? token) => token switch
+    {
+        JArray ja => (ja, new JArray()),
+        JObject jo => (jo["columns"] as JArray ?? new JArray(), jo["rowActions"] as JArray ?? new JArray()),
+        _ => (new JArray(), new JArray())
+    };
+
+    private static int CountListColumns(JToken token) => ParseListConfig(token).Columns.Count;
+
+    /// <summary>
+    /// 列表固化片段：把 columns/rowActions 烘焙为【静态 el-table-column 标签】（不再前端 v-for）。
+    /// 产物只含 &lt;el-table&gt;；工具条/分页/查询/事件总线/删除确认等全部仍由 _ListLayout.cshtml
+    /// 的 dynConfig 提供，故本片段零 JS——单元格统一 formatCell('字段', scope.row)、
+    /// 行扩展按钮统一 onRowAction(索引, scope.row)，与 layout 的动态分支同构。
+    /// 注意文件仍是 .cshtml（Razor 运行时编译）：Vue 的 @ 事件必须双写为 @@。
+    /// </summary>
+    public string RenderListView(JToken? listConfig, int settingId, string? settingName)
+    {
+        var (columns, rowActions) = ParseListConfig(listConfig);
+        var sb = new StringBuilder();
+
+        sb.AppendLine("@* =============================================================================");
+        sb.AppendLine($"   自动生成【列表固化片段】：PageSetting #{settingId}（List / {settingName}）");
+        sb.AppendLine("   生成器：VueLibV4.Web.Services.ViewGenerateService。可自由修改本文件，");
+        sb.AppendLine("   修改后即时生效（Razor 运行时编译）；再次点“生成视图”会【覆盖】本文件。");
+        sb.AppendLine("   本文件只含 <el-table>（列与操作列已烘焙为静态标签）：工具条/分页/数据加载/");
+        sb.AppendLine("   事件总线/删除确认等逻辑仍由 Views/DynBlocks/Partials/_ListLayout.cshtml 统一承载。");
+        sb.AppendLine("   约定：");
+        sb.AppendLine("   - 改单元格：直接改对应列的 <template #default>；");
+        sb.AppendLine("   - 加列：复制一段 <el-table-column>；若需要字典/枚举/空值格式化，还需在");
+        sb.AppendLine("     PageSetting.ConfigJson 的 columns 中补同名字段（formatCell 按 field 反查 dictType/options）；");
+        sb.AppendLine("   - 行扩展按钮按索引绑定 onRowAction(i, scope.row)，与 ConfigJson.rowActions 顺序对应，");
+        sb.AppendLine("     调整顺序后需重新生成或手工对齐索引；");
+        sb.AppendLine("   - Razor 约定：Vue 的 @ 事件在本文件中双写为 @@click，{{ }} 插值原样。");
+        sb.AppendLine("   ============================================================================ *@");
+        sb.AppendLine("<el-table :data=\"model.rows\" v-loading=\"model.loading\" size=\"small\" border");
+        sb.AppendLine("           :row-class-name=\"rowClassName\" :key=\"animKey\"");
+        sb.AppendLine("           @@row-click=\"onRowClick\">");
+
+        foreach (var ct in columns)
+        {
+            if (ct is not JObject col) continue;
+            var field = col["field"]?.ToString() ?? "";
+            var label = col["label"]?.ToString() ?? "";
+            var isTag = string.Equals(col["cellType"]?.ToString(), "tag", StringComparison.Ordinal);
+            // 列名按约定是标识符（PascalCase/字母数字下划线）：直接输出 'Field' 保证固化文件可读；
+            // 含特殊字符时 JS 转义 + HTML 实体编码兜底（浏览器解析后等价）。
+            var fieldLit = FieldLiteral(field);
+
+            sb.Append("    <el-table-column");
+            sb.Append(EncodedAttr("prop", field));
+            sb.Append(EncodedAttr("label", label));
+            sb.Append(TokenAttr("width", col["width"]));
+            sb.Append(TokenAttr("min-width", col["minWidth"]));
+            sb.Append(TokenAttr("align", col["align"]));
+            sb.Append(FixedAttr(col["fixed"]));
+            if (!isTag) sb.Append(" show-overflow-tooltip");
+            sb.AppendLine(">");
+            sb.AppendLine("        <template #default=\"scope\">");
+            if (isTag)
+            {
+                sb.AppendLine($"            <el-tag :type=\"cellTagType({fieldLit}, scope.row)\" size=\"small\" effect=\"light\">");
+                sb.AppendLine($"                {{{{ formatCell({fieldLit}, scope.row) }}}}");
+                sb.AppendLine("            </el-tag>");
+            }
+            else
+            {
+                sb.AppendLine($"            <span>{{{{ formatCell({fieldLit}, scope.row) }}}}</span>");
+            }
+            sb.AppendLine("        </template>");
+            sb.AppendLine("    </el-table-column>");
+        }
+
+        var opWidth = 180 + rowActions.Count * 110;
+        sb.AppendLine($"    <el-table-column label=\"操作\" width=\"{opWidth}\" fixed=\"right\">");
+        sb.AppendLine("        <template #default=\"scope\">");
+        sb.AppendLine("            <button type=\"button\" class=\"el-button el-button--primary el-button--small el-button--plain\" @@click.stop=\"onEdit(scope.row)\">");
+        sb.AppendLine("                <el-icon style=\"margin-right:2px\"><Edit /></el-icon>编辑");
+        sb.AppendLine("            </button>");
+        sb.AppendLine("            <button type=\"button\" class=\"el-button el-button--danger el-button--small el-button--plain\" @@click.stop=\"onDelete(scope.row)\">");
+        sb.AppendLine("                <el-icon style=\"margin-right:2px\"><Delete /></el-icon>删除");
+        sb.AppendLine("            </button>");
+        for (var i = 0; i < rowActions.Count; i++)
+        {
+            if (rowActions[i] is not JObject act) continue;
+            var aLabel = act["label"]?.ToString() ?? "";
+            var aType = NormalizeButtonType(act["type"]?.ToString());
+            var aIcon = NormalizeIconName(act["icon"]?.ToString());
+            sb.Append("            <button type=\"button\" class=\"el-button el-button--small el-button--plain el-button--")
+              .Append(aType)
+              .Append($"\" @@click.stop=\"onRowAction({i.ToString(CultureInfo.InvariantCulture)}, scope.row)\">");
+            if (aIcon != null)
+                sb.Append($"<el-icon style=\"margin-right:2px\"><component :is=\"'{aIcon}'\"></component></el-icon>");
+            sb.Append(WebUtility.HtmlEncode(aLabel)).AppendLine("</button>");
+        }
+        sb.AppendLine("        </template>");
+        sb.AppendLine("    </el-table-column>");
+        sb.AppendLine("</el-table>");
+        return sb.ToString();
+    }
+
+    /// <summary>width/minWidth/align 等：null/空串不输出；数字直出，字符串 HTML 编码。</summary>
+    private static string TokenAttr(string name, JToken? t)
+    {
+        if (t is not JValue jv || jv.Type == JTokenType.Null) return "";
+        var s = jv.Type == JTokenType.String ? jv.Value<string>() : jv.ToString();
+        return EncodedAttr(name, s);
+    }
+
+    private static string EncodedAttr(string name, string? value)
+        => string.IsNullOrEmpty(value) ? "" : $" {name}=\"{WebUtility.HtmlEncode(value)}\"";
+
+    /// <summary>fixed 支持 true（裸属性）/ 'left'/'right'；false/空不输出。</summary>
+    private static string FixedAttr(JToken? t)
+    {
+        if (t is not JValue jv || jv.Type == JTokenType.Null) return "";
+        if (jv.Type == JTokenType.Boolean) return jv.Value<bool>() ? " fixed" : "";
+        return EncodedAttr("fixed", jv.ToString());
+    }
+
+    /// <summary>JS 单引号字符串字面量（转义反斜杠/引号/换行），用于 formatCell('Field', ...)。</summary>
+    private static string JsStringLiteral(string s)
+    {
+        var sb = new StringBuilder(s.Length + 2).Append('\'');
+        foreach (var c in s)
+        {
+            switch (c)
+            {
+                case '\\': sb.Append("\\\\"); break;
+                case '\'': sb.Append("\\'"); break;
+                case '\r': sb.Append("\\r"); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\t': sb.Append("\\t"); break;
+                default: sb.Append(c); break;
+            }
+        }
+        return sb.Append('\'').ToString();
+    }
+
+    private static readonly Regex FieldNameRe = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
+    /// <summary>formatCell/cellTagType 的字段实参：标识符直出（可读），其余转义后实体编码（安全）。</summary>
+    private static string FieldLiteral(string field)
+        => FieldNameRe.IsMatch(field) ? "'" + field + "'" : WebUtility.HtmlEncode(JsStringLiteral(field));
+
+    private static readonly HashSet<string> ButtonTypes = new(StringComparer.OrdinalIgnoreCase)
+    { "primary", "success", "warning", "danger", "info" };
+
+    /// <summary>el-button 合法 type 白名单，非法/空回退 success（与 _ListLayout 动态分支缺省一致）。</summary>
+    private static string NormalizeButtonType(string? type)
+        => type != null && ButtonTypes.Contains(type) ? type.ToLowerInvariant() : "success";
+
+    private static readonly Regex IconNameRe = new("^[A-Za-z][A-Za-z0-9-]*$", RegexOptions.Compiled);
+
+    /// <summary>图标组件名白名单（防注入固化文件），非法返回 null（不渲染图标）。</summary>
+    private static string? NormalizeIconName(string? icon)
+        => !string.IsNullOrEmpty(icon) && IconNameRe.IsMatch(icon) ? icon : null;
 
     /// <summary>
     /// 组件名 → 运行时标签名，与前端注册名同一套解析规则：
