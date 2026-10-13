@@ -34,13 +34,15 @@
     </div>
   </div>
 
-  <!-- 页面纸张（design mode：所有 n-dynamic-com 节点自带 data-dyn-uid + 可拖拽） -->
-  <div v-show="model.mode !== 'json'" class="bg-white shadow-lg m-4 relative design-mode"
+  <!-- 页面纸张（design mode：所有 n-dynamic-com 节点自带 data-dyn-uid + 可拖拽；预览模式不挂 design-mode 类，悬停描边等设计态 CSS 全部失效） -->
+  <div v-show="model.mode !== 'json'" class="bg-white shadow-lg m-4 relative"
+       :class="{ 'design-mode': designMode }"
        data-designer-canvas
        :style="{ width: (model.pageWidth || 1200) + 'px', minHeight: (model.pageHeight || 800) + 'px', transform: 'scale(' + (model.zoom / 100) + ')', '--dyn-zoom': (model.zoom / 100), transformOrigin: '0 0' }"
        @@click.self="onCanvasClick">
-    <!-- key 绑定 canvasVersion：撤销/重做替换 pageJson 后强制整树重建（容器模板 setup 快照 jc 不响应顶层引用替换） -->
-    <dyn-dynamic-com :key="'root_' + (model.canvasVersion || 0)" :jsonconfig="model.pageJson"></dyn-dynamic-com>
+    <!-- key 绑定 canvasVersion：撤销/重做替换 pageJson 后强制整树重建（容器模板 setup 快照 jc 不响应顶层引用替换）；
+         追加 mode 段：设计/预览切换时整树重挂载，保证 data-dyn-uid、Sortable、onMounted 数据加载等行为与真实页面一致 -->
+    <dyn-dynamic-com :key="'root_' + (model.canvasVersion || 0) + '_' + (model.mode === 'preview' ? 'p' : 'd')" :jsonconfig="model.pageJson"></dyn-dynamic-com>
 
     <!-- drop 指示线/高亮 -->
     <div v-if="model.dropIndicator.show && model.dropIndicator.insertInto"
@@ -246,7 +248,15 @@
     },
     watch: {
       // 切入 JSON 模式：拉取最新清理后的整页配置
-      'model.mode': function (v) { if (v === 'json') this.refreshJsonMode(); },
+      'model.mode': function (v) {
+        if (v === 'json') { this.refreshJsonMode(); return; }
+        if (v === 'preview') {
+          // 进入预览：清除选中浮层 / 投放指示 / 拖拽态，画布与真实渲染页完全一致
+          window.DynDesignerOps.select(this.model, null);
+          this.model.dropIndicator.show = false;
+          if (window.DynDesignerOps.clearDrag) window.DynDesignerOps.clearDrag(this.model);
+        }
+      },
       // TopBar「HTML」开关：打开渲染 HTML 查看器
       'model.showCode': function (v) { if (v) { this.htmlViewerOpen = true; this.captureHtml(); } },
       htmlViewerOpen: function (v) { if (!v && this.model.showCode) this.model.showCode = false; }
@@ -433,14 +443,17 @@
       },
       onCanvasScroll: function () { this.syncRulerScroll(); },
       onDragOverRoot: function (e) {
-        if (!this.model.dragging) return;
+        // 预览模式：画布等同真实页面，不接受任何设计器拖放
+        if (this.model.mode === 'preview' || !this.model.dragging) return;
         e.preventDefault();
         this.model.dropIndicator.show = false;
       },
       onDropRoot: function (e) {
+        if (this.model.mode === 'preview') return;
         window.DynDesignerOps.dropToRoot(this.model, e);
       },
       onCanvasClick: function () {
+        if (this.model.mode === 'preview') return;
         window.DynDesignerOps.select(this.model, null);
       },
       // ===== 表格批量列配置视图（TableColumnConfigView）=====

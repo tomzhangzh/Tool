@@ -1,4 +1,4 @@
-﻿@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
+@{ Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml"; }
 
 <template>
 <el-collapse v-model="activeModel" v-bind="collapseBind" v-on="getComlisteners()"
@@ -48,7 +48,7 @@
  onMounted(() => {
      // 子项动态新增（设计器拖入 / ForEach）：新项 expand=true 时并入激活集合；只增不抢，用户手动折叠不被弹回
      watch(safeChildren, (list) => {
-         if (designMode) return;
+        if (designMode.value) return;
          const ex = pickExpanded(list);
          if (isAccordion.value) {
              if (activeNames.value == null && ex.length) activeNames.value = ex[0];
@@ -74,10 +74,10 @@
  // 运行态：内部自持激活态。
  const activeModel = computed({
      get() {
-         if (designMode) return isAccordion.value ? (allNames.value[0] ?? null) : allNames.value.slice();
+         if (designMode.value) return isAccordion.value ? (allNames.value[0] ?? null) : allNames.value.slice();
          return activeNames.value;
      },
-     set(v) { if (!designMode) activeNames.value = v; }
+     set(v) { if (!designMode.value) activeNames.value = v; }
  });
  // 子折叠项 inject 此函数，按自身配置引用解析稳定 name
  provide('dynCollapseResolveName', (cfg) => itemNameMap.value.get(cfg));

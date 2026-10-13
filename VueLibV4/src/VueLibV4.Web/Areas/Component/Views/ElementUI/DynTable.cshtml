@@ -375,7 +375,7 @@
 
     onMounted(function () {
         // 设计态不请求任何数据
-        if (designMode) return;
+        if (designMode.value) return;
         // 注册到全局表格注册表，供 grid 动作 / 外部 API 刷新：window.DynGrids[gridId].refresh()
         if (gridId) {
             window.DynGrids = window.DynGrids || {};

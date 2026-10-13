@@ -370,23 +370,34 @@ var comConfig = {
             return false;
         }
         const pageCtx = inject('pageCtx', null);
-        const designMode = !!(pageCtx && pageCtx.designMode);
-        const designUid = (designMode && pageCtx.uidOf) ? pageCtx.uidOf(jc) : null;
-        function onDesignDragstart(e) { if (designMode && pageCtx.onDragStartCfg) { e.stopPropagation(); pageCtx.onDragStartCfg(props.jsonconfig, e); } }
+        // designMode 必须是响应式：设计器顶部切换"预览/设计"时无需重建组件即可即时生效。
+        // 设计器内 inject 的 designer scope 就是共享响应式 model（含 mode 字段），
+        // 真实运行页无该 scope 时回退 pageCtx.designMode（兼容布尔或 ref 两种形态）。
+        const designMode = computed(() => {
+            if (injectDesignerScope && 'mode' in injectDesignerScope) return injectDesignerScope.mode !== 'preview';
+            if (pageCtx) {
+                var v = pageCtx.designMode;
+                if (v && typeof v === 'object' && 'value' in v) return !!v.value;
+                return !!v;
+            }
+            return false;
+        });
+        const designUid = computed(() => (designMode.value && pageCtx && pageCtx.uidOf) ? pageCtx.uidOf(jc) : null);
+        function onDesignDragstart(e) { if (designMode.value && pageCtx.onDragStartCfg) { e.stopPropagation(); pageCtx.onDragStartCfg(props.jsonconfig, e); } }
         function onDesignClick(e) {
-            if (!designMode || !pageCtx.onSelect) return;
-            var selfUid = designUid;
+            if (!designMode.value || !pageCtx.onSelect) return;
+            var selfUid = designUid.value;
             if (selfUid) {
                 var inner = e.target.closest('[data-dyn-uid]');
                 if (inner && inner.getAttribute('data-dyn-uid') !== selfUid) return;
             }
             pageCtx.onSelect(props.jsonconfig, e);
         }
-        function onDesignDragover(e) { if (designMode && pageCtx.onDragOver) { e.preventDefault(); e.stopPropagation(); pageCtx.onDragOver(props.jsonconfig, e); } }
-        function onDesignDrop(e) { if (designMode && pageCtx.onDrop) { e.preventDefault(); e.stopPropagation(); pageCtx.onDrop(props.jsonconfig, e); } }
-        function onDesignDragleave(e) { if (designMode && pageCtx.onDragLeave) { e.stopPropagation(); pageCtx.onDragLeave(props.jsonconfig, e); } }
+        function onDesignDragover(e) { if (designMode.value && pageCtx.onDragOver) { e.preventDefault(); e.stopPropagation(); pageCtx.onDragOver(props.jsonconfig, e); } }
+        function onDesignDrop(e) { if (designMode.value && pageCtx.onDrop) { e.preventDefault(); e.stopPropagation(); pageCtx.onDrop(props.jsonconfig, e); } }
+        function onDesignDragleave(e) { if (designMode.value && pageCtx.onDragLeave) { e.stopPropagation(); pageCtx.onDragLeave(props.jsonconfig, e); } }
         const designRootClass = computed(() => {
-            if (!designMode) return "";
+            if (!designMode.value) return "";
             var c = jc.component || "";
             var isContainer = /Container|Form|Card|Tabs|Collapse|Row|Col|Panel/.test(c);
             if (isContainer && (!jc.childrenctrls || jc.childrenctrls.length === 0)) return "designer-empty-container";
@@ -618,8 +629,16 @@ var comConfig = {
             // 注意：DynDynamicCom 透明包装层（transparentMode）与真实容器组件挂在同一根元素、
             // 都能看到同一个 .dyn-children-wrap，若两层都初始化会在同一元素上重复绑定 Sortable，
             // 嵌套容器时残留的旧实例 mousedown 监听器会与内层实例争抢，导致子组件拖不动。
-            nextTick(() => {
-            if (designMode && !comExtra.transparentMode && window.DesignerSortable && rootEl) {
+            // designMode 为响应式：切换到"预览"时销毁 Sortable（禁用拖放），切回"设计"时重建。
+            var teardownSortable = function () {
+                if (_sortableIns) {
+                    window.DesignerSortable.destroy(_sortableIns);
+                    _sortableIns = null;
+                }
+            };
+            var setupSortable = function () {
+                if (!designMode.value || comExtra.transparentMode || !window.DesignerSortable || !rootEl) return;
+                if (_sortableIns) return;
                 var compName = jc.component || "";
                 var isContainer = lookupIsContainer(compName);
                 var isGrid = compName === "DynGridContainer";
@@ -630,7 +649,10 @@ var comConfig = {
                         _sortableIns = window.DesignerSortable.createCanvasContainer(listEl, jc, designerScope, isGrid);
                     }
                 }
-            }
+            };
+            nextTick(setupSortable);
+            watch(designMode, function (isDesign) {
+                nextTick(function () { isDesign ? setupSortable() : teardownSortable(); });
             });
         });
         onBeforeUnmount(() => {

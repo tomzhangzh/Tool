@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "~/Areas/Component/Views/Common/_ContainerLayout.cshtml";
 }
 
@@ -19,15 +19,15 @@
     const designerScope = injectDesignerScope;
     const activeTab = computed({
         get() {
-            if (designMode && designerScope && designerScope.previewActive
-                && designerScope.previewActive.uid === designUid) {
+            if (designMode.value && designerScope && designerScope.previewActive
+                && designerScope.previewActive.uid === designUid.value) {
                 return String(designerScope.previewActive.index);
             }
             return comInnerInfo.activeTab;
         },
         set(v) {
-            if (!(designMode && designerScope && designerScope.previewActive
-                  && designerScope.previewActive.uid === designUid)) {
+            if (!(designMode.value && designerScope && designerScope.previewActive
+                  && designerScope.previewActive.uid === designUid.value)) {
                 comInnerInfo.activeTab = v;
             }
         }

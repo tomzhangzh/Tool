@@ -66,16 +66,39 @@ var __plugin = {
     }
     // 判断目标 wrap 当前能否接收被拖组件：类型白名单 + 禁止放进自身/自己的后代
     function canAccept(wrap, item, scope) {
-        var dragName = getDragName(item, scope);
-        var targetNode = getContainerNode(wrap, scope);
-        if (!dragName || !targetNode || !window.DynDesignerOps) return false;
-        if (!window.DynDesignerOps.checkCanDrop(targetNode.component, dragName)) return false;
-        var dragUid = item.getAttribute && item.getAttribute("data-dyn-uid");
-        if (dragUid) {
-            if (targetNode.__uid === dragUid) return false;
-            if (window.DynDesignerOps.isDescendantOf(targetNode, window.DynDesignerOps.findNode(scope.pageJson, dragUid))) return false;
+        try {
+            var dragName = getDragName(item, scope);
+            var targetNode = getContainerNode(wrap, scope);
+            if (!dragName || !targetNode || !window.DynDesignerOps) return false;
+            if (!window.DynDesignerOps.checkCanDrop(targetNode.component, dragName)) return false;
+            var dragUid = item.getAttribute && item.getAttribute("data-dyn-uid");
+            if (dragUid) {
+                if (targetNode.__uid === dragUid) return false;
+                if (window.DynDesignerOps.isDescendantOf &&
+                    window.DynDesignerOps.isDescendantOf(targetNode, window.DynDesignerOps.findNode(scope.pageJson, dragUid))) return false;
+            }
+            return true;
+        } catch (e) {
+            console.error("[designer-sortable] canAccept error", e);
+            return false;
         }
-        return true;
+    }
+
+    // SortableJS 的 onMove 始终在“源列表”实例上触发（evt.to 为当前悬停列表），
+    // 因此组件库与画布各容器都必须挂载，才能覆盖 库→画布 / 画布间 两种拖拽的校验与高亮。
+    function makeOnMove(scope) {
+        return function (evt) {
+            clearDropMarks();
+            var target = evt && evt.to;
+            var wrap = target && target.classList && target.classList.contains("dyn-children-wrap")
+                ? target
+                : (target && target.closest ? target.closest(".dyn-children-wrap") : null);
+            if (!wrap) return false;
+            var dragged = (evt && (evt.dragged || evt.item)) || null;
+            var ok = canAccept(wrap, dragged, scope);
+            wrap.classList.add(ok ? "dyn-container-hover" : "dyn-container-denied");
+            return ok;
+        };
     }
 
     /**
@@ -100,6 +123,8 @@ var __plugin = {
             filter: "input,textarea,button,img",
             preventOnFilter: true,
             onStart: function () { setDragActive(true); },
+            // evt.to 为当前悬停的画布容器：库→画布 时 SortableJS 只会回调源（库）实例的 onMove
+            onMove: makeOnMove(scope),
             onEnd: function () { setDragActive(false); clearDropMarks(); },
             onUnchoose: function () { setDragActive(false); clearDropMarks(); }
         });
@@ -143,20 +168,7 @@ var __plugin = {
                 }
             },
 
-            onMove: function (evt) {
-                // 清除上一个目标的红绿标记
-                clearDropMarks();
-                // evt.to = 鼠标当前悬停的列表根元素（.dyn-children-wrap）
-                var target = evt.to;
-                var wrap = target && target.classList && target.classList.contains("dyn-children-wrap")
-                    ? target
-                    : (target && target.closest ? target.closest(".dyn-children-wrap") : null);
-                if (!wrap) return false;
-                var ok = canAccept(wrap, evt.dragged || evt.item, scope);
-                wrap.classList.add(ok ? "dyn-container-hover" : "dyn-container-denied");
-                // 返回 false 直接禁止放入（SortableJS 会回弹并显示禁止光标）
-                return ok;
-            },
+            onMove: makeOnMove(scope),
 
             onEnd: function () {
                 setDragActive(false);

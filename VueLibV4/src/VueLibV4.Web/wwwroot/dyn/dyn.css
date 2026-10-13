@@ -157,10 +157,14 @@
     background: #e6f1ff;
 }
 
-/* 拖拽进行中：空提示文字隐藏（由候选框/高亮框接管表达） */
+/* 拖拽进行中：保留空容器的占位提示，维持可投放命中区域（display:none 会让容器塌缩成 0 高度，无法接收拖入） */
 body.dyn-drag-active .designer-empty-container::before,
 .dyn-children-wrap.dyn-dragging-active.designer-empty-container::before {
-    display: none !important;
+    opacity: .55;
+}
+/* 空容器在拖拽中也保证最小命中高度 */
+body.dyn-drag-active .dyn-children-wrap.designer-empty-container {
+    min-height: 96px;
 }
 
 /* ===== DynTable 树化：设计态列托板 / 列卡片 / 操作列卡片 ===== */

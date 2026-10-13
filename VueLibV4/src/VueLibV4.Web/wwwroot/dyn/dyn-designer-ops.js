@@ -683,7 +683,7 @@ var __plugin = {
   }
 
   global.DynDesignerOps = {
-    uidOf, metaOf, isContainer, checkCanDrop, findNode, findParent, getPathList,
+    uidOf, metaOf, isContainer, checkCanDrop, findNode, findParent, getPathList, isDescendantOf,
     defaultCfg, select, updateOverlay,
     onDragStartMeta, onDragStartCfg, onDragOver, onDragLeave, onDrop, dropToRoot, clearDrag,
     moveSelected, duplicateSelected, removeSelected, buildTreeData,
