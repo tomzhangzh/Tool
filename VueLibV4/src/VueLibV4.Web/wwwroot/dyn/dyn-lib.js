@@ -30,38 +30,69 @@ global.DYN_LIB_CONFIG = Object.assign({}, DEFAULT_CONFIG, global.DYN_LIB_CONFIG|
 const DYN_LIB_CONFIG = global.DYN_LIB_CONFIG;
 
 /**
- * @description 获取当前脚本所在base路径
+ * @description 获取当前脚本所在 base 路径（/dyn/，绝对 URL，末尾带 /）。
+ * 多重兜底：document.currentScript → 按文件名匹配 → 最后一个 script → 根 /dyn/。
+ * 设计器 embed iframe / AJAX 片段再执行等场景下，"最后一个 script" 不一定是本文件，
+ * 因此优先按名称定位；相对 src 一律经 document.baseURI 解析，绝不返回空串。
  * @returns {string}
  */
 function getBase(){
-  const scripts = document.getElementsByTagName('script');
-  const src = scripts[scripts.length-1].src||'';
-  return src.substring(0, src.lastIndexOf('/')+1);
+  var el = document.currentScript;
+  if(!el || !/\/dyn-lib\.js(\?|$|#)/.test(el.src||'')){
+    var all = document.getElementsByTagName('script');
+    for(var i=all.length-1;i>=0;i--){
+      if(/\/dyn-lib\.js(\?|$|#)/.test(all[i].src||'')){ el = all[i]; break; }
+    }
+    if(!el) el = all[all.length-1];
+  }
+  var raw = el && el.src || '';
+  if(raw){
+    try{
+      // 相对 src 相对文档基址解析；取目录（new URL('.') 自动规范化 .. 段）
+      return new URL('.', new URL(raw, document.baseURI)).href;
+    }catch(e){ /* 落到兜底 */ }
+  }
+  return '/dyn/';
 }
 const BASE = getBase();
 
+/**
+ * @description 相对 /dyn/ 的模块路径 → 绝对 URL（自动规范化，杜绝 ../dyn/../dyn 类重复前缀）
+ * @param {string} rel
+ * @returns {string}
+ */
+function dynUrl(rel){ return new URL(rel, BASE).href; }
+/**
+ * @description 第三方库路径（物理在 /lib/，与 /dyn/ 平级）→ 绝对 URL
+ * @param {string} rel 库内相对路径，如 vue.global.prod.js / element-plus/index.css
+ * @returns {string}
+ */
+function libUrl(rel){ return new URL('../lib/'+rel, BASE).href; }
+
+// 注意：url 只写【库内相对路径】，libUrl() 会统一补 ../lib/ 一次，
+// 不要再手写 "../lib/" 前缀，否则会拼成 ../lib/../lib/xxx（个别嵌套文档场景浏览器不规范化 → 404）。
 const DEFAULT_LIBS = [];
-DEFAULT_LIBS.push({url:"../lib/vue.global.prod.js",name:"vue"});
-DEFAULT_LIBS.push({url:"../lib/jquery/dist/jquery.min.js",name:"jquery"});
-if(DYN_LIB_CONFIG.loadLodash) DEFAULT_LIBS.push({url:"../lib/lodash.min.js",name:"lodash"});
+DEFAULT_LIBS.push({url:"vue.global.prod.js",name:"vue"});
+DEFAULT_LIBS.push({url:"jquery/dist/jquery.min.js",name:"jquery"});
+if(DYN_LIB_CONFIG.loadLodash) DEFAULT_LIBS.push({url:"lodash.min.js",name:"lodash"});
 if(DYN_LIB_CONFIG.loadElementPlus){
-  DEFAULT_LIBS.push({url:"../lib/element-plus/index.css",name:"element-plus-css"});
-  DEFAULT_LIBS.push({url:"../lib/element-plus/index.full.min.js",name:"element-plus"});
-  DEFAULT_LIBS.push({url:"../lib/element-plus/icons.min.js",name:"element-plus-icons"});
+  DEFAULT_LIBS.push({url:"element-plus/index.css",name:"element-plus-css"});
+  DEFAULT_LIBS.push({url:"element-plus/index.full.min.js",name:"element-plus"});
+  DEFAULT_LIBS.push({url:"element-plus/icons.min.js",name:"element-plus-icons"});
 }
 if(DYN_LIB_CONFIG.loadLayui){
-  DEFAULT_LIBS.push({url:"../lib/layui/css/layui.css",name:"layui-css"});
-  DEFAULT_LIBS.push({url:"../lib/layui/layui.js",name:"layui"});
+  DEFAULT_LIBS.push({url:"layui/css/layui.css",name:"layui-css"});
+  DEFAULT_LIBS.push({url:"layui/layui.js",name:"layui"});
 }
-if(DYN_LIB_CONFIG.loadTailwind) DEFAULT_LIBS.push({url:"../lib/tailwind.css",name:"tailwind"});
-DEFAULT_LIBS.push({url:"../lib/sortable.min.js",name:"sortable"});
-DEFAULT_LIBS.push({url:"../lib/vue-draggable-plus.umd.js",name:"vue-draggable-plus"});
+if(DYN_LIB_CONFIG.loadTailwind) DEFAULT_LIBS.push({url:"tailwind.css",name:"tailwind"});
+DEFAULT_LIBS.push({url:"sortable.min.js",name:"sortable"});
+DEFAULT_LIBS.push({url:"vue-draggable-plus.umd.js",name:"vue-draggable-plus"});
 if(DYN_LIB_CONFIG.loadCodemirror){
-  DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.css",name:"codemirror-css"});
-  DEFAULT_LIBS.push({url:"../lib/codemirror/codemirror.min.js",name:"codemirror"});
+  DEFAULT_LIBS.push({url:"codemirror/codemirror.min.css",name:"codemirror-css"});
+  DEFAULT_LIBS.push({url:"codemirror/codemirror.min.js",name:"codemirror"});
 }
-// axios UMD：默认false，页面可自行引入CDN；如需本地加载，把 axios.min.js 放入 ../lib/ 并设置 loadAxios:true
-if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"../lib/axios.min.js",name:"axios"});
+// axios UMD：默认false，页面可自行引入CDN；如需本地加载，把 axios.min.js 放入 /lib/ 并设置 loadAxios:true
+if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"axios.min.js",name:"axios"});
 
 // 模块加载顺序：dyn-kernel 最先（显式内核/阶段装配）→ dyn-com（组件注册表）→ dyn-core（挂载内核，递归统一走 DynDynamicCom）→ 校验器 → 动作系统 → 设计器弹窗
 // 注意：真正的初始化顺序由 DynKernel 按阶段（core→components→params→services→actions→blocks→layout→designer→debug）决定，与此数组顺序解耦
@@ -99,13 +130,17 @@ const DynLib = {
     // 独立静态页无哈希清单且开启 cacheBust：整次加载共用一个时间戳，既绕缓存又保持链内一致
     if(DYN_LIB_CONFIG.cacheBust){
       const bust = this._cacheBust || (this._cacheBust = Date.now());
-      return BASE+rel+(rel.indexOf('?')>=0?'&':'?')+'t='+bust;
+      return dynUrl(rel)+(rel.indexOf('?')>=0?'&':'?')+'t='+bust;
     }
     const hashes = global.DYN_ASSET_HASHES || {};
     const v = hashes[rel] || this.version;
-    return BASE+rel+(rel.indexOf('?')>=0?'&':'?')+'v='+v;
+    return dynUrl(rel)+(rel.indexOf('?')>=0?'&':'?')+'v='+v;
   },
-  lib(rel){ return BASE+'../lib/'+rel; },
+  lib(rel){
+    // 容错：历史调用可能误传 "../lib/xxx"，剥掉重复前缀，永远只补一次
+    var p = String(rel||'').replace(/^(?:\.\.\/)+lib\//,'');
+    return libUrl(p);
+  },
   use(name){ return this._libs[name]?global[name]:null; },
   /**
    * @description 动态加载js/css资源

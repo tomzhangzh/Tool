@@ -1027,7 +1027,7 @@
                         var winH = this.parseSize(m.Height, availH);
                         var w = {
                             id: ++this._winId, title: m.Name, icon: m.Icon || '📄', url: url,
-                            useIframe: m.UseIframe === true,  // 默认 iframe，菜单可配置关闭
+                            useIframe: m.TargetType === 'Iframe',  // 默认 iframe，菜单可配置关闭
                             x: 80 + (this.windows.length * 30) % 200,
                             y: 60 + (this.windows.length * 30) % 150,
                             width: (isWin && winW) ? Math.min(winW, availW) : 960,
