@@ -1,5 +1,5 @@
 @{
-    @* Layout = "_Layout"; *@
+    @*  *@
     ViewData["Title"] = "组件长廊质检 - VueLibV4";
 }
 
@@ -163,6 +163,9 @@ DynLib.ready(function () {
             return {
                 results: [],
                 running: false,
+                // 桌面内嵌窗口被关闭（根节点脱离文档）后置 true：质检链立即停止，
+                // 不再向游离 host 挂载无人卸载的孤儿实例、不再补发 define 请求
+                cancelled: false,
                 doneCount: 0,
                 filter: 'all',
                 probes: null
@@ -229,9 +232,13 @@ DynLib.ready(function () {
                                 propItemCount: null
                             };
                         });
+                        // 清单请求期间桌面窗口可能已关闭：根节点脱离文档就别再开跑
+                        if (!self.$el || !self.$el.isConnected) { self.cancelled = true; return; }
                         self.run();
                     })
-                    .catch(function (e) { dyn.showMessage('组件清单加载失败: ' + e.message, 'error'); });
+                    .catch(function (e) {
+                        if (self.$el && self.$el.isConnected) dyn.showMessage('组件清单加载失败: ' + e.message, 'error');
+                    });
             },
 
             // ---- 错误探针：挂载窗口期内把错误归到当前组件 ----
@@ -289,6 +296,8 @@ DynLib.ready(function () {
             // 属性栏阶段：完整复刻设计器 RightPanel 的 comProps 渲染路径
             mountProps: function (r) {
                 var self = this;
+                // 本体挂载后、属性栏阶段前窗口被关：不再挂载属性栏实例
+                if (this.cancelled || !(this.$el && this.$el.isConnected)) { r.propStatus = 'skip'; return Promise.resolve(); }
                 r.propStatus = 'running';
                 r.propErrors = [];
                 var raw = (r.propRaw || '').trim();
@@ -364,6 +373,7 @@ DynLib.ready(function () {
 
             mountOne: function (r) {
                 var self = this;
+                if (this.cancelled || !(this.$el && this.$el.isConnected)) throw new Error('__CK_CANCELLED__');
                 r.status = 'running';
                 r.errors = r.errors.length ? r.errors.slice() : [];
                 r.propStatus = 'pending';
@@ -472,10 +482,22 @@ DynLib.ready(function () {
                 });
                 var seq = Promise.resolve();
                 this.results.forEach(function (r) {
-                    seq = seq.then(function () { return self.mountOne(r); })
+                    seq = seq.then(function () {
+                        // 每个组件开跑前都检查：桌面关窗后根节点脱离文档，立即终止整条链，
+                        // 避免后续 60+ 组件继续往游离 host 挂载（孤儿应用 + 后台 define 请求）
+                        if (self.cancelled || !(self.$el && self.$el.isConnected)) {
+                            self.cancelled = true;
+                            throw new Error('__CK_CANCELLED__');
+                        }
+                        return self.mountOne(r);
+                    })
                                .then(function () { self.doneCount++; });
                 });
-                seq.then(function () { self.running = false; });
+                seq.then(function () { self.running = false; }, function (e) {
+                    self.running = false;
+                    // 关窗导致的中止是预期行为，不当错误上报
+                    if (!self.cancelled) console.error('[ComponentCheck] 质检链中断', e);
+                });
             },
 
             copyReport: function () {

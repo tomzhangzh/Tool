@@ -1046,10 +1046,16 @@
                                 if (el && typeof dyn !== 'undefined' && dyn.fetchPartial) {
                                     dyn.fetchPartial(w.url, {}, 'GET', 'text')
                                         .then(function (html) {
-                                            dyn.html(el, html, true);
+                                            // 加载期间窗口可能已被关闭（容器随之移除），不再注入，
+                                            // 否则会在游离 DOM 上挂一批无人卸载的孤儿应用
+                                            var host = document.querySelector('[data-inline-frame="' + w.id + '"]');
+                                            if (!host || host.__dynClosed || !host.isConnected) return;
+                                            dyn.html(host, html, true);
                                         })
                                         .catch(function (e) {
-                                            el.innerHTML = '<div style="padding:20px;color:#f56c6c;">加载失败：' + e.message + '</div>';
+                                            var host = document.querySelector('[data-inline-frame="' + w.id + '"]');
+                                            if (!host || host.__dynClosed || !host.isConnected) return;
+                                            host.innerHTML = '<div style="padding:20px;color:#f56c6c;">加载失败：' + e.message + '</div>';
                                         });
                                 }
                             });
@@ -1063,7 +1069,23 @@
                     toggleMaximize: function (w) { w.maximized = !w.maximized; },
                     closeWindow: function (id) {
                         var i = this.windows.findIndex(function (x) { return x.id === id; });
-                        if (i >= 0) this.windows.splice(i, 1);
+                        if (i < 0) return;
+                        var w = this.windows[i];
+                        // 内嵌 DIV 模式：splice 只删 DOM，窗口内 createApp 挂的 Vue 应用、
+                        // 事件总线订阅、setTimeout/轮询链全部会残留并继续在同一个 window
+                        // 全局作用域里跑，反复开关或与其他窗口并存时互相干扰。
+                        // splice 前在仍然存活的容器上做级联卸载：
+                        // dyn.unmount 会按台账+DOM 兜底递归卸载容器内所有 dyn-mode=createApp 实例。
+                        if (w.useIframe === false) {
+                            var el = document.querySelector('[data-inline-frame="' + id + '"]');
+                            if (el) {
+                                el.__dynClosed = true; // 页面自有异步链可据此中止（见质检页 runAll）
+                                try { if (typeof dyn !== 'undefined' && typeof dyn.unmount === 'function') dyn.unmount(el); }
+                                catch (e) { console.error('[Desktop] 窗口卸载异常', e); }
+                                try { el.innerHTML = ''; } catch (e) { }
+                            }
+                        }
+                        this.windows.splice(i, 1);
                     },
                     taskbarClick: function (w) {
                         if (w.minimized) { w.minimized = false; this.focusWindow(w.id); }

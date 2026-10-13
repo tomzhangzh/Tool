@@ -1,6 +1,6 @@
 @model VueLibV4.Web.Core.DynSharedModel
 @{
-    Layout = "_Layout";
+    
     ViewData["Title"] = Model.PageTitle + " - VueLibV4";
     var sharedJson = Newtonsoft.Json.JsonConvert.SerializeObject(Model, new Newtonsoft.Json.JsonSerializerSettings
     {

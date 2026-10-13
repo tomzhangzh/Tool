@@ -26,7 +26,7 @@
     //     wires:[ {from,to,with?} ... ] }   // 省略 wires 时使用壳默认连线
     // 规格里没有任何 *Url：数据请求全部走 Block 内置的统一端点 /api/dyndata，数据域只看 provide.project。
     // =====================================================================================
-    Layout = "_Layout";
+    
 
     // 规格权威字段 = DynWebPage.SpecJson（壳模型 v1.1）；空值回退 ParamsJson（兼容 v1 PAGE 21）
     var spec = DynPageViewHelper.ParseShellSpec(Model);
