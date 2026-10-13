@@ -27,7 +27,7 @@
 
     var detailSetting = detailPsId > 0 ? pageSettingService.GetById(detailPsId) : null;
 }
-<div id="@extId" dyn-init="createApp" class="dyn-blk-detail">
+<div id="@extId" dyn-init="createApp" v-cloak class="dyn-blk-detail">
     <div class="dyn-actionbar">
         <div class="dyn-actionbar__group">
             <button type="button" class="dyn-actionbar__btn dyn-actionbar__btn--primary"

@@ -144,7 +144,7 @@
     }
 
     @* 明细抽屉挂载点 *@
-    <div id="@drawerId" dyn-init="CreateApp" data-dyn-mode-model="@(new{visible=true, drawerTitle=drawerTitle}.ToJson())"  data-dyn-app-name="FilterDrawer">
+    <div id="@drawerId" dyn-init="CreateApp" v-cloak data-dyn-mode-model="@(new{visible=true, drawerTitle=drawerTitle}.ToJson())"  data-dyn-app-name="FilterDrawer">
         <el-drawer ref="drawer" :title="model.drawerTitle" direction="ltr" size="@drawerWidth" :visible.sync="model.visible" :append-to-body="false" v-on:closed="onClosed">
             <div ref="body" class="fld-drawer-body"></div>
         </el-drawer>

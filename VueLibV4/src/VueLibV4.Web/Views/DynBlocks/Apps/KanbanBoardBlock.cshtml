@@ -13,7 +13,7 @@
     var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
     var extId = (ViewData["ExtId"] as string) ?? ("kb" + Guid.NewGuid().ToString("N"));
 }
-<div id="@extId" data-dyn-mode="createApp" data-blk-role="kanban" class="dyn-kanban" data-blk-config="@blkConfig">
+<div id="@extId" data-dyn-mode="createApp" v-cloak data-blk-role="kanban" class="dyn-kanban" data-blk-config="@blkConfig">
     <div class="dyn-kanban__header">
         <span class="dyn-kanban__title">📋 任务看板</span>
         <button type="button" class="el-button el-button--primary el-button--small" @@click="reload()">刷新</button>

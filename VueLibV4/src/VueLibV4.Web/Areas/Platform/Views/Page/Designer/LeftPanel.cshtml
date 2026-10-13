@@ -1,7 +1,7 @@
 @* 左侧面板：组件库 / 组件树 / 我的组合 三个 tab；可折叠为窄轨；树支持拖拽排序与悬停操作 *@
 <aside class="dyn-panel shrink-0 bg-white border-r border-gray-200 flex flex-col min-h-0"
        :style="{ width: model.leftCollapsed ? '26px' : '288px' }"
-       dyn-init="createapp" data-dyn-use-scope="designer">
+       dyn-init="createapp" v-cloak data-dyn-use-scope="designer">
 
   @* ===== 折叠态窄轨 ===== *@
   <div v-show="model.leftCollapsed" class="dyn-panel-rail flex flex-col items-center pt-2">

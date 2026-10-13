@@ -101,7 +101,7 @@
 
     <div class="tr-split" id="@extIdSplit">
         @* ===== 左树：模板自身的 app（有真实 UI），与右侧 DetailApp 平级、DOM 子树不相交 ===== *@
-        <div id="@extIdTree" data-dyn-mode="createApp" data-blk-role="tree" class="tr-pane-left" style="width:@(leftWidth)%">
+        <div id="@extIdTree" data-dyn-mode="createApp" v-cloak data-blk-role="tree" class="tr-pane-left" style="width:@(leftWidth)%">
             <script type="application/json" tag="dynmodel">@Html.Raw(treeModelForScript)</script>
             <script type="text/plain" tag="dynconfig">
             var dynConfig = {

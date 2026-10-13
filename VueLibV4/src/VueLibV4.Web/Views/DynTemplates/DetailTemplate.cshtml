@@ -18,7 +18,7 @@
     var extId = "Dtl" + Guid.NewGuid().ToString("N");
     var detailBack = Model.RenderMode == "Back" && !string.IsNullOrWhiteSpace(Model.PartialPath);
 }
-<div id="@extId" data-dyn-mode="createApp" class="dtpl-root">
+<div id="@extId" data-dyn-mode="createApp" v-cloak class="dtpl-root">
     @* <div class="dtpl-head">
         <span class="dtpl-title">{{ winTitle || pageTitle }}</span>
     </div> *@

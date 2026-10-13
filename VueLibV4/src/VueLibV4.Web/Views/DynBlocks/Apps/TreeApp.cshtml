@@ -20,7 +20,7 @@
     var extId = (ViewData["ExtId"] as string) ?? ("tr" + Guid.NewGuid().ToString("N"));
     var extSlots = ViewData["ExtSlots"] as DynExtSlots;
 }
-<div id="@extId" data-dyn-mode="createApp" data-blk-role="tree" class="dyn-blk-tree" data-blk-config="@blkConfig">
+<div id="@extId" data-dyn-mode="createApp" v-cloak data-blk-role="tree" class="dyn-blk-tree" data-blk-config="@blkConfig">
     <script type="text/plain" tag="dynconfig">
     // ===== 自读配置（独立 app，无任何根依赖）；参数链优先、data-blk-config 兜底 =====
     var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};

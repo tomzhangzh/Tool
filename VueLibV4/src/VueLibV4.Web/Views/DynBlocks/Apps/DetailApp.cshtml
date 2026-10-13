@@ -23,7 +23,7 @@
     // 页面扩展槽位（DynWebPage.ExtViewPath 收集而来；无扩展时为 null，锚点零输出）
     var extSlots = ViewData["ExtSlots"] as DynExtSlots;
 }
-<div id="@extId" data-dyn-mode="createApp" data-blk-role="detail" class="dyn-blk-detail" data-blk-config="@blkConfig">
+<div id="@extId" data-dyn-mode="createApp" v-cloak data-blk-role="detail" class="dyn-blk-detail" data-blk-config="@blkConfig">
     <div class="dyn-blk-detail__btns">
         <button type="button" class="el-button el-button--primary el-button--small" data-permission-op="edit" :disabled="loading" @@click="onSave()">
             <el-icon><Check /></el-icon> 保存

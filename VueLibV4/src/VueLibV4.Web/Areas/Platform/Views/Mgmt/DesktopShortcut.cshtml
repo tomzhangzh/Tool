@@ -11,7 +11,7 @@
       删除     = dyn-click="postback({...})"（confirm 声明式确认 + $onSuccess 动作刷新列表）
 *@
 @inject IDesktopSolutionService _solutions;
-<div dyn-init="createapp" class="p-4 space-y-3" style="height:100vh;display:flex;flex-direction:column;box-sizing:border-box;">
+<div dyn-init="createapp" v-cloak class="p-4 space-y-3" style="height:100vh;display:flex;flex-direction:column;box-sizing:border-box;">
     <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-gray-700">桌面快捷方式管理</h3>
         <el-button type="success" size="small"

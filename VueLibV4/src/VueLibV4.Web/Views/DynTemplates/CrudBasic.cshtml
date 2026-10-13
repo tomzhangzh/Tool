@@ -12,7 +12,7 @@
     var filterBack = Model.FilterRenderMode == "Back" && !string.IsNullOrWhiteSpace(Model.FilterPartialPath);
     var listBack = Model.ListRenderMode == "Back" && !string.IsNullOrWhiteSpace(Model.ListPartialPath);
 }
-<div id="@extId">
+<div id="@extId" v-cloak>
     <div class="crud-head">
         <div class="title">
             <span class="name">{{ title }}</span>

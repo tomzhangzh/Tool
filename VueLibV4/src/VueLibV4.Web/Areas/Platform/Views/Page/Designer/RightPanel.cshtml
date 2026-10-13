@@ -1,7 +1,7 @@
 @* 右侧属性面板：基础(含控件类型+组件属性) / 布局样式 / 校验规则 / 高级；可折叠为窄轨 *@
 <aside class="dyn-panel shrink-0 bg-white border-l border-gray-200 flex flex-col min-h-0"
        :style="{ width: model.rightCollapsed ? '26px' : '320px' }"
-       dyn-init="createapp" data-dyn-use-scope="designer">
+       dyn-init="createapp" v-cloak data-dyn-use-scope="designer">
 
   @* ===== 折叠态窄轨 ===== *@
   <div v-show="model.rightCollapsed" class="dyn-panel-rail flex flex-col items-center pt-2">

@@ -86,7 +86,7 @@
         return new HtmlString(sb.ToString());
     }
 }
-<div id="@extId" dyn-init="createApp" class="dyn-blk-list">
+<div id="@extId" dyn-init="createApp" v-cloak class="dyn-blk-list">
     @if (!isReadonly)
     {
         <div class="dyn-blk-list__toolbar">

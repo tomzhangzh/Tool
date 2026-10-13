@@ -16,7 +16,7 @@
     // 页面扩展槽位（DynWebPage.ExtViewPath 收集而来；无扩展时为 null，锚点零输出）
     var extSlots = ViewData["ExtSlots"] as DynExtSlots;
 }
-<div id="@extId" data-dyn-mode="createApp" data-blk-role="filter" class="dyn-blk-filter" data-blk-config="@blkConfig">
+<div id="@extId" data-dyn-mode="createApp" v-cloak data-blk-role="filter" class="dyn-blk-filter" data-blk-config="@blkConfig">
     <div class="dyn-blk-filter__body">
         @* model 键名不能用 model（mountCore 的 setup 会暴露同名 model 覆盖 data），用 filterModel *@
         <dyn-dynamic-com v-if="pageCfg" :jsonconfig="pageCfg" :parentmodelinfo="filterModel"></dyn-dynamic-com>

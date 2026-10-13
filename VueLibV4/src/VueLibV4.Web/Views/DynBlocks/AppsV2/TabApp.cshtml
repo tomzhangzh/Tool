@@ -30,7 +30,7 @@
     var masterKeyField = S("masterKeyField", "Id");
     var tabsJson = S("tabs", "[]");
 }
-<div id="@extId" dyn-init="createApp" class="dyn-blk-tabapp">
+<div id="@extId" dyn-init="createApp" v-cloak class="dyn-blk-tabapp">
     <el-tabs v-model="activeTab" type="card" class="ta-tabs" @@tab-change="onTabChange">
         <el-tab-pane v-for="(t, i) in tabs" :key="i"
                      :label="t.title" :name="String(i)"

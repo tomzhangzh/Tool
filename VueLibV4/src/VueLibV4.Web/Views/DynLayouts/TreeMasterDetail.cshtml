@@ -114,7 +114,7 @@
         ["project"] = project
     };
 }
-<div id="@rootId" class="lsh-root" data-dyn-layout="tree-master-detail"
+<div id="@rootId" v-cloak class="lsh-root" data-dyn-layout="tree-master-detail"
      data-dyn-params="@DynPageViewHelper.SafeJson(pageParams)"
      data-dyn-page-spec="@DynPageViewHelper.SafeJson(spec)">
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {

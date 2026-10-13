@@ -9,7 +9,7 @@
   · 侧边栏/底部按钮点击 → window 广播 'car-nav' 事件，本页监听切换 current
   · 复用全部已有 DynCom 组件，不改动任何现有页面/组件
 *@
-<div data-dyn-mode="createApp" class="car-stage">
+<div data-dyn-mode="createApp" v-cloak class="car-stage">
     <!-- 数据看板 -->
     <div v-if="current === 'dashboard'" class="car-panel">
         <div class="car-panel-title">数据看板</div>

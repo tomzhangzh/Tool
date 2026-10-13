@@ -34,7 +34,7 @@
     var detailBlkConfig = (cfg["detailBlkConfig"] ?? "").ToString();
     var idField = (cfg["idField"] ?? "Id").ToString();
 }
-<div id="@extId" data-dyn-mode="createApp" data-blk-role="tabs" data-blk-config="@blkConfig" class="dyn-blk-tabs">
+<div id="@extId" data-dyn-mode="createApp" v-cloak data-blk-role="tabs" data-blk-config="@blkConfig" class="dyn-blk-tabs">
     <el-tabs v-model="activeTab" class="dyn-blk-tabs__tabs" @@tab-change="onTabChange">
         <el-tab-pane label="基本信息" name="main">
             @* tab1：内嵌 DetailApp（学生主表单）。它是独立 Vue app，自己读 detailBlkConfig。 *@

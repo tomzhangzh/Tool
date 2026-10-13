@@ -3,7 +3,7 @@
    成功与失败的闭环全部由服务端动作驱动，片段零业务 JS。 *@
 @inject IDesktopSolutionService _solutions
 <div id="scFormFragment" class="p-4">
-    <div dyn-init="createapp">
+    <div dyn-init="createapp" v-cloak>
         <el-form label-width="92px" size="small">
             <el-form-item label="编码" required>
                 <el-input v-model="model.Code" maxlength="64" placeholder="唯一编码，如 student-manage"></el-input>

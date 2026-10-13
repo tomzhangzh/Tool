@@ -2,7 +2,7 @@
     ViewData["Title"] = "VueLibV4 桌面工作台";
     var extId = "Ctrl" + Guid.NewGuid().ToString("N");
 }
-<div id="@extId">
+<div id="@extId" v-cloak>
     <div class="desktop">
         <!-- 桌面快捷方式：两种展示模式（icons=经典平铺图标 / cards=分组卡片小组件） -->
         <div v-if="displayMode === 'icons'" class="desktop-icons">

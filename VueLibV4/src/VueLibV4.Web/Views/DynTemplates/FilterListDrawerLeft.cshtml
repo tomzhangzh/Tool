@@ -32,7 +32,7 @@
                 <dyn-inject-host data-block-host="list"><div class="dyn-loading">加载列表…</div></dyn-inject-host>
             </div>
         </div>
-        <div dyn-init="createApp" id="@(execId)_drawerapp" class="fldl-drawer" data-dyn-mode-model="@(new { visible = false, drawerTitle = title }.ToJson())">
+        <div dyn-init="createApp" v-cloak id="@(execId)_drawerapp" class="fldl-drawer" data-dyn-mode-model="@(new { visible = false, drawerTitle = title }.ToJson())">
             <el-drawer ref="drawer" :title="model.drawerTitle" direction="ltr" size="@drawerWidth"
                        v-model="model.visible" :destroy-on-close="false" :modal="true" :append-to-body="false">
                 <dyn-inject-host data-block-host="detail" ><div class="dyn-loading">加载明细…</div></dyn-inject-host>

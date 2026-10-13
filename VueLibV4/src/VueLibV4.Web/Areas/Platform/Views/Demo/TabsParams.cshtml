@@ -34,7 +34,7 @@
     <div class="tp-panes">
         @* ===== Tab1：编辑保存（编排者自身，负责显式 commit） ===== *@
         <section class="tp-pane" data-pane="edit">
-            <div id="editApp" data-dyn-mode="createApp" dyn-init="createapp" class="tp-card">
+            <div id="editApp" data-dyn-mode="createApp" dyn-init="createapp" v-cloak class="tp-card">
                 <div class="tp-row">
                     当前共享 <code>courseId</code> =
                     <b class="tp-hot">{{ $params.courseId }}</b>

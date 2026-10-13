@@ -20,7 +20,7 @@
     // 页面扩展槽位（DynWebPage.ExtViewPath 收集而来；无扩展时为 null，锚点零输出）
     var extSlots = ViewData["ExtSlots"] as DynExtSlots;
 }
-<div id="@extId" data-dyn-mode="createApp" data-blk-role="list" class="dyn-blk-list" data-blk-config="@blkConfig">
+<div id="@extId" data-dyn-mode="createApp" v-cloak data-blk-role="list" class="dyn-blk-list" data-blk-config="@blkConfig">
     <div class="dyn-blk-list__toolbar">
         @* 声明式覆写：cfg.actions.add 存在时走 dyn-click（如 open 明细片段弹窗，onclose 自刷新）；
            缺省保持 @@click emit('add')（引擎壳/老页面）。 *@

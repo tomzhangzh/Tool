@@ -10,7 +10,7 @@
   · model 结构：{ rows:[](数据数组), pageInfo:{pageIndex,pageSize,total} } —— 两视图绑定同一 rows，容器绑定 pageInfo
   · 分页：容器内共享 el-pagination，改 pageInfo 后页面 $watch 自动刷新（模拟分页切片）
 *@
-<div id="@extId" class="vs-demo">
+<div id="@extId" v-cloak class="vs-demo">
     <div class="vs-head">
         <div class="vs-title">
             <span class="vs-name">{{ title }}</span>

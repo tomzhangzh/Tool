@@ -10,7 +10,7 @@
   · DynEChart 经 <dyn-dynamic-com> 渲染，modelname 绑定 model.chartData；
     切换类型时更新 chartCfg.options.comoptions.chartType（组件 watch 到配置变化自动重绘）。
 *@
-<div id="@extId" class="ech-demo">
+<div id="@extId" v-cloak class="ech-demo">
     <div class="ech-head">
         <div class="ech-title">
             <span class="ech-name">{{ title }}</span>
