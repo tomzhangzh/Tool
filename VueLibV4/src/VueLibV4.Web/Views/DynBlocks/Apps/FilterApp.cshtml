@@ -56,6 +56,8 @@
             if (v && typeof v === 'object' && v.op) {
                 opMap[k] = v.op;
                 initModel[k] = { op: v.op, value: (v.value === undefined ? null : v.value) };
+                if (v.orFields && Array.isArray(v.orFields))
+                    initModel[k].orFields = v.orFields;
             }
             else { opMap[k] = 'eq'; initModel[k] = (v === null || v === undefined) ? null : v; }
         });
@@ -65,7 +67,7 @@
     var __P = (window.dyn && dyn.params) ? dyn.params(element) : null;
     var __paramInit = (__P && __P.get('filterInit')) || {};
     var __init = __buildInit(Object.assign({}, __def, __paramInit));
-
+debugger;
     var dynConfig = {
         data: function () {
             return {

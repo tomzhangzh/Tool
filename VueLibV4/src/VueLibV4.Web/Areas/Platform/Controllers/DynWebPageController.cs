@@ -142,6 +142,7 @@ public class DynWebPageController : ControllerBase
                 ["id"] = tpl.Id,
                 ["code"] = tpl.Code,
                 ["name"] = tpl.Name,
+                ["version"] = tpl.Version,
                 ["configJson"] = tpl.ConfigJson,
                 ["defaultJson"] = tpl.DefaultJson
             },
@@ -166,6 +167,7 @@ public class DynWebPageController : ControllerBase
                     ["id"] = block.Id,
                     ["code"] = block.Code,
                     ["name"] = block.Name,
+                    ["version"] = block.Version,
                     ["implementsRole"] = block.ImplementsRole,
                     ["paramConfigJson"] = block.ParamConfigJson,
                     ["commands"] = ParseJsonArray(block.Commands),
@@ -175,6 +177,40 @@ public class DynWebPageController : ControllerBase
                 ["values"] = BuildSlotValues(pageParams, rel.Slot, block)
             };
             slotsArr.Add(slot);
+        }
+
+        // 兜底：实例 blocks 中已存在、但 DynTemplateBlock 未登记的槽位（如 tpl21/22），按 slot(blockCode) 反查积木
+        var coveredSlots = new HashSet<string>(
+            slotsArr.Select(s => s["slot"]?.Value<string>() ?? string.Empty), StringComparer.OrdinalIgnoreCase);
+        if (pageParams["blocks"] is JObject savedBlocks)
+        {
+            foreach (var prop in savedBlocks.Properties())
+            {
+                var slotName = prop.Name;
+                if (coveredSlots.Contains(slotName)) continue;
+                var extraBlock = _blocks.Query(x => x.Code == slotName && x.IsActive).ToList().FirstOrDefault();
+                if (extraBlock == null) continue;
+                slotsArr.Add(new JObject
+                {
+                    ["slot"] = slotName,
+                    ["slotName"] = SlotNames.TryGetValue(slotName, out var sn2) ? sn2 : extraBlock.Name,
+                    ["required"] = false,
+                    ["sortNo"] = 99,
+                    ["block"] = new JObject
+                    {
+                        ["id"] = extraBlock.Id,
+                        ["code"] = extraBlock.Code,
+                        ["name"] = extraBlock.Name,
+                        ["version"] = extraBlock.Version,
+                        ["implementsRole"] = extraBlock.ImplementsRole,
+                        ["paramConfigJson"] = extraBlock.ParamConfigJson,
+                        ["commands"] = ParseJsonArray(extraBlock.Commands),
+                        ["events"] = ParseJsonArray(extraBlock.Events),
+                        ["description"] = extraBlock.Description
+                    },
+                    ["values"] = BuildSlotValues(pageParams, slotName, extraBlock)
+                });
+            }
         }
         return ApiResult.Ok(data);
     }

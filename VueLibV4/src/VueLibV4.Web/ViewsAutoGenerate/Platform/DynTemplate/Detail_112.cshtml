@@ -88,6 +88,21 @@
         itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
         compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
     };
+    var n13 = new DynNodeViewOptions {
+        comoptions = new {
+            size = "small",
+            sourceType = "static",
+            optionValues = new[] {
+                new { value = 1, label = "V1（旧DSL/页面模板）" },
+                new { value = 2, label = "V2（槽位装配+事件总线）" },
+                new { value = 3, label = "V3（预留）" }
+            },
+            placeholder = "请选择架构版本"
+        }.ToJson(),
+        labeloptions = new { label = "架构版本", required = false, show = true }.ToJson(),
+        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
+        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
+    };
 }
   <dyn-grid-container :parentmodelinfo="form" comoptions="@n0.comoptions" labeloptions="@n0.labeloptions" itemoptions="@n0.itemoptions" compassthrough="@n0.compassthrough">
     <dyn-el-input modelname="Id" comoptions="@n1.comoptions" labeloptions="@n1.labeloptions" itemoptions="@n1.itemoptions" compassthrough="@n1.compassthrough"></dyn-el-input>
@@ -102,4 +117,5 @@
     <dyn-el-switch modelname="IsActive" comoptions="@n10.comoptions" labeloptions="@n10.labeloptions" itemoptions="@n10.itemoptions" compassthrough="@n10.compassthrough"></dyn-el-switch>
     <dyn-el-input modelname="ViewPath" comoptions="@n11.comoptions" labeloptions="@n11.labeloptions" itemoptions="@n11.itemoptions" compassthrough="@n11.compassthrough"></dyn-el-input>
     <dyn-el-switch modelname="SupportGen" comoptions="@n12.comoptions" labeloptions="@n12.labeloptions" itemoptions="@n12.itemoptions" compassthrough="@n12.compassthrough"></dyn-el-switch>
+    <dyn-el-select modelname="Version" comoptions="@n13.comoptions" labeloptions="@n13.labeloptions" itemoptions="@n13.itemoptions" compassthrough="@n13.compassthrough"></dyn-el-select>
   </dyn-grid-container>

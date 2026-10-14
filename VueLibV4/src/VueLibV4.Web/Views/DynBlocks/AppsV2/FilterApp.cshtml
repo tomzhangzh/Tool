@@ -59,6 +59,8 @@
             if (v && typeof v === 'object' && v.op) {
                 opMap[k] = v.op;
                 initModel[k] = { op: v.op, value: (v.value === undefined ? null : v.value) };
+                 if (v.orFields && Array.isArray(v.orFields))
+                    initModel[k].orFields = v.orFields;
             } else { opMap[k] = 'eq'; initModel[k] = (v === null || v === undefined) ? null : v; }
         });
         return { opMap: opMap, initModel: initModel };
@@ -83,7 +85,7 @@
                     var v = self.filterModel[k];
                     if (v && typeof v === 'object' && !Array.isArray(v) && Object.prototype.hasOwnProperty.call(v, 'value')) {
                         if (v.value !== null && v.value !== undefined && v.value !== '')
-                            f[k] = { op: v.op || self.opMap[k] || 'eq', value: v.value };
+                            f[k] = { op: v.op || self.opMap[k] || 'eq', value: v.value, orFields: v.orFields||[] };
                     } else if (v !== null && v !== undefined && v !== '') {
                         f[k] = { op: self.opMap[k] || 'eq', value: v };
                     }

@@ -14,7 +14,8 @@
     var keyField = ps["KeyField"]?.ToString() ?? "Id";
     var execId = "T2-" + Guid.NewGuid().ToString("N");
     var title = Model.Name;
-    var drawerWidth = ps["DrawerWidth"]?.ToString() ?? "55%";
+    var drawerWidth = ps["DrawerWidth"]?.ToString() ?? "60%";
+    var drawerHeight = ps["DrawerHeight"]?.ToString() ?? "80%";
 }
 <div id="@execId" class="flw-root" data-exec-id="@execId">
     @await Html.PartialAsync("~/Views/DynTemplates/Partials/DynPageHeader.cshtml", new ViewDataDictionary(ViewData) {
@@ -53,6 +54,7 @@
         var WEBPAGE_ID = @(Model.Id);
         var KEY_FIELD = '@keyField';
         var DRAWER_WIDTH = '@drawerWidth';
+        var DRAWER_HEIGHT = '@drawerHeight';
         var rootEl = document.getElementById(ROOT_ID);
         window.DynEventBus.registerRoot(rootEl);
 
@@ -89,7 +91,7 @@
                     type: 1,
                     title: rowId ? ('编辑记录 #' + rowId) : '新增记录',
                     shadeClose: false,
-                    area: ['60%', '80%'],
+                    area: [DRAWER_WIDTH, DRAWER_HEIGHT],
                     maxmin: true,
                     content: (window.layui && window.layui.$) ? window.layui.$(holder) : holder,
                     success: function () {

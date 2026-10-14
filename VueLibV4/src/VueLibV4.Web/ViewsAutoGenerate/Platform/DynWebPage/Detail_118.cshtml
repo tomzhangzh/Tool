@@ -66,12 +66,6 @@
         itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "grid grid-cols-1 gap-y-2 items-start" }.ToJson(),
         compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
     };
-    var paramsJson = new DynNodeViewOptions {
-        comoptions = new { size = "small", rows = 10, placeholder = "{}", title = "参数配置 配置设计器" }.ToJson(),
-        labeloptions = new { label = "参数配置 ParamsJson", required = false, show = true }.ToJson(),
-        itemoptions = new Dictionary<string, object?> { ["style"] = new { }, ["class"] = "" }.ToJson(),
-        compassthrough = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
-    };
     var extJson = new DynNodeViewOptions {
         comoptions = new { size = "small", rows = 8, placeholder = "{}", title = "扩展配置 配置设计器" }.ToJson(),
         labeloptions = new { label = "扩展配置 ExtJson", required = false, show = true }.ToJson(),
@@ -111,17 +105,24 @@
         </div>
     </el-tab-pane>
     <el-tab-pane label="参数配置" name="params">
-        <dyn-grid-container :parentmodelinfo="form" comoptions="@gridParams.comoptions" labeloptions="@gridParams.labeloptions" itemoptions="@gridParams.itemoptions" compassthrough="@gridParams.compassthrough">
-            <dyn-json-designer modelname="ParamsJson" comoptions="@paramsJson.comoptions" labeloptions="@paramsJson.labeloptions" itemoptions="@paramsJson.itemoptions" compassthrough="@paramsJson.compassthrough"></dyn-json-designer>
-            <dyn-json-designer modelname="ExtJson" comoptions="@extJson.comoptions" labeloptions="@extJson.labeloptions" itemoptions="@extJson.itemoptions" compassthrough="@extJson.compassthrough"></dyn-json-designer>
-            <dyn-el-textarea modelname="ExtViewPath" comoptions="@extView.comoptions" labeloptions="@extView.labeloptions" itemoptions="@extView.itemoptions" compassthrough="@extView.compassthrough"></dyn-el-textarea>
-        </dyn-grid-container>
+        @* 动态参数面板（独立 App）：按壳模板 + 各积木 ParamConfigJson 动态生成表单，
+           修改实时写入宿主 form.ParamsJson，随本弹窗"保存"统一提交。 *@
+        @await Html.PartialAsync("~/Views/DynPages/Ext/_WebPageParamsPanel.cshtml")
+        <el-collapse class="wp-edit-tabs__ext">
+            <el-collapse-item title="高级（ExtJson / ExtViewPath，不写入 ParamsJson）" name="ext">
+                <dyn-grid-container :parentmodelinfo="form" comoptions="@gridParams.comoptions" labeloptions="@gridParams.labeloptions" itemoptions="@gridParams.itemoptions" compassthrough="@gridParams.compassthrough">
+                    <dyn-json-designer modelname="ExtJson" comoptions="@extJson.comoptions" labeloptions="@extJson.labeloptions" itemoptions="@extJson.itemoptions" compassthrough="@extJson.compassthrough"></dyn-json-designer>
+                    <dyn-el-textarea modelname="ExtViewPath" comoptions="@extView.comoptions" labeloptions="@extView.labeloptions" itemoptions="@extView.itemoptions" compassthrough="@extView.compassthrough"></dyn-el-textarea>
+                </dyn-grid-container>
+            </el-collapse-item>
+        </el-collapse>
     </el-tab-pane>
 </el-tabs>
 
 <style>
     .wp-edit-tabs { width: 100%; }
     .wp-edit-tabs .el-tabs__content { padding: 12px; }
+    .wp-edit-tabs__ext { margin-top: 10px; border-top: 1px dashed #ebeef5; }
     .wp-graph-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     .wp-graph-btn {
         height: 28px; padding: 0 12px; font-size: 12px; line-height: 1;

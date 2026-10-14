@@ -1,0 +1,11 @@
+@* WebPage 参数面板 standalone 外壳
+   浏览器直访：_ViewStart 自动套 _Layout（dyn-lib.js 加载后自动扫描 dyn-init 引导面板 App）。
+   XHR 打开：自动切 _AjaxLayout。
+   需要裸片段注入容器时用 /Platform/Page/ParamsPanel?raw=1。 *@
+@{
+    int qTid = ViewData["TemplateId"] != null ? Convert.ToInt32(ViewData["TemplateId"]) : 0;
+    long qPid = ViewData["PageId"] != null ? Convert.ToInt64(ViewData["PageId"]) : 0;
+}
+<div style="padding:16px;max-width:980px;margin:0 auto">
+    @await Html.PartialAsync("~/Views/DynPages/Ext/_WebPageParamsPanel.cshtml")
+</div>

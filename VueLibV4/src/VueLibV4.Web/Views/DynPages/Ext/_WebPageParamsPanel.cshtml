@@ -1,0 +1,366 @@
+@* =============================================================================
+   WebPage 参数配置面板（可复用、自包含独立 Vue App）
+
+   形态：根据【壳模板 DynTemplate.ConfigJson（模板自身参数 UI）】+
+        【DynTemplateBlock → DynBlock.ParamConfigJson（各槽位参数 UI）】动态渲染表单，
+        与 InspectorPanel 同源（/api/platform/dynwebpage/paramschema）。
+
+   两种嵌入方式：
+   1) 宿主表单内（如 Detail_118 固定视图）：@await Html.PartialAsync(本视图)
+      —— 自动向上查找宿主 proxy（__dynProxy.form），任何修改实时序列化写入
+         hostForm.ParamsJson，随宿主统一保存；并 $watch 宿主 form.TemplateId/Id 自动重拉。
+   2) URL 独立片段：GET /Platform/Page/ParamsPanel?templateId=&pageId=
+      —— 无宿主时为 standalone 模式，显示"保存"按钮直接调 /Platform/Page/SaveParams。
+         适合用 ActionHelper.Load / updateEl 注入到任意容器。
+
+   保存结构（ParamsJson）：{ ...模板自身/基础参数, blocks:{ slot:{settingId,model,options?} } }
+   未在表单中定义的顶层键（如 child/masterDetailSettingId/tabDialogPageId）原样保留不丢失。
+   ============================================================================ *@
+@{
+    int qTid = ViewData["TemplateId"] != null ? Convert.ToInt32(ViewData["TemplateId"]) : 0;
+    long qPid = ViewData["PageId"] != null ? Convert.ToInt64(ViewData["PageId"]) : 0;
+    var panelId = "wpp-" + Guid.NewGuid().ToString("N")[..10];
+}
+<div id="@panelId" dyn-init="createApp" v-cloak class="wpp-panel">
+    <div class="wpp-bar">
+    <span class="wpp-bar__name" v-if="ready && tplName">模板：{{ tplName }}<i v-if="tplVersion" class="wpp-ver">V{{ tplVersion }}</i></span>
+    <span class="wpp-bar__hint" v-if="hostForm">参数随页面"保存"按钮一并提交</span>
+    <span class="wpp-bar__hint" v-else-if="ready">独立模式</span>
+    <div class="wpp-bar__right">
+        <button type="button" class="el-button el-button--small el-button--plain" @@click="load(true)">&#128260; 刷新</button>
+        <button v-if="!hostForm" type="button" class="el-button el-button--primary el-button--small"
+                :disabled="saving || !templateId" @@click="saveStandalone">
+            {{ saving ? '保存中…' : '保存参数' }}
+        </button>
+    </div>
+</div>
+
+<div v-if="!templateId" class="wpp-empty">
+    请先在&ldquo;基本信息&rdquo;中选择<strong>壳模板</strong>，参数表单会按模板与积木配置自动生成。
+</div>
+<div v-else-if="loading" class="wpp-empty">参数配置加载中…</div>
+
+<el-collapse v-else v-model="active" class="wpp-collapse">
+    <el-collapse-item name="base" title="基础参数">
+        <div class="wpp-grid">
+            <div class="wpp-field"><label>数据表名</label>
+                <el-input v-model="pageParams.TableName" size="small" placeholder="如 SysMenu（留空则不接表）" clearable></el-input>
+            </div>
+            <div class="wpp-field"><label>主键字段</label>
+                <el-input v-model="pageParams.KeyField" size="small" placeholder="Id"></el-input>
+            </div>
+            <div class="wpp-field"><label>外键字段</label>
+                <el-input v-model="pageParams.ChildFkField" size="small" placeholder="主子表外键，可留空" clearable></el-input>
+            </div>
+            <div class="wpp-field"><label>弹窗页ID</label>
+                <el-input v-model="pageParams.ModalPageId" size="small" placeholder="新增/编辑弹窗的 DynWebPage Id，可留空" clearable></el-input>
+            </div>
+        </div>
+    </el-collapse-item>
+
+    <el-collapse-item v-if="tplCfg" name="tpl" :title="'模板参数'">
+        <dyn-dynamic-com :jsonconfig="tplCfg" :parentmodelinfo="pageParams"></dyn-dynamic-com>
+    </el-collapse-item>
+
+    <el-collapse-item v-for="s in slots" :key="s.slot" :name="s.slot"
+                      :title="'🧩 ' + s.slotName + (s.required ? '（必选）' : '')">
+        <div v-if="s.description" class="wpp-desc">{{ s.description }}</div>
+        <i v-if="s.blockVersion" class="wpp-ver wpp-ver--slot">{{ s.block.code }} · V{{ s.blockVersion }}</i>
+        <dyn-dynamic-com v-if="s.paramCfg" :jsonconfig="s.paramCfg"
+                         :parentmodelinfo="pageParams.blocks[s.slot]"></dyn-dynamic-com>
+        <div v-else class="wpp-desc">该积木未声明参数配置。</div>
+    </el-collapse-item>
+
+    <el-collapse-item name="adv" title="原始 ParamsJson（高级）">
+        <el-input type="textarea" :rows="8" v-model="paramsText"
+                  @@change="onRawEdit" placeholder="{}" style="font-family:Consolas,monospace;font-size:12px;"></el-input>
+        <div class="wpp-raw-tip">表单内容与此 JSON 实时双向同步；JSON 语法错误时保留文本不覆盖表单。</div>
+    </el-collapse-item>
+</el-collapse>
+
+<script type="application/json" tag="dynmodel">{}</script>
+<script type="text/plain" tag="dynconfig">
+var __qTid = @qTid;
+var __qPid = @qPid;
+var dynConfig = {
+    data: function () {
+        return {
+            ready: false,
+            loading: false,
+            saving: false,
+            templateId: __qTid || 0,
+            pageId: __qPid || 0,
+            tplName: '',
+            tplVersion: 0,
+            tplCfg: null,
+            slots: [],
+            active: ['base'],
+            pageParams: { blocks: {} },
+            paramsText: '{}',
+            hostForm: null,
+            slotMap: {},
+            _rootEl: null,
+            _hostUnwatch: [],
+            _slotOptions: {},
+            _loading: false,
+            _rawError: false
+        };
+    },
+    watch: {
+        pageParams: {
+            deep: true,
+            handler: function () { this.syncToHost(); }
+        }
+    },
+    mounted: function () {
+        var self = this;
+        // dyn 引导以容器节点（element 形参）挂载，组件为多根片段，this.$el 是占位文本节点——
+        // 必须缓存 element 作为根节点，不能用 this.$el。
+        this._rootEl = (typeof element !== 'undefined') ? element : null;
+        // 宿主可能稍晚完成回填：短暂重试定位宿主 form
+        var tries = 0;
+        var timer = setInterval(function () {
+            tries++;
+            var host = self.findHostForm();
+            if (host) {
+                clearInterval(timer);
+                self.hostForm = host;
+                // 宿主模板/主键变化（选模板、新增保存拿到 Id）→ 重新拉取 schema
+                var proxy = self.findHostProxy();
+                if (proxy && typeof proxy.$watch === 'function') {
+                    self._hostUnwatch.push(proxy.$watch('form.TemplateId', function () { self.load(false); }));
+                    self._hostUnwatch.push(proxy.$watch('form.Id', function () { self.load(false); }));
+                }
+                self.load(false);
+            } else if (tries > 20) {
+                clearInterval(timer);
+                // 无宿主：standalone URL 模式
+                if (__qTid > 0) self.load(false);
+                else self.ready = true;
+            }
+        }, 100);
+    },
+    beforeUnmount: function () {
+        (this._hostUnwatch || []).forEach(function (off) { try { off(); } catch (e) { } });
+    },
+    methods: {
+        // 逐级向上查找最近的宿主 Vue 代理（跳过面板自身 app；根节点用引导期缓存的 element 容器）
+        findHostProxy: function () {
+            var n = this._rootEl ? this._rootEl.parentElement : null;
+            while (n) {
+                if (n.__dynProxy) return n.__dynProxy;
+                n = n.parentElement;
+            }
+            return null;
+        },
+        findHostForm: function () {
+            var proxy = this.findHostProxy();
+            return proxy && proxy.form ? proxy.form : null;
+        },
+        currentTarget: function () {
+            if (this.hostForm) {
+                return {
+                    tid: Number(this.hostForm.TemplateId) || 0,
+                    pid: Number(this.hostForm.Id) || 0
+                };
+            }
+            return { tid: Number(__qTid) || 0, pid: Number(__qPid) || 0 };
+        },
+        load: function (manual) {
+            var self = this;
+            var t = this.currentTarget();
+            this.templateId = t.tid;
+            this.pageId = t.pid;
+            if (!t.tid) {
+                this.ready = true;
+                this.tplCfg = null;
+                this.slots = [];
+                return;
+            }
+            this._loading = true;
+            this.loading = true;
+            var url = '/api/platform/dynwebpage/paramschema?templateId=' + t.tid + (t.pid ? '&pageId=' + t.pid : '');
+            fetch(url).then(function (r) { return r.json(); }).then(function (res) {
+                self.loading = false;
+                self.ready = true;
+                if (!res || res.code !== 0 || !res.data) {
+                    self._loading = false;
+                    if (manual) dyn.showMessage((res && res.msg) || '参数配置加载失败', 'error');
+                    return;
+                }
+                self.fill(res.data);
+                self._loading = false;
+                // 数据落地后立即同步一次：把 schema 默认值结构写回宿主 ParamsJson
+                self.syncToHost();
+            }).catch(function (e) {
+                self.loading = false;
+                self._loading = false;
+                console.error('[WebPageParamsPanel]', e);
+                if (manual) dyn.showMessage('参数配置加载失败：' + ((e && e.message) || e), 'error');
+            });
+        },
+        parseCfg: function (s) {
+            if (!s) return null;
+            if (typeof s === 'object') return s;
+            try { return JSON.parse(s); } catch (e) { return null; }
+        },
+        fill: function (d) {
+            var self = this;
+            var p = d.params || {};
+            var pp = { blocks: {} };
+            // 顶层键原样保留（含未在表单中定义的 child / masterDetailSettingId 等）
+            Object.keys(p).forEach(function (k) {
+                if (k !== 'blocks') pp[k] = p[k];
+            });
+            var baseDefaults = { TableName: '', KeyField: 'Id', ChildFkField: '', ModalPageId: null };
+            Object.keys(baseDefaults).forEach(function (k) {
+                if (pp[k] === undefined || pp[k] === null) pp[k] = baseDefaults[k];
+            });
+            this._slotOptions = {};
+            var slotNames = [];
+            (d.slots || []).forEach(function (s) {
+                var v = s.values || {};
+                var entry = { settingId: (v.settingId === undefined || v.settingId === null) ? null : v.settingId };
+                var m = v.model || {};
+                Object.keys(m).forEach(function (k) { entry[k] = m[k]; });
+                pp.blocks[s.slot] = entry;
+                self._slotOptions[s.slot] = v.options || {};
+                slotNames.push(s.slot);
+            });
+            this.slotMap = {};
+            slotNames.forEach(function (n) { this.slotMap[n] = true; }, this);
+            this.tplName = d.template ? (d.template.name || d.template.code || '') : '';
+            this.tplVersion = d.template ? (Number(d.template.version) || 0) : 0;
+            var tcfg = this.parseCfg(d.template && d.template.configJson);
+            this.tplCfg = (tcfg && Object.keys(tcfg).length > 0) ? tcfg : null;
+            this.slots = (d.slots || []).map(function (s) {
+                return {
+                    slot: s.slot,
+                    slotName: s.slotName || s.slot,
+                    required: !!s.required,
+                    description: s.block ? s.block.description : '',
+                    blockVersion: s.block ? (Number(s.block.version) || 0) : 0,
+                    block: s.block ? { code: s.block.code || s.slot } : { code: s.slot },
+                    paramCfg: self.parseCfg(s.block && s.block.paramConfigJson)
+                };
+            });
+            this.active = ['base'].concat(this.tplCfg ? ['tpl'] : []).concat(slotNames).concat(['adv']);
+            this.pageParams = pp;
+            this._rawError = false;
+            this.paramsText = JSON.stringify(pp, null, 2);
+        },
+        // 表单 → ParamsJson：顶层键全保留；已知槽位重组为 {settingId, model, options?}，未知槽位原样保留
+        syncToHost: function () {
+            if (this._loading || !this.ready) return;
+            var pp = this.pageParams || {};
+            var out = {};
+            Object.keys(pp).forEach(function (k) {
+                if (k !== 'blocks') out[k] = pp[k];
+            });
+            var blocks = {};
+            var self = this;
+            Object.keys(pp.blocks || {}).forEach(function (slot) {
+                var b = pp.blocks[slot] || {};
+                if (self.slotMap && self.slotMap[slot]) {
+                    var entry = {
+                        settingId: (b.settingId === undefined || b.settingId === '') ? null : b.settingId,
+                        model: {}
+                    };
+                    Object.keys(b).forEach(function (k) {
+                        if (k === 'settingId') return;
+                        var v = b[k];
+                        if (v !== '' && v !== null && v !== undefined) entry.model[k] = v;
+                    });
+                    var opts = self._slotOptions[slot];
+                    if (opts && Object.keys(opts).length) entry.options = opts;
+                    blocks[slot] = entry;
+                } else {
+                    try { blocks[slot] = JSON.parse(JSON.stringify(b)); }
+                    catch (e) { blocks[slot] = b; }
+                }
+            });
+            out.blocks = blocks;
+            var json = JSON.stringify(out);
+            if (!this._rawError) this.paramsText = JSON.stringify(out, null, 2);
+            if (this.hostForm) this.hostForm.ParamsJson = json;
+        },
+        onRawEdit: function () {
+            var obj;
+            try { obj = JSON.parse(this.paramsText || '{}'); }
+            catch (e) { this._rawError = true; dyn.showMessage('JSON 语法错误：' + e.message, 'warning'); return; }
+            this._rawError = false;
+            if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+                this._rawError = true;
+                dyn.showMessage('ParamsJson 必须是 JSON 对象', 'warning');
+                return;
+            }
+            if (!obj.blocks || typeof obj.blocks !== 'object') obj.blocks = {};
+            var baseDefaults = { TableName: '', KeyField: 'Id', ChildFkField: '', ModalPageId: null };
+            Object.keys(baseDefaults).forEach(function (k) {
+                if (obj[k] === undefined) obj[k] = baseDefaults[k];
+            });
+            var self = this;
+            Object.keys(this.slotMap || {}).forEach(function (slot) {
+                var saved = obj.blocks[slot] || {};
+                var entry = { settingId: saved.settingId === undefined ? null : saved.settingId };
+                // 原始 JSON 为 {settingId, model:{...}} 结构：把 model 内键铺平供表单绑定
+                if (saved.model && typeof saved.model === 'object') {
+                    Object.keys(saved.model).forEach(function (k) { entry[k] = saved.model[k]; });
+                }
+                Object.keys(saved).forEach(function (k) {
+                    if (k === 'settingId' || k === 'model' || k === 'options') return;
+                    entry[k] = saved[k];
+                });
+                obj.blocks[slot] = entry;
+                if (saved.options) self._slotOptions[slot] = saved.options;
+            });
+            this._loading = true;
+            this.pageParams = obj;
+            this.$nextTick(function () { self._loading = false; self.syncToHost(); });
+        },
+        saveStandalone: function () {
+            var self = this;
+            if (!this.pageId) { dyn.showMessage('缺少页面 Id（pageId），无法独立保存', 'warning'); return; }
+            this.saving = true;
+            this.syncToHost();
+            var paramsObj;
+            try { paramsObj = JSON.parse(this.hostForm ? this.hostForm.ParamsJson : this.paramsText); }
+            catch (e) { this.saving = false; dyn.showMessage('ParamsJson 语法错误', 'error'); return; }
+            fetch('/Platform/Page/SaveParams', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ webpageId: this.pageId, paramsJson: paramsObj })
+            }).then(function (r) { return r.json(); }).then(function (res) {
+                self.saving = false;
+                if (res && res.code === 0) dyn.showMessage('参数已保存', 'success');
+                else dyn.showMessage((res && res.msg) || '保存失败', 'error');
+            }).catch(function (e) {
+                self.saving = false;
+                dyn.showMessage('保存异常：' + ((e && e.message) || e), 'error');
+            });
+        }
+    }
+};
+</script>
+</div>
+
+<style>
+    .wpp-panel { border: 1px solid #ebeef5; border-radius: 6px; background: #fff; padding: 10px 12px; }
+    .wpp-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .wpp-bar__name { font-size: 13px; font-weight: 600; color: #303133; }
+    .wpp-ver { font-style: normal; font-size: 11px; font-weight: 600; color: #2563eb; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 3px; padding: 0 5px; margin-left: 6px; vertical-align: middle; }
+    .wpp-ver--slot { float: right; margin: 0 0 6px; color: #909399; background: #f4f4f5; border-color: #e9e9eb; font-weight: 400; }
+    .wpp-bar__hint { font-size: 12px; color: #909399; }
+    .wpp-bar__right { margin-left: auto; display: flex; gap: 6px; }
+    .wpp-empty { padding: 28px 12px; text-align: center; color: #909399; font-size: 13px; line-height: 1.8; }
+    .wpp-collapse { border: none; }
+    .wpp-collapse .el-collapse-item__header { font-size: 13px; font-weight: 600; }
+    .wpp-collapse .el-collapse-item__content { padding-bottom: 10px; }
+    .wpp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .wpp-field { display: flex; align-items: center; gap: 8px; }
+    .wpp-field label { width: 70px; flex: 0 0 70px; text-align: right; font-size: 12px; color: #606266; }
+    .wpp-field .el-input { flex: 1; }
+    .wpp-desc { font-size: 12px; color: #909399; margin: 0 0 8px; line-height: 1.5; }
+    .wpp-raw-tip { font-size: 11px; color: #c0c4cc; margin-top: 4px; }
+    @@media (max-width: 900px) { .wpp-grid { grid-template-columns: 1fr; } }
+</style>

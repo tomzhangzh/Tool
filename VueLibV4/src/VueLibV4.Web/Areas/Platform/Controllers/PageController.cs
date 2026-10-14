@@ -479,6 +479,21 @@ public class PageController : Controller
         public JObject? ParamsJson { get; set; }
     }
 
+    /// <summary>
+    /// WebPage 参数配置面板：自包含独立 Vue App。
+    /// 浏览器直访 → 套布局的完整页（standalone 模式，面板内"保存参数"按钮直接写 ParamsJson）；
+    /// 需要裸片段注入任意容器时加 raw=1（ActionHelper.Load/updateEl 场景）。
+    /// GET /Platform/Page/ParamsPanel?templateId=21&amp;pageId=6
+    /// </summary>
+    [HttpGet("/Platform/Page/ParamsPanel")]
+    public IActionResult ParamsPanel(int templateId = 0, long pageId = 0, bool raw = false)
+    {
+        ViewData["TemplateId"] = templateId;
+        ViewData["PageId"] = pageId;
+        if (raw) return PartialView("~/Views/DynPages/Ext/_WebPageParamsPanel.cshtml");
+        return View("~/Views/DynPages/Ext/ParamsPanelStandalone.cshtml");
+    }
+
     /// <summary>TableName 自动补齐 dyndata 免 model 接口 Url（手动填写优先）</summary>
     private static Dictionary<string, object> BuildEffectiveParams(Dictionary<string, object> raw)
     {
