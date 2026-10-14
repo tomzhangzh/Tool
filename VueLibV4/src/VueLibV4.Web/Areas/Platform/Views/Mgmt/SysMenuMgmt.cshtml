@@ -124,6 +124,7 @@
                         <el-button type="primary" @@click="onSave" :loading="saving">保存</el-button>
                         <el-button type="danger" @@click="onDelete" :loading="deleting" :disabled="form.Id <= 0">删除</el-button>
                         <el-button @@click="onReset">清空</el-button>
+                        <el-button  type="primary" v-if="DynWebPageId > 0" :data-id="DynWebPageId" dyn-click="OpenWindow({&quot;url&quot;:&quot;/Platform/Page/PageGraphDemo?id={{id}}&quot;,&quot;title&quot;:&quot;页面组成图&quot;,&quot;width&quot;:&quot;92%&quot;,&quot;height&quot;:&quot;92%&quot;})">🗺️页面组成图</el-button>
                     </el-form-item>
                 </el-form>
             </div>
@@ -166,6 +167,17 @@
                 }
                 return this.groupEmojis(hit);
             },
+                DynWebPageId: function () {
+                    try {
+                        const u = new window.URL(this.form.Url, window.location.origin)
+                        if (u.pathname.includes("DynWebPage")) {
+                            return u.searchParams.get("id")
+                        }
+                        return null
+                    } catch (e) {
+                        return null
+                    }
+                },
             // 父级下拉：平铺选项，排除当前编辑节点及其子树
             parentOptions: function () {
                 var self = this;
@@ -406,6 +418,7 @@
                     SortNo: 0, IsActive: true, PermissionCode: ''
                 };
             },
+            
             onSave: function () {
                 var self = this;
                 if (!this.form.Name || !this.form.Name.trim()) {
