@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
@@ -57,6 +57,35 @@ public class DemoController : Controller
     {
         ViewData["Title"] = "Kanban 看板 - VueLibV4";
         return View(string.Format(Page, "KanbanDemo"));
+    }
+
+    [HttpGet("/Platform/Page/WidgetDemo")]
+    public IActionResult WidgetDemo()
+    {
+        ViewData["Title"] = "WidgetApp 仪表盘演示";
+        var widgets = new object[]
+        {
+            new { id = "w1", title = "用户统计", url = "", colSpan = 12, rowSpan = 2, isGroup = false },
+            new { id = "w2", title = "订单概览", url = "", colSpan = 12, rowSpan = 2, isGroup = false },
+            new { id = "w3", title = "数据分组", colSpan = 24, rowSpan = 4, isGroup = true, children = new object[]
+            {
+                new { id = "w3a", title = "子项A", url = "", colSpan = 12, rowSpan = 2, isGroup = false },
+                new { id = "w3b", title = "子项B", url = "", colSpan = 12, rowSpan = 2, isGroup = false }
+            }}
+        };
+        var blkConfig = Newtonsoft.Json.JsonConvert.SerializeObject(new
+        {
+            allowAddGroup = true,
+            allowAddWidget = true,
+            allowResize = true,
+            allowSort = true,
+            columns = 24,
+            pageId = "widget-demo",
+            widgets = widgets
+        });
+        ViewData["BlkConfig"] = blkConfig;
+        ViewData["ExtId"] = "wd-" + Guid.NewGuid().ToString("N");
+        return View(string.Format(Page, "WidgetDemo"));
     }
 
     [HttpGet("/Platform/Page/Demo/ActionHelper")]

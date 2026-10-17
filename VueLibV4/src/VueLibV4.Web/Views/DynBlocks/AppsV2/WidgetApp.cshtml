@@ -1,0 +1,584 @@
+@{
+    // =====================================================================================
+    // WidgetApp —— 仪表盘 Widget Block（独立 VueApp 版，CSS Grid 布局）
+    //
+    // 功能：
+    //   - 24 列 CSS Grid 布局，grid-auto-flow: dense 自动填补空白
+    //   - 每个 widget 支持 colSpan（宽）+ rowSpan（高），拖拽右/下/右下角调尺寸
+    //   - Group 容器：isGroup=true，grid-row:auto 高度自适应内容
+    //   - Widget 绑定 url，内容区通过 dyn.fetchPartial + dyn.html 刷新（等价 updateEl）
+    //   - 拖拽排序：SortableJS，支持 widget 拖入/移出 group
+    //   - 每个 widget 可设置：title / url / showHeader / showBody / showFooter / colSpan / rowSpan
+    //   - 能力开关（管理员配置，来自 data-blk-config）：
+    //       allowAddGroup / allowAddWidget / allowResize / allowSort
+    //   - 持久化：优先调 saveUrl（页面提供），无则存 localStorage（key=pageId）
+    //
+    // 契约（data-blk-config）：
+    //   { allowAddGroup, allowAddWidget, allowResize, allowSort, columns=24, rowHeight=80,
+    //     widgets:[{id,title,url,colSpan,rowSpan,isGroup,showHeader,showBody,showFooter,children[]}],
+    //     saveUrl?, pageId? }
+    //   命令：reload → 刷新全部 widget
+    //   事件：changed → widgets 变更时 emit（payload=widgets 数组）
+    // =====================================================================================
+    var blkConfig = (ViewData["BlkConfig"] as string) ?? "";
+    var extId = (ViewData["ExtId"] as string) ?? ("wa" + Guid.NewGuid().ToString("N"));
+}
+<div id="@extId" data-dyn-mode="createApp" v-cloak data-blk-role="widget" class="dyn-blk-widget" data-blk-config="@blkConfig">
+    <div class="widget-toolbar" v-if="allowAddWidget || allowAddGroup">
+        <button v-if="allowAddWidget" type="button" class="el-button el-button--primary el-button--small" @@click="addWidget(false)">
+            <el-icon style="margin-right:4px"><Plus /></el-icon>添加 Widget
+        </button>
+        <button v-if="allowAddGroup" type="button" class="el-button el-button--success el-button--small" @@click="addWidget(true)">
+            <el-icon style="margin-right:4px"><Grid /></el-icon>添加 Group
+        </button>
+    </div>
+
+    <div class="widget-grid" ref="gridRef" :style="gridStyle">
+        <div v-for="(w, idx) in widgets" :key="w.id"
+             class="widget-card"
+             :class="{ 'is-group': w.isGroup }"
+             :style="widgetStyle(w)"
+             :data-widget-id="w.id">
+            <div v-if="w.showHeader !== false" class="widget-header" data-drag-handle>
+                <span class="widget-title">{{ w.title || '未命名' }}</span>
+                <span class="widget-actions">
+                    <button type="button" class="widget-btn" title="设置" @@click.stop="openSettings(w)">
+                        <el-icon><Setting /></el-icon>
+                    </button>
+                    <button type="button" class="widget-btn" title="刷新" @@click.stop="refreshWidget(w)">
+                        <el-icon><Refresh /></el-icon>
+                    </button>
+                    <button type="button" class="widget-btn" title="删除" @@click.stop="removeWidget(w.id)">
+                        <el-icon><Delete /></el-icon>
+                    </button>
+                </span>
+            </div>
+
+            <div v-if="w.showBody !== false" class="widget-body">
+                <template v-if="w.isGroup">
+                    <div class="widget-subgrid" :data-group-id="w.id" :style="gridStyle">
+                        <div v-for="child in (w.children || [])" :key="child.id"
+                             class="widget-card widget-child"
+                             :style="widgetStyle(child)"
+                             :data-widget-id="child.id">
+                            <div v-if="child.showHeader !== false" class="widget-header" data-drag-handle>
+                                <span class="widget-title">{{ child.title || '未命名' }}</span>
+                                <span class="widget-actions">
+                                    <button type="button" class="widget-btn" title="设置" @@click.stop="openSettings(child)">
+                                        <el-icon><Setting /></el-icon>
+                                    </button>
+                                    <button type="button" class="widget-btn" title="刷新" @@click.stop="refreshWidget(child)">
+                                        <el-icon><Refresh /></el-icon>
+                                    </button>
+                                    <button type="button" class="widget-btn" title="删除" @@click.stop="removeWidget(child.id, w.id)">
+                                        <el-icon><Delete /></el-icon>
+                                    </button>
+                                </span>
+                            </div>
+                            <div v-if="child.showBody !== false" class="widget-body">
+                                <div class="widget-content" :data-widget-url="child.url" :ref="'content_'+child.id">
+                                    <iframe v-if="child.loadMode === 'iframe' && child.url" :src="child.url" class="widget-iframe" frameborder="0"></iframe>
+                                    <div v-else-if="!child.url" class="widget-empty">未绑定 URL</div>
+                                </div>
+                            </div>
+                            <div v-if="child.showFooter" class="widget-footer"></div>
+                            <template v-if="allowResize">
+                                <div class="resize-handle resize-r" @@mousedown.stop="startResize($event, child, 'col')"></div>
+                                <div class="resize-handle resize-b" @@mousedown.stop="startResize($event, child, 'row')"></div>
+                                <div class="resize-handle resize-br" @@mousedown.stop="startResize($event, child, 'both')"></div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <template v-else>
+                    <div class="widget-content" :data-widget-url="w.url" :ref="'content_'+w.id">
+                        <iframe v-if="w.loadMode === 'iframe' && w.url" :src="w.url" class="widget-iframe" frameborder="0"></iframe>
+                        <div v-else-if="!w.url" class="widget-empty">未绑定 URL</div>
+                    </div>
+                </template>
+            </div>
+
+            <div v-if="w.showFooter" class="widget-footer"></div>
+
+            <template v-if="allowResize && !w.isGroup">
+                <div class="resize-handle resize-r" @@mousedown.stop="startResize($event, w, 'col')"></div>
+                <div class="resize-handle resize-b" @@mousedown.stop="startResize($event, w, 'row')"></div>
+                <div class="resize-handle resize-br" @@mousedown.stop="startResize($event, w, 'both')"></div>
+            </template>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <el-dialog v-model="settingsVisible" title="Widget 设置" width="420px" append-to-body>
+        <div v-if="editing" class="widget-settings-form">
+            <el-form label-width="80px" size="small">
+                <el-form-item label="标题">
+                    <el-input v-model="editForm.title" placeholder="widget 标题" />
+                </el-form-item>
+                <el-form-item label="URL">
+                    <el-input v-model="editForm.url" placeholder="内容请求 URL（返回 HTML 片段）" />
+                </el-form-item>
+                <el-form-item label="方法">
+                    <el-radio-group v-model="editForm.method" size="small">
+                        <el-radio-button label="GET">GET</el-radio-button>
+                        <el-radio-button label="POST">POST</el-radio-button>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="加载方式">
+                    <el-radio-group v-model="editForm.loadMode" size="small">
+                        <el-radio-button label="updateEl">UpdateEl</el-radio-button>
+                        <el-radio-button label="iframe">IFrame</el-radio-button>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="自动加载">
+                    <el-switch v-model="editForm.autoLoad" />
+                    <span style="margin-left:8px;color:#909399;font-size:12px">页面打开时自动请求 URL</span>
+                </el-form-item>
+                <el-form-item label="列宽">
+                    <el-input-number v-model="editForm.colSpan" :min="1" :max="columns" />
+                </el-form-item>
+                <el-form-item label="行高">
+                    <el-input-number v-model="editForm.rowSpan" :min="1" :max="20" />
+                    <span style="margin-left:8px;color:#909399;font-size:12px">×80px 高度</span>
+                </el-form-item>
+                <el-form-item label="显示">
+                    <el-checkbox v-model="editForm.showHeader">Header</el-checkbox>
+                    <el-checkbox v-model="editForm.showBody">Body</el-checkbox>
+                    <el-checkbox v-model="editForm.showFooter">Footer</el-checkbox>
+                </el-form-item>
+            </el-form>
+        </div>
+        <template #footer>
+            <el-button @@click="settingsVisible = false">取消</el-button>
+            <el-button type="primary" @@click="saveSettings">确定</el-button>
+        </template>
+    </el-dialog>
+
+    <script type="text/plain" tag="dynconfig">
+    var __cfg = DynBlocks.parseAttr(element, 'data-blk-config') || {};
+    var __handle = null;
+
+    var __storageKey = 'widgetapp:' + (__cfg.pageId || location.pathname);
+    var __saveUrl = __cfg.saveUrl || '';
+    var __columns = __cfg.columns || 24;
+    var __rowHeight = __cfg.rowHeight || 80;
+
+    function __norm(w) {
+        if (!w) return w;
+        if (w.showHeader === undefined) w.showHeader = true;
+        if (w.showBody === undefined) w.showBody = true;
+        if (w.showFooter === undefined) w.showFooter = false;
+        if (w.method === undefined) w.method = 'GET';
+        if (w.loadMode === undefined) w.loadMode = 'updateEl';
+        if (w.autoLoad === undefined) w.autoLoad = true;
+        if (w.colSpan === undefined) w.colSpan = w.span || (w.isGroup ? 24 : 12);
+        if (w.rowSpan === undefined) w.rowSpan = w.isGroup ? 4 : 2;
+        if (w.isGroup && !w.children) w.children = [];
+        return w;
+    }
+
+    var __initialWidgets = __cfg.widgets || [];
+    try {
+        var saved = localStorage.getItem(__storageKey);
+        if (saved) { var parsed = JSON.parse(saved); if (Array.isArray(parsed)) __initialWidgets = parsed; }
+    } catch(e) {}
+    __initialWidgets = (__initialWidgets || []).map(__norm);
+
+    function __uid() { return 'w_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
+
+    var dynConfig = {
+        data: function () {
+            return {
+                allowAddGroup: __cfg.allowAddGroup !== false,
+                allowAddWidget: __cfg.allowAddWidget !== false,
+                allowResize: __cfg.allowResize !== false,
+                allowSort: __cfg.allowSort !== false,
+                columns: __columns,
+                rowHeight: __rowHeight,
+                widgets: JSON.parse(JSON.stringify(__initialWidgets)),
+                _resizing: null,
+                settingsVisible: false,
+                editing: null,
+                editForm: {}
+            };
+        },
+        computed: {
+            gridStyle: function () {
+                return {
+                    '--cols': this.columns,
+                    '--row-h': this.rowHeight + 'px',
+                    gridTemplateColumns: 'repeat(' + this.columns + ', 1fr)',
+                    gridAutoRows: 'minmax(' + this.rowHeight + 'px, auto)',
+                    alignItems: 'start'
+                };
+            },
+            colWidth: function () {
+                var grid = this.$refs.gridRef;
+                if (!grid) return 40;
+                var gap = 8;
+                var w = (grid.clientWidth - gap * (this.columns - 1)) / this.columns;
+                return Math.max(20, w);
+            }
+        },
+        methods: {
+            widgetStyle: function (w) {
+                var col = Math.max(1, Math.min(this.columns, w.colSpan || 12));
+                if (w.isGroup) {
+                    return { gridColumn: 'span ' + col, gridRow: 'auto' };
+                }
+                var row = Math.max(1, w.rowSpan || 2);
+                // 固定高度 = row 行 + gap，内容超出在内部滚动
+                var h = row * this.rowHeight + (row - 1) * 8;
+                return {
+                    gridColumn: 'span ' + col,
+                    gridRow: 'span ' + row,
+                    alignSelf: 'start',
+                    height: h + 'px'
+                };
+            },
+
+            addWidget: function (isGroup) {
+                var w = __norm({
+                    id: __uid(),
+                    title: isGroup ? '新 Group' : '新 Widget',
+                    url: '',
+                    colSpan: isGroup ? 24 : 12,
+                    rowSpan: isGroup ? 4 : 2,
+                    isGroup: isGroup,
+                    showHeader: true,
+                    showBody: true,
+                    showFooter: false,
+                    method: 'GET',
+                    loadMode: 'updateEl',
+                    autoLoad: true,
+                    children: isGroup ? [] : undefined
+                });
+                this.widgets.push(w);
+                this.$nextTick(this._initSortable);
+                this.persist();
+            },
+
+            removeWidget: function (id, parentId) {
+                if (parentId) {
+                    var parent = this.widgets.find(function (w) { return w.id === parentId; });
+                    if (parent && parent.children) {
+                        parent.children = parent.children.filter(function (c) { return c.id !== id; });
+                    }
+                } else {
+                    this.widgets = this.widgets.filter(function (w) { return w.id !== id; });
+                }
+                this.$nextTick(this._initSortable);
+                this.persist();
+            },
+
+            // ---- 设置弹窗 ----
+            openSettings: function (w) {
+                this.editing = w;
+                this._origUrl = w.url || '';
+                this.editForm = {
+                    title: w.title || '',
+                    url: w.url || '',
+                    method: w.method || 'GET',
+                    loadMode: w.loadMode || 'updateEl',
+                    autoLoad: w.autoLoad !== false,
+                    colSpan: w.colSpan || 12,
+                    rowSpan: w.rowSpan || 2,
+                    showHeader: w.showHeader !== false,
+                    showBody: w.showBody !== false,
+                    showFooter: !!w.showFooter
+                };
+                this.settingsVisible = true;
+            },
+            saveSettings: function () {
+                if (!this.editing) return;
+                var f = this.editForm;
+                var w = this.editing;
+                var urlChanged = f.url !== this._origUrl;
+                var loadModeChanged = f.loadMode !== w.loadMode;
+                w.title = f.title;
+                w.url = f.url;
+                w.method = f.method || 'GET';
+                w.loadMode = f.loadMode || 'updateEl';
+                w.autoLoad = f.autoLoad !== false;
+                w.colSpan = Math.max(1, Math.min(this.columns, f.colSpan));
+                w.rowSpan = Math.max(1, f.rowSpan);
+                w.showHeader = f.showHeader;
+                w.showBody = f.showBody;
+                w.showFooter = f.showFooter;
+                this.settingsVisible = false;
+                this.editing = null;
+                this.persist();
+                this.$nextTick(this._initSortable);
+                // URL 或加载方式变了则刷新内容
+                if ((urlChanged || loadModeChanged) && w.url) {
+                    var self = this;
+                    this.$nextTick(function () { self.refreshWidget(w); });
+                }
+            },
+
+            refreshWidget: function (w) {
+                var self = this;
+                if (!w.url) { return; }
+                var contentEl = this.$refs['content_' + w.id];
+                if (Array.isArray(contentEl)) contentEl = contentEl[0];
+                if (!contentEl) return;
+                // iframe 模式：直接设置 src
+                if (w.loadMode === 'iframe') {
+                    var iframe = contentEl.querySelector('iframe');
+                    if (iframe) {
+                        iframe.src = w.url;
+                    }
+                    return;
+                }
+                // updateEl 模式
+                contentEl.classList.add('loading');
+                dyn.fetchPartial(w.url, {}, w.method || 'GET', 'text').then(function (html) {
+                    return dyn.html(contentEl, html);
+                }).catch(function (e) {
+                    contentEl.innerHTML = '<div class="widget-error">加载失败: ' + (e.message || e) + '</div>';
+                }).then(function () {
+                    contentEl.classList.remove('loading');
+                });
+            },
+
+            refreshAll: function () {
+                var self = this;
+                this.widgets.forEach(function (w) {
+                    if (w.isGroup && w.children) {
+                        w.children.forEach(function (c) { if (c.autoLoad !== false) self.refreshWidget(c); });
+                    } else if (w.autoLoad !== false) {
+                        self.refreshWidget(w);
+                    }
+                });
+            },
+
+            persist: function () {
+                var data = JSON.parse(JSON.stringify(this.widgets));
+                try { localStorage.setItem(__storageKey, JSON.stringify(data)); } catch(e) {}
+                if (__saveUrl) {
+                    dyn.fetchPartial(__saveUrl, { pageId: __cfg.pageId, widgets: data }, 'POST', 'json').catch(function(){});
+                }
+                if (__handle) __handle.emit('changed', data);
+            },
+
+            _initSortable: function () {
+                if (!this.allowSort) return;
+                var self = this;
+                if (this._sortables) {
+                    this._sortables.forEach(function (s) { try { s.destroy(); } catch(e){} });
+                }
+                this._sortables = [];
+
+                var grid = this.$refs.gridRef;
+                if (grid) {
+                    this._sortables.push(Sortable.create(grid, {
+                        group: { name: 'widgets', pull: true, put: true },
+                        animation: 150,
+                        handle: '[data-drag-handle]',
+                        draggable: '.widget-card',
+                        onEnd: function (evt) { self._onSortEnd(evt); }
+                    }));
+                }
+                this.widgets.forEach(function (w) {
+                    if (w.isGroup) {
+                        var sub = grid.querySelector('.widget-subgrid[data-group-id="' + w.id + '"]');
+                        if (sub) {
+                            self._sortables.push(Sortable.create(sub, {
+                                group: { name: 'widgets', pull: true, put: true },
+                                animation: 150,
+                                handle: '[data-drag-handle]',
+                                draggable: '.widget-child',
+                                onEnd: function (evt) { self._onSortEnd(evt); }
+                            }));
+                        }
+                    }
+                });
+            },
+
+            _onSortEnd: function (evt) {
+                var movedId = evt.item.getAttribute('data-widget-id');
+                var toParent = evt.to.getAttribute('data-group-id');
+                var fromParent = evt.from.getAttribute('data-group-id');
+
+                var moved = null;
+                if (fromParent) {
+                    var from = this.widgets.find(function (w) { return w.id === fromParent; });
+                    if (from && from.children) {
+                        var i = from.children.findIndex(function (c) { return c.id === movedId; });
+                        if (i >= 0) moved = from.children.splice(i, 1)[0];
+                    }
+                } else {
+                    var j = this.widgets.findIndex(function (w) { return w.id === movedId; });
+                    if (j >= 0) moved = this.widgets.splice(j, 1)[0];
+                }
+                if (!moved) return;
+
+                if (toParent) {
+                    var target = this.widgets.find(function (w) { return w.id === toParent; });
+                    if (!target) { this.widgets.push(moved); }
+                    else {
+                        if (!target.children) target.children = [];
+                        moved.isGroup = false;
+                        target.children.splice(evt.newIndex, 0, moved);
+                    }
+                } else {
+                    this.widgets.splice(evt.newIndex, 0, moved);
+                }
+
+                this.$nextTick(this._initSortable);
+                this.persist();
+            },
+
+            // ---- 拖拽调尺寸（宽/高/双向）----
+            startResize: function (e, w, dir) {
+                if (!this.allowResize) return;
+                e.preventDefault();
+                e.stopPropagation();
+                var self = this;
+                var startX = e.clientX, startY = e.clientY;
+                var startCol = w.colSpan || 12;
+                var startRow = w.rowSpan || 2;
+                var colW = this.colWidth;
+                var rowH = this.rowHeight;
+
+                function onMove(ev) {
+                    if (dir === 'col' || dir === 'both') {
+                        var dx = ev.clientX - startX;
+                        var dc = Math.round(dx / (colW + 8));
+                        w.colSpan = Math.max(1, Math.min(self.columns, startCol + dc));
+                    }
+                    if (dir === 'row' || dir === 'both') {
+                        var dy = ev.clientY - startY;
+                        var dr = Math.round(dy / (rowH + 8));
+                        w.rowSpan = Math.max(1, startRow + dr);
+                    }
+                }
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    self.persist();
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            }
+        },
+        mounted: function () {
+            var self = this;
+            __handle = DynBlocks.createBlockHandle(element);
+            __handle.reg('reload', function () { self.refreshAll(); return null; });
+            // 不依赖 onReady，直接在 DOM 渲染后自动加载（尊重 autoLoad）
+            this.$nextTick(function () {
+                setTimeout(function () { self.refreshAll(); }, 0);
+            });
+
+            if (typeof Sortable === 'undefined') {
+                var s = document.createElement('script');
+                s.src = '/lib/sortable.min.js';
+                s.onload = function () { self._initSortable(); };
+                document.head.appendChild(s);
+            } else {
+                this._initSortable();
+            }
+        },
+        beforeUnmount: function () {
+            if (this._sortables) {
+                this._sortables.forEach(function (s) { try { s.destroy(); } catch(e){} });
+            }
+            if (__handle) { __handle.destroy(); __handle = null; }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-widget { padding: 12px; background: var(--canvas, #f9fafb); min-height: 200px; }
+    .widget-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+
+    .widget-grid {
+        display: grid;
+        grid-auto-flow: dense;
+        gap: 8px;
+        min-height: 80px;
+    }
+    .widget-subgrid {
+        display: grid;
+        grid-auto-flow: dense;
+        gap: 6px;
+        min-height: 60px;
+        padding: 4px;
+    }
+
+    .widget-card {
+        background: var(--surface, #fff);
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        transition: box-shadow .15s;
+        min-width: 0;
+    }
+    .widget-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    /* group：grid-row:auto 高度完全由内容决定，不预留空行 */
+    .widget-card.is-group {
+        background: var(--surface-subtle, #f9fafb);
+        overflow: visible;
+        height: auto;
+    }
+    .widget-card.is-group .widget-body {
+        overflow: visible;
+        min-height: auto;
+        flex: 0 0 auto;
+    }
+
+    .widget-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 6px 12px;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        background: var(--surface, #fff);
+        cursor: grab;
+        flex-shrink: 0;
+        user-select: none;
+    }
+    .widget-header:active { cursor: grabbing; }
+    .widget-title { font-size: 13px; font-weight: 600; color: var(--fg-2, #374151); }
+    .widget-actions { display: flex; gap: 2px; }
+    .widget-btn {
+        border: none; background: transparent; cursor: pointer;
+        color: var(--fg-muted, #9ca3af); padding: 2px 4px; border-radius: 4px;
+        display: inline-flex; align-items: center;
+    }
+    .widget-btn:hover { color: var(--primary, #3b82f6); background: var(--surface-subtle, #f3f4f6); }
+
+    .widget-body { flex: 1; padding: 6px 10px; overflow: hidden; min-height: 0; }
+    .widget-content { min-height: 40px; position: relative; height: 100%; overflow: auto; }
+    .widget-iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .widget-content.loading::after {
+        content: ''; position: absolute; inset: 0;
+        background: var(--surface, #fff) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2'%3E%3Cpath d='M21 12a9 9 0 1 1-6.219-8.56'/%3E%3C/svg%3E") center no-repeat;
+        opacity: .7;
+    }
+    .widget-empty { color: var(--fg-muted, #9ca3af); font-size: 12px; text-align: center; padding: 12px 0; }
+    .widget-error { color: #ef4444; font-size: 12px; padding: 8px; }
+
+    .widget-footer {
+        flex-shrink: 0;
+        padding: 6px 12px;
+        border-top: 1px solid var(--border, #e5e7eb);
+        background: var(--surface, #fff);
+        min-height: 20px;
+    }
+
+    .resize-handle { position: absolute; z-index: 10; background: transparent; }
+    .resize-handle:hover { background: var(--primary, #3b82f6); opacity: .25; }
+    .resize-r { right: 0; top: 0; bottom: 0; width: 5px; cursor: ew-resize; }
+    .resize-b { left: 0; right: 0; bottom: 0; height: 5px; cursor: ns-resize; }
+    .resize-br { right: 0; bottom: 0; width: 12px; height: 12px; cursor: nwse-resize; z-index: 11; }
+
+    .sortable-ghost { opacity: .35; background: var(--primary, #3b82f6) !important; }
+    .sortable-chosen { cursor: grabbing; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+    .sortable-drag { opacity: .9; }
+
+    .widget-settings-form .el-checkbox { margin-right: 16px; }
+</style>

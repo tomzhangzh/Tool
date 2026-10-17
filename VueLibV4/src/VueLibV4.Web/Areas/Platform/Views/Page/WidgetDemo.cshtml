@@ -1,0 +1,36 @@
+@model dynamic
+@{
+    var blkConfig = (string)ViewData["BlkConfig"];
+    var extId = (string)ViewData["ExtId"];
+}
+<div id="@extId-root" class="widget-demo-root">
+    <div class="widget-demo-header">
+        <h3>WidgetApp 仪表盘演示</h3>
+        <div class="widget-demo-tip">
+            24列栅格布局 · 支持拖拽排序 · 拖拽调尺寸 · Group 容器嵌套 · Widget 绑定 URL 刷新
+        </div>
+    </div>
+    <div class="widget-demo-body">
+        @await Html.PartialAsync("~/Views/DynBlocks/AppsV2/WidgetApp.cshtml", new ViewDataDictionary(ViewData) {
+            ["ExtId"] = extId,
+            ["BlkConfig"] = blkConfig,
+            ["ExtSlots"] = null
+        })
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/dyn/blocks/dyn-blocks-common.js" asp-append-version="true"></script>
+    <script>
+        DynLib.ready(function () {
+            var root = document.querySelector('.dyn-blk-widget');
+            if (root && !root.__dynApp) dyn.mount(root);
+        });
+    </script>
+}
+<style>
+.widget-demo-root { padding: 20px; background: #f0f2f5; min-height: 100vh; }
+.widget-demo-header h3 { margin: 0 0 8px; }
+.widget-demo-tip { color: #909399; font-size: 13px; margin-bottom: 16px; }
+.widget-demo-body { background: #fff; border-radius: 8px; padding: 16px; min-height: 480px; }
+</style>
