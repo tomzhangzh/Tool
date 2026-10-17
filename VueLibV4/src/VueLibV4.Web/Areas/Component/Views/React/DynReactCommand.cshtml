@@ -1,0 +1,97 @@
+@* ComponentType: React *@
+@* Description: pro-ui 命令面板（htm 类 JSX，Menu + Button trigger，支持图标/快捷键/分组分隔） *@
+@model VueLibV4.Web.Dtos.ComponentViewModel
+@{
+    Layout = null;
+}
+
+<!--TEMPLATE_START-->
+<div class="dyn-pro-command" ref="reactHost"></div>
+<!--TEMPLATE_END-->
+
+<!--SCRIPT_START-->
+export default {
+    name: "DynReactCommand",
+    props: {
+        // JSON 数组：[{"id":"cal","label":"Calendar","shortcut":"⌘P"},{"id":"sep1","separator":true},{"id":"profile","label":"Profile","shortcut":"⌘P"}]
+        itemsJson: { type: String, default: "[]" },
+        placeholder: { type: String, default: "Type a command..." }
+    },
+    emits: ["select"],
+    data() { return { reactRoot: null }; },
+    async mounted() {
+        await window.__dynProUILoad();
+        var React = window.React, ReactDOM = window.ReactDOM, ProUI = window.ProUI;
+        var html = window.htm.bind(React.createElement);
+        this._html = html;
+        var self = this;
+
+        function handleAction(key) {
+            var items = self._parseItems();
+            var hit = null;
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].id === key && !items[i].separator) { hit = items[i]; break; }
+            }
+            self.$emit("select", hit || { id: key });
+            try { window.dyn && window.dyn.eventBus && window.dyn.eventBus.emit("command:select", hit || { id: key }); } catch (e) {}
+        }
+
+        function CommandApp() {
+            return html`
+                <${ProUI.Menu}
+                    trigger=${html`<${ProUI.Button} variant="secondary">${self.placeholder || "Open Menu"}</${ProUI.Button}>`}
+                    items=${self._parseItems()}
+                    onAction=${handleAction}
+                />
+            `;
+        }
+
+        this._rootEl = ReactDOM.createRoot(this.$refs.reactHost);
+        this._render = function () {
+            self._rootEl.render(html`
+                <${ProUI.ThemeProvider} defaultTheme="dark">
+                    <${CommandApp} />
+                </${ProUI.ThemeProvider}>
+            `);
+        };
+        this._render();
+    },
+    methods: {
+        _parseItems() {
+            try {
+                var arr = JSON.parse(this.itemsJson || "[]");
+                return arr.map(function (it) {
+                    return {
+                        id: it.id || it.value || it.label,
+                        label: it.label,
+                        shortcut: it.shortcut || undefined,
+                        danger: !!it.danger,
+                        disabled: !!it.disabled,
+                        separator: !!it.separator
+                    };
+                });
+            } catch (e) { return []; }
+        }
+    },
+    watch: {
+        itemsJson() { this._render && this._render(); },
+        placeholder() { this._render && this._render(); }
+    },
+    beforeUnmount() {
+        if (this._rootEl) { try { this._rootEl.unmount(); } catch (e) {} this._rootEl = null; }
+    }
+};
+<!--SCRIPT_END-->
+
+<!--STYLE_START-->
+.dyn-pro-command { width: 100%; }
+/* 兜底样式：pro-ui.css 未加载时按钮也有基本外观；用 CSS 变量兼容暗黑模式 */
+.dyn-pro-command button {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 36px; padding: 0 16px; border-radius: var(--base-radius, 8px);
+  border: 1px solid var(--border, #e5e7eb);
+  background-color: var(--surface, #fff); color: var(--fg-2, #374151);
+  font-size: 14px; cursor: pointer; gap: 8px;
+}
+.dyn-pro-command button:hover { background-color: var(--surface-subtle, #f9fafb); }
+<!--STYLE_END-->

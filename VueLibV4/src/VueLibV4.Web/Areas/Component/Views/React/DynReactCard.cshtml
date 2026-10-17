@@ -1,0 +1,92 @@
+@* ComponentType: React *@
+@* Description: pro-ui Card 卡片（htm 类 JSX 写法，Vue default 插槽自动挂入 Card body） *@
+@model VueLibV4.Web.Dtos.ComponentViewModel
+@{
+    Layout = null;
+}
+
+<!--TEMPLATE_START-->
+<div class="dyn-pro-card">
+    <div ref="reactHost" class="dyn-pro-card-host"></div>
+    <div ref="slotHost" style="display:none"><slot></slot></div>
+</div>
+<!--TEMPLATE_END-->
+
+<!--SCRIPT_START-->
+export default {
+    name: "DynReactCard",
+    props: {
+        title: { type: String, default: "" },
+        footer: { type: String, default: "" },
+        shadow: { type: Boolean, default: true },
+        padding: { type: Boolean, default: true }
+    },
+    data() { return { reactRoot: null }; },
+    async mounted() {
+        await window.__dynProUILoad();
+        var React = window.React, ReactDOM = window.ReactDOM, ProUI = window.ProUI;
+        var html = window.htm.bind(React.createElement);
+        var slotRef = React.createRef();
+        this._slotRef = slotRef;
+        this._html = html;
+        this._rootEl = ReactDOM.createRoot(this.$refs.reactHost);
+        this.paint();
+        this._scheduleMoveSlot();
+    },
+    methods: {
+        _scheduleMoveSlot() {
+            // React 渲染异步，用 requestAnimationFrame 轮询直到 slot 容器就绪，替代不可靠的 setTimeout
+            var self = this, tries = 0;
+            function tick() {
+                var t = self._slotRef && self._slotRef.current;
+                if (t && self.$refs.slotHost) {
+                    while (self.$refs.slotHost.firstChild) {
+                        t.appendChild(self.$refs.slotHost.firstChild);
+                    }
+                } else if (tries < 60) {
+                    tries++;
+                    requestAnimationFrame(tick);
+                }
+            }
+            requestAnimationFrame(tick);
+        },
+        paint() {
+            if (!this._rootEl) return;
+            var React = window.React, ProUI = window.ProUI, html = this._html;
+            this._rootEl.render(html`
+                <${ProUI.ThemeProvider} defaultTheme="light">
+                    <${ProUI.Card}
+                        title=${this.title || undefined}
+                        footer=${this.footer || undefined}
+                        shadow=${this.shadow}
+                        padding=${this.padding}
+                    >
+                        <div ref=${this._slotRef} class="dyn-pro-card-slotbody" />
+                    </${ProUI.Card}>
+                </${ProUI.ThemeProvider}>
+            `);
+        }
+    },
+    watch: {
+        title() { this.paint(); this._scheduleMoveSlot(); },
+        footer() { this.paint(); this._scheduleMoveSlot(); },
+        shadow() { this.paint(); this._scheduleMoveSlot(); },
+        padding() { this.paint(); this._scheduleMoveSlot(); }
+    },
+    beforeUnmount() {
+        if (this._rootEl) { try { this._rootEl.unmount(); } catch (e) {} this._rootEl = null; }
+    }
+};
+<!--SCRIPT_END-->
+
+<!--STYLE_START-->
+.dyn-pro-card { width: 100%; }
+.dyn-pro-card-host { min-height: 1px; }
+.dyn-pro-card-slotbody { min-width: 0; }
+/* 兜底样式：pro-ui.css 未加载时卡片也有基本外观；用 CSS 变量兼容暗黑模式 */
+.dyn-pro-card-host > div {
+  border: 1px solid var(--border, #e5e7eb); border-radius: 8px;
+  background-color: var(--surface, #fff);
+  padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+<!--STYLE_END-->

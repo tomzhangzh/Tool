@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>React组件渲染测试</title>
+<link rel="stylesheet" href="/lib/pro-ui.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="/lib/vue.global.prod.js"></script>
+<style>
+  :root { --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  body { font-family: var(--font-sans); padding: 20px; background: #0f172a; }
+  .test-box { margin: 20px 0; padding: 16px; background: #1e293b; border: 1px dashed #334155; border-radius: 8px; }
+  .log { background: #1e1e1e; color: #0f0; padding: 12px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 300px; overflow: auto; }
+</style>
+</head>
+<body>
+<h2 style="color:#f1f5f9">React 组件渲染测试（暗黑模式）</h2>
+<div class="log" id="log"></div>
+<div class="test-box"><h3 style="color:#f1f5f9">DynReactCard</h3><div id="card-host"></div></div>
+<div class="test-box"><h3 style="color:#f1f5f9">DynReactCommand</h3><div id="cmd-host"></div></div>
+
+<script>
+const logEl = document.getElementById('log');
+function log(msg) { logEl.textContent += msg + '\n'; console.log(msg); }
+window.onerror = (e) => log('[ERROR] ' + e);
+
+window.__dynProUILoad = function () {
+  if (window.ProUI && window.React && window.htm) return Promise.resolve();
+  if (window.__dynProUIPromise) return window.__dynProUIPromise;
+  function load(src) {
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  window.__dynProUIPromise = load('/lib/pro-ui.umd.js').then(() => window.htm ? null : load('/lib/htm.umd.js'));
+  return window.__dynProUIPromise;
+};
+
+(async () => {
+  log('1. 加载 ProUI...');
+  await window.__dynProUILoad();
+  log('   ProUI loaded: ' + typeof window.ProUI);
+
+  log('2. 获取组件定义...');
+  const [cardDef, cmdDef] = await Promise.all([
+    fetch('/api/component/define/DynReactCard?t=' + Date.now()).then(r => r.json()),
+    fetch('/api/component/define/DynReactCommand?t=' + Date.now()).then(r => r.json())
+  ]);
+
+  function parseScript(sc, name) {
+    let code = sc.trim();
+    code = code.replace(/^\s*export\s+default\s*/, 'return ');
+    const opt = new Function(code)();
+    if (!opt.name) opt.name = name;
+    return opt;
+  }
+
+  const cardOpt = parseScript(cardDef.data.scriptContent, 'DynReactCard');
+  cardOpt.template = cardDef.data.templateContent;
+  const cmdOpt = parseScript(cmdDef.data.scriptContent, 'DynReactCommand');
+  cmdOpt.template = cmdDef.data.templateContent;
+
+  [cardDef, cmdDef].forEach(d => {
+    if (d.data.styleContent) {
+      const s = document.createElement('style');
+      s.textContent = d.data.styleContent;
+      document.head.appendChild(s);
+    }
+  });
+
+  log('3. 渲染 DynReactCard...');
+  Vue.createApp({
+    template: '<DynReactCard title="测试卡片标题" footer="底部文字" :shadow="true" :padding="true"><p style="color:#f1f5f9;margin:0">我是Vue插槽内容</p></DynReactCard>',
+    components: { DynReactCard: cardOpt }
+  }).mount('#card-host');
+
+  log('4. 渲染 DynReactCommand...');
+  const items = JSON.stringify([
+    { id: 'a', label: '选项A' },
+    { id: 'b', label: '选项B', shortcut: '⌘B' },
+    { id: 'sep1', separator: true },
+    { id: 'c', label: '危险操作', danger: true }
+  ]);
+  Vue.createApp({
+    template: '<DynReactCommand :items-json="items" placeholder="打开菜单" @select="onSelect" />',
+    data() { return { items }; },
+    methods: { onSelect(i) { log('[CMD SELECT] ' + JSON.stringify(i)); } },
+    components: { DynReactCommand: cmdOpt }
+  }).mount('#cmd-host');
+
+  log('5. 等待渲染...');
+  setTimeout(() => {
+    const cardHost = document.getElementById('card-host');
+    const cardEl = cardHost.querySelector('.bg-surface') || cardHost.querySelector('div');
+    log('   html class: ' + document.documentElement.className);
+    log('   card bg: ' + getComputedStyle(cardEl).backgroundColor);
+    log('   card text: ' + cardHost.textContent);
+    const cmdHost = document.getElementById('cmd-host');
+    const btn = cmdHost.querySelector('button');
+    log('   btn bg: ' + getComputedStyle(btn).backgroundColor);
+    log('   btn text: ' + cmdHost.textContent);
+    log('6. 测试完成');
+  }, 1500);
+})();
+</script>
+</body>
+</html>

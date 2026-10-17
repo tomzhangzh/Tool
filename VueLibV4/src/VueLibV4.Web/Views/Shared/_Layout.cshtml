@@ -30,6 +30,32 @@
     <script src="~/lib/markdown-it.min.js"></script>
     <script src="~/lib/mermaid.min.js"></script>
 
+    @* pro-ui (React19) 内嵌组件：CSS 全局引入，UMD 自包含 React，由组件按需动态加载 *@
+    @* <link rel="stylesheet" href="~/lib/pro-ui.css" asp-append-version="true" /> *@
+    @* pro-ui.dev 官网用 Inter 字体，加载并覆盖 --font-sans，与官网视觉对齐；加载失败自动 fallback 到系统字体 *@
+    @* <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>:root { --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; }</style>
+    <script>
+    // 全局按需加载器：pro-ui.umd.js 自包含 React19 + react-dom + 全量 pro-ui；htm 提供运行时类 JSX 语法
+    window.__dynProUILoad = function () {
+        if (window.ProUI && window.React && window.htm) return Promise.resolve();
+        if (window.__dynProUIPromise) return window.__dynProUIPromise;
+        function load(src) {
+            return new Promise(function (res, rej) {
+                var s = document.createElement('script');
+                s.src = src; s.onload = res; s.onerror = rej;
+                document.head.appendChild(s);
+            });
+        }
+        window.__dynProUIPromise = load('/lib/pro-ui.umd.js').then(function () {
+            return window.htm ? null : load('/lib/htm.umd.js');
+        });
+        return window.__dynProUIPromise;
+    };
+    </script> *@
+
     @* dyn 模块内容哈希清单：dyn-lib.js 据此为每个模块拼 ?v=&lt;内容哈希&gt;，改 js 自动失效，免手工 bump *@
     <script>@Html.Raw(DynAssets.RenderInlineScript())</script>
     @* 唯一入口：dyn-lib.js 自动按顺序加载 vue / element-plus / layui / axios / 各 dyn 模块 *@

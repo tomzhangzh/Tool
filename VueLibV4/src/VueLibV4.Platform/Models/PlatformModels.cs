@@ -241,6 +241,9 @@ public class DynTemplate
     /// <summary>是否支持三屏生成器（勾选后在生成器模板下拉中可选）。</summary>
     public bool SupportGen { get; set; } = false;
 
+    /// <summary>架构版本：1=V1（DSL/旧页面模板），2=V2（LoadBlock + DynEventBus 槽位装配），3=V3 预留。</summary>
+    public int Version { get; set; } = 1;
+
     public DateTime CreateTime { get; set; } = DateTime.Now;
 }
 
@@ -497,6 +500,9 @@ public class DynBlock
 
     public int SortNo { get; set; } = 0;
     public bool IsActive { get; set; } = true;
+
+    /// <summary>架构版本：1=V1，2=V2（ParamConfigJson 接线参数 + 槽位装配），3=V3 预留。</summary>
+    public int Version { get; set; } = 1;
 
     public DateTime CreateTime { get; set; } = DateTime.Now;
 }

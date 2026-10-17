@@ -1,0 +1,91 @@
+@* =============================================================================
+   自动生成【列表固化片段】：PageSetting #131（List / 资源管理-列表区）
+   生成器：VueLibV4.Web.Services.ViewGenerateService。可自由修改本文件，
+   修改后即时生效（Razor 运行时编译）；再次点“生成视图”会【覆盖】本文件。
+   本文件只含 <el-table>（列与操作列已烘焙为静态标签）：工具条/分页/数据加载/
+   事件总线/删除确认等逻辑仍由 Views/DynBlocks/Partials/_ListLayout.cshtml 统一承载。
+   约定：
+   - 改单元格：直接改对应列的 <template #default>；
+   - 加列：复制一段 <el-table-column>；若需要字典/枚举/空值格式化，还需在
+     PageSetting.ConfigJson 的 columns 中补同名字段（formatCell 按 field 反查 dictType/options）；
+   - 行扩展按钮按索引绑定 onRowAction(i, scope.row)，与 ConfigJson.rowActions 顺序对应，
+     调整顺序后需重新生成或手工对齐索引；
+   - Razor 约定：Vue 的 @ 事件在本文件中双写为 @@click，{{ }} 插值原样。
+   ============================================================================ *@
+<el-table :data="model.rows" v-loading="model.loading" size="small" border
+           :row-class-name="rowClassName" :key="animKey"
+           @@row-click="onRowClick">
+    <el-table-column prop="Id" label="Id" width="70" show-overflow-tooltip>
+        <template #default="scope">
+            <span>{{ formatCell('Id', scope.row) }}</span>
+        </template>
+    </el-table-column>
+    <el-table-column prop="ParentId" label="父Id" width="70" show-overflow-tooltip>
+        <template #default="scope">
+            <span>{{ formatCell('ParentId', scope.row) }}</span>
+        </template>
+    </el-table-column>
+    <el-table-column prop="Key" label="权限编码" width="200" show-overflow-tooltip>
+        <template #default="scope">
+            <span>{{ formatCell('Key', scope.row) }}</span>
+        </template>
+    </el-table-column>
+    <el-table-column prop="Name" label="名称" width="160" show-overflow-tooltip>
+        <template #default="scope">
+            <span>{{ formatCell('Name', scope.row) }}</span>
+        </template>
+    </el-table-column>
+    <el-table-column prop="Type" label="类型" width="90" show-overflow-tooltip>
+        <template #default="scope">
+            <span>{{ formatCell('Type', scope.row) }}</span>
+        </template>
+    </el-table-column>
+    <el-table-column prop="ProjectId" label="项目Id" width="80" show-overflow-tooltip>
+        <template #default="scope">
+            <span>{{ formatCell('ProjectId', scope.row) }}</span>
+        </template>
+    </el-table-column>
+    <el-table-column prop="HasRead" label="读" width="60">
+        <template #default="scope">
+            <el-tag :type="cellTagType('HasRead', scope.row)" size="small" effect="light">
+                {{ formatCell('HasRead', scope.row) }}
+            </el-tag>
+        </template>
+    </el-table-column>
+    <el-table-column prop="HasEdit" label="改" width="60">
+        <template #default="scope">
+            <el-tag :type="cellTagType('HasEdit', scope.row)" size="small" effect="light">
+                {{ formatCell('HasEdit', scope.row) }}
+            </el-tag>
+        </template>
+    </el-table-column>
+    <el-table-column prop="HasDelete" label="删" width="60">
+        <template #default="scope">
+            <el-tag :type="cellTagType('HasDelete', scope.row)" size="small" effect="light">
+                {{ formatCell('HasDelete', scope.row) }}
+            </el-tag>
+        </template>
+    </el-table-column>
+    <el-table-column prop="SortNo" label="排序" width="70" show-overflow-tooltip>
+        <template #default="scope">
+            <span>{{ formatCell('SortNo', scope.row) }}</span>
+        </template>
+    </el-table-column>
+    <el-table-column prop="IsActive" label="启用" width="70">
+        <template #default="scope">
+            <el-tag :type="cellTagType('IsActive', scope.row)" size="small" effect="light">
+                {{ formatCell('IsActive', scope.row) }}
+            </el-tag>
+        </template>
+    </el-table-column>
+    <el-table-column label="操作" width="180" fixed="right">
+        <template #default="scope">
+            <button type="button" class="el-button el-button--primary el-button--small el-button--plain" @@click.stop="onEdit(scope.row)">
+                <el-icon style="margin-right:2px"><Edit /></el-icon>编辑
+            </button>
+            <button type="button" class="el-button el-button--danger el-button--small el-button--plain" @@click.stop="onDelete(scope.row)">
+                <el-icon style="margin-right:2px"><Delete /></el-icon>删除
+            </button>
+        </template>
+    </el-table-column>
+</el-table>
