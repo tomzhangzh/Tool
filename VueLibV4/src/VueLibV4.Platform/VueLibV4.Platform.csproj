@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);CS8632</NoWarn>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>VueLibV4.Platform</RootNamespace>
   </PropertyGroup>
