@@ -1,0 +1,22 @@
+{
+  "name": "build-pro-ui",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@dangbt/pro-ui": "^1.12.0",
+    "esbuild": "^0.28.2",
+    "htm": "^3.1.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3"
+  }
+}

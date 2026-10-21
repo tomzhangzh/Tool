@@ -88,6 +88,19 @@ public class DemoController : Controller
         return View(string.Format(Page, "WidgetDemo"));
     }
 
+    [HttpGet("/Platform/Page/ListViewDemo")]
+    public IActionResult ListViewDemo()
+    {
+        ViewData["Title"] = "ListViewApp 卡片网格列表演示";
+        ViewData["ListSettingId"] = 133;
+        ViewData["TableName"] = "SysMenu";
+        ViewData["KeyField"] = "Id";
+        ViewData["Project"] = "__platform__";
+        ViewData["ExecId"] = "lv-demo-" + Guid.NewGuid().ToString("N")[..8];
+        ViewData["ExtId"] = "lv-" + Guid.NewGuid().ToString("N")[..12];
+        return View(string.Format(Page, "ListViewDemo"));
+    }
+
     [HttpGet("/Platform/Page/Demo/ActionHelper")]
     public IActionResult DemoActionHelper()
     {

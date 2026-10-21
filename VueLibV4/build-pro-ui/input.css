@@ -1,0 +1,5 @@
+﻿@import "tailwindcss";
+@import "@dangbt/pro-ui/theme.css";
+@source "./node_modules/@dangbt/pro-ui/dist/index.mjs";
+@source "./node_modules/@dangbt/pro-ui/dist/components/**/*.mjs";
+@source "./node_modules/@dangbt/pro-ui/dist/components/**/*.js";

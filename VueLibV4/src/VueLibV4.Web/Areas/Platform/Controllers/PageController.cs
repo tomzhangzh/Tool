@@ -344,6 +344,7 @@ public class PageController : Controller
             {
                 "filter" => "FilterPageSettingId",
                 "list" => "ListSettingId",
+                "listview" => "ListSettingId",
                 "detail" => "DetailSettingId",
                 _ => blockName + "SettingId"
             };

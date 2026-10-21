@@ -1,0 +1,60 @@
+@model dynamic
+@inject IPageSettingService pageSettingService
+@using System.Dynamic
+@{
+    // ListViewApp：卡片网格列表 Block 的【薄入口】。
+    // 与 ListApp 同构：只做入参解析，结构与数据行为在 ~/Views/DynBlocks/Partials/_ListViewLayout.cshtml。
+    IDictionary<string, object> M = Model is IDictionary<string, object> _md
+        ? _md : new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    object V2(string k) {
+        if (M.TryGetValue(k, out var v0) && v0 != null) return v0;
+        if (ViewData.TryGetValue(k, out var v1) && v1 != null) return v1;
+        return null;
+    }
+    string S(string k, string dft = "") { var x = V2(k); return x != null ? x.ToString() ?? dft : dft; }
+    int I(string k, int dft = 0) { var x = V2(k); return x != null ? Convert.ToInt32(x) : dft; }
+    bool B(string k, bool dft = false) { var x = V2(k); return x != null && Convert.ToBoolean(x); }
+
+    var execId = S("ExecId");
+    var listPsId = I("ListSettingId", ViewData["ListSettingId"] != null ? Convert.ToInt32(ViewData["ListSettingId"]) : 0);
+    var tableName = S("TableName");
+    var keyField = S("KeyField", "Id");
+    var project = S("Project");
+    var loadUrl = S("LoadUrl", DynPageViewHelper.SearchUrl);
+    var deleteUrl = S("DeleteUrl", DynPageViewHelper.DeleteUrl);
+    var isReadonly = B("Readonly");
+    // 可选：明细屏 PageSetting。给了就自动生成 open 片段弹窗管道（复用 /Platform/Page/DynDetail），
+    // 新增/编辑不再依赖宿主壳手动接线；保存/取消后 onclose 触发 reload 本 Block。
+    var detailSettingId = I("DetailSettingId", ViewData["DetailSettingId"] != null ? Convert.ToInt32(ViewData["DetailSettingId"]) : 0);
+
+    var listSetting = listPsId > 0 ? pageSettingService.GetById(listPsId) : null;
+
+    var layoutExtId = S("ExtId", "lv-" + Guid.NewGuid().ToString("N")[..12]);
+
+    string addPipe = null, editPipe = null;
+    if (detailSettingId > 0 && !isReadonly)
+    {
+        var detailUrl = $"/Platform/Page/DynDetail?settingId={detailSettingId}"
+            + "&table=" + Uri.EscapeDataString(tableName ?? "")
+            + "&project=" + Uri.EscapeDataString(project ?? "");
+        var onclose = "[{\"action\":\"reload\",\"target\":\"#" + layoutExtId + "\"}]";
+        addPipe = "open({\"url\":\"" + detailUrl + "\",\"title\":\"新增\",\"width\":\"720px\",\"height\":\"80%\",\"onclose\":" + onclose + "})";
+        editPipe = "open({\"url\":\"" + detailUrl + "&bizId={{id}}\",\"title\":\"编辑\",\"width\":\"720px\",\"height\":\"80%\",\"onclose\":" + onclose + "})";
+    }
+
+    var layoutData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData)
+    {
+        ["ExtId"] = layoutExtId,
+        ["ExecId"] = execId,
+        ["TableName"] = tableName,
+        ["KeyField"] = keyField,
+        ["Project"] = project,
+        ["LoadUrl"] = loadUrl,
+        ["DeleteUrl"] = deleteUrl,
+        ["Readonly"] = isReadonly,
+        ["AddPipe"] = addPipe,
+        ["EditPipe"] = editPipe
+    };
+}
+@await Html.PartialAsync("~/Views/DynBlocks/Partials/_ListViewLayout.cshtml",
+    listSetting ?? new VueLibV4.Platform.Models.PageSetting(), layoutData)

@@ -1,0 +1,426 @@
+@using Newtonsoft.Json.Linq
+@using System.IO
+@using System.Net
+@using System.Text
+@using Microsoft.AspNetCore.Html
+@model VueLibV4.Platform.Models.PageSetting
+@{
+    // _ListViewLayout：卡片网格列表 Block 的【完整壳】。
+    // 与 _ListLayout 共享数据层（loadData/分页/DynEventBus/字典），但渲染区换成 CSS Grid + 自定义 item 模板。
+    // item 模板来源（优先级）：
+    //   1) ConfigJson.itemTemplateView  → 服务端 PartialAsync 渲染成 Vue 模板字符串（支持 el-tag 等组件）
+    //   2) ConfigJson.itemTemplate       → 直接取模板字符串
+    //   3) 兜底默认模板（展示第一列字段）
+    // 模板内可访问 {{ row.xxx }}、methods 内 formatCell/cellTagType 等（通过 provide/inject 或全局）。
+    string LV(string k, string dft = "") { var v = ViewData[k]; return v == null ? dft : v.ToString() ?? dft; }
+    bool LB(string k, bool dft = false) { var v = ViewData[k]; return v == null ? dft : Convert.ToBoolean(v); }
+    int LI(string k, int dft = 0) { var v = ViewData[k]; return v == null ? dft : Convert.ToInt32(v); }
+
+    var extId = LV("ExtId", "lv-" + Guid.NewGuid().ToString("N")[..12]);
+    var execId = LV("ExecId");
+    var tableName = LV("TableName");
+    var keyField = LV("KeyField", "Id");
+    var project = LV("Project");
+    var loadUrl = LV("LoadUrl", DynPageViewHelper.SearchUrl);
+    var deleteUrl = LV("DeleteUrl", DynPageViewHelper.DeleteUrl);
+    var isReadonly = LB("Readonly");
+    // 新增/编辑动作管道（由 App 或布局壳注入，如 open({url:'/Platform/Page/DynDetail?...'})）。
+    // 配置了就走统一 ActionHelper 管道；未配置则回退 DynEventBus 的 create/update 事件。
+    var addPipe = LV("AddPipe");
+    var editPipe = LV("EditPipe");
+
+    var cols = new JArray();
+    var acts = new JArray();
+    string itemTemplate = "";
+    int columns = 5;
+
+    if (!string.IsNullOrWhiteSpace(Model?.ConfigJson))
+    {
+        try
+        {
+            var tok = JToken.Parse(Model.ConfigJson);
+            if (tok is JArray ja) { cols = ja; }
+            else if (tok is JObject jo)
+            {
+                if (jo["columns"] is JArray jc) cols = jc;
+                if (jo["rowActions"] is JArray jr) acts = jr;
+                if (jo["gridColumns"] != null) columns = jo["gridColumns"]!.Value<int>();
+                else if (jo["columnsCount"] != null) columns = jo["columnsCount"]!.Value<int>();
+                // item 模板：优先 Partial View 路径，其次模板字符串
+                if (jo["itemTemplateView"] != null)
+                {
+                    var viewPath = jo["itemTemplateView"]!.ToString();
+                    if (!string.IsNullOrWhiteSpace(viewPath))
+                    {
+                        try
+                        {
+                            var sw = new StringWriter();
+                            var viewResult = await Html.PartialAsync(viewPath);
+                            // 用全 Unicode 编码器，避免 emoji/中文被 HTML 实体化
+                            var permissive = System.Text.Encodings.Web.HtmlEncoder.Create(
+                                System.Text.Unicode.UnicodeRanges.All);
+                            viewResult.WriteTo(sw, permissive);
+                            itemTemplate = sw.ToString();
+                        }
+                        catch (Exception ex)
+                        {
+                            itemTemplate = "<div style='color:#e53935'>itemTemplateView 渲染失败: " + ex.Message + "</div>";
+                        }
+                    }
+                }
+                if (string.IsNullOrEmpty(itemTemplate) && jo["itemTemplate"] != null)
+                {
+                    itemTemplate = jo["itemTemplate"]!.ToString();
+                }
+            }
+        }
+        catch { /* 非法配置按空处理 */ }
+    }
+
+    // 兜底默认模板：取第一列字段展示
+    if (string.IsNullOrWhiteSpace(itemTemplate))
+    {
+        var firstField = cols.OfType<JObject>().FirstOrDefault()?["field"]?.ToString() ?? "name";
+        itemTemplate = "<div class='lv-default-item'><div class='lv-default-title'>{{ row." + firstField + " }}</div></div>";
+    }
+
+    // 转义成 JS 字符串字面量（单引号）
+    string JsStr(string s)
+    {
+        if (s == null) return "''";
+        return "'" + s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "").Replace("\n", "\\n") + "'";
+    }
+
+    string Str(JToken? t) => (t == null || t.Type == JTokenType.Null) ? "" : t.ToString();
+    static IHtmlContent Attr(string name, string? value) =>
+        string.IsNullOrEmpty(value) ? HtmlString.Empty : new HtmlString(" " + name + "=\"" + WebUtility.HtmlEncode(value) + "\"");
+    static string Js(string s) => "'" + s.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", "").Replace("\n", "\\n") + "'";
+}
+<div id="@extId" dyn-init="createApp" data-blk-role="list" v-cloak class="dyn-blk-listview">
+    @if (!isReadonly)
+    {
+        <div class="dyn-blk-listview__toolbar">
+            <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd($event)">
+                <el-icon style="margin-right:4px"><Plus /></el-icon>新增
+            </button>
+        </div>
+    }
+    <div class="dyn-blk-listview__grid" :style="gridStyle" v-loading="model.loading">
+        <div v-for="row in model.rows" :key="row[keyField]" class="lv-item" @@click="onRowClick(row)">
+            <component :is="itemComp" :row="row"></component>
+            @if (!isReadonly)
+            {
+                <div class="lv-item__actions" @@click.stop>
+                    <button type="button" class="lv-action-btn" title="编辑"
+                            :data-id="row[keyField]" @@click="onEdit(row, $event)">
+                        <el-icon><Edit /></el-icon>
+                    </button>
+                    <button type="button" class="lv-action-btn lv-action-btn--danger" title="删除"
+                            :data-id="row[keyField]" @@click="onDelete(row, $event)">
+                        <el-icon><Delete /></el-icon>
+                    </button>
+                </div>
+            }
+        </div>
+        <div v-if="!model.loading && model.rows.length === 0" class="lv-empty">暂无数据</div>
+    </div>
+    <div class="dyn-blk-listview__page">
+        <el-pagination background layout="total, prev, pager, next, sizes"
+            :total="model.total" :current-page="model.page" :page-size="model.size"
+            :page-sizes="[10, 20, 50, 100]" @@current-change="onPage" @@size-change="onSize"></el-pagination>
+    </div>
+    <script type="application/json" tag="dynmodel">{"rows":[],"page":1,"size":20,"total":0,"loading":false,"filter":{}}</script>
+    <script type="text/plain" tag="dynconfig">
+    var __execId = '@execId';
+    var __columns = @Html.Raw(Model?.ConfigJson ?? "[]");
+    var __table = '@tableName';
+    var __keyField = '@keyField';
+    var __project = '@project';
+    var __loadUrl = '@(string.IsNullOrEmpty(loadUrl) ? DynPageViewHelper.SearchUrl : loadUrl)';
+    var __deleteUrl = '@(string.IsNullOrEmpty(deleteUrl) ? DynPageViewHelper.DeleteUrl : deleteUrl)';
+    var __itemTemplate = @Html.Raw(JsStr(itemTemplate));
+    var __gridColumns = @columns;
+    var __addPipe = @Html.Raw(JsStr(addPipe));
+    var __editPipe = @Html.Raw(JsStr(editPipe));
+    var __queryHandler = null, __savedHandler = null;
+
+    // 把 item 模板编译成 Vue 子组件（支持 el-tag 等组件和 {{row.xxx}}）
+    var __itemComp = null;
+    try {
+        __itemComp = Vue.defineComponent({
+            name: 'ListViewItem',
+            template: __itemTemplate,
+            props: { row: { type: Object, required: true } }
+        });
+    } catch (e) {
+        console.error('[ListView] item 模板编译失败:', e, __itemTemplate);
+        __itemComp = Vue.defineComponent({
+            name: 'ListViewItemError',
+            props: ['row'],
+            render: function () {
+                return Vue.h('div', { style: 'color:#e53935;padding:8px;font-size:12px;border:1px dashed #ef9a9a;' },
+                    'item 模板编译失败: ' + (e.message || e));
+            }
+        });
+    }
+
+    var dynConfig = {
+        data: function () {
+            var cols = __columns;
+            var actions = (cols && !Array.isArray(cols) && Array.isArray(cols.rowActions)) ? cols.rowActions : [];
+            if (cols && !Array.isArray(cols) && cols.columns) cols = cols.columns;
+            return {
+                columns: cols || [],
+                rowActions: actions,
+                table: __table,
+                keyField: __keyField,
+                loadUrl: __loadUrl,
+                deleteUrl: __deleteUrl,
+                project: __project,
+                dictMap: {},
+                animKey: 0,
+                gridColumns: __gridColumns,
+                itemComp: __itemComp
+            };
+        },
+        computed: {
+            gridStyle: function () {
+                return { gridTemplateColumns: 'repeat(' + this.gridColumns + ', minmax(0, 1fr))' };
+            }
+        },
+        methods: {
+            loadData: function () {
+                var self = this;
+                if (!this.table || !this.loadUrl) return Promise.resolve(null);
+                this.model.loading = true;
+                return DynBlocks.search(this.loadUrl, {
+                    table: this.table, page: this.model.page, size: this.model.size,
+                    filter: this.model.filter || {}, project: this.project
+                }, element)
+                .then(function (data) {
+                    self.model.loading = false;
+                    self.model.rows = (data && data.rows) || [];
+                    self.model.total = (data && data.total) || 0;
+                    self.animKey = self.animKey + 1;
+                })
+                .catch(function () { self.model.loading = false; });
+            },
+            onPage: function (p) { this.model.page = p; this.loadData(); },
+            onSize: function (s) { this.model.size = s; this.model.page = 1; this.loadData(); },
+            loadDicts: function () {
+                var types = [], self = this;
+                (this.columns || []).forEach(function (c) {
+                    if (c.dictType && types.indexOf(c.dictType) < 0) types.push(c.dictType);
+                });
+                types.forEach(function (t) {
+                    fetch('/api/dyncommon/dicts?type=' + encodeURIComponent(t))
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) { if (res && res.code === 0) self.dictMap[t] = res.data; })
+                        .catch(function () {});
+                });
+            },
+            colOf: function (field) {
+                var cols = this.columns || [];
+                for (var i = 0; i < cols.length; i++) {
+                    if (cols[i].field === field) return cols[i];
+                }
+                return null;
+            },
+            formatCell: function (field, row) {
+                var col = this.colOf(field);
+                var v = row ? row[field] : null;
+                if (v === null || v === undefined || v === '') return (col && col.emptyText) || '-';
+                var o = this.cellOption(field, row);
+                if (o && o.label !== undefined && o.label !== null) return o.label;
+                return v;
+            },
+            cellOption: function (field, row) {
+                var col = this.colOf(field);
+                if (!col) return null;
+                var v = row ? row[field] : null;
+                var list = col.options;
+                if ((!list || !list.length) && col.dictType) list = this.dictMap[col.dictType];
+                if (list && list.length) {
+                    for (var i = 0; i < list.length; i++) {
+                        if (String(list[i].value) === String(v)) return list[i];
+                    }
+                }
+                return null;
+            },
+            cellTagType: function (field, row) {
+                var col = this.colOf(field);
+                var v = row ? row[field] : null;
+                var o = this.cellOption(field, row);
+                if (o && o.type) return o.type;
+                if (col && col.tagType) return col.tagType;
+                return v ? 'success' : 'info';
+            },
+            onAdd: function (ev) {
+                var el = (ev && (ev.currentTarget || ev.target)) || element;
+                if (this.runPipe(__addPipe, el)) return;
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'create', {});
+            },
+            // 执行 ActionHelper 管道（如 open({url:'/Platform/Page/DynDetail?...'})）
+            runPipe: function (pipe, el) {
+                if (!pipe || !window.dyn || typeof dyn.runJsonActions !== 'function') return false;
+                var steps = typeof dyn.parsePipe === 'function' ? dyn.parsePipe(pipe) : null;
+                if (!steps || !steps.length) return false;
+                dyn.runJsonActions({ actions: steps }, el || element);
+                return true;
+            },
+            onRowClick: function (row) {
+                if (!row) return;
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'select', { row: row });
+            },
+            onEdit: function (row, ev) {
+                var el = (ev && (ev.currentTarget || ev.target)) || element;
+                if (this.runPipe(__editPipe, el)) return;
+                if (window.DynEventBus && __execId)
+                    window.DynEventBus.emit(__execId, 'update', { row: row });
+            },
+            onRowAction: function (index, row) {
+                this.runRowAction(this.rowActions[index], row);
+            },
+            rowDataAttrs: function (row) {
+                var attrs = {};
+                if (row) {
+                    Object.keys(row).forEach(function (k) {
+                        var v = row[k];
+                        if (v === null || v === undefined || typeof v === 'object') return;
+                        attrs['data-' + String(k).toLowerCase()] = String(v);
+                    });
+                }
+                return attrs;
+            },
+            runRowAction: function (act, row) {
+                var self = this;
+                if (!act || !act.api || !act.api.url) { dyn.showMessage('行动作未配置 api.url', 'error'); return; }
+                var doRun = function () {
+                    var idField = act.api.idField || self.keyField;
+                    var body = {}; body[idField] = row[idField];
+                    var method = (act.api.method || 'POST').toUpperCase();
+                    var req = method === 'GET'
+                        ? DynCall.get(act.api.url, body, { scopeEl: element })
+                        : DynCall.post(act.api.url, body, { scopeEl: element });
+                    req.then(function (res) {
+                        var msg = act.okMsg || (res && res.ViewPath ? ('视图已生成：' + res.ViewPath) : '操作成功');
+                        dyn.showMessage(msg, 'success');
+                        if (act.refresh !== false) self.loadData();
+                    }).catch(function () { });
+                };
+                if (act.confirm) {
+                    window.dyn.confirmAsync(act.confirm).then(function (ok) { if (ok) doRun(); });
+                } else { doRun(); }
+            },
+            onDelete: function (row) {
+                var self = this;
+                var id = row && row[this.keyField];
+                if (id === null || id === undefined) return;
+                var doDelete = function () {
+                    var req = DynBlocks.deleteRequest(self.deleteUrl, self.table, id, self.keyField, self.project);
+                    DynCall.post(req.url, req.body, { scopeEl: element })
+                        .then(function () { dyn.showMessage('删除成功', 'success'); self.loadData(); })
+                        .catch(function () {});
+                };
+                if (window.dyn && typeof window.dyn.confirmAsync === 'function') {
+                    window.dyn.confirmAsync('确定删除该条记录吗？').then(function (ok) { if (ok) doDelete(); });
+                } else { doDelete(); }
+            }
+        },
+        mounted: function () {
+            var self = this;
+            // 登记 Block 实例句柄：让 ActionHelper 的 reload 动作能命中本 Block（handle.send('reload')），
+            // 也让布局壳 wire 具备 loadData/reload 命令。
+            if (window.DynBlocks && typeof DynBlocks.createBlockHandle === 'function' && !element.__dynBlock) {
+                var h = DynBlocks.createBlockHandle(element);
+                h.reg('loadData', function () { return self.loadData(); });
+                h.reg('reload', function () { return self.loadData(); });
+                h.ready();
+            }
+            this.loadDicts();
+            if (!window.DynEventBus || !__execId) {
+                this.loadData();
+                return;
+            }
+            var gotFilter = false;
+            var selfLoadTimer = null;
+            __queryHandler = function (payload) {
+                gotFilter = true;
+                if (selfLoadTimer) { clearTimeout(selfLoadTimer); selfLoadTimer = null; }
+                self.model.filter = payload || {};
+                self.model.page = 1;
+                self.loadData();
+            };
+            window.DynEventBus.on(__execId, 'query', __queryHandler);
+            __savedHandler = function () { self.loadData(); };
+            window.DynEventBus.on(__execId, 'saved', __savedHandler);
+            if (!gotFilter) selfLoadTimer = setTimeout(function () { self.loadData(); }, 120);
+        },
+        beforeUnmount: function () {
+            if (window.DynEventBus && __execId) {
+                if (__queryHandler) window.DynEventBus.off(__execId, 'query', __queryHandler);
+                if (__savedHandler) window.DynEventBus.off(__execId, 'saved', __savedHandler);
+            }
+        }
+    };
+    </script>
+</div>
+
+<style>
+    .dyn-blk-listview { display: flex; flex-direction: column; }
+    .dyn-blk-listview__toolbar { margin-bottom: 12px; }
+    .dyn-blk-listview__grid {
+        display: grid;
+        gap: 12px;
+        min-height: 120px;
+    }
+    .lv-item {
+        position: relative;
+        border: 1px solid var(--dyn-border, #e4e7ed);
+        border-radius: 6px;
+        background: var(--dyn-card-bg, #fff);
+        padding: 12px;
+        cursor: pointer;
+        transition: box-shadow .2s, border-color .2s;
+        overflow: hidden;
+    }
+    .lv-item:hover {
+        border-color: var(--dyn-primary, #409eff);
+        box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    }
+    .lv-item__actions {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        display: flex;
+        gap: 4px;
+        z-index: 5;
+        opacity: 1;
+        transition: opacity .2s;
+    }
+    .lv-action-btn {
+        width: 26px; height: 26px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border: 1px solid var(--dyn-border, #dcdfe6);
+        border-radius: 4px;
+        background: #f4f4f5;
+        cursor: pointer;
+        color: #606266;
+        padding: 0;
+        transition: all .15s;
+    }
+    .lv-action-btn:hover { color: var(--dyn-primary, #409eff); border-color: var(--dyn-primary, #409eff); }
+    .lv-action-btn--danger:hover { color: var(--dyn-danger, #f56c6c); border-color: var(--dyn-danger, #f56c6c); }
+    .lv-empty {
+        grid-column: 1 / -1;
+        text-align: center;
+        color: #909399;
+        padding: 40px 0;
+        font-size: 14px;
+    }
+    .dyn-blk-listview__page { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .lv-default-item { min-height: 40px; }
+    .lv-default-title { font-weight: 600; color: #303133; }
+</style>

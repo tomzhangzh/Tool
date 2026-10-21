@@ -1,0 +1,11 @@
+@* ListView 默认 item 模板示例（SysMenu 菜单卡片）
+   可用变量：row（当前行数据）、formatCell(field,row)、cellTagType(field,row)
+   支持任意 Element Plus 组件（el-tag/el-button 等）*@
+<div class="lv-menu-card">
+    <div class="lv-menu-icon">{{ row.Icon || '📄' }}</div>
+    <div class="lv-menu-name">{{ row.Name }}</div>
+    <div class="lv-menu-code">{{ row.Code }}</div>
+    <el-tag :type="row.IsActive == 1 ? 'success' : 'info'" size="small" effect="light">
+        {{ row.IsActive == 1 ? '启用' : '禁用' }}
+    </el-tag>
+</div>
