@@ -2,9 +2,10 @@
     Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
 }
 
-<template>
+
   <el-date-picker
     v-model="rangeValue"
+    v-bind="comBind" v-bind="$attrs" v-on="getComlisteners()"
     :type="pickerType"
     :range-separator="rangeSeparator"
     :start-placeholder="startPlaceholder"
@@ -15,9 +16,9 @@
     :disabled="disabled"
     :size="size"
     @@change="onChange"
-    style="width:100%;"
-  />
-</template>
+    ></el-date-picker>
+
+
 
 @section setupScripts{
 DVALUE = null;

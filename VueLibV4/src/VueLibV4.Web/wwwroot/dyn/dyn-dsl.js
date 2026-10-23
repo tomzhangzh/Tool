@@ -550,7 +550,7 @@ var __plugin = {
       if (mHead && mHead[2] !== undefined) {
         const prefix = mHead[2] || '';
         const items = hintIndex.components
-          .filter(function (c) { return c.name.toLowerCase().indexOf(prefix.toLowerCase()) === 0; })
+          .filter(function (c) { return c.name.toLowerCase().indexOf(prefix.toLowerCase()) >= 0; })
           .slice(0, 30)
           .map(function (c) {
             return { label: c.name, detail: (c.icon || '🧩') + ' ' + (c.category || '') };
@@ -592,7 +592,7 @@ var __plugin = {
           list = (group[gKey] || []);
         }
         list = list.filter(function (p) {
-          return p.key.toLowerCase().indexOf(prefix.toLowerCase()) === 0;
+          return p.key.toLowerCase().indexOf(prefix.toLowerCase()) >= 0;
         }).slice(0, 30);
         const items = list.map(function (p) {
           return { label: p.key, detail: p.label || '' };
@@ -618,7 +618,7 @@ var __plugin = {
           : (group[gKey] || []).find(function (p) { return p.key === propKey; }));
         if (prop && Array.isArray(prop.enum) && prop.enum.length) {
           const items = prop.enum.filter(function (v) {
-            return String(v).toLowerCase().indexOf(prefix.toLowerCase()) === 0;
+            return String(v).toLowerCase().indexOf(prefix.toLowerCase()) >= 0;
           }).slice(0, 30).map(function (v) {
             return { label: String(v), detail: '' };
           });
@@ -648,7 +648,7 @@ var __plugin = {
         const mTop = /(?:^|\s)([\w]*)$/.exec(before);
         const prefix = (mTop && mTop[1]) || '';
         const items = topAttrs.filter(function (a) {
-          return a.label.toLowerCase().indexOf(prefix.toLowerCase()) === 0;
+          return a.label.toLowerCase().indexOf(prefix.toLowerCase()) >= 0;
         }).slice(0, 15);
         if (items.length) {
           const fromCh = before.length - prefix.length;

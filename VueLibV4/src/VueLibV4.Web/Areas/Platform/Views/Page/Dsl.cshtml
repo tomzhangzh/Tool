@@ -100,6 +100,9 @@
                 '  - DynElSelect modelname="type" label="类型" comoptions.size="small"'
             ].join('\n');
 
+            // 关键改造点 1：声明一个处于 Vue 响应式沙箱外部的全局/闭包存储对象，专用于托管原生 CodeMirror 实例
+            var rawEditorInstance = null;
+
             var app = Vue.createApp({
                 data: function () {
                     return {
@@ -109,7 +112,6 @@
                         warnings: [],
                         previewCfg: null,
                         previewWidth: 800,
-                        _cm: null,
                         _renderTimer: null,
                         previewKey: 0
                     };
@@ -118,78 +120,116 @@
                     go: function (url) { window.location.href = url; },
                     parseAndRender: function () {
                         var self = this;
-                        var text = this._cm ? this._cm.getValue() : '';
-                        var hintIndex = window.DynDsl.getHintIndex();
+                        // 关键改造点 2：从非响应式原生变量中提取 CodeMirror 的真实增量数据，彻底隔离代理
+                        var cmInstance = rawEditorInstance;
+                        var text = cmInstance ? cmInstance.getValue() : '';
+                        
+                        var hintIndex = (window.DynDsl && typeof window.DynDsl.getHintIndex === 'function') ? window.DynDsl.getHintIndex() : null;
                         var res;
                         try {
-                            res = window.DynDsl.parseDsl(text, hintIndex ? hintIndex.byName : null);
+                            res = window.DynDsl.parseDsl(text, (hintIndex && hintIndex.byName) ? hintIndex.byName : null);
                         } catch (e) {
-                            // 解析器异常：完整堆栈打控制台，页面不崩
                             console.error('[Dsl] parseDsl 异常:', e);
-                            console.error(e && e.stack);
                             this.errors = [{ line: 0, msg: '解析器异常: ' + (e && e.message) }];
                             this.warnings = [];
                             this.previewCfg = null;
                             this.jsonText = '';
-                            window.DynDsl.markDslIssues(this._cm, this.errors, []);
+                            if (window.DynDsl && typeof window.DynDsl.markDslIssues === 'function' && cmInstance) {
+                                try { window.DynDsl.markDslIssues(cmInstance, this.errors, []); } catch(ex){}
+                            }
                             return;
                         }
-                        this.errors = res.errors || [];
-                        this.warnings = res.warnings || [];
-                        // lint 标记：错误红波浪 / 警告黄波浪（随解析实时刷新）
-                        try { window.DynDsl.markDslIssues(this._cm, this.errors, this.warnings); }
-                        catch (e) { console.error('[Dsl] markDslIssues 异常:', e); }
-                        // 实时渲染：无论有无错误都更新预览（错误行跳过，其余正常渲染），输入即时生效
+                        
+                        this.errors = (res && res.errors) ? res.errors : [];
+                        this.warnings = (res && res.warnings) ? res.warnings : [];
+                        
+                        if (window.DynDsl && typeof window.DynDsl.markDslIssues === 'function' && cmInstance) {
+                            try { 
+                                window.DynDsl.markDslIssues(cmInstance, this.errors, this.warnings); 
+                            } catch (e) { 
+                                console.error('[Dsl] markDslIssues 异常:', e); 
+                            }
+                        }
+                        
                         if (!text.trim()) {
                             this.previewCfg = null;
                             this.jsonText = '{}';
                             return;
                         }
-                        this.previewCfg = res.cfg;
+                        
+                        this.previewCfg = (res && res.cfg) ? res.cfg : null;
                         this.previewKey++;
-                        try { this.jsonText = JSON.stringify(res.cfg, null, 2); }
-                        catch (e) {
-                            console.error('[Dsl] JSON.stringify 异常:', e);
+                        try { 
+                            this.jsonText = JSON.stringify((res && res.cfg) ? res.cfg : {}, null, 2); 
+                        } catch (e) {
                             this.jsonText = '{}';
                         }
                     },
                     loadSample: function () {
-                        if (this._cm) this._cm.setValue(SAMPLE_DSL);
+                        var cmInstance = rawEditorInstance;
+                        if (cmInstance) {
+                            cmInstance.setValue(SAMPLE_DSL);
+                            Vue.nextTick(function() {
+                                setTimeout(function(){ cmInstance.refresh(); }, 50);
+                            });
+                        }
                         this.parseAndRender();
                     },
                     formatDsl: function () {
-                        var self = this;
-                        var hintIndex = window.DynDsl.getHintIndex();
-                        var res = window.DynDsl.parseDsl(this._cm.getValue(), hintIndex ? hintIndex.byName : null);
-                        if (res.errors.length) { this.errors = res.errors; return; }
-                        this._cm.setValue(window.DynDsl.toDsl(res.cfg));
-                        var cm = this._cm; setTimeout(function(){ cm.refresh(); }, 0);
+                        var cmInstance = rawEditorInstance;
+                        if (!cmInstance) return;
+                        var hintIndex = (window.DynDsl && typeof window.DynDsl.getHintIndex === 'function') ? window.DynDsl.getHintIndex() : null;
+                        var res = window.DynDsl.parseDsl(cmInstance.getValue(), (hintIndex && hintIndex.byName) ? hintIndex.byName : null);
+                        
+                        var errs = (res && res.errors) ? res.errors : [];
+                        if (errs.length) { this.errors = errs; return; }
+                        
+                        if (window.DynDsl && typeof window.DynDsl.toDsl === 'function' && res && res.cfg) {
+                            cmInstance.setValue(window.DynDsl.toDsl(res.cfg));
+                            Vue.nextTick(function() {
+                                setTimeout(function(){ cmInstance.refresh(); }, 50);
+                            });
+                        }
                         this.parseAndRender();
                     },
                     jsonToDsl: function () {
-                        var self = this;
+                        var cmInstance = rawEditorInstance;
+                        if (!cmInstance) return;
                         try {
                             var obj = JSON.parse(this.jsonText);
-                            if (!obj.component) { this.errors = [{ line: 0, msg: 'JSON 缺少 component' }]; return; }
-                            this._cm.setValue(window.DynDsl.toDsl(obj));
-                            var cm = this._cm; setTimeout(function(){ cm.refresh(); }, 0);
+                            if (!obj || !obj.component) { this.errors = [{ line: 0, msg: 'JSON 缺少 component 属性' }]; return; }
+                            if (window.DynDsl && typeof window.DynDsl.toDsl === 'function') {
+                                cmInstance.setValue(window.DynDsl.toDsl(obj));
+                                Vue.nextTick(function() {
+                                    setTimeout(function(){ cmInstance.refresh(); }, 50);
+                                });
+                            }
                             this.parseAndRender();
                         } catch (e) {
-                            console.error('[Dsl] JSON→DSL 解析失败:', e);
                             this.errors = [{ line: 0, msg: 'JSON 解析失败: ' + e.message }];
-                            window.DynDsl.markDslIssues(this._cm, this.errors, []);
+                            if (window.DynDsl && typeof window.DynDsl.markDslIssues === 'function' && cmInstance) {
+                                try { window.DynDsl.markDslIssues(cmInstance, this.errors, []); } catch(ex){}
+                            }
                         }
                     },
                     applyDsl: function () { this.parseAndRender(); }
                 },
                 mounted: function () {
                     var self = this;
-                    // 元数据加载 → 建提示索引
+                    
                     window.DynDsl.loadMeta().then(function (hintIndex) {
-                        // 初始化 CodeMirror（DSL 模式 + 自动提示）
                         if (typeof window.CodeMirror !== 'function') return;
+                        
                         var host = document.getElementById('dsl-host');
-                        var cm = window.CodeMirror.fromTextArea(host, {
+                        if (!host) return;
+                        var parentBox = host.parentNode;
+                        
+                        // 清空原 textarea 节点
+                        parentBox.innerHTML = '';
+                        
+                        // 实例化原生 CodeMirror
+                        var cm = window.CodeMirror(parentBox, {
+                            value: SAMPLE_DSL,
                             mode: 'dsl',
                             lineNumbers: true,
                             lineWrapping: true,
@@ -197,20 +237,41 @@
                             tabSize: 2,
                             placeholder: '>> DynGridContainer comoptions.gridTemplateColumns="1fr 1fr"\n  - DynElInput modelname="title" label="标题"'
                         });
-                        self._cm = cm;
-                        cm.setValue(SAMPLE_DSL);
-                        cm.on('change', function () { clearTimeout(self._renderTimer); self._renderTimer = setTimeout(function () { self.parseAndRender(); }, 200); });
-                        window.DynDsl.attachDslHints(cm, hintIndex);
+                        
+                        // 关键改造点 3：使用 Vue 3 提供的 markRaw 阻止任何对此变量的深层代理，并寄存到闭包原生作用域中
+                        rawEditorInstance = Vue.markRaw(cm);
+                        
+                        // 首次运行解析
                         self.parseAndRender();
+                        
+                        // 变动防抖监听
+                        cm.on('change', function () { 
+                            clearTimeout(self._renderTimer); 
+                            self._renderTimer = setTimeout(function () { self.parseAndRender(); }, 200); 
+                        });
+                        
+                        if (hintIndex && window.DynDsl && typeof window.DynDsl.attachDslHints === 'function') {
+                            try { window.DynDsl.attachDslHints(cm, hintIndex); } catch(e) { console.error('[DslHint] 崩溃：', e); }
+                        }
+                    }).catch(function(err) {
+                        console.error('[Dsl] loadMeta 异常:', err);
                     });
                 }
             });
+            
             DynCom.setupApp(app);
             DynCom.ensureRegistered(app).then(function () { 
-           const container = document.querySelector('#@extId');
-          
-            app.mount(container);
-             });
+                const container = document.querySelector('#@extId');
+                if (!container) return;
+                app.mount(container);
+                
+                // 挂载到宿主 DOM 树后的最终尺寸同步
+                Vue.nextTick(function() {
+                    setTimeout(function() {
+                        if (rawEditorInstance) rawEditorInstance.refresh();
+                    }, 150);
+                });
+            });
         });
     </script>
 }
