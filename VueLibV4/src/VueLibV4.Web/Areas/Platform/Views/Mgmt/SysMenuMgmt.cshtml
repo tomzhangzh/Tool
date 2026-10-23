@@ -10,7 +10,7 @@
   · dyn-init="createapp" 自举根应用；script[tag=dynconfig] 声明页面数据/方法
   · 左侧 el-tree 菜单树（父菜单=文件夹图标；桌面/停用 tag）；右侧表单编辑区（同页编辑，不弹窗）
   · 数据走专用 API /api/platform/sysmenu/*（tree/get/save/delete）
-  · TargetType：FullScreen=全屏 / Iframe=内嵌 iframe / NewWindow=新窗口
+  · TargetType：Windows=桌面窗口 / Iframe=内嵌iframe / NewWindow=新窗口；Width/Height 默认 80%，100%=全屏
   · IsAddToDesktop=true 的节点 → 桌面快捷方式（桌面页直接读 desktoplist）
   · PermissionCode 预留权限编码（后续对接权限模块）
 *@
@@ -87,17 +87,16 @@
                     </el-form-item>
                     <el-form-item label="打开方式">
                         <el-radio-group v-model="form.TargetType">
-                            <el-radio-button value="FullScreen">全屏</el-radio-button>
                             <el-radio-button value="Windows">桌面窗口</el-radio-button>
                             <el-radio-button value="Iframe">内嵌 Iframe</el-radio-button>
                             <el-radio-button value="NewWindow">新窗口</el-radio-button>
                         </el-radio-group>
                     </el-form-item>
-                    <el-form-item label="窗口宽度" v-if="form.TargetType === 'Windows'">
-                        <el-input v-model="form.Width" placeholder="如 800 或 50%（默认 960）" maxlength="20"></el-input>
+                    <el-form-item label="窗口宽度" v-if="form.TargetType === 'Windows' || form.TargetType === 'Iframe'">
+                        <el-input v-model="form.Width" placeholder="如 800 或 80%（默认 80%，100%=全屏）" maxlength="20"></el-input>
                     </el-form-item>
-                    <el-form-item label="窗口高度" v-if="form.TargetType === 'Windows'">
-                        <el-input v-model="form.Height" placeholder="如 640 或 60%（默认 640）" maxlength="20"></el-input>
+                    <el-form-item label="窗口高度" v-if="form.TargetType === 'Windows' || form.TargetType === 'Iframe'">
+                        <el-input v-model="form.Height" placeholder="如 600 或 80%（默认 80%，100%=全屏）" maxlength="20"></el-input>
                     </el-form-item>
                     <el-form-item label="添加到桌面">
                         <el-switch v-model="form.IsAddToDesktop" active-text="是" inactive-text="否"></el-switch>
@@ -147,7 +146,7 @@
                 form: {
                     Id: 0, ParentId: null, Code: '', Name: '', Icon: '',
                     Url: '', TargetType: 'Iframe',
-                    Width: null, Height: null,
+                    Width: '80%', Height: '80%',
                     IsAddToDesktop: true, IsAddToDesktopRoot: true, IsAddToStartMenu: true,
                     SortNo: 0, IsActive: true, PermissionCode: ''
                 }
@@ -374,8 +373,8 @@
                                 Icon: d.Icon || '',
                                 Url: d.Url || '',
                                 TargetType: d.TargetType || 'Iframe',
-                                Width: d.Width || null,
-                                Height: d.Height || null,
+                                Width: d.Width || '80%',
+                                Height: d.Height || '80%',
                                 IsAddToDesktop: !!d.IsAddToDesktop,
                                 IsAddToDesktopRoot: d.IsAddToDesktopRoot === undefined ? true : !!d.IsAddToDesktopRoot,
                                 IsAddToStartMenu: d.IsAddToStartMenu === undefined ? true : !!d.IsAddToStartMenu,
@@ -394,7 +393,7 @@
                 this.form = {
                     Id: 0, ParentId: null, Code: '', Name: '', Icon: '',
                     Url: '', TargetType: 'Iframe',
-                    Width: null, Height: null,
+                    Width: '80%', Height: '80%',
                     IsAddToDesktop: true, IsAddToDesktopRoot: true, IsAddToStartMenu: true,
                     SortNo: 0, IsActive: true, PermissionCode: ''
                 };
@@ -404,7 +403,7 @@
                 this.form = {
                     Id: 0, ParentId: this.form.Id, Code: '', Name: '', Icon: '',
                     Url: '', TargetType: 'Iframe',
-                    Width: null, Height: null,
+                    Width: '80%', Height: '80%',
                     IsAddToDesktop: true, IsAddToDesktopRoot: true, IsAddToStartMenu: true,
                     SortNo: 0, IsActive: true, PermissionCode: ''
                 };
@@ -413,7 +412,7 @@
                 this.form = {
                     Id: 0, ParentId: null, Code: '', Name: '', Icon: '',
                     Url: '', TargetType: 'Iframe',
-                    Width: null, Height: null,
+                    Width: '80%', Height: '80%',
                     IsAddToDesktop: true, IsAddToDesktopRoot: true, IsAddToStartMenu: true,
                     SortNo: 0, IsActive: true, PermissionCode: ''
                 };

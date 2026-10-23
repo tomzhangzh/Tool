@@ -9,7 +9,8 @@ namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
 /// 系统菜单（树形）：管理页左侧树+右侧表单；桌面快捷方式数据源（IsAddToDesktop=true）。
-/// TargetType：FullScreen=全屏 / Iframe=桌面内嵌 iframe / NewWindow=新窗口。
+/// TargetType：Windows=桌面窗口 / Iframe=桌面内嵌iframe / NewWindow=新窗口。
+/// Width/Height 支持像素或百分比，默认 80%，100%=全屏。
 /// PermissionCode 与权限模块对接：DesktopList 按当前用户权限过滤。
 /// </summary>
 [Area("Platform")]

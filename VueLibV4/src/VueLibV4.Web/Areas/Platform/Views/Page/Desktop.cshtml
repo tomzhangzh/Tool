@@ -1016,24 +1016,25 @@
                         if (this.isFolder(m)) { this.openFloat(m, {}); return; }
                         var url = m.Url;
                         if (!url) { dyn.showMessage('该菜单未配置访问地址', 'warning'); return; }
-                        // TargetType：NewWindow=新窗口；FullScreen=全屏窗口；Windows=桌面窗口(用配置宽高)；Iframe=桌面窗口(默认尺寸)
+                        // TargetType：NewWindow=新窗口；Windows/Iframe=桌面窗口(用配置宽高，默认80%，100%=全屏)
                         if (m.TargetType === 'NewWindow') { window.open(url, '_blank'); return; }
                         var existing = this.windows.find(function (w) { return w.url === url; });
                         if (existing) { existing.minimized = false; this.focusWindow(existing.id); return; }
                         var isWin = m.TargetType === 'Windows';
                         var availW = Math.max(400, window.innerWidth - 40);
                         var availH = Math.max(300, window.innerHeight - 88);
-                        var winW = this.parseSize(m.Width, availW);
-                        var winH = this.parseSize(m.Height, availH);
+                        var winW = this.parseSize(m.Width || '80%', availW);
+                        var winH = this.parseSize(m.Height || '80%', availH);
+                        var isFull = (m.Width === '100%' && m.Height === '100%');
                         var w = {
                             id: ++this._winId, title: m.Name, icon: m.Icon || '📄', url: url,
                             useIframe: m.TargetType === 'Iframe',  // 默认 iframe，菜单可配置关闭
                             x: 80 + (this.windows.length * 30) % 200,
                             y: 60 + (this.windows.length * 30) % 150,
-                            width: (isWin && winW) ? Math.min(winW, availW) : 960,
-                            height: (isWin && winH) ? Math.min(winH, availH) : 640,
+                            width: Math.min(winW, availW),
+                            height: Math.min(winH, availH),
                             minimized: false,
-                            maximized: m.TargetType === 'FullScreen',
+                            maximized: isFull,
                             zIndex: ++this._z
                         };
                         this.windows.push(w); this.activeWinId = w.id;
