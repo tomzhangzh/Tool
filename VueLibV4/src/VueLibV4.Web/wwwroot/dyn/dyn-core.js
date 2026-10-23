@@ -455,7 +455,7 @@ function readExtConfigs(el){
   const doms = el.querySelectorAll(':scope > script[tag="dynconfig-ext"]');
   [].forEach.call(doms,function(d){
     try{
-      const cfg = new Function('element','dyn',d.textContent+"\n; return typeof dynConfigExt!=='undefined'?dynConfigExt:null;")(el,global.dyn);
+      const cfg = new Function('element','dyn','with(window){'+d.textContent+"\n; return typeof dynConfigExt!=='undefined'?dynConfigExt:null;}")(el,global.dyn);
       if(cfg&&typeof cfg==='object') list.push(cfg);
     }catch(e){ console.error("[DynCore] dynconfig-ext执行异常",e); }
   });
@@ -532,7 +532,8 @@ async function mountCore(el,parentEl){
   const cfgDom = el.querySelector(':scope > script[tag="dynconfig"]');
   if(cfgDom){
     try{
-      cfgScript = new Function('element','dyn',cfgDom.textContent+"\n; return typeof dynConfig!=='undefined'?dynConfig:null;")(el,global.dyn);
+      // with(window) 让脚本内可直接用 Vue/ElementPlus/DynLib 等全局变量，无需写 window. 前缀
+      cfgScript = new Function('element','dyn','with(window){'+cfgDom.textContent+"\n; return typeof dynConfig!=='undefined'?dynConfig:null;}")(el,global.dyn);
     }catch(e){ console.error("[DynCore] dynconfig执行异常",e); }
   }
   // 页面扩展脚本（dynconfig-ext）：同样只认直接子级；须在下方移除容器 script 之前读取
