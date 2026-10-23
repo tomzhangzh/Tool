@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "~/Areas/Component/Views/Common/_FormItemLayout.cshtml";
 }
 
@@ -9,7 +9,7 @@
         </el-radio-button>
     </template>
     <template v-else>
-        <el-radio v-for="opt in comInnerInfo.options" :key="opt.value" :value="opt.value">
+        <el-radio v-for="opt in comInnerInfo.options" :key="opt.value" :value="opt.value" :border="comBind.border">
             {{ opt.label }}
         </el-radio>
     </template>

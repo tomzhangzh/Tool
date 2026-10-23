@@ -248,6 +248,10 @@ var comConfig = {
          *   ajax   - 任意接口（url 支持 {{model.field}} 占位，valueKey/labelKey 映射）
          */
         function loadComOptions(forceType) {
+            // setupScripts 阶段 modelinfo 尚未声明（暂时性死区），
+            // 若数据源含 {{ }} 模板会触发 resolveTemplate → exprCtx → modelinfo 报错。
+            // 检测到 TDZ 时延迟到 nextTick 重试。
+            try { void modelinfo; } catch (e) { nextTick(function () { loadComOptions(forceType); }); return; }
             var s = (jc.options && jc.options.comoptions) || {};
             var t = forceType || s.sourceType || 'static';
             if (t === 'static') { initOptionsFromConfig(); return; }

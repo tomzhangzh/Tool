@@ -1117,15 +1117,29 @@ const dyn = {
   reload,setDynCfg,getVueModel,
   getByPath,setPathVal,deepClone,html
 };
-// 清理配置树中的运行时内部字段（__uid 等），用于展示/导出 JSON
+// 清理配置树中的运行时内部字段（__uid 等），并剔除空对象 {} / 空数组 [] 以及
+// 递归清理后变空的容器（其下全是 {} / []），用于展示/导出 JSON
 dyn.clean = function clean(cfg){
   if(!cfg||typeof cfg!=='object') return cfg;
-  if(Array.isArray(cfg)) return cfg.map(clean);
+  if(Array.isArray(cfg)){
+    var arr = cfg.map(clean).filter(function(v){
+      if(v && typeof v==='object'){
+        return Array.isArray(v) ? v.length>0 : Object.keys(v).length>0;
+      }
+      return true;
+    });
+    return arr;
+  }
   var out = {};
   Object.keys(cfg).forEach(function(k){
     if(k==='__uid') return;
     var v = cfg[k];
-    out[k] = (v && typeof v==='object') ? clean(v) : v;
+    if(v && typeof v==='object'){
+      v = clean(v);
+      if(Array.isArray(v)){ if(v.length===0) return; }
+      else if(Object.keys(v).length===0) return;
+    }
+    out[k] = v;
   });
   return out;
 };

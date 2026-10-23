@@ -105,6 +105,7 @@ object V2(string k) {
   ```
 - 支持路径：`comoptions.*` / `labeloptions.*` / `shell.show|style|class`
 - `shell.show` 控制整个组件显隐（v-if），`labeloptions.show` 控制标签显隐
+- `labeloptions.help`：标签帮助说明文字，配置后标签后显示 InfoFilled 图标，hover 用 el-tooltip 展示说明（支持 `\n` 换行，`_FormItemLayout.cshtml` 渲染）
 
 ## 新增 Block 步骤
 1. DynBlock 表插入：Code, Name, ImplementsRole, ViewPath, ParamConfigJson, Commands, Events

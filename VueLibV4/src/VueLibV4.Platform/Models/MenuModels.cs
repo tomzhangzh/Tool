@@ -6,7 +6,8 @@ namespace VueLibV4.Platform.Models;
 /// <summary>
 /// 系统菜单（树形）：桌面快捷方式的数据源（IsAddToDesktop=true 时生成桌面图标），
 /// 父菜单（有子菜单）显示为文件夹，点击在旁边浮动展开子菜单。
-/// TargetType：FullScreen=全屏打开 / Iframe=桌面内嵌 iframe / NewWindow=新窗口。
+/// TargetType：Windows=桌面窗口(可配宽高) / Iframe=桌面内嵌 iframe(可配宽高) / NewWindow=新浏览器窗口。
+/// Width/Height 支持像素 "800" 或百分比 "80%"，默认 "80%"；设为 "100%" 即为全屏。
 /// PermissionCode 预留，后续对接权限模块。
 /// </summary>
 [SugarTable("SysMenu")]
@@ -31,17 +32,17 @@ public class SysMenu
     [SugarColumn(Length = 500, IsNullable = true)]
     public string? Url { get; set; }
 
-    /// <summary>打开方式：FullScreen=全屏 / Windows=桌面窗口(可配宽高) / Iframe=桌面窗口(默认尺寸) / NewWindow=新浏览器窗口</summary>
+    /// <summary>打开方式：Windows=桌面窗口(可配宽高) / Iframe=桌面内嵌iframe(可配宽高) / NewWindow=新浏览器窗口</summary>
     [SugarColumn(Length = 50, IsNullable = true)]
     public string? TargetType { get; set; } = "Iframe";
 
-    /// <summary>桌面窗口打开宽度（TargetType=Windows 时生效；支持像素 "800" 或百分比 "50%"）</summary>
+    /// <summary>桌面窗口打开宽度（Windows/Iframe 生效；支持像素 "800" 或百分比 "80%"，默认 "80%"，100%=全屏）</summary>
     [SugarColumn(Length = 20, IsNullable = true)]
-    public string? Width { get; set; }
+    public string? Width { get; set; } = "80%";
 
-    /// <summary>桌面窗口打开高度（TargetType=Windows 时生效；支持像素 "640" 或百分比 "60%"）</summary>
+    /// <summary>桌面窗口打开高度（Windows/Iframe 生效；支持像素 "600" 或百分比 "80%"，默认 "80%"，100%=全屏）</summary>
     [SugarColumn(Length = 20, IsNullable = true)]
-    public string? Height { get; set; }
+    public string? Height { get; set; } = "80%";
 
     /// <summary>是否添加到桌面（桌面由此表生成快捷方式）</summary>
     public bool IsAddToDesktop { get; set; } = true;
@@ -65,7 +66,6 @@ public class SysMenu
 /// <summary>菜单打开方式常量</summary>
 public static class MenuTargetType
 {
-    public const string FullScreen = "FullScreen";
     public const string Windows = "Windows";
     public const string Iframe = "Iframe";
     public const string NewWindow = "NewWindow";

@@ -22,12 +22,14 @@ var __plugin = {
     'el-input-number':'DynElInputNumber','elinputnumber':'DynElInputNumber',
     'el-textarea':'DynElTextarea','eltextarea':'DynElTextarea',
     'el-select':'DynElSelect','elselect':'DynElSelect',
+    'el-select-v2':'DynElSelect','elselectv2':'DynElSelect',
     'el-radio-group':'DynElRadioGroup','elradiogroup':'DynElRadioGroup',
     'el-checkbox-group':'DynElCheckboxGroup','elcheckboxgroup':'DynElCheckboxGroup',
     'el-button':'DynElButton','elbutton':'DynElButton',
     'el-date-picker':'DynElDatePicker','eldatepicker':'DynElDatePicker',
     'el-time-picker':'DynElTimePicker','eltimepicker':'DynElTimePicker',
     'el-switch':'DynElSwitch','elswitch':'DynElSwitch',
+    'el-segmented':'DynElRadioGroup','elsegmented':'DynElRadioGroup',
     'el-slider':'DynElSlider','elslider':'DynElSlider',
     'el-rate':'DynElRate','elrate':'DynElRate',
     'el-color-picker':'DynElColorPicker','elcolorpicker':'DynElColorPicker',
@@ -73,27 +75,36 @@ var __plugin = {
     var tag = el.tagName.toLowerCase();
     if (tag === 'template') return null; // 顶层 template 由调用方处理
 
-    // el-form-item 不生成独立组件：把 label/required 提取出来塞给第一个子组件的 labeloptions
+    // el-form-item 不生成独立组件：把 label/required/prop 提取出来塞给第一个子组件
     if (tag === 'el-form-item' || tag === 'elformitem') {
       var label = el.getAttribute('label') || '';
       var required = el.hasAttribute('required');
-      var childEl = null;
+      var prop = el.getAttribute('prop') || '';
+      var childEls = [];
       for (var i = 0; i < el.children.length; i++) {
-        if (el.children[i].nodeType === 1 && el.children[i].tagName.toLowerCase() !== 'template') {
-          childEl = el.children[i]; break;
-        }
+        var ch = el.children[i];
+        if (ch.nodeType === 1 && ch.tagName.toLowerCase() !== 'template') childEls.push(ch);
       }
-      if (!childEl) return null;
-      var sub = parseEl(childEl);
-      if (sub) {
-        if (label) sub.options.labeloptions.label = label;
-        if (required) sub.options.labeloptions.required = true;
+      if (!childEls.length) return null;
+      var subs = childEls.map(parseEl).filter(Boolean);
+      if (subs.length && label) subs[0].options.labeloptions.label = label;
+      if (subs.length && required) subs[0].options.labeloptions.required = true;
+      // prop 或 required 表示需要校验：加 required 校验规则
+      if (subs.length && (prop || required)) {
+        subs[0].validators = subs[0].validators || [];
+        subs[0].validators.push({ type: 'required', message: '此项为必填' });
       }
-      return sub;
+      if (subs.length === 1) return subs[0];
+      var wrap = baseCfg('DynGridContainer');
+      wrap.childrenctrls = subs;
+      return wrap;
     }
 
     var component = TAG_MAP[tag] || toPascal(tag);
     var cfg = baseCfg(component);
+    // 选项类子节点标签 & 选项类父组件
+    var OPTION_TAGS = { 'el-option': 1, 'eloption': 1, 'el-radio': 1, 'elradio': 1, 'el-radio-button': 1, 'elradiobutton': 1, 'el-checkbox': 1, 'elcheckbox': 1, 'el-checkbox-button': 1, 'elcheckboxbutton': 1, 'el-cascader-panel': 1 };
+    var optionComps = { 'DynElSelect': 1, 'DynElRadioGroup': 1, 'DynElCheckboxGroup': 1, 'DynElCascader': 1, 'DynElTransfer': 1 };
 
     Array.prototype.slice.call(el.attributes).forEach(function (a) {
       var name = a.name;
@@ -122,18 +133,69 @@ var __plugin = {
     });
 
     // 子节点：template → 具名插槽；其余 → childrenctrls
+    var hasElementChild = false;
     Array.prototype.slice.call(el.children).forEach(function (child) {
       var ctag = child.tagName.toLowerCase();
       if (ctag === 'template') {
+        hasElementChild = true;
         var slotName = getSlotName(child);
         var slotChildren = Array.prototype.slice.call(child.children)
           .map(parseEl).filter(Boolean);
         cfg.slots[slotName] = (cfg.slots[slotName] || []).concat(slotChildren);
       } else {
+        hasElementChild = true;
         var sub = parseEl(child);
         if (sub) cfg.childrenctrls.push(sub);
       }
     });
+    // 无子元素时，捕获直接文本内容：按钮文字、选项 label 等
+    if (!hasElementChild) {
+      var txt = (el.textContent || '').trim();
+      if (txt) {
+        cfg.extendinfo.text = txt;
+        // 非选项类组件把文本写入 comoptions.text（Button/Tag 等组件读取此字段显示）
+        var lowerComp = component.toLowerCase();
+        if (!OPTION_TAGS[lowerComp] && !OPTION_TAGS[component]) {
+          cfg.options.comoptions.text = txt;
+        }
+      }
+    }
+
+    // 选项类组件：把 el-option / el-radio / el-checkbox 子节点转为 optionValuesText（每行"值,标签"）
+    if (optionComps[component] && cfg.childrenctrls.length) {
+      var optLines = [];
+      var hasButton = false;
+      var hasBorder = false;
+      var BUTTON_OPTION = { 'el-radio-button': 1, 'elradiobutton': 1, 'el-checkbox-button': 1, 'elcheckboxbutton': 1 };
+      cfg.childrenctrls.forEach(function (c) {
+        var lower = c.component.toLowerCase();
+        if (OPTION_TAGS[lower] || OPTION_TAGS[c.component]) {
+          if (BUTTON_OPTION[lower] || BUTTON_OPTION[c.component]) hasButton = true;
+          var co = c.options.comoptions;
+          if (co.border === true || co.border === '') hasBorder = true;
+          // value: el-option 用 value 属性，el-radio/el-checkbox 用 label 属性
+          var val = co.value !== undefined ? co.value : (co.label !== undefined ? co.label : '');
+          // label: el-option 优先 label 属性，el-radio/el-checkbox 优先文本内容
+          var lab = (c.extendinfo && c.extendinfo.text) ? c.extendinfo.text
+            : (co.label !== undefined ? co.label : val);
+          if (val !== '' && val !== undefined) {
+            optLines.push(String(val) + ',' + String(lab));
+          }
+        }
+      });
+      if (optLines.length) {
+        cfg.options.comoptions.sourceType = 'static';
+        cfg.options.comoptions.optionValuesText = optLines.join('\n');
+        // 子节点是 button 类型时，父组设 type="button"
+        if (hasButton) cfg.options.comoptions.type = 'button';
+        // 任一子节点带 border 时，父组设 border
+        if (hasBorder && !hasButton) cfg.options.comoptions.border = true;
+        cfg.childrenctrls = cfg.childrenctrls.filter(function (c) {
+          var lower = c.component.toLowerCase();
+          return !OPTION_TAGS[lower] && !OPTION_TAGS[c.component];
+        });
+      }
+    }
 
     return cfg;
   }
@@ -162,8 +224,14 @@ var __plugin = {
     var comoptions = (cfg.options && cfg.options.comoptions) || {};
     var listeners = (cfg.options && cfg.options.comlisteners) || {};
     var itemoptions = (cfg.options && cfg.options.itemoptions) || {};
+    var labeloptions = (cfg.options && cfg.options.labeloptions) || {};
 
+    // el-form-item 的 label/required 已提到父级，导出时跳过；text 作为标签内容输出
+    // radio-group/checkbox-group 的 type/border 是选项子节点属性，不输出到 group 标签
+    var isOptGroup = cfg.component === 'DynElRadioGroup' || cfg.component === 'DynElCheckboxGroup';
     Object.keys(comoptions).forEach(function (k) {
+      if (k === 'sourceType' || k === 'optionValues' || k === 'optionValuesText' || k === 'text') return;
+      if (isOptGroup && (k === 'type' || k === 'border')) return;
       var v = comoptions[k];
       if (v && typeof v === 'object' && '__expr' in v) {
         open += ' :' + k + '="' + v.__expr + '"';
@@ -183,6 +251,30 @@ var __plugin = {
     });
 
     var children = (cfg.childrenctrls || []).map(function (c) { return exportTemplate(c, indent + 1); });
+
+    // 静态选项还原为子节点：select→el-option, radio-group→el-radio(el-radio-button), checkbox-group→el-checkbox(el-checkbox-button)
+    var ovText = comoptions.optionValuesText;
+    if (typeof ovText === 'string' && ovText.trim()) {
+      var isBtn = comoptions.type === 'button';
+      var hasBorder = comoptions.border === true;
+      var optTag = 'el-option';
+      if (cfg.component === 'DynElRadioGroup') optTag = isBtn ? 'el-radio-button' : 'el-radio';
+      else if (cfg.component === 'DynElCheckboxGroup') optTag = isBtn ? 'el-checkbox-button' : 'el-checkbox';
+      ovText.split(/\r?\n/).forEach(function (line) {
+        line = line.trim();
+        if (!line) return;
+        var idx = line.indexOf(',');
+        var val = idx === -1 ? line : line.slice(0, idx).trim();
+        var lab = idx === -1 ? line : line.slice(idx + 1).trim();
+        if (optTag === 'el-option') {
+          children.push(padIn + '<el-option label="' + lab.replace(/"/g, '&quot;') + '" value="' + val.replace(/"/g, '&quot;') + '" />');
+        } else {
+          var borderAttr = (!isBtn && hasBorder) ? ' border' : '';
+          children.push(padIn + '<' + optTag + ' label="' + val.replace(/"/g, '&quot;') + '"' + borderAttr + '>' + lab + '</' + optTag + '>');
+        }
+      });
+    }
+
     Object.keys(cfg.slots || {}).forEach(function (slotName) {
       (cfg.slots[slotName] || []).forEach(function (c) {
         var inner = exportTemplate(c, indent + 2);
@@ -191,6 +283,13 @@ var __plugin = {
         children.push(padIn + '</template>');
       });
     });
+
+    // 按钮文字等文本内容：comoptions.text 作为标签内容输出
+    var btnText = comoptions.text;
+    if (typeof btnText === 'string' && btnText && !children.length) {
+      lines.push(pad + open + '>' + btnText + '</' + tag + '>');
+      return lines.join('\n');
+    }
 
     if (!children.length) {
       lines.push(pad + open + ' />');
