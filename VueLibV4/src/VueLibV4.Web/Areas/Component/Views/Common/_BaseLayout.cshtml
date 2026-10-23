@@ -282,7 +282,14 @@ var comConfig = {
             }
             if (t === 'sql') {
                 if (!s.sql) return;
-                var q = 'projectId=' + encodeURIComponent(s.projectId || '') + '&sql=' + encodeURIComponent(s.sql);
+                // 支持 {{model.city}} 等占位符联动：从 parentModel 取值替换后再发给后端
+                // 注意：值会转义单引号防 SQL 语法破坏，但整体仍是"执行配置者写的 SQL"，信任配置者
+                var resolvedSql = String(s.sql).replace(/\{\{\s*model\.([\w.]+)\s*\}\}/g, function (_, p) {
+                    var v = getByPath(parentModel.value, p);
+                    var str = v == null ? '' : String(v);
+                    return str.replace(/'/g, "''");
+                });
+                var q = 'projectId=' + encodeURIComponent(s.projectId || '') + '&sql=' + encodeURIComponent(resolvedSql);
                 fetch('/api/dyncommon/sqloptions?' + q)
                     .then(function (r) { return r.json(); })
                     .then(function (res) { if (res && res.code === 0) comInnerInfo.options = _normOptionList(res.data); })
@@ -718,6 +725,22 @@ var comConfig = {
             if (_cascadePath) {
                 watch(function () { return getByPath(parentModel.value, _cascadePath); },
                     function (nv, ov) { if (nv !== ov) loadComOptions(); });
+            }
+            // 联动：sql / ajax 模板中 {{model.xxx}} 引用的字段变化时重新加载 options
+            // 从 sql/url 字符串中正则提取所有 model.xxx 路径，逐一监听
+            var _co = (jc.options && jc.options.comoptions) || {};
+            var _tpl = (_co.sourceType === 'sql' && _co.sql) ? _co.sql
+                : (_co.sourceType === 'ajax' && _co.url) ? _co.url : '';
+            if (_tpl) {
+                var _paths = [];
+                var _re = /\{\{\s*model\.([\w.]+)\s*\}\}/g, _m;
+                while ((_m = _re.exec(_tpl)) !== null) {
+                    if (_paths.indexOf(_m[1]) < 0) _paths.push(_m[1]);
+                }
+                _paths.forEach(function (p) {
+                    watch(function () { return getByPath(parentModel.value, p); },
+                        function (nv, ov) { if (nv !== ov) loadComOptions(); });
+                });
             }
   			// 设计模式下，容器组件初始化 Sortable
             // 注意：DynDynamicCom 透明包装层（transparentMode）与真实容器组件挂在同一根元素、

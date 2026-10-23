@@ -173,6 +173,14 @@ public class DemoController : Controller
         return View(string.Format(Demo, "TabsParams"));
     }
 
+    /// <summary>下拉联动 Demo：DynElSelect 通过 SQL 模板 {{model.city}} 实现级联刷新</summary>
+    [HttpGet("/Platform/Page/Demo/CascadeSelect")]
+    public IActionResult DemoCascadeSelect()
+    {
+        ViewData["Title"] = "下拉联动 Demo - VueLibV4";
+        return View(string.Format(Demo, "CascadeSelect"));
+    }
+
     /// <summary>Mac 风格桌面 Demo（仿 macOS / portfolio.zxh.me 拟物风格，独立 _LayoutMac 布局）</summary>
     [HttpGet("/Platform/Page/MacDesktopDemo")]
     public IActionResult DemoMac()

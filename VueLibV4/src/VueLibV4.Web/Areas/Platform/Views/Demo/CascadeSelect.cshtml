@@ -1,0 +1,119 @@
+﻿@{
+    ViewData["Title"] = "下拉联动 Demo - VueLibV4";
+}
+<div id="demo-cascade-app">
+    <div class="bar">
+        <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
+        <span class="title">DynElSelect 下拉联动 Demo（SQL 模板占位符）</span>
+    </div>
+    <div class="main">
+        <el-card shadow="never">
+            <template #header>
+                <b>城市 → 区县 联动</b>
+                <el-tag size="small" type="info" style="margin-left:8px">切换城市，区县下拉自动刷新</el-tag>
+            </template>
+            <dyn-dynamic-com :jsonconfig="cfg" :parentmodelinfo="form"></dyn-dynamic-com>
+            <div style="margin-top:16px;padding-top:12px;border-top:1px dashed #ebeef5">
+                <b>当前表单值：</b>
+                <pre class="json-pre">{{ formJson }}</pre>
+            </div>
+        </el-card>
+        <el-card shadow="never">
+            <template #header><b>区县下拉的 SQL 配置</b></template>
+            <pre class="sql-pre">{{ districtSql }}</pre>
+            <p class="tip" v-pre>
+                区县下拉的 sourceType=sql，SQL 中用 {{model.city}} 引用城市字段。
+                选择城市后，框架自动把 model.city 的值替换进 SQL 并重新请求 /api/dyncommon/sqloptions。
+                本 demo 用 UNION ALL 虚拟表，无需建表即可运行。
+            </p>
+        </el-card>
+    </div>
+</div>
+
+<style>
+    body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
+    .bar .title { font-weight: 600; margin-right: auto; }
+    .main { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    @@media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
+    .json-pre { background: #282c34; color: #abb2bf; padding: 12px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; margin: 8px 0 0; }
+    .sql-pre { background: #282c34; color: #98c379; padding: 12px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; }
+    .tip { color: #606266; font-size: 13px; line-height: 1.7; }
+</style>
+
+@section Scripts {
+    <script>
+        DynLib.ready(function () {
+            // SQL 中用 {{model.city}} 引用表单字段；值会被替换进 SQL 后发给后端
+            var districtSql =
+                "SELECT value, label FROM (\n" +
+                "  SELECT '1' AS value, '海淀区' AS label, '北京' AS city UNION ALL\n" +
+                "  SELECT '2', '朝阳区', '北京' UNION ALL\n" +
+                "  SELECT '3', '浦东新区', '上海' UNION ALL\n" +
+                "  SELECT '4', '黄浦区', '上海' UNION ALL\n" +
+                "  SELECT '5', '天河区', '广州' UNION ALL\n" +
+                "  SELECT '6', '越秀区', '广州'\n" +
+                ") WHERE city = '{{model.city}}'";
+
+            // 表单配置：城市(静态) → 区县(SQL 联动)
+            var cfg = {
+                component: 'DynForm',
+                modelname: '',
+                options: {
+                    comoptions: { labelwidth: '100px' },
+                    labeloptions: { label: '', show: false }
+                },
+                childrenctrls: [
+                    {
+                        component: 'DynElSelect',
+                        modelname: 'city',
+                        options: {
+                            labeloptions: { label: '城市' },
+                            comoptions: {
+                                sourceType: 'static',
+                                optionValuesText: '北京\n上海\n广州',
+                                placeholder: '请选择城市',
+                                clearable: true
+                            }
+                        }
+                    },
+                    {
+                        component: 'DynElSelect',
+                        modelname: 'district',
+                        options: {
+                            labeloptions: { label: '区县' },
+                            comoptions: {
+                                sourceType: 'sql',
+                                projectId: '',
+                                sql: districtSql,
+                                placeholder: '请先选择城市',
+                                clearable: true
+                            }
+                        }
+                    }
+                ]
+            };
+
+            var app = Vue.createApp({
+                data: function () {
+                    return {
+                        cfg: cfg,
+                        districtSql: districtSql,
+                        // 响应式表单 model，传给 dyn-dynamic-com 的 parentmodelinfo
+                        form: { city: '', district: '' }
+                    };
+                },
+                computed: {
+                    formJson: function () { return JSON.stringify(this.form, null, 2); }
+                },
+                methods: {
+                    go: function (url) { window.location.href = url; }
+                }
+            });
+            DynCom.setupApp(app);
+            DynCom.ensureRegistered(app).then(function () {
+                app.mount('#demo-cascade-app');
+            });
+        });
+    </script>
+}
