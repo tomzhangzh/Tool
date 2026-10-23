@@ -1117,6 +1117,18 @@ const dyn = {
   reload,setDynCfg,getVueModel,
   getByPath,setPathVal,deepClone,html
 };
+// 清理配置树中的运行时内部字段（__uid 等），用于展示/导出 JSON
+dyn.clean = function clean(cfg){
+  if(!cfg||typeof cfg!=='object') return cfg;
+  if(Array.isArray(cfg)) return cfg.map(clean);
+  var out = {};
+  Object.keys(cfg).forEach(function(k){
+    if(k==='__uid') return;
+    var v = cfg[k];
+    out[k] = (v && typeof v==='object') ? clean(v) : v;
+  });
+  return out;
+};
 // ========= 新增下面这一行 =========
 dyn.installActionApi = function(obj){
   Object.keys(obj).forEach(k=>{
@@ -1125,6 +1137,8 @@ dyn.installActionApi = function(obj){
 };
 global.dynCore = dyn;
 global.dyn = dyn;
+// 兼容旧名 DynCore（早期 demo 中使用）
+global.DynCore = dyn;
 ctx.provide('dyn', dyn);
   }
 };

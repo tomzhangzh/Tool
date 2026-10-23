@@ -15,6 +15,53 @@ var __plugin = {
 
   /* ---------- 导入：Vue Template → DynCom JSON ---------- */
 
+  // Element Plus 标签 → Dyn 组件名映射（同时支持 el-form 和 elform 两种写法）
+  var TAG_MAP = {
+    'el-form':'DynGridContainer','elform':'DynGridContainer',
+    'el-input':'DynElInput','elinput':'DynElInput',
+    'el-input-number':'DynElInputNumber','elinputnumber':'DynElInputNumber',
+    'el-textarea':'DynElTextarea','eltextarea':'DynElTextarea',
+    'el-select':'DynElSelect','elselect':'DynElSelect',
+    'el-radio-group':'DynElRadioGroup','elradiogroup':'DynElRadioGroup',
+    'el-checkbox-group':'DynElCheckboxGroup','elcheckboxgroup':'DynElCheckboxGroup',
+    'el-button':'DynElButton','elbutton':'DynElButton',
+    'el-date-picker':'DynElDatePicker','eldatepicker':'DynElDatePicker',
+    'el-time-picker':'DynElTimePicker','eltimepicker':'DynElTimePicker',
+    'el-switch':'DynElSwitch','elswitch':'DynElSwitch',
+    'el-slider':'DynElSlider','elslider':'DynElSlider',
+    'el-rate':'DynElRate','elrate':'DynElRate',
+    'el-color-picker':'DynElColorPicker','elcolorpicker':'DynElColorPicker',
+    'el-cascader':'DynElCascader','elcascader':'DynElCascader',
+    'el-transfer':'DynElTransfer','eltransfer':'DynElTransfer',
+    'el-table':'DynElTable','eltable':'DynElTable',
+    'el-table-column':'DynTableColumn','eltablecolumn':'DynTableColumn',
+    'el-tabs':'DynElTabs','eltabs':'DynElTabs',
+    'el-collapse':'DynElCollapse','elcollapse':'DynElCollapse',
+    'el-collapse-item':'DynElCollapseItem','elcollapseitem':'DynElCollapseItem',
+    'el-container':'DynElContainer','elcontainer':'DynElContainer',
+    'el-row':'DynElRow','elrow':'DynElRow',
+    'el-col':'DynElCol','elcol':'DynElCol',
+    'el-card':'DynElCard','elcard':'DynElCard',
+    'el-tag':'DynElTag','eltag':'DynElTag',
+    'el-alert':'DynElAlert','elalert':'DynElAlert',
+    'el-progress':'DynElProgress','elprogress':'DynElProgress',
+    'el-empty':'DynElEmpty','elempty':'DynElEmpty',
+    'el-image':'DynElImage','elimage':'DynElImage',
+    'el-divider':'DynElDivider','eldivider':'DynElDivider',
+    'el-popover':'DynElPopover','elpopover':'DynElPopover',
+    'el-steps':'DynElSteps','elsteps':'DynElSteps',
+    'el-timeline':'DynElTimeline','eltimeline':'DynElTimeline',
+    'el-statistic':'DynElStatistic','elstatistic':'DynElStatistic',
+    'el-descriptions':'DynElDescriptions','eldescriptions':'DynElDescriptions',
+    'el-upload':'DynElUpload','elupload':'DynElUpload'
+  };
+  // 反向映射：Dyn 组件名 → Element 标签（优先用连字符写法 el-form），供 exportTemplate 往返导出
+  var REVERSE_TAG_MAP = {};
+  Object.keys(TAG_MAP).forEach(function(k){
+    var v = TAG_MAP[k];
+    if (!REVERSE_TAG_MAP[v] || k.indexOf('-') !== -1) REVERSE_TAG_MAP[v] = k;
+  });
+
   function importTemplate(html) {
     var doc = new DOMParser().parseFromString(html, 'text/html');
     var nodes = Array.prototype.slice.call(doc.body ? doc.body.children : []);
@@ -25,7 +72,27 @@ var __plugin = {
     if (!el || el.nodeType !== 1) return null;
     var tag = el.tagName.toLowerCase();
     if (tag === 'template') return null; // 顶层 template 由调用方处理
-    var component = toPascal(tag);
+
+    // el-form-item 不生成独立组件：把 label/required 提取出来塞给第一个子组件的 labeloptions
+    if (tag === 'el-form-item' || tag === 'elformitem') {
+      var label = el.getAttribute('label') || '';
+      var required = el.hasAttribute('required');
+      var childEl = null;
+      for (var i = 0; i < el.children.length; i++) {
+        if (el.children[i].nodeType === 1 && el.children[i].tagName.toLowerCase() !== 'template') {
+          childEl = el.children[i]; break;
+        }
+      }
+      if (!childEl) return null;
+      var sub = parseEl(childEl);
+      if (sub) {
+        if (label) sub.options.labeloptions.label = label;
+        if (required) sub.options.labeloptions.required = true;
+      }
+      return sub;
+    }
+
+    var component = TAG_MAP[tag] || toPascal(tag);
     var cfg = baseCfg(component);
 
     Array.prototype.slice.call(el.attributes).forEach(function (a) {
@@ -89,8 +156,9 @@ var __plugin = {
     var pad = new Array(indent + 1).join('  ');
     var padIn = new Array(indent + 2).join('  ');
     if (!cfg || !cfg.component) return '';
+    var tag = REVERSE_TAG_MAP[cfg.component] || cfg.component;
     var lines = [];
-    var open = '<' + cfg.component;
+    var open = '<' + tag;
     var comoptions = (cfg.options && cfg.options.comoptions) || {};
     var listeners = (cfg.options && cfg.options.comlisteners) || {};
     var itemoptions = (cfg.options && cfg.options.itemoptions) || {};
@@ -129,7 +197,7 @@ var __plugin = {
     } else {
       lines.push(pad + open + '>');
       children.forEach(function (c) { if (c) lines.push(c); });
-      lines.push(pad + '</' + cfg.component + '>');
+      lines.push(pad + '</' + tag + '>');
     }
     return lines.join('\n');
   }

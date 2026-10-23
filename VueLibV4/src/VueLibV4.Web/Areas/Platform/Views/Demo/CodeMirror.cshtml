@@ -1,4 +1,4 @@
-﻿@{
+@{
     
     ViewData["Title"] = "CodeMirror Demo - VueLibV4";
 }
@@ -20,7 +20,7 @@
         <div>
             <el-card shadow="never">
                 <template #header><b>渲染预览（编辑后可实时渲染）</b></template>
-                <dyn-render v-if="previewCfg" :cfg="previewCfg"></dyn-render>
+                <dyn-dynamic-com v-if="previewCfg" :jsonconfig="previewCfg" :parentmodelinfo="previewModel"></dyn-dynamic-com>
                 <el-empty v-else description="点击『渲染预览』查看效果"></el-empty>
             </el-card>
             <el-card shadow="never" style="margin-top:16px">
@@ -65,14 +65,14 @@
                 validators: [],
                 childrenctrls: [
                     {
-                        component: 'ElInput',
+                        component: 'DynElInput',
                         modelname: 'formData.name',
                         options: { comoptions: { placeholder: '姓名', clearable: true }, comlisteners: {}, labeloptions: { label: '姓名', required: true, show: true }, itemoptions: { style: {}, class: '' } },
                         validators: [{ type: 'required', message: '请输入姓名' }],
                         childrenctrls: [], slots: {}, extendinfo: {}
                     },
                     {
-                        component: 'ElInput',
+                        component: 'DynElInput',
                         modelname: 'formData.phone',
                         options: { comoptions: { placeholder: '手机号' }, comlisteners: {}, labeloptions: { label: '手机号', required: false, show: true }, itemoptions: { style: {}, class: '' } },
                         validators: [{ type: 'phone', message: '手机号格式不正确' }],
@@ -87,6 +87,7 @@
                 data: function () {
                     return {
                         model: Vue.reactive({ json: JSON.stringify(sample, null, 2), codeText: '// 切换右上角模式可编辑不同类型代码\nvar demo = { ok: true };' }),
+                        previewModel: Vue.reactive({ formData: {} }),
                         error: '',
                         previewCfg: null,
                         mode: 'json',
