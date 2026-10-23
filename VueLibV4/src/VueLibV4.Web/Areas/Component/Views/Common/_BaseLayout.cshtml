@@ -282,13 +282,8 @@ var comConfig = {
             }
             if (t === 'sql') {
                 if (!s.sql) return;
-                // 支持 {{model.city}} 等占位符联动：从 parentModel 取值替换后再发给后端
-                // 注意：值会转义单引号防 SQL 语法破坏，但整体仍是"执行配置者写的 SQL"，信任配置者
-                var resolvedSql = String(s.sql).replace(/\{\{\s*model\.([\w.]+)\s*\}\}/g, function (_, p) {
-                    var v = getByPath(parentModel.value, p);
-                    var str = v == null ? '' : String(v);
-                    return str.replace(/'/g, "''");
-                });
+                // {{ expr }} 用 bindings 同套 ctx 求值，值转义单引号防 SQL 语法破坏
+                var resolvedSql = resolveTemplate(s.sql, function (v) { return v.replace(/'/g, "''"); });
                 var q = 'projectId=' + encodeURIComponent(s.projectId || '') + '&sql=' + encodeURIComponent(resolvedSql);
                 fetch('/api/dyncommon/sqloptions?' + q)
                     .then(function (r) { return r.json(); })
@@ -298,10 +293,8 @@ var comConfig = {
             }
             if (t === 'ajax') {
                 if (!s.url) return;
-                var url = String(s.url).replace(/\{\{\s*model\.([\w.]+)\s*\}\}/g, function (_, p) {
-                    var v = getByPath(parentModel.value, p);
-                    return encodeURIComponent(v == null ? '' : v);
-                });
+                // {{ expr }} 用 bindings 同套 ctx 求值，值做 URL 编码
+                var url = resolveTemplate(s.url, encodeURIComponent);
                 fetch(url)
                     .then(function (r) { return r.json(); })
                     .then(function (res) {
@@ -563,6 +556,24 @@ var comConfig = {
             }
             return raw;
         }
+        // 模板行内替换：把字符串中所有 {{ expr }} 用 bindings 同套 ctx 求值后替换。
+        // valueTransform 可选，对每个求值结果做后处理（SQL 转义单引号 / AJAX URL 编码）
+        function resolveTemplate(str, valueTransform) {
+            if (typeof str !== 'string') return str;
+            var ctx = exprCtx.value;
+            return str.replace(/\{\{\s*([\s\S]+?)\s*\}\}/g, function (match, body) {
+                var val;
+                try {
+                    var fn = new Function('model', '$self', 'value', 'row', 'fullModelName', 'getByPath', 'safeGet', 'return (' + body + ');');
+                    val = fn(ctx.model, ctx.$self, ctx.value, ctx.row, ctx.fullModelName, ctx.getByPath, ctx.safeGet);
+                } catch (e) {
+                    console.warn('[template 表达式求值失败]', body, e);
+                    val = '';
+                }
+                var s = val == null ? '' : String(val);
+                return valueTransform ? valueTransform(s) : s;
+            });
+        }
         // 值绑定三通道（优先级从高到低）：
         // ① 表达式模式：modelexpr（只读，可选 modelsetexpr 写回）
         // ② 路径模式：parentmodelinfo（显式 prop 或容器 inject 兜底）+ modelname
@@ -617,6 +628,27 @@ var comConfig = {
                     innerValue.value = val;
                 }
                 if (comInnerInfo.validation.touched) validate();
+            }
+        });
+        // 联动通用行为：选项列表变化时（如父级联动导致重新加载），
+        // 若当前选中值不在新选项中，则清空/剔除该值，避免残留无效选项
+        watch(() => comInnerInfo.options, function (newOpts) {
+            var cur = modelinfo.value;
+            if (cur === undefined || cur === null || cur === '') return;
+            var list = Array.isArray(newOpts) ? newOpts : [];
+            var validValues = {};
+            list.forEach(function (o) { if (o && o.value !== undefined) validValues[o.value] = true; });
+            if (Array.isArray(cur)) {
+                // 多选：剔除不在选项中的值
+                var filtered = cur.filter(function (v) { return validValues[v] === true; });
+                if (filtered.length !== cur.length) {
+                    nextTick(function () { modelinfo.value = filtered; });
+                }
+            } else {
+                // 单选：值不在选项中则清空
+                if (validValues[cur] !== true) {
+                    nextTick(function () { modelinfo.value = ''; });
+                }
             }
         });
 	    let _rootEl = null; // 校验结果写回根元素，供父级（DetailTemplate validateForm）聚合具体错误消息
@@ -726,21 +758,14 @@ var comConfig = {
                 watch(function () { return getByPath(parentModel.value, _cascadePath); },
                     function (nv, ov) { if (nv !== ov) loadComOptions(); });
             }
-            // 联动：sql / ajax 模板中 {{model.xxx}} 引用的字段变化时重新加载 options
-            // 从 sql/url 字符串中正则提取所有 model.xxx 路径，逐一监听
+            // 联动：sql / ajax 模板含 {{ }} 表达式时，model 任何变化都重新加载 options
+            // 模板支持任意表达式（不只是 model.xxx 路径），故深监听 parentModel
             var _co = (jc.options && jc.options.comoptions) || {};
-            var _tpl = (_co.sourceType === 'sql' && _co.sql) ? _co.sql
-                : (_co.sourceType === 'ajax' && _co.url) ? _co.url : '';
-            if (_tpl) {
-                var _paths = [];
-                var _re = /\{\{\s*model\.([\w.]+)\s*\}\}/g, _m;
-                while ((_m = _re.exec(_tpl)) !== null) {
-                    if (_paths.indexOf(_m[1]) < 0) _paths.push(_m[1]);
-                }
-                _paths.forEach(function (p) {
-                    watch(function () { return getByPath(parentModel.value, p); },
-                        function (nv, ov) { if (nv !== ov) loadComOptions(); });
-                });
+            var _hasTpl = (_co.sourceType === 'sql' && _co.sql && /\{\{/.test(_co.sql))
+                || (_co.sourceType === 'ajax' && _co.url && /\{\{/.test(_co.url));
+            if (_hasTpl) {
+                watch(function () { return parentModel.value; },
+                    function () { loadComOptions(); }, { deep: true });
             }
   			// 设计模式下，容器组件初始化 Sortable
             // 注意：DynDynamicCom 透明包装层（transparentMode）与真实容器组件挂在同一根元素、
