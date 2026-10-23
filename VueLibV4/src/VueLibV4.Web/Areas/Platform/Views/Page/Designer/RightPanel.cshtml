@@ -1,7 +1,11 @@
 @* 右侧属性面板：基础(含控件类型+组件属性) / 布局样式 / 校验规则 / 高级；可折叠为窄轨 *@
-<aside class="dyn-panel shrink-0 bg-white border-l border-gray-200 flex flex-col min-h-0"
-       :style="{ width: model.rightCollapsed ? '26px' : '320px' }"
+@* 注意：aside 是 Vue 挂载点，其属性不被 Vue 编译，所以 :style/@mousedown 必须放在内部包裹 div 上 *@
+<aside class="dyn-panel shrink-0 bg-white border-l border-gray-200 min-h-0 relative"
        dyn-init="createapp" v-cloak data-dyn-use-scope="designer">
+  <div class="flex flex-col min-h-0 h-full relative"
+       :style="{ width: model.rightCollapsed ? '26px' : (model.rightWidth + 'px') }">
+  @* 左侧拖拽条 *@
+  <div v-if="!model.rightCollapsed" class="dyn-resizer dyn-resizer-left" @@mousedown="onStartResizeRight"></div>
 
   @* ===== 折叠态窄轨 ===== *@
   <div v-show="model.rightCollapsed" class="dyn-panel-rail flex flex-col items-center pt-2">
@@ -9,7 +13,7 @@
     <span class="dyn-rail-text">属性</span>
   </div>
 
-  <div v-show="!model.rightCollapsed" class="dyn-panel-body flex flex-col min-h-0" style="width:320px;">
+  <div v-show="!model.rightCollapsed" class="dyn-panel-body flex flex-col min-h-0" style="width:100%;">
 <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
     <span class="font-semibold text-gray-700">属性配置</span>
     <button class="px-2 py-0.5 text-xs rounded hover:bg-gray-100" title="收起面板" @@click="setCollapsed(true)">▶</button>
@@ -122,14 +126,49 @@
         </div>
       </el-tab-pane>
 
-      @* ===== 高级（联动脚本 evalCondition） ===== *@
+      @* ===== 高级（表达式绑定 + 关联属性 bindings + 联动脚本 evalCondition） ===== *@
       <el-tab-pane label="高级" name="advanced" class="overflow-y-auto">
         <div class="p-3">
-          <div class="text-xs text-gray-500 mb-1">联动脚本 evalCondition（值变化时执行）</div>
+          @* ---- 分组1：表达式绑定（modelexpr / modelsetexpr） ---- *@
+          <div class="text-xs text-gray-500 mb-2 font-medium">表达式绑定</div>
+          <el-form size="small" label-position="left" label-width="90px" class="mb-4">
+            <el-form-item label="值表达式">
+              <el-input v-model="model.current.modelexpr" size="small" placeholder="{{ model.price * model.qty }}" clearable></el-input>
+            </el-form-item>
+            <el-form-item label="写回表达式">
+              <el-input v-model="model.current.modelsetexpr" size="small" placeholder="model.total = $value" clearable></el-input>
+            </el-form-item>
+          </el-form>
+          <div class="text-xs text-gray-400 leading-5 mb-4 pl-1 border-l-2 border-blue-200 pl-2">
+            <b>值表达式</b>（modelexpr，只读）：用 {{ }} 包裹的表达式，运行时计算后作为该组件的值。<br/>
+            例：<code>{{ model.price * model.qty }}</code> 自动计算小计。<br/>
+            <b>写回表达式</b>（modelsetexpr，可选）：用户输入时执行，把值写回 model 的其他字段。<br/>
+            例：<code>model.total = $value</code>，其中 <code>$value</code> 是当前输入值。<br/>
+            可用变量：model、$self/value、fullModelName、getByPath、safeGet。
+          </div>
+
+          @* ---- 分组2：关联属性 bindings ---- *@
+          <div class="text-xs text-gray-500 mb-2 font-medium">关联属性 bindings</div>
+          <div v-for="(item, idx) in bindingsList" :key="idx" class="flex gap-1 mb-1 items-center">
+            <el-select v-model="item.key" size="small" style="width:140px;" placeholder="属性">
+              <el-option v-for="p in bindingPropOptions" :key="p" :label="p" :value="p"></el-option>
+            </el-select>
+            <el-input v-model="item.value" size="small" style="flex:1;" placeholder="{{ model.xxx === 'yyy' }}"></el-input>
+            <el-button size="small" type="danger" link @@click="removeBinding(idx)">删</el-button>
+          </div>
+          <el-button size="small" type="primary" plain class="w-full mt-1" @@click="addBinding">+ 新增关联属性</el-button>
+          <div class="text-xs text-gray-400 mt-2 leading-5">
+            表达式作用域：model（表单数据）、$self/value（当前值）、fullModelName、getByPath、safeGet。<br/>
+            支持 comoptions.disabled/required/options、labeloptions.show/label、shell.show/style/class。<br/>
+            非 {{ }} 包裹的值视为字面量。优先级：静态配置 &lt; bindings &lt; evalCondition。
+          </div>
+
+          @* ---- 分组3：联动脚本 evalCondition ---- *@
+          <div class="text-xs text-gray-500 mb-1 mt-4 font-medium">联动脚本 evalCondition</div>
           <textarea v-model="model.current.options.evalCondition" rows="8"
                     class="w-full text-xs p-1 rounded"
                     style="font-family:monospace;border:1px solid #dcdfe6;min-height:120px;"
-                    placeholder="// ctx: { value, model, getByPath, safeGet }&#10;// 返回 { shell:{show:false}, labeloptions:{...}, comoptions:{...} } 动态控制显隐与属性"></textarea>
+                    placeholder="// ctx: { model, $self, value, row, fullModelName, getByPath, safeGet }&#10;// 返回 { shell:{show:false}, labeloptions:{...}, comoptions:{...} } 动态控制显隐与属性"></textarea>
           <div class="text-xs text-gray-400 mt-2 leading-5">
             例：值为 1 时隐藏本组件：<br/>
             if(ctx.value===1) return { shell:{ show:false } };
@@ -139,6 +178,7 @@
     </el-tabs>
   </template>
   </div>
+  </div>
 
   <script tag="dynconfig">
   var dynConfig = {
@@ -147,6 +187,8 @@
         propTab: 'base',
         comPropsActive: ['comAttr'],
         styleJsonError: '',
+        bindingsArr: [],
+        _bindSyncing: false,
         validatorTypes: [
           { value: 'required', label: '必填' },
           { value: 'email', label: '邮箱格式' },
@@ -165,12 +207,37 @@
         var list = this.model.current && this.model.current.validators;
         return Array.isArray(list) && list.some(function (r) { return r && r.type === 'required'; });
       },
+      // bindings 属性路径下拉：从当前组件 PropertyConfigJson 动态提取，不再写死
+      bindingPropOptions: function () {
+        var opts = [];
+        var cp = this.comProps;
+        if (cp && cp.childrenctrls) {
+          var self = this;
+          (function walk(arr) {
+            if (!Array.isArray(arr)) return;
+            arr.forEach(function (c) {
+              if (c && c.modelname) {
+                var m = String(c.modelname);
+                if (m.indexOf('options.') === 0) opts.push(m.slice('options.'.length));
+              }
+              if (c && c.childrenctrls) walk(c.childrenctrls);
+            });
+          })(cp.childrenctrls);
+        }
+        var common = [
+          'labeloptions.show', 'labeloptions.label', 'labeloptions.required',
+          'shell.show', 'shell.class', 'shell.style'
+        ];
+        common.forEach(function (c) { if (opts.indexOf(c) < 0) opts.push(c); });
+        return opts;
+      },
       validators: function () {
         if (!this.model.current.validators || !Array.isArray(this.model.current.validators)) {
           this.model.current.validators = [];
         }
         return this.model.current.validators;
       },
+      bindingsList: function () { return this.bindingsArr; },
       comProps: function () {
         var cur = this.model.current;
         if (!cur) return null;
@@ -230,6 +297,45 @@
     },
     methods: {
       setCollapsed: function (v) { this.model.rightCollapsed = !!v; },
+      // 左侧拖拽条：拖动调整右面板宽度
+      onStartResizeRight: function (e) {
+        e.preventDefault();
+        var self = this;
+        var startX = e.clientX;
+        var startW = this.model.rightWidth || 340;
+        function onMove(ev) {
+          var w = Math.max(240, Math.min(720, startW - (ev.clientX - startX)));
+          self.model.rightWidth = w;
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+        }
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      },
+      addBinding: function () {
+        this.bindingsArr.push({ key: 'comoptions.disabled', value: '{{ model.status === "submitted" }}' });
+      },
+      removeBinding: function (idx) {
+        this.bindingsArr.splice(idx, 1);
+      },
+      writeBindingsBack: function () {
+        if (this._bindSyncing) return;
+        var cur = this.model.current;
+        if (!cur) return;
+        var obj = {};
+        this.bindingsArr.forEach(function (it) { if (it && it.key) obj[it.key] = it.value; });
+        this._bindSyncing = true;
+        if (Object.keys(obj).length === 0) cur.bindings = null;
+        else cur.bindings = obj;
+        var self = this;
+        this.$nextTick(function () { self._bindSyncing = false; });
+      },
       ruleNeedsValue: function (type) {
         return ['pattern', 'min', 'max', 'length', 'custom'].indexOf(type) >= 0;
       },
@@ -337,6 +443,20 @@
     watch: {
       'model.rightCollapsed': function (v) {
         try { localStorage.setItem('dyn-designer-right-collapsed', v ? '1' : '0'); } catch (e) {}
+      },
+      // 切换选中组件时，从 bindings 加载到 bindingsArr
+      'model.current': function () {
+        var b = this.model.current && this.model.current.bindings;
+        if (!b || typeof b !== 'object') { this.bindingsArr = []; return; }
+        this._bindSyncing = true;
+        this.bindingsArr = Object.keys(b).map(function (k) { return { key: k, value: b[k] }; });
+        var self = this;
+        this.$nextTick(function () { self._bindSyncing = false; });
+      },
+      // bindingsArr 变化时写回 model.current.bindings
+      bindingsArr: {
+        handler: function () { this.writeBindingsBack(); },
+        deep: true
       },
       // 规则增删/类型变化时同步必填星标
       'model.current.validators': {

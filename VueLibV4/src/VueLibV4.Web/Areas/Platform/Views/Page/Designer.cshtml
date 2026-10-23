@@ -20,7 +20,7 @@
 *@
 <div class="dyn-designer-root flex flex-col h-screen m-0 bg-gray-100"
      data-dyn-shared-scope="designer"
-     data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "previewActive": { "uid": "", "index": 0 }, "viewState": { "open": false, "name": "", "node": null, "columns": [] }, "undoStack": [], "redoStack": [], "canvasVersion": 0, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 }, "zoom": 100, "leftCollapsed": false, "rightCollapsed": false, "embed": @(isEmbed ? "true" : "false"), "pageId": 0, "pageCode": "", "defaultModel": {} }'>
+     data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "previewActive": { "uid": "", "index": 0 }, "viewState": { "open": false, "name": "", "node": null, "columns": [] }, "undoStack": [], "redoStack": [], "canvasVersion": 0, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 }, "zoom": 100, "leftCollapsed": false, "rightCollapsed": false, "leftWidth": 288, "rightWidth": 340, "embed": @(isEmbed ? "true" : "false"), "pageId": 0, "pageCode": "", "defaultModel": {} }'>
 
   <partial name="~/Areas/Platform/Views/Page/Designer/TopBar.cshtml" />
 
@@ -33,6 +33,15 @@
 
   <style>
 .drag-target-active { outline: 2px dashed #409eff !important; outline-offset: 2px; }
+/* ===== 左右面板拖拽条 ===== */
+.dyn-designer-root .dyn-resizer {
+  position: absolute; top: 0; bottom: 0; width: 6px; z-index: 60;
+  cursor: col-resize; background: transparent; transition: background .15s;
+}
+.dyn-designer-root .dyn-resizer-right { right: 0; }
+.dyn-designer-root .dyn-resizer-left { left: 0; }
+.dyn-designer-root .dyn-resizer:hover { background: rgba(59,130,246,.4); }
+.dyn-designer-root .dyn-resizer:active { background: rgba(59,130,246,.7); }
 /* 修复左右面板滚动条：
    el-tabs 生成的 .el-tabs__content 默认高度 auto，flex 纵向链在此断掉，
    内部 overflow-y-auto 永远不会触发滚动条。

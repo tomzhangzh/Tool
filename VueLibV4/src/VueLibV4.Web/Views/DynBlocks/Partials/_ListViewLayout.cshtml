@@ -46,8 +46,29 @@
                 if (jo["rowActions"] is JArray jr) acts = jr;
                 if (jo["gridColumns"] != null) columns = jo["gridColumns"]!.Value<int>();
                 else if (jo["columnsCount"] != null) columns = jo["columnsCount"]!.Value<int>();
-                // item 模板：优先 Partial View 路径，其次模板字符串
-                if (jo["itemTemplateView"] != null)
+                // item 模板：ViewData["ItemTemplateView"] 优先（Demo/调用方覆盖），其次数据库配置 Partial 路径，再次模板字符串
+                var itemTemplateViewOverride = ViewData["ItemTemplateView"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(itemTemplateViewOverride))
+                {
+                    var viewPath = itemTemplateViewOverride;
+                    if (!string.IsNullOrWhiteSpace(viewPath))
+                    {
+                        try
+                        {
+                            var sw = new StringWriter();
+                            var viewResult = await Html.PartialAsync(viewPath);
+                            var permissive = System.Text.Encodings.Web.HtmlEncoder.Create(
+                                System.Text.Unicode.UnicodeRanges.All);
+                            viewResult.WriteTo(sw, permissive);
+                            itemTemplate = sw.ToString();
+                        }
+                        catch (Exception ex)
+                        {
+                            itemTemplate = "<div style='color:#e53935'>itemTemplateView 覆盖渲染失败: " + ex.Message + "</div>";
+                        }
+                    }
+                }
+                else if (jo["itemTemplateView"] != null)
                 {
                     var viewPath = jo["itemTemplateView"]!.ToString();
                     if (!string.IsNullOrWhiteSpace(viewPath))
@@ -101,7 +122,7 @@
     {
         <div class="dyn-blk-listview__toolbar">
             <button type="button" class="el-button el-button--primary el-button--small" @@click="onAdd($event)">
-                <el-icon style="margin-right:4px"><Plus /></el-icon>新增
+                <el-icon style="margin-right:4px"><Plus></Plus></el-icon>新增
             </button>
         </div>
     }
@@ -113,11 +134,11 @@
                 <div class="lv-item__actions" @@click.stop>
                     <button type="button" class="lv-action-btn" title="编辑"
                             :data-id="row[keyField]" @@click="onEdit(row, $event)">
-                        <el-icon><Edit /></el-icon>
+                        <el-icon><Edit></Edit></el-icon>
                     </button>
                     <button type="button" class="lv-action-btn lv-action-btn--danger" title="删除"
                             :data-id="row[keyField]" @@click="onDelete(row, $event)">
-                        <el-icon><Delete /></el-icon>
+                        <el-icon><Delete></Delete></el-icon>
                     </button>
                 </div>
             }
@@ -396,16 +417,21 @@
         right: 6px;
         display: flex;
         gap: 4px;
-        z-index: 5;
-        opacity: 1;
+        z-index: 100;
+        opacity: 0;
+        background: rgba(255,255,255,0.85);
+        border-radius: 4px;
+        padding: 2px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.12);
         transition: opacity .2s;
     }
+    .lv-item:hover .lv-item__actions { opacity: 1; }
     .lv-action-btn {
         width: 26px; height: 26px;
         display: inline-flex; align-items: center; justify-content: center;
         border: 1px solid var(--dyn-border, #dcdfe6);
         border-radius: 4px;
-        background: #f4f4f5;
+        background: #fff;
         cursor: pointer;
         color: #606266;
         padding: 0;

@@ -42,7 +42,7 @@
        @@click.self="onCanvasClick">
     <!-- key 绑定 canvasVersion：撤销/重做替换 pageJson 后强制整树重建（容器模板 setup 快照 jc 不响应顶层引用替换）；
          追加 mode 段：设计/预览切换时整树重挂载，保证 data-dyn-uid、Sortable、onMounted 数据加载等行为与真实页面一致 -->
-    <dyn-dynamic-com :key="'root_' + (model.canvasVersion || 0) + '_' + (model.mode === 'preview' ? 'p' : 'd')" :jsonconfig="model.pageJson"></dyn-dynamic-com>
+    <dyn-dynamic-com :key="'root_' + (model.canvasVersion || 0) + '_' + (model.mode === 'preview' ? 'p' : 'd')" :jsonconfig="model.pageJson" :parentmodelinfo="model.mode === 'preview' ? model.defaultModel : null"></dyn-dynamic-com>
 
     <!-- drop 指示线/高亮 -->
     <div v-if="model.dropIndicator.show && model.dropIndicator.insertInto"

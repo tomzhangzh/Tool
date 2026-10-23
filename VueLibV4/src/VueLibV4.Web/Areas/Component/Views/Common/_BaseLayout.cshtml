@@ -20,6 +20,9 @@ var comConfig = {
         wrapperoptions: { type: [Object, String], default: null },
         compassthrough: { type: String, default: null },
         evalcondition: { type: String, default: null },
+        modelexpr: { type: String, default: null },
+        modelsetexpr: { type: String, default: null },
+        bindings: { type: [Object, String], default: null },
         modelValue: { default: null }
     },
     // v-model 直连通道：modelinfo setter 在无 parentmodelinfo+modelname 路径时 emit update:modelValue
@@ -89,6 +92,9 @@ var comConfig = {
         const syntheticJc = directMode ? {
             component: (inst && inst.type && inst.type.name) || null,
             modelname: props.modelname || null,
+            modelexpr: props.modelexpr || null,
+            modelsetexpr: props.modelsetexpr || null,
+            bindings: parseAttrJson(props.bindings, null),
             options: Object.assign(
                 {
                     comoptions: props.placeholder
@@ -155,7 +161,8 @@ var comConfig = {
         function mergePatch(origin, patch) {
             const res = Object.assign({}, origin);
             if (!patch || typeof patch !== "object") return res;
-            for (const key in origin) {
+            // 遍历 patch 的 key：既更新 origin 已有键，也新增 patch 独有的键（如 bindings 注入的 disabled）
+            for (const key in patch) {
                 if (patch[key] !== undefined) {
                     res[key] = patch[key];
                 }
@@ -420,9 +427,43 @@ var comConfig = {
             labeloptions: null,
             comoptions: null
         });
-        const shellShow = computed(() => effectivePatch.shell?.show ?? true);
-        const shellClass = computed(() => effectivePatch.shell?.class ?? []);
-        const shellStyle = computed(() => effectivePatch.shell?.style ?? {});
+        // ===== 属性关联绑定 bindings =====
+        // 键为属性路径（comoptions.disabled / labeloptions.show / itemoptions.style），
+        // 值为 {{ expr }} 表达式或字面量。求值后按组打补丁，优先级：静态 < bindings < evalcondition
+        const bindingsRaw = computed(() => {
+            const b = jc.bindings ?? (typeof props.bindings === 'object' ? props.bindings : parseAttrJson(props.bindings, null));
+            return (b && typeof b === 'object') ? b : null;
+        });
+        // 统一表达式 ctx：bindings 与 evalCondition 共享同一套上下文变量
+        const exprCtx = computed(() => ({
+            model: parentModel.value,
+            $self: modelinfo.value,
+            value: modelinfo.value,
+            row: null,
+            fullModelName: fullModelName.value,
+            getByPath: getByPath,
+            safeGet: (path) => dyn?.getByPath(parentModel.value, path)
+        }));
+        const bindingsPatch = computed(() => {
+            const b = bindingsRaw.value;
+            const patch = { labeloptions: {}, comoptions: {}, itemoptions: {}, shell: {} };
+            if (!b) return patch;
+            const ctx = exprCtx.value;
+            for (const key in b) {
+                const val = evalExpr(b[key], ctx);
+                const dot = key.indexOf('.');
+                if (dot < 0) continue;
+                const group = key.slice(0, dot);
+                const sub = key.slice(dot + 1);
+                if (group === 'labeloptions' || group === 'comoptions' || group === 'itemoptions' || group === 'shell') {
+                    _.set(patch[group], sub, val);
+                }
+            }
+            return patch;
+        });
+        const shellShow = computed(() => effectivePatch.shell?.show ?? bindingsPatch.value.shell.show ?? true);
+        const shellClass = computed(() => effectivePatch.shell?.class ?? bindingsPatch.value.shell.class ?? []);
+        const shellStyle = computed(() => effectivePatch.shell?.style ?? bindingsPatch.value.shell.style ?? {});
         // 从合并穿透后的 options 获取 labelOptions
         const originMergedLabelOpts = computed(() => {
             const base = mergeLabelOptions(mergedOptions.value.labeloptions, parentDefaultLabelOpts);
@@ -435,10 +476,18 @@ var comConfig = {
             if (props.required) { p.required = true; p.show = true; }
             return p;
         });
-        const finalLabelOptions = computed(() => mergePatch(mergePatch(originMergedLabelOpts.value, directLabelPatch.value), effectivePatch.labeloptions));
+        const finalLabelOptions = computed(() => {
+            // 优先级：静态合并 < directLabelPatch < bindings < evalcondition(effectivePatch)
+            let o = mergePatch(originMergedLabelOpts.value, directLabelPatch.value);
+            o = mergePatch(o, bindingsPatch.value.labeloptions);
+            o = mergePatch(o, effectivePatch.labeloptions);
+            return o;
+        });
         const finalComOptions = computed(() => {
-            const base = mergePatch(mergedOptions.value.comoptions, effectivePatch.comoptions);
-            return base;
+            // 优先级：静态合并 < bindings < evalcondition(effectivePatch)
+            let o = mergePatch(mergedOptions.value.comoptions, bindingsPatch.value.comoptions);
+            o = mergePatch(o, effectivePatch.comoptions);
+            return o;
         });
         // 自动把穿透来的 size 同步到 jc.options.comoptions.size，让所有 v-bind="jc.options.comoptions" 的组件模板自动生效
         watch(() => mergedOptions.value.comoptions.size, (newSize) => {
@@ -446,10 +495,10 @@ var comConfig = {
                 jc.options.comoptions.size = newSize;
             }
         }, { immediate: true });
-        // 模板统一 v-bind="comBind"：与 jc.options.comoptions 同源（穿透 size 已由上方 watch 回写），
+        // 模板统一 v-bind="comBind"：基于 finalComOptions（含穿透 size + bindings + evalcondition），
         // 但剔除选项数据源私有键，避免泄漏到 Element 组件根节点
         comExtra.comBind = computed(() => {
-            const co = jc.options.comoptions || {};
+            const co = finalComOptions.value || {};
             const o = {};
             Object.keys(co).forEach(function (k) { if (!COM_OPTION_PRIVATE_KEYS[k]) o[k] = co[k]; });
             // 直连模式 placeholder 显式 prop 覆盖（合成 jc 已含，此处再跟响应式 prop，保证动态修改生效）
@@ -487,12 +536,46 @@ var comConfig = {
         }
         function getByPath(obj, path) { return !obj || !path ? undefined : _.get(obj, path); }
         function setByPath(obj, path, value) { if (!obj || !path) return; _.set(obj, path, value); }
+        // 表达式求值：{{ ... }} 包裹的按 JS 表达式求值，否则原样返回（字面量）
+        // 作用域：model=表单对象, $self=当前值, row=行数据
+        function evalExpr(raw, ctx) {
+            if (raw === null || raw === undefined) return raw;
+            if (typeof raw !== 'string') return raw;
+            const s = raw.trim();
+            if (s.startsWith('{{') && s.endsWith('}}')) {
+                const body = s.slice(2, -2).trim();
+                if (!body) return undefined;
+                try {
+                    // 参数顺序与 exprCtx 对齐：model, $self, value, row, fullModelName, getByPath, safeGet
+                    const fn = new Function('model', '$self', 'value', 'row', 'fullModelName', 'getByPath', 'safeGet', 'return (' + body + ');');
+                    return fn(ctx.model, ctx.$self, ctx.value, ctx.row, ctx.fullModelName, ctx.getByPath, ctx.safeGet);
+                } catch (e) {
+                    console.warn('[bindings/modelexpr 表达式求值失败]', body, e);
+                    return undefined;
+                }
+            }
+            return raw;
+        }
         // 值绑定三通道（优先级从高到低）：
-        // ① 路径模式：parentmodelinfo（显式 prop 或容器 inject 兜底）+ modelname
-        // ② v-model 直连：<dyn-el-input v-model="x" /> —— get 读 modelValue，set emit update:modelValue
-        // ③ 组件内部状态：无任何绑定时的本地 ref
+        // ① 表达式模式：modelexpr（只读，可选 modelsetexpr 写回）
+        // ② 路径模式：parentmodelinfo（显式 prop 或容器 inject 兜底）+ modelname
+        // ③ v-model 直连：<dyn-el-input v-model="x" /> —— get 读 modelValue，set emit update:modelValue
+        // ④ 组件内部状态：无任何绑定时的本地 ref
         const modelinfo = computed({
             get() {
+                const modelexpr = jc.modelexpr || props.modelexpr;
+                if (modelexpr) {
+                    // ctx 字段与 exprCtx 对齐，但 $self/value 用 innerValue（此时 modelinfo 尚未算出，避免循环）
+                    return evalExpr(modelexpr, {
+                        model: parentModel.value,
+                        $self: innerValue.value,
+                        value: innerValue.value,
+                        row: null,
+                        fullModelName: fullModelName.value,
+                        getByPath: getByPath,
+                        safeGet: (path) => dyn?.getByPath(parentModel.value, path)
+                    });
+                }
                 if (parentModel.value && fullModelName.value) {
                     const val = getByPath(parentModel.value, fullModelName.value);
                     return val === undefined ? DVALUE : val;
@@ -503,6 +586,22 @@ var comConfig = {
                 return innerValue.value;
             },
             set(val) {
+                const modelexpr = jc.modelexpr || props.modelexpr;
+                if (modelexpr) {
+                    const setexpr = jc.modelsetexpr || props.modelsetexpr;
+                    if (setexpr) {
+                        try {
+                            const fn = new Function('model', '$value', '$self', 'row', setexpr);
+                            fn(parentModel.value, val, modelinfo.value, null);
+                        } catch (e) {
+                            console.error('[modelsetexpr 写回失败]', setexpr, e);
+                        }
+                    } else {
+                        console.warn('[modelinfo] modelexpr 模式未配置 modelsetexpr，赋值被忽略');
+                    }
+                    if (comInnerInfo.validation.touched) validate();
+                    return;
+                }
                 if (parentModel.value && fullModelName.value) {
                     setByPath(parentModel.value, fullModelName.value, val);
                 } else if (isVModelBound()) {
@@ -565,7 +664,8 @@ var comConfig = {
         provide('comInnerInfo', comInnerInfo);
         provide('component_validate', validate);
         provide('component_resetValidation', resetValidation);
-        watch(modelinfo, () => {
+        // evalCondition：监听当前值 + 整个表单 model（deep），任何字段变化都重算
+        watch([modelinfo, () => parentModel.value], () => {
             effectivePatch.shell = null;
             effectivePatch.labeloptions = null;
             effectivePatch.comoptions = null;
@@ -576,15 +676,9 @@ var comConfig = {
                 return;
             }
             try {
-                const safeGet = (path) => dyn?.getByPath(parentModel.value, path);
+                // ctx 与 bindings 完全一致：model / $self / value / row / fullModelName / getByPath / safeGet
                 const fn = new Function("ctx", scriptText);
-                const ret = fn({
-                    value: modelinfo.value,
-                    model: parentModel.value,
-                    fullModelName: fullModelName.value,
-                    getByPath,
-                    safeGet
-                });
+                const ret = fn(exprCtx.value);
                 if (ret && typeof ret === "object") {
                     effectivePatch.shell = ret.shell ?? null;
                     effectivePatch.labeloptions = ret.labeloptions ?? null;

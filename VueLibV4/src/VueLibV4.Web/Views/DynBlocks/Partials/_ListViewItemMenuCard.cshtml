@@ -1,0 +1,23 @@
+@* 美化版菜单卡片模板（Demo 用）
+   字段：row.Icon / row.Name / row.Code / row.IsActive / row.Url / row.Sort *@
+<div class="lv-menu-card-v2">
+    <div class="lv-menu-card-v2__head">
+        <div class="lv-menu-card-v2__icon">{{ row.Icon || '📄' }}</div>
+        <div class="lv-menu-card-v2__titlewrap">
+            <div class="lv-menu-card-v2__title">{{ row.Name }}</div>
+            <div class="lv-menu-card-v2__code">{{ row.Code || '—' }}</div>
+        </div>
+        <el-tag
+            :type="row.IsActive == 1 ? 'success' : 'info'"
+            size="small" effect="light" round>
+            {{ row.IsActive == 1 ? '启用' : '禁用' }}
+        </el-tag>
+    </div>
+    <div class="lv-menu-card-v2__body" v-if="row.Url">
+        <span class="lv-menu-card-v2__urllabel">路径</span>
+        <span class="lv-menu-card-v2__url">{{ row.Url }}</span>
+    </div>
+    <div class="lv-menu-card-v2__foot" v-if="row.Sort">
+        <span class="lv-menu-card-v2__sort">排序 {{ row.Sort }}</span>
+    </div>
+</div>

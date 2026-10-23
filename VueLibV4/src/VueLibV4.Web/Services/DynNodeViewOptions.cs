@@ -39,4 +39,24 @@ public sealed class DynNodeViewOptions
 
     /// <summary>联动脚本（JS 函数体，返回 {shell,labeloptions,comoptions} 补丁），注意配置契约键名为 evalCondition。</summary>
     public string? evalcondition { get; set; }
+
+    /// <summary>
+    /// 值绑定表达式（只读）。配置后 modelinfo 由表达式求值，不再走 modelname 路径读写；
+    /// 适用于展示型组件（badge/text/echart）或计算字段。表达式作用域：model=表单对象, $self=旧值, row=行数据。
+    /// 例："{{ model.price * model.qty }}"
+    /// </summary>
+    public string? modelexpr { get; set; }
+
+    /// <summary>
+    /// 值写回表达式（可选）。modelexpr 模式下组件赋值时执行，$value 为新值。
+    /// 例："model.total = $value"
+    /// </summary>
+    public string? modelsetexpr { get; set; }
+
+    /// <summary>
+    /// 属性关联绑定（JSON 对象字符串）。键=属性路径（如 comoptions.disabled），值=表达式或字面量。
+    /// 运行时求值后合并到对应 options，优先级：静态配置 &lt; bindings &lt; evalcondition。
+    /// 例：{"labeloptions.show":"{{ model.type === 'A' }}","comoptions.disabled":"{{ model.status === 'submitted' }}"}
+    /// </summary>
+    public string? bindings { get; set; }
 }

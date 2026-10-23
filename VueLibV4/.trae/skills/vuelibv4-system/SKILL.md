@@ -31,6 +31,10 @@ src/VueLibV4.Web/
 
 ## 核心约定
 
+### 服务端渲染 HTML 中的 Vue 模板语法
+- **禁止自闭合标签**：Razor 视图（.cshtml）输出的 HTML 由浏览器 HTML 解析器解析，不认 Vue 的自闭合语法。`<component :is="x" />`、`<Edit />`、`<Plus />` 等必须写成显式闭合：`<component :is="x"></component>`、`<Edit></Edit>`、`<Plus></Plus>`。否则 `/>` 会被当普通字符，导致后续 DOM 解析错乱、按钮/图标不显示。
+- Vue 指令 `@click` 在 Razor 里要写 `@@click`（双 @ 转义）。
+
 ### Vue 挂载 (dyn-core.js mountCore)
 - 根模板固定为 `el.innerHTML`，dynconfig 的 `template` 字段被忽略
 - dynconfig 脚本：`<script type="text/plain" tag="dynconfig">`，执行后返回 `dynConfig` 对象
@@ -90,6 +94,17 @@ object V2(string k) {
 }
 ```
 不是简单的 `[{field,type,label}]` 数组。
+
+## 值绑定与属性关联（modelexpr / bindings）
+- **`modelname`**（路径模式，可读写）：`parentmodelinfo[modelname]`
+- **`modelexpr`**（表达式模式，只读）：`{{ model.price * model.qty }}`，作用域 `model`=表单对象, `$self`=当前值
+- **`modelsetexpr`**（可选写回）：`model.total = $value`，`$value` 为新值
+- **`bindings`**（对象：属性路径→表达式）：运行时求值合并到 options，优先级 静态 < bindings < evalcondition
+  ```json
+  { "bindings": { "labeloptions.show": "{{ model.type === 'A' }}", "comoptions.disabled": "{{ model.status === 'submitted' }}" } }
+  ```
+- 支持路径：`comoptions.*` / `labeloptions.*` / `shell.show|style|class`
+- `shell.show` 控制整个组件显隐（v-if），`labeloptions.show` 控制标签显隐
 
 ## 新增 Block 步骤
 1. DynBlock 表插入：Code, Name, ImplementsRole, ViewPath, ParamConfigJson, Commands, Events
