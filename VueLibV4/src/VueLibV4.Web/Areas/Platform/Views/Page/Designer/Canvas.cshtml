@@ -61,6 +61,7 @@
          class="absolute border-2 border-blue-400 pointer-events-none z-30"
          :style="{ top: model.overlay.top + 'px', left: model.overlay.left + 'px', width: model.overlay.width + 'px', height: model.overlay.height + 'px' }">
       <div class="absolute -top-7 left-0 bg-blue-500 text-white text-xs px-2 py-0.5 flex items-center gap-1 pointer-events-auto rounded whitespace-nowrap" @@click.stop>
+        <span v-if="ops.metaOf(model.selected && model.selected.component).Icon" class="mr-0.5">{{ ops.metaOf(model.selected.component).Icon }}</span>
         <span class="mr-1">{{ model.overlay.label }}</span>
         @* ===== 组件专属操作（ComponentMeta.DesignerOperates，command/view）===== *@
         <button v-for="op in customOperates" :key="op.operateKey"
@@ -76,6 +77,8 @@
           <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveActiveChild(model,1)" title="子项下移（调整顺序）">⇩</button>
         </template>
         @* ===== 基础操作 ===== *@
+        <button v-if="model.selected && model.selected !== model.pageJson"
+                class="hover:bg-blue-600 px-1" @@click.stop="ops.select(model, ops.findParent(model.pageJson, model.selected).parent)" title="选择父容器">⤴</button>
         <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveSelected(model,-1)" title="上移">↑</button>
         <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveSelected(model,1)" title="下移">↓</button>
         <button class="hover:bg-blue-600 px-1" @@click.stop="ops.duplicateSelected(model)" title="复制">⧉</button>
@@ -92,7 +95,10 @@
     <span class="text-gray-400">路径：</span>
     <template v-if="model.pathList.length">
       <span v-for="(p, i) in model.pathList" :key="i" class="flex items-center gap-1">
-        <span class="cursor-pointer hover:text-blue-500" @@click="ops.select(model, p)">{{ ops.metaOf(p.component).Label || p.component }}</span>
+        <span class="cursor-pointer hover:text-blue-500 flex items-center gap-0.5" @@click="ops.select(model, p)">
+          <span v-if="ops.metaOf(p.component).Icon">{{ ops.metaOf(p.component).Icon }}</span>
+          {{ ops.metaOf(p.component).Label || p.component }}
+        </span>
         <span v-if="i < model.pathList.length - 1" class="text-gray-300">/</span>
       </span>
     </template>

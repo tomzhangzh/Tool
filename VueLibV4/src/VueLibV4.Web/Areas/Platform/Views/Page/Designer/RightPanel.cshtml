@@ -45,6 +45,9 @@
           <el-form-item label="标签文本">
             <el-input v-model="model.current.options.labeloptions.label" size="small" placeholder="请输入标签文本" clearable></el-input>
           </el-form-item>
+          <el-form-item label="帮助说明">
+            <el-input v-model="model.current.options.labeloptions.help" size="small" type="textarea" :rows="3" placeholder="鼠标 hover 标签帮助图标显示，支持换行" resize="vertical"></el-input>
+          </el-form-item>
           <el-form-item label="显示标签">
             <el-switch v-model="model.current.options.labeloptions.show" size="small"></el-switch>
           </el-form-item>

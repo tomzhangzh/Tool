@@ -11,6 +11,13 @@
                
                :class="{ 'is-required': finalLabelOptions.required }">
             {{ finalLabelOptions.label }}
+            <el-tooltip v-if="finalLabelOptions.help" placement="top" :show-after="200">
+              <template #content>
+                <span style="white-space: pre-line;">{{ finalLabelOptions.help }}</span>
+              </template>
+              <el-icon class="dyn-label-help" @@click.stop><InfoFilled /></el-icon>
+            </el-tooltip>
+            
           </label>
         <div class="el-form-item__content" :style="contentStyle" style="position:relative;">
             <!-- 字段变更标记：左上角小红三角 -->
@@ -193,4 +200,14 @@
     z-index: 10;
     filter: drop-shadow(0 0 2px #f56c6c);
 }
+/* label 帮助图标 */
+.dyn-label-help {
+    margin-left: 4px;
+    font-size: 13px;
+    color: #909399;
+    cursor: help;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+.dyn-label-help:hover { color: #409eff; }
 </style>
