@@ -30,7 +30,7 @@
 
     <el-tabs v-model="propTab" class="flex-1 overflow-hidden flex flex-col" size="small" type="border-card">
       @* ===== 基础：控件类型 + 通用字段 + 组件属性(comProps动态渲染) ===== *@
-      <el-tab-pane label="基础" name="base" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3">
+      <el-tab-pane label="基础" name="base" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3 prop-config-root">
           @* 控件类型（可切换组件） *@
           <el-form-item label="控件类型">
             <el-select v-model="model.current.component" size="small" filterable @@change="onComponentTypeChange">
@@ -257,6 +257,12 @@
             if (!parsed.options.labeloptions) parsed.options.labeloptions = {};
             if (!parsed.options.labeloptions.labelposition) parsed.options.labeloptions.labelposition = 'left';
             if (!parsed.options.labeloptions.labelwidth) parsed.options.labeloptions.labelwidth = '90px';
+            // 注入标记 class，供全局 CSS 统一控制属性配置项间距
+            if (!parsed.options.itemoptions) parsed.options.itemoptions = {};
+            var existCls = parsed.options.itemoptions.class || '';
+            if (existCls.indexOf('prop-config-root') < 0) {
+              parsed.options.itemoptions.class = (existCls + ' prop-config-root').trim();
+            }
             return parsed;
           }
           return null;
