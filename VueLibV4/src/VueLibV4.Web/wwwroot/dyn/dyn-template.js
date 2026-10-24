@@ -65,6 +65,7 @@ var __plugin = {
   });
 
   function importTemplate(html) {
+    // 强制缓存刷新标记 v2
     var doc = new DOMParser().parseFromString(html, 'text/html');
     var nodes = Array.prototype.slice.call(doc.body ? doc.body.children : []);
     return nodes.map(parseEl).filter(Boolean);
