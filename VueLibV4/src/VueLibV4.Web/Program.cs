@@ -31,6 +31,9 @@ builder.Services.AddControllersWithViews(o =>
 // + 扫描 VueLibV4.* 程序集自动注册 IDependency（IScopeDependency/ISingletonDependency/ITransientDependency）
 builder.Services.AddVueLibPlatform();
 
+// HttpClient 工厂（AiService 等外部 API 调用使用）
+builder.Services.AddHttpClient();
+
 // 组件双定义源：Razor View 渲染器 + 组件服务（View 代码优先，DB 回退）
 builder.Services.AddScoped<RazorComponentRenderer>();
 builder.Services.AddScoped<ComponentService>();

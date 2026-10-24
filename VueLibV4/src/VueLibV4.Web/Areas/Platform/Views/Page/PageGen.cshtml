@@ -7,7 +7,45 @@
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="pg-title">🧩 页面生成向导</span>
         <el-tag size="small" type="info">三屏：筛选区 · 列表区 · 详情区</el-tag>
+        <el-button size="small" type="warning" plain style="margin-left:auto" @@click="aiVisible = true">🤖 AI 生成</el-button>
     </div>
+
+    <!-- AI 生成对话框 -->
+    <el-dialog v-model="aiVisible" title="🤖 AI 自然语言生成三屏配置" width="640px" :close-on-click-modal="false">
+        <el-form label-position="top">
+            <el-form-item label="目标表（可选，给了表名 AI 会按常见字段推断）">
+                <el-input v-model="aiForm.table" placeholder="如：SysUser，留空则纯靠描述生成"></el-input>
+            </el-form-item>
+            <el-form-item label="自然语言描述" required>
+                <el-input v-model="aiForm.prompt" type="textarea" :rows="5" placeholder="例如：用户管理页面，包含用户名、邮箱、手机号、状态（启用/禁用）、创建时间。用户名必填，状态用开关。"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @@click="aiVisible = false">取消</el-button>
+            <el-button type="primary" :loading="aiLoading" @@click="aiGenerate">生成三屏配置</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- AI 生成结果对话框 -->
+    <el-dialog v-model="aiResultVisible" title="✅ AI 生成结果" width="80%" top="5vh">
+        <el-tabs v-model="aiResultTab">
+            <el-tab-pane label="🧠 推理过程" name="reasoning" v-if="aiResult.reasoning">
+                <pre class="pg-ai-reasoning">{{ aiResult.reasoning }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="筛选区" name="filter">
+                <pre class="pg-ai-json">{{ aiResult.filter }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="列表区" name="list">
+                <pre class="pg-ai-json">{{ aiResult.list }}</pre>
+            </el-tab-pane>
+            <el-tab-pane label="详情区" name="detail">
+                <pre class="pg-ai-json">{{ aiResult.detail }}</pre>
+            </el-tab-pane>
+        </el-tabs>
+        <template #footer>
+            <el-button @@click="aiResultVisible = false">关闭</el-button>
+        </template>
+    </el-dialog>
 
     <div class="pg-body">
         <!-- 步骤条 -->
@@ -207,6 +245,19 @@
     .pg-layout-opts { display: flex; align-items: center; gap: 8px; padding: 4px 2px; }
     .pg-lo-label { font-size: 12px; color: #606266; }
     .pg-empty { color: #c0c4cc; font-size: 12px; }
+    .pg-ai-json {
+        max-height: 60vh; overflow: auto;
+        background: #f5f7fa; padding: 12px; border-radius: 6px;
+        font-family: 'Consolas', 'Monaco', monospace; font-size: 12px;
+        white-space: pre-wrap; word-break: break-all;
+    }
+    .pg-ai-reasoning {
+        max-height: 60vh; overflow: auto;
+        background: #f0f9ff; padding: 12px; border-radius: 6px;
+        border-left: 3px solid #409eff;
+        font-size: 13px; line-height: 1.6; color: #303133;
+        white-space: pre-wrap; word-break: break-word;
+    }
 </style>
 
 @section Scripts {
@@ -224,7 +275,11 @@
                     previewFilterCfg: null, previewDetailCfg: null,
                     filterModel: {}, detailModel: {},
                     form: { project: '', table: '', code: '', name: '', tplCode: '', rememberLabels: true },
-                    genTemplates: []
+                    genTemplates: [],
+                    // AI 生成
+                    aiVisible: false, aiResultVisible: false, aiLoading: false, aiResultTab: 'filter',
+                    aiForm: { table: '', prompt: '' },
+                    aiResult: { filter: '', list: '', detail: '', reasoning: '' }
                 };
             },
             mounted: function () {
@@ -244,6 +299,35 @@
             },
             methods: {
                 go: function (url) { window.location.href = url; },
+                // AI 自然语言生成三屏配置
+                aiGenerate: function () {
+                    var self = this;
+                    if (!self.aiForm.prompt.trim()) { layui.layer.msg('请输入描述', { icon: 0 }); return; }
+                    self.aiLoading = true;
+                    var body = { prompt: self.aiForm.prompt.trim() };
+                    if (self.aiForm.table.trim()) body.tableName = self.aiForm.table.trim();
+                    fetch('/api/business/pagegen/ai', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        self.aiLoading = false;
+                        if (res && res.code === 0) {
+                            self.aiResult.filter = JSON.stringify(res.data.filter, null, 2);
+                            self.aiResult.list = JSON.stringify(res.data.list, null, 2);
+                            self.aiResult.detail = JSON.stringify(res.data.detail, null, 2);
+                            self.aiResult.reasoning = res.data.reasoning || '';
+                            self.aiResultTab = self.aiResult.reasoning ? 'reasoning' : 'filter';
+                            self.aiVisible = false;
+                            self.aiResultVisible = true;
+                        } else {
+                            layui.layer.msg((res && res.message) || '生成失败', { icon: 2 });
+                        }
+                    }).catch(function (e) {
+                        self.aiLoading = false;
+                        layui.layer.msg('请求失败: ' + e.message, { icon: 2 });
+                    });
+                },
                 loadPreview: function () {
                     var self = this;
                     if (!self.form.table) { layui.layer.msg('请先选择业务表', { icon: 0 }); return; }

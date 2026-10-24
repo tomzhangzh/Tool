@@ -59,4 +59,19 @@ public class PageGenController : ControllerBase
     {
         return ApiResult.Ok(_pageGen.ListGenTemplates());
     }
+
+    /// <summary>
+    /// AI 自然语言生成三屏 PageSetting（不落库，仅预览）。
+    /// 入参：{ prompt: "用户描述", tableName?: "表名", project?: "项目" }
+    /// 返回：{ filter, list, detail } 三份 ConfigJson。
+    /// 路由：POST /api/business/pagegen/ai
+    /// </summary>
+    [HttpPost("ai")]
+    public async Task<ApiResult> GenerateByAi([FromBody] JObject req, CancellationToken ct)
+    {
+        var r = await _pageGen.GenerateByAiAsync(req, ct);
+        return r.Ok
+            ? ApiResult.Ok(new { filter = r.Filter, list = r.List, detail = r.Detail, reasoning = r.Reasoning }, r.Msg)
+            : ApiResult.Fail(r.Msg);
+    }
 }

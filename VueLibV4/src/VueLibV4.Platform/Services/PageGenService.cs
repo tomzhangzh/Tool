@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json.Linq;
@@ -61,6 +62,13 @@ public interface IPageGenService : IScopeDependency
 
     /// <summary>返回支持三屏生成的模板列表（SupportGen=1），供向导下拉选择。</summary>
     List<GenTemplateOption> ListGenTemplates();
+
+    /// <summary>
+    /// 自然语言生成三屏 PageSetting（不落库）。
+    /// 入参 req：{ prompt: "用户描述", tableName?: "表名", project?: "项目" }
+    /// 返回 { filter, list, detail, reasoning } ，供前端预览。
+    /// </summary>
+    Task<(bool Ok, string Msg, JObject? Filter, JObject? List, JObject? Detail, string? Reasoning)> GenerateByAiAsync(JObject req, CancellationToken ct = default);
 }
 
 /// <summary>页面生成成功后的返回数据（Controller 转为 ApiResult.Ok 返回前端）</summary>
@@ -130,6 +138,8 @@ public class PageGenService : IPageGenService
     private readonly IConfiguration _config;
     private readonly IDynPageExtService? _pageExt;
     private readonly IDynSchemaLabelService? _schemaLabels;
+    private readonly IAiService? _ai;
+    private readonly IComponentMetaService? _components;
 
     public PageGenService(
         IDynProjectService projects,
@@ -138,7 +148,9 @@ public class PageGenService : IPageGenService
         IPageSettingService settings,
         IConfiguration config,
         IDynPageExtService? pageExt = null,
-        IDynSchemaLabelService? schemaLabels = null)
+        IDynSchemaLabelService? schemaLabels = null,
+        IAiService? ai = null,
+        IComponentMetaService? components = null)
     {
         _projects = projects;
         _templates = templates;
@@ -147,6 +159,8 @@ public class PageGenService : IPageGenService
         _config = config;
         _pageExt = pageExt;
         _schemaLabels = schemaLabels;
+        _ai = ai;
+        _components = components;
     }
 
     /// <summary>
@@ -1034,5 +1048,178 @@ public class PageGenService : IPageGenService
         };
         _settings.Insert(row);
         return row.Id;
+    }
+
+    // ======================================================================
+    //  AI 生成
+    // ======================================================================
+
+    public async Task<(bool Ok, string Msg, JObject? Filter, JObject? List, JObject? Detail, string? Reasoning)> GenerateByAiAsync(JObject req, CancellationToken ct = default)
+    {
+        if (_ai == null) return (false, "AI 服务未注入", null, null, null, null);
+
+        var prompt = req["prompt"]?.ToString()?.Trim();
+        if (string.IsNullOrEmpty(prompt)) return (false, "缺少 prompt 参数", null, null, null, null);
+
+        var tableName = req["tableName"]?.ToString();
+        var project = req["project"]?.ToString();
+
+        // 1. 构建组件 schema（已启用组件清单 + 默认配置）
+        var compSchema = BuildComponentSchema();
+
+        // 2. 系统提示词
+        var systemPrompt = BuildAiSystemPrompt(compSchema);
+
+        // 3. 用户提示词
+        var userPrompt = BuildAiUserPrompt(prompt, tableName, project);
+
+        try
+        {
+            var (json, reasoning) = await _ai.ChatJsonAsync(systemPrompt, userPrompt, ct);
+
+            // 4. 提取三屏配置
+            var filter = json["filter"] as JObject;
+            var list = json["list"] as JObject;
+            var detail = json["detail"] as JObject;
+
+            // 5. 校验：组件名必须存在
+            var validNames = new HashSet<string>(compSchema.Select(c => c.Name));
+            ValidateConfigTree(filter, validNames);
+            ValidateConfigTree(list, validNames);
+            ValidateConfigTree(detail, validNames);
+
+            return (true, "生成成功", filter, list, detail, reasoning);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"AI 生成失败: {ex.Message}", null, null, null, null);
+        }
+    }
+
+    /// <summary>构建组件 schema：取所有已启用组件的名称/标签/分类/默认配置</summary>
+    private List<CompSchemaItem> BuildComponentSchema()
+    {
+        var list = new List<CompSchemaItem>();
+        if (_components == null) return list;
+        var rows = _components.Query(c => c.IsActive).OrderBy(c => c.Category).ToList();
+        foreach (var r in rows)
+        {
+            list.Add(new CompSchemaItem
+            {
+                Name = r.ComponentName,
+                Label = r.Label,
+                Category = r.Category,
+                DefaultConfig = r.DefaultConfigJson
+            });
+        }
+        return list;
+    }
+
+    private class CompSchemaItem
+    {
+        public string Name { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string? DefaultConfig { get; set; }
+    }
+
+    /// <summary>
+    /// 构建 AI 系统提示词：组件清单 + 配置结构规则 + 输出格式约束。
+    /// 只给组件名+用途+一个完整默认配置示例，让 AI 学会结构即可，避免 prompt 过长。
+    /// </summary>
+    private static string BuildAiSystemPrompt(List<CompSchemaItem> schema)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("你是 VueLibV4 低代码平台的页面配置生成器。根据用户的自然语言描述，输出三屏（筛选区/列表区/详情区）的组件配置 JSON。");
+        sb.AppendLine();
+        sb.AppendLine("【组件配置结构】每个组件节点格式如下：");
+        sb.AppendLine("{");
+        sb.AppendLine("  \"component\": \"DynElInput\",          // 组件名，必须从下方清单选择");
+        sb.AppendLine("  \"modelname\": \"UserName\",             // 绑定的模型字段名（无绑定为空字符串）");
+        sb.AppendLine("  \"options\": {");
+        sb.AppendLine("    \"comoptions\": { \"placeholder\": \"请输入\" },  // 组件自身属性");
+        sb.AppendLine("    \"labeloptions\": { \"label\": \"用户名\", \"required\": false, \"show\": true },");
+        sb.AppendLine("    \"itemoptions\": { \"style\": {}, \"class\": \"\" }");
+        sb.AppendLine("  },");
+        sb.AppendLine("  \"validators\": [],                      // 校验规则数组");
+        sb.AppendLine("  \"childrenctrls\": [],                   // 子组件数组（容器类组件才有）");
+        sb.AppendLine("  \"slots\": {},");
+        sb.AppendLine("  \"extendinfo\": {}");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        sb.AppendLine("【三屏输出结构】");
+        sb.AppendLine("{");
+        sb.AppendLine("  \"filter\": { ...DynGridContainer 包裹筛选控件... },");
+        sb.AppendLine("  \"list\":   { \"columns\": [...], ... },  // 列表区用 columns 数组定义列");
+        sb.AppendLine("  \"detail\": { ...DynGridContainer 包裹详情控件... }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        sb.AppendLine("【列表区 columns 列定义格式】");
+        sb.AppendLine("{ \"field\": \"UserName\", \"label\": \"用户名\", \"width\": 120, \"minWidth\": 100 }");
+        sb.AppendLine();
+        sb.AppendLine("【规则】");
+        sb.AppendLine("1. component 必须从下方组件清单中选择，禁止编造不存在的组件名。");
+        sb.AppendLine("2. 筛选区只放输入类控件（DynElInput/DynElSelect/DynElDatePicker 等），不放按钮。");
+        sb.AppendLine("3. 详情区用 DynGridContainer 作为根容器包裹所有字段。");
+        sb.AppendLine("4. 主键字段（通常是 Id）详情区可省略或放隐藏域。");
+        sb.AppendLine("5. 只输出 JSON，不要任何解释文字、不要 markdown 代码块标记。");
+        sb.AppendLine();
+        sb.AppendLine("【可用组件清单】");
+        foreach (var c in schema)
+        {
+            sb.AppendLine($"- {c.Name}（{c.Label}）[{c.Category}]");
+        }
+        sb.AppendLine();
+        sb.AppendLine("【组件默认配置示例】以下是几个常用组件的完整默认配置，可参考其结构：");
+        var examples = schema.Where(c =>
+            c.Name is "DynElInput" or "DynElSelect" or "DynElDatePicker" or "DynElSwitch" or "DynElTextarea" or "DynGridContainer").ToList();
+        foreach (var c in examples)
+        {
+            if (!string.IsNullOrEmpty(c.DefaultConfig))
+            {
+                sb.AppendLine($"--- {c.Name} 默认配置 ---");
+                sb.AppendLine(c.DefaultConfig);
+                sb.AppendLine();
+            }
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>构建用户提示词：自然语言描述 + 可选表结构</summary>
+    private static string BuildAiUserPrompt(string prompt, string? tableName, string? project)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("用户需求：");
+        sb.AppendLine(prompt);
+        if (!string.IsNullOrEmpty(tableName))
+        {
+            sb.AppendLine();
+            sb.AppendLine($"目标表：{tableName}");
+            if (!string.IsNullOrEmpty(project))
+                sb.AppendLine($"项目：{project}");
+            sb.AppendLine("请根据表名推断常见字段（如 Id, Name, CreateTime 等），并合理分配到筛选区/列表区/详情区。");
+        }
+        sb.AppendLine();
+        sb.AppendLine("请输出三屏配置 JSON。");
+        return sb.ToString();
+    }
+
+    /// <summary>递归校验配置树：component 名必须在合法集合内，非法则删除该节点</summary>
+    private static void ValidateConfigTree(JObject? node, HashSet<string> validNames)
+    {
+        if (node == null) return;
+        var comp = node["component"]?.ToString();
+        if (!string.IsNullOrEmpty(comp) && !validNames.Contains(comp))
+        {
+            // 非法组件名：移除，避免渲染崩溃
+            node["component"] = "DynElInput";
+        }
+        if (node["childrenctrls"] is JArray children)
+        {
+            foreach (var child in children.ToList())
+            {
+                ValidateConfigTree(child as JObject, validNames);
+            }
+        }
     }
 }
