@@ -379,9 +379,9 @@ public class PageGenService : IPageGenService
             }
         }
 
-        modalPage.Url = "/Platform/Page/DetailModal?id=" + modalPage.Id;
+        modalPage.Url = "/Platform/Detail/Modal?id=" + modalPage.Id;
         _pages.Update(modalPage);
-        page.Url = "/Platform/Page/DynWebPage?id=" + page.Id;
+        page.Url = "/Platform/Shell/Runtime?id=" + page.Id;
         _pages.Update(page);
 
         // ---------- 可选：额外产出一个布局壳页面（list-master-detail），复用同批三屏设置 ----------
@@ -424,7 +424,7 @@ public class PageGenService : IPageGenService
             shellPage.SpecJson = spec.ToJson();
             shellPage.IsActive = true;
             if (existShell == null) _pages.Insert(shellPage); else _pages.Update(shellPage);
-            shellPage.Url = "/Platform/Page/DynWebPage?id=" + shellPage.Id;
+            shellPage.Url = "/Platform/Shell/Runtime?id=" + shellPage.Id;
             _pages.Update(shellPage);
             shellPageId = shellPage.Id;
             shellUrl = shellPage.Url;

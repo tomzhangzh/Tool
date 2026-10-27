@@ -18,7 +18,7 @@
             <el-tag size="small" type="warning" effect="plain">DynEChart 组件</el-tag>
         </div>
         <div class="ech-actions">
-            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+            <el-button size="small" text @@click="go('/Platform/Shell/Desktop')">← 返回桌面</el-button>
         </div>
     </div>
 
@@ -149,7 +149,7 @@
                     },
                     onLoadRemote: function () {
                         var self = this;
-                        fetch('/Platform/Page/EChartData')
+                        fetch('/Platform/Chart/Data')
                             .then(function (r) { return r.json(); })
                             .then(function (res) {
                                 if (res && res.code === 0) {

@@ -21,7 +21,7 @@
         </div>
         <div class="actions">
           
-            @* <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button> *@
+            @* <el-button size="small" text @@click="go('/Platform/Shell/Desktop')">← 返回桌面</el-button> *@
         </div>
     </div>
 
@@ -176,7 +176,7 @@
                         this.pageInfo.PageIndex = 1;
                         this.load();
                     },
-                    // 打开独立 Detail 页面（/Platform/Page/DynDetail）为弹窗：
+                    // 打开独立 Detail 页面（/Platform/Detail/Form）为弹窗：
                     // 新增=空 bizId；编辑=携带 row.Id。窗口参数经 open 动作（layer）应用，Detail 模板内 setwin 可再精调。
                     openDetail: function (row) {
                         var self = this;
@@ -186,7 +186,7 @@
                             width: '1080px', height: '660px', maxmin: true
                         };
                         DynAction.run('open', {
-                            url: '/Platform/Page/DynDetail',
+                            url: '/Platform/Detail/Form',
                             mode: 'fragment',
                             params: {
                                 settingId: this.detailSettingId || '',

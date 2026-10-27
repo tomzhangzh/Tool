@@ -1629,7 +1629,7 @@ const ACTION_DOCS = {
   redirect: { label:'页面跳转', group:'控制流',
     doc:'整页跳转到指定地址（会离开当前页面）。',
     options:[{name:'url|href',type:'string',desc:'目标地址'}],
-    example:'Redirect({\'url\':\'/Platform/Page/Desktop\'})' }
+    example:'Redirect({\'url\':\'/Platform/Shell/Desktop\'})' }
 };
 
 // 文档合并进动作元信息：actionList() 输出的就是"实现 + 说明"的完整清单

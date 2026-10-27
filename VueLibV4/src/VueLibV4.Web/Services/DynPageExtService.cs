@@ -142,7 +142,7 @@ public class DynPageExtService : IDynPageExtService
 
     @* ③ 零 JS 的写法：声明式动作管道按钮（打开另一个页面弹窗） *@
     @* Slots["list:toolbar"] = @<button type="button" class="el-button el-button--small"
-           dyn-click='open({"url":"/Platform/Page/DynWebPage?id=0","mode":"fragment"})'>打开页面</button>; *@
+           dyn-click='open({"url":"/Platform/Shell/Runtime?id=0","mode":"fragment"})'>打开页面</button>; *@
 }
 """.Replace("[[CODE]]", code).Replace("[[NAME]]", nameJs);
     }

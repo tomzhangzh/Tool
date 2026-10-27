@@ -46,7 +46,7 @@ public class DynSharedModel
 }
 
 /// <summary>
-/// 详情/表单页模板模型：独立 Detail 页面（/Platform/Page/DynDetail）专用。
+/// 详情/表单页模板模型：独立 Detail 页面（/Platform/Detail/Form）专用。
 /// 由列表页 open 动作以 fragment 弹窗拉取；也可独立访问。
 /// Detail 的 PageSetting（ConfigJson=表单UI / DefaultJson=表单model骨架）由本页单独按 settingId 加载，
 /// 不随列表页预加载——Filter/List/Detail 各自独立、按需取用。

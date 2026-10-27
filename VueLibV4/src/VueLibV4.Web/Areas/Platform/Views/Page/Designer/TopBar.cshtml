@@ -140,10 +140,10 @@
             Code: code,
             Name: name,
             PageJson: JSON.stringify(cfg),
-            Url: '/Platform/Page/WebPageRender?code=' + encodeURIComponent(code),
+            Url: '/Platform/Shell/PageRender?code=' + encodeURIComponent(code),
             IsActive: true
           };
-          fetch('/api/platform/dynwebpage/save', {
+          fetch('/api/platform/dynpage/save', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
           }).then(function (r) { return r.json(); }).then(function (res) {
             if (res && res.code === 0) {

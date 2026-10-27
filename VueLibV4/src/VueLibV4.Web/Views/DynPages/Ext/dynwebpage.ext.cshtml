@@ -57,7 +57,7 @@
                 var tid = Number(this.form && this.form.TemplateId);
                 if (!tid || tid <= 0) { this.pp.visible = false; return; }
                 var pageId = Number(this.form && this.form.Id) || 0;
-                fetch('/api/platform/dynwebpage/paramschema?templateId=' + tid + '&pageId=' + pageId)
+                fetch('/api/platform/dynpage/paramschema?templateId=' + tid + '&pageId=' + pageId)
                     .then(function (r) { return r.json(); })
                     .then(function (res) {
                         if (!res || res.code !== 0 || !res.data) { self.pp.visible = false; return; }

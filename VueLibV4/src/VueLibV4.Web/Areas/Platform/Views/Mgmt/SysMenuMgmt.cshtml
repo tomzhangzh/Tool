@@ -83,7 +83,7 @@
                         </el-select-v2>
                     </el-form-item>
                     <el-form-item label="访问地址">
-                        <el-input v-model="form.Url" placeholder="页面 URL，如 /Platform/Page/Designer"></el-input>
+                        <el-input v-model="form.Url" placeholder="页面 URL，如 /Platform/Shell/Designer"></el-input>
                     </el-form-item>
                     <el-form-item label="打开方式">
                         <el-radio-group v-model="form.TargetType">
@@ -123,7 +123,7 @@
                         <el-button type="primary" @@click="onSave" :loading="saving">保存</el-button>
                         <el-button type="danger" @@click="onDelete" :loading="deleting" :disabled="form.Id <= 0">删除</el-button>
                         <el-button @@click="onReset">清空</el-button>
-                        <el-button  type="primary" v-if="DynWebPageId > 0" :data-id="DynWebPageId" dyn-click="OpenWindow({&quot;url&quot;:&quot;/Platform/Page/PageGraphDemo?id={{id}}&quot;,&quot;title&quot;:&quot;页面组成图&quot;,&quot;width&quot;:&quot;92%&quot;,&quot;height&quot;:&quot;92%&quot;})">🗺️页面组成图</el-button>
+                        <el-button  type="primary" v-if="DynWebPageId > 0" :data-id="DynWebPageId" dyn-click="OpenWindow({&quot;url&quot;:&quot;/Platform/Tools/PageGraph?id={{id}}&quot;,&quot;title&quot;:&quot;页面组成图&quot;,&quot;width&quot;:&quot;92%&quot;,&quot;height&quot;:&quot;92%&quot;})">🗺️页面组成图</el-button>
                     </el-form-item>
                 </el-form>
             </div>

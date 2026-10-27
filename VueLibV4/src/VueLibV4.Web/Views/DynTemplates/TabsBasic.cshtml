@@ -33,7 +33,7 @@
     try { shared = JObject.Parse(string.IsNullOrWhiteSpace(sharedJsonRaw) ? "{}" : sharedJsonRaw); }
     catch { shared = new JObject(); }
 
-    // rowId 服务端烘焙（弹窗经 /Platform/Page/DetailModal?rowId= 渲染时 ViewBag.RowId 有值；
+    // rowId 服务端烘焙（弹窗经 /Platform/Detail/Modal?rowId= 渲染时 ViewBag.RowId 有值；
     // 浏览器直访时兼容 ?rowId= query）。保证懒加载片段 URL 里的 $params.rowId 一定可解析，
     // 不依赖宿主 holder fork 的时序。
     var modalRowId = (ViewBag.RowId as string);

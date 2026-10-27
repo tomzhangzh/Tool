@@ -12,7 +12,7 @@
 @*
   通用主从明细模板（master-detail-basic）：
   · 布局 = 上屏主表（Filter + 列表 + 分页）｜ 下屏子表（联动列表，无 Filter）—— 直属关系：点主表行，下屏显示其子记录
-  · 两屏各自 [+ 新增] / [编辑] / [删除]，弹窗表单（/Platform/Page/DynDetail，支持业务库 + 新增预填外键）
+  · 两屏各自 [+ 新增] / [编辑] / [删除]，弹窗表单（/Platform/Detail/Form，支持业务库 + 新增预填外键）
   · 参数（DynWebPage.ConfigJson，模板 ConfigJson 定义）：
       MasterTableName 主表名（必填）｜ MasterKeyField 主表主键(默认 Id)
       DetailTableName 子表名（必填）｜ DetailForeignKey 子表外键(默认 MasterId)
@@ -31,7 +31,7 @@
             <el-tag size="small" type="success" effect="plain">→ {{ detailTable }}</el-tag>
         </div>
         <div class="md-actions">
-            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+            <el-button size="small" text @@click="go('/Platform/Shell/Desktop')">← 返回桌面</el-button>
         </div>
     </div>
 
@@ -270,7 +270,7 @@
                         var isEdit = !!(row && row.Id != null && row.Id !== '');
                         var win = { title: (isEdit ? '编辑' : '新增') + ' ' + table, width: '780px', height: '580px', maxmin: true };
                         DynAction.run('open', {
-                            url: '/Platform/Page/DynDetail',
+                            url: '/Platform/Detail/Form',
                             mode: 'fragment',
                             params: {
                                 settingId: settingId || '',

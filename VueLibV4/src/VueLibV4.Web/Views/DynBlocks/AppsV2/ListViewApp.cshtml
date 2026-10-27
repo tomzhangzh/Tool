@@ -23,7 +23,7 @@
     var loadUrl = S("LoadUrl", DynPageViewHelper.SearchUrl);
     var deleteUrl = S("DeleteUrl", DynPageViewHelper.DeleteUrl);
     var isReadonly = B("Readonly");
-    // 可选：明细屏 PageSetting。给了就自动生成 open 片段弹窗管道（复用 /Platform/Page/DynDetail），
+    // 可选：明细屏 PageSetting。给了就自动生成 open 片段弹窗管道（复用 /Platform/Detail/Form），
     // 新增/编辑不再依赖宿主壳手动接线；保存/取消后 onclose 触发 reload 本 Block。
     var detailSettingId = I("DetailSettingId", ViewData["DetailSettingId"] != null ? Convert.ToInt32(ViewData["DetailSettingId"]) : 0);
 
@@ -34,7 +34,7 @@
     string addPipe = null, editPipe = null;
     if (detailSettingId > 0 && !isReadonly)
     {
-        var detailUrl = $"/Platform/Page/DynDetail?settingId={detailSettingId}"
+        var detailUrl = $"/Platform/Detail/Form?settingId={detailSettingId}"
             + "&table=" + Uri.EscapeDataString(tableName ?? "")
             + "&project=" + Uri.EscapeDataString(project ?? "");
         var onclose = "[{\"action\":\"reload\",\"target\":\"#" + layoutExtId + "\"}]";

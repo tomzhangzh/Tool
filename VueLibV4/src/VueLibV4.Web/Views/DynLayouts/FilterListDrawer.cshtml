@@ -81,7 +81,7 @@
     string addPipe = null, editPipe = null;
     if (detailSettingId != null)
     {
-        detailUrl = $"/Platform/Page/DynDetail?settingId={detailSettingId}&table={Uri.EscapeDataString(tableName)}&project={Uri.EscapeDataString(project)}";
+        detailUrl = $"/Platform/Detail/Form?settingId={detailSettingId}&table={Uri.EscapeDataString(tableName)}&project={Uri.EscapeDataString(project)}";
         // open 抽屉；onclose 关窗后刷新列表
         var openTail = $"\"offset\":\"{layerOffset}\",\"width\":\"{drawerWidth}\",\"height\":\"100%\",\"onclose\":[{{\"action\":\"reload\",\"target\":\"#{masterId}\"}}]}})";
         addPipe = "open({\"url\":\"" + detailUrl + "\",\"title\":\"新增\"," + openTail;

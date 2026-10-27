@@ -50,7 +50,7 @@
                 if (json.code === 0) {
                     // 身份切换必须清掉旧权限缓存（匿名/上一用户的 isAdmin/keys 不能带到新会话）
                     try { sessionStorage.removeItem('dyn_permission_keys'); } catch (e2) { /* ignore */ }
-                    window.location.href = safeReturnUrl() || '/Platform/Page/Desktop';
+                    window.location.href = safeReturnUrl() || '/Platform/Shell/Desktop';
                 } else {
                     err.textContent = json.msg || '登录失败';
                     err.style.display = 'block';

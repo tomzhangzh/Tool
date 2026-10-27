@@ -143,7 +143,7 @@
             // X / 取消同样走 end → 刷新。不需要 window 事件与计数去重。
             function openDetailModal(rowId, preFill) {
                 if (!MODAL_PAGE_ID) { dyn.showMessage('实例未配置 ModalPageId（Detail 弹窗页面 Id）', 'warning'); return; }
-                var q = '/Platform/Page/DetailModal?id=' + MODAL_PAGE_ID +
+                var q = '/Platform/Detail/Modal?id=' + MODAL_PAGE_ID +
                     '&rowId=' + (rowId || '') + '&project=' + encodeURIComponent(PROJECT || '');
                 if (preFill && Object.keys(preFill).length) {
                     q += '&prefill=' + encodeURIComponent(JSON.stringify(preFill));

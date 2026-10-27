@@ -9,12 +9,15 @@ using VueLibV4.Web.Core;
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
-/// 工具页面：组件检查、ER 图、页面图谱、Markdown 查看器
+/// 工具页面：页面组成图（V2 架构），含图谱 JSON 端点。
+/// 访问示例：
+///   /Platform/Tools/PageGraph?id=34
+///   /Platform/Tools/PageGraphData?id=34
 /// </summary>
 [Area("Platform")]
-public class ToolController : Controller
+public class PageGraphController : Controller
 {
-    private const string Page = "~/Areas/Platform/Views/Page/{0}.cshtml";
+    private const string ToolView = "~/Areas/Platform/Views/Tools/{0}.cshtml";
 
     private readonly IDynWebPageService _webPages;
     private readonly IDynTemplateService _templates;
@@ -22,7 +25,7 @@ public class ToolController : Controller
     private readonly IDynTemplateBlockService _tplBlocks;
     private readonly IDynBlockService _blocks;
 
-    public ToolController(
+    public PageGraphController(
         IDynWebPageService webPages,
         IDynTemplateService templates,
         IPageSettingService settings,
@@ -36,15 +39,7 @@ public class ToolController : Controller
         _blocks = blocks;
     }
 
-    /// <summary>组件检查：在线测试组件</summary>
-    [HttpGet("/Platform/Page/ComponentCheck")]
-    public IActionResult ComponentCheck()
-    {
-        ViewData["Title"] = "组件检查 - VueLibV4";
-        return View(string.Format(Page, "ComponentCheck"));
-    }
-
-    [HttpGet("/Platform/Page/PageGraphDemo")]
+    [HttpGet("/Platform/Tools/PageGraph")]
     public IActionResult PageGraphDemo(int id = 34)
     {
         ViewData["Title"] = "页面组成图 - VueLibV4";
@@ -57,11 +52,11 @@ public class ToolController : Controller
         ViewData["WpName"] = g.WpName;
         ViewData["IsV2"] = g.IsV2;
         if (!g.IsV2) ViewData["ErrorMsg"] = g.Error;
-        return View(string.Format(Page, "PageGraphDemo"));
+        return View(string.Format(ToolView, "PageGraphDemo"));
     }
 
     /// <summary>图谱 JSON 端点：供页面实例编辑弹窗的"页面组成图"内嵌小图拉取。</summary>
-    [HttpGet("/Platform/Page/PageGraphData")]
+    [HttpGet("/Platform/Tools/PageGraphData")]
     public IActionResult PageGraphData(int id)
     {
         var g = BuildPageGraph(id);
@@ -606,29 +601,4 @@ public class ToolController : Controller
 
     private static int? IntOf(JToken? t, string key) =>
         t is JObject o && int.TryParse(o[key]?.ToString(), out var v) ? v : null;
-
-    [HttpGet("/Platform/Page/DbErGraph")]
-    public IActionResult DbErGraph()
-    {
-        ViewData["Title"] = "数据库 ER 关系图 - VueLibV4";
-        return View(string.Format(Page, "DbErGraph"));
-    }
-
-    /// <summary>Markdown 文档查看器（docs 目录内文档；安全：规范化路径并限制在 docs 内）</summary>
-    [HttpGet("/Platform/Page/MdViewer")]
-    public IActionResult MdViewer(string path)
-    {
-        ViewData["Title"] = "文档 - VueLibV4";
-        ViewData["ApiBase"] = "/api";
-        // 解决方案根 docs 目录（AppContext.BaseDirectory = src/VueLibV4.Web/bin/Debug/net8.0/）
-        var docsRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "docs"));
-        if (!Directory.Exists(docsRoot)) return Content("文档目录不存在：" + docsRoot);
-        var safe = Path.GetFullPath(Path.Combine(docsRoot, path ?? ""));
-        if (!safe.StartsWith(docsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && !safe.Equals(docsRoot, StringComparison.OrdinalIgnoreCase))
-            return Content("无效文档路径");
-        if (!System.IO.File.Exists(safe)) return Content("文档不存在：" + path);
-        ViewBag.MdPath = path;
-        ViewBag.MdContent = System.IO.File.ReadAllText(safe, System.Text.Encoding.UTF8);
-        return View(string.Format(Page, "MdViewer"));
-    }
 }

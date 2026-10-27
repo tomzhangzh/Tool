@@ -7,8 +7,8 @@
     （均为标准 DynamicControl DSL，槽位用 el-collapse 折叠分组）→ 保存实例
   · 新建页面：参数以各 UI 包 DefaultJson 初始化；编辑页面：后端合并已保存值，旧扁平 ConfigJson 自动迁移到槽位
   · 保存结构 ParamsJson = { …模板自身参数, blocks:{ slot:{settingId,model,options} } }
-  · 运行入口：/Platform/Page/DynWebPage?id={Id}（可直接挂到系统菜单）
-  · 数据走 /api/platform/dynwebpage/*（all / get / save / delete / paramschema）+ /api/platform/dyntemplate/all（模板）
+  · 运行入口：/Platform/Shell/Runtime?id={Id}（可直接挂到系统菜单）
+  · 数据走 /api/platform/dynpage/*（all / get / save / delete / paramschema）+ /api/platform/dyntemplate/all（模板）
 *@
 <div dyn-init="createapp" v-cloak class="p-4" style="height:100vh;box-sizing:border-box;display:flex;flex-direction:column;">
 
@@ -31,7 +31,7 @@
                     <template #default="scope">{{ paramOf(scope.row, 'TableName') }}</template>
                 </el-table-column>
                 <el-table-column label="运行地址" min-width="200" show-overflow-tooltip>
-                    <template #default="scope">{{ '/Platform/Page/DynWebPage?id=' + scope.row.Id }}</template>
+                    <template #default="scope">{{ '/Platform/Shell/Runtime?id=' + scope.row.Id }}</template>
                 </el-table-column>
                 <el-table-column label="启用" width="70">
                     <template #default="scope">
@@ -117,7 +117,7 @@
 
             <el-divider content-position="left">运行信息</el-divider>
             <div style="line-height:1.8;color:#303133;font-size:13px;">
-                <div>运行入口：<code>/Platform/Page/DynWebPage?id={{ form.Id || '{Id}' }}</code></div>
+                <div>运行入口：<code>/Platform/Shell/Runtime?id={{ form.Id || '{Id}' }}</code></div>
                 <div style="color:#909399;">生成后到「系统菜单 → 菜单管理」新增菜单，Url 填上面的入口即可挂到桌面/开始菜单。</div>
             </div>
         </el-form>
@@ -168,7 +168,7 @@
                 var self = this;
                 this.loading = true;
                 Promise.all([
-                    fetch('/api/platform/dynwebpage/all').then(function (r) { return r.json(); }),
+                    fetch('/api/platform/dynpage/all').then(function (r) { return r.json(); }),
                     fetch('/api/platform/dyntemplate/all').then(function (r) { return r.json(); })
                 ]).then(function (arr) {
                     self.loading = false;
@@ -223,7 +223,7 @@
             // 拉取并装配参数 schema：template{configJson,defaultJson} + slots[{block.paramConfigJson,values}]
             loadParamSchema: function (tid, pageId) {
                 var self = this;
-                var url = '/api/platform/dynwebpage/paramschema?templateId=' + tid + (pageId ? '&pageId=' + pageId : '');
+                var url = '/api/platform/dynpage/paramschema?templateId=' + tid + (pageId ? '&pageId=' + pageId : '');
                 fetch(url).then(function (r) { return r.json(); }).then(function (res) {
                     if (res.code !== 0 || !res.data) { dyn.showMessage(res.msg || '参数 schema 加载失败', 'error'); return; }
                     var d = res.data;
@@ -297,7 +297,7 @@
                 payloadParams.blocks = blocks;
 
                 this.saving = true;
-                fetch('/api/platform/dynwebpage/save', {
+                fetch('/api/platform/dynpage/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -318,14 +318,14 @@
                 }).catch(function () { self.saving = false; dyn.showMessage('保存失败', 'error'); });
             },
             onOpen: function (row) {
-                window.open('/Platform/Page/DynWebPage?id=' + row.Id, '_blank');
+                window.open('/Platform/Shell/Runtime?id=' + row.Id, '_blank');
             },
             // 生成扩展视图骨架：需先保存页面（按 Code 命名并回填 ExtViewPath）；已存在的文件不会被覆盖
             onCreateExt: function () {
                 var self = this;
                 if (!this.form.Id) { dyn.showMessage('请先保存页面，再生成扩展视图骨架', 'warning'); return; }
                 this.creatingExt = true;
-                fetch('/api/platform/dynwebpage/ext-skeleton', {
+                fetch('/api/platform/dynpage/ext-skeleton', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ Id: this.form.Id })
@@ -337,7 +337,7 @@
                 }).catch(function () { self.creatingExt = false; dyn.showMessage('生成失败', 'error'); });
             },
             onCopy: function (row) {
-                var url = window.location.origin + '/Platform/Page/DynWebPage?id=' + row.Id;
+                var url = window.location.origin + '/Platform/Shell/Runtime?id=' + row.Id;
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(url).then(function () {
                         dyn.showMessage('已复制：' + url, 'success');
@@ -348,7 +348,7 @@
                 var self = this;
                 dyn.confirmAsync('确定删除页面实例「' + row.Name + '」吗？').then(function (ok) {
                     if (!ok) return;
-                    fetch('/api/platform/dynwebpage/delete', {
+                    fetch('/api/platform/dynpage/delete', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ Id: row.Id })

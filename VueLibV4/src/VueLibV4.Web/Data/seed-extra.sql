@@ -41,7 +41,7 @@ WHERE NOT EXISTS (SELECT 1 FROM DesktopShortcut WHERE Code='student-manage');
 INSERT INTO DesktopShortcut (Code, SolutionId, Name, Url, Icon, TargetType, SortNo, IsActive)
 SELECT 'page-designer',
        (SELECT Id FROM DesktopSolution WHERE Code='default'),
-       '页面设计器', '/Platform/Page/Designer', '🎨', 'page', 2, 1
+       '页面设计器', '/Platform/Shell/Designer', '🎨', 'page', 2, 1
 WHERE NOT EXISTS (SELECT 1 FROM DesktopShortcut WHERE Code='page-designer');
 INSERT INTO DesktopShortcut (Code, SolutionId, Name, Url, Icon, TargetType, SortNo, IsActive)
 SELECT 'demo-action-helper',
@@ -62,7 +62,7 @@ SELECT 'ToastDemo', '消息提示演示', 'script',
 WHERE NOT EXISTS (SELECT 1 FROM DynActionHelper WHERE Code='ToastDemo');
 INSERT INTO DynActionHelper (Code, Name, ActionType, Script, Language, ParamsJson, Description, SortNo, IsActive)
 SELECT 'UrlDemo', '页面跳转演示', 'url',
-       '/Platform/Page/Desktop',
+       '/Platform/Shell/Desktop',
        'javascript', '{"url":{"type":"string"}}', '跳转到桌面页', 11, 1
 WHERE NOT EXISTS (SELECT 1 FROM DynActionHelper WHERE Code='UrlDemo');
 INSERT INTO DynActionHelper (Code, Name, ActionType, Script, Language, ParamsJson, Description, SortNo, IsActive)
@@ -228,7 +228,7 @@ SELECT 'DynHtmlBox','HTML嵌入','容器','ElementUI','/api/component/define/Dyn
 WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynHtmlBox');
 
 INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)
-SELECT 'DynLookup','弹窗选择器','表单','ElementUI','/api/component/define/DynLookup','/Areas/Component/Views/ElementUI/DynLookup.cshtml','🔍',0,'[]','[]','[]','[]','{"component": "DynLookup", "modelname": "customerId", "options": {"comoptions": {"url": "/Platform/Page/DynWebPage?id=12", "title": "选择客户", "width": "800px", "placeholder": "点击选择", "valueField": "Id", "urlParams": {"projectId": "{{model.projectId}}"}, "mappings": {"Name": "customerName", "Address": "customerAddress", "Phone": "customerPhone"}}, "comlisteners": {}, "labeloptions": {"label": "选择客户", "required": false, "show": true, "labelwidth": "100px"}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
+SELECT 'DynLookup','弹窗选择器','表单','ElementUI','/api/component/define/DynLookup','/Areas/Component/Views/ElementUI/DynLookup.cshtml','🔍',0,'[]','[]','[]','[]','{"component": "DynLookup", "modelname": "customerId", "options": {"comoptions": {"url": "/Platform/Shell/Runtime?id=12", "title": "选择客户", "width": "800px", "placeholder": "点击选择", "valueField": "Id", "urlParams": {"projectId": "{{model.projectId}}"}, "mappings": {"Name": "customerName", "Address": "customerAddress", "Phone": "customerPhone"}}, "comlisteners": {}, "labeloptions": {"label": "选择客户", "required": false, "show": true, "labelwidth": "100px"}, "itemoptions": {"style": {}, "class": ""}}, "validators": [], "childrenctrls": [], "slots": {}, "extendinfo": {}}',1
 WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynLookup');
 
 INSERT INTO ComponentMeta (ComponentName,Label,Category,UiPlatform,LoadUrl,ViewPath,Icon,AcceptAll,AllowDrop,CanDropInto,SlotsDefine,PropsMeta,DefaultConfigJson,IsActive)

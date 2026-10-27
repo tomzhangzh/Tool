@@ -149,7 +149,7 @@
 // 页面组成图内嵌小图（只读）：
 //  - tab 容器未激活时 display:none，轮询到可见（offsetParent != null）再初始化 X6，避免 0 宽渲染；
 //  - wpId 从容器 data-wp-id（绑定 form.Id）读取，轮询等待保存出 Id；
-//  - 数据走 /Platform/Page/PageGraphData，与大图 PageGraphDemo 同一套后端 JSON。
+//  - 数据走 /Platform/Tools/PageGraphData，与大图 PageGraphDemo 同一套后端 JSON。
 (function () {
     // 容器由 el-tab-pane 渲染（默认 pane 立即挂载、未激活时 display:none）；
     // 极端情况下脚本先于容器执行，也先等待容器出现。
@@ -183,7 +183,7 @@
     function render(id) {
         if (!window.X6) { showMsg('X6 图形库未加载，请刷新重试', true); return; }
         showMsg('正在加载组成图…');
-        fetch('/Platform/Page/PageGraphData?id=' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        fetch('/Platform/Tools/PageGraphData?id=' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function (r) { return r.json(); })
             .then(function (res) {
                 var d = res && res.data ? res.data : null;
@@ -269,7 +269,7 @@
     document.getElementById('wp-graph-big').addEventListener('click', function () {
         var id = currentId();
         if (!id) { window.dyn && dyn.showMessage ? dyn.showMessage('请先保存页面实例', 'warning') : alert('请先保存页面实例'); return; }
-        window.open('/Platform/Page/PageGraphDemo?id=' + id, '_blank');
+        window.open('/Platform/Tools/PageGraph?id=' + id, '_blank');
     });
     } // end init
 })();

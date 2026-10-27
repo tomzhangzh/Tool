@@ -104,7 +104,7 @@
 <script src="~/lib/x6.js"></script>
 <script>
     // 两种入口都能正确跑：
-    //   1) 直接访问 /Platform/Page/PageGraphDemo?id=N → Layout 渲染，X6 先加载（<script src>），
+    //   1) 直接访问 /Platform/Tools/PageGraph?id=N → Layout 渲染，X6 先加载（<script src>），
     //      再执行内联脚本；window.X6 此时已可用。
     //   2) dyn.html() / LoadBlock 片段注入 → dyn-core.js 把所有 <script> 先抽出来，
     //      外部 src 串行 await onload，全部结束后再执行内联脚本（这个 initGraph）。
@@ -120,7 +120,7 @@
     // rowId 让 DetailApp 加载该实体当前数据回填表单；
     // execId 必填——DetailApp.mounted 首行无 execId 会直接 return，rowId 回填逻辑就不会执行。
     function fragmentUrl(d, execId) {
-        return '/Platform/Page/DetailModalV2?id=' + d.modalId
+        return '/Platform/Detail/ModalV2?id=' + d.modalId
             + '&rowId=' + (d.rowId || '')
             + '&project=' + encodeURIComponent(d.project || '')
             + '&execId=' + encodeURIComponent(execId || '');

@@ -62,7 +62,7 @@ app.UseMiddleware<ApiKeyAuthMiddleware>();
 // 全局异常日志（写 SysLog 表）
 app.UseMiddleware<ExceptionLoggingMiddleware>();
 
-app.MapGet("/", () => Results.Redirect("/Platform/Page/Desktop"));
+app.MapGet("/", () => Results.Redirect("/Platform/Shell/Desktop"));
 
 app.MapControllerRoute(
     name: "areas",

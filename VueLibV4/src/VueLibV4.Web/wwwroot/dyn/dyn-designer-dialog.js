@@ -14,7 +14,7 @@
  *     res.defaultModel;          // 默认数据模型对象
  *   });
  *
- * 协议（子页 = /Platform/Page/Designer?embed=1）：
+ * 协议（子页 = /Platform/Shell/Designer?embed=1）：
  *   子 → 父 {type:'dyn-designer-ready'}
  *   父 → 子 {type:'dyn-designer-init', configJson, defaultModel, title, pageId, pageCode}
  *   子 → 父 {type:'dyn-designer-result', configJson, defaultModel}  → resolve 并关闭
@@ -27,7 +27,7 @@ var __plugin = {
   setup:function(ctx){
   'use strict';
 
-  var DESIGNER_URL = '/Platform/Page/Designer?embed=1';
+  var DESIGNER_URL = '/Platform/Shell/Designer?embed=1';
 
   function getLayer() {
     return new Promise(function (resolve) {

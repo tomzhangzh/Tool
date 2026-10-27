@@ -72,7 +72,7 @@
     string detailUrl = null;
     if (detailSettingId != null)
     {
-        detailUrl = $"/Platform/Page/DynDetail?settingId={detailSettingId}&table={Uri.EscapeDataString(tableName)}&project={Uri.EscapeDataString(project)}";
+        detailUrl = $"/Platform/Detail/Form?settingId={detailSettingId}&table={Uri.EscapeDataString(tableName)}&project={Uri.EscapeDataString(project)}";
     }
 
     // —— list 槽 Block 配置：数据域坐标 + PageSetting 列（不配 add/edit 动作，由壳层监听事件打开 el-drawer）——

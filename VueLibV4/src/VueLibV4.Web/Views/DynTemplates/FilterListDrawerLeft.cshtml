@@ -77,7 +77,7 @@
         window.DynEventBus.registerRoot(rootEl);
 
         function loadBlockInto(blockName, hostEl, rowId) {
-            var url = '/Platform/Page/LoadBlock?blockName=' + blockName
+            var url = '/Platform/Block/Load?blockName=' + blockName
                 + '&webpageId=' + WEBPAGE_ID
                 + '&execId=' + ROOT_ID;
             if (rowId) url += '&rowId=' + rowId;

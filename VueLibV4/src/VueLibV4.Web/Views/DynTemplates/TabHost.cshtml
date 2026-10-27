@@ -88,7 +88,7 @@ DynLib.ready(function () {
             blocks: {}
         };
         cfg.blocks[blockName] = { settingId: settingId };
-        var url = '/Platform/Page/LoadBlock?blockName=' + blockName + '&execId=' + encodeURIComponent(targetExecId);
+        var url = '/Platform/Block/Load?blockName=' + blockName + '&execId=' + encodeURIComponent(targetExecId);
         if (rowIdVal) url += '&rowId=' + rowIdVal;
         return fetch(url, {
             method: 'POST',

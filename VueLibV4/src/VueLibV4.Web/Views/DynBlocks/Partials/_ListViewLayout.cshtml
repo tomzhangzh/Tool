@@ -24,7 +24,7 @@
     var loadUrl = LV("LoadUrl", DynPageViewHelper.SearchUrl);
     var deleteUrl = LV("DeleteUrl", DynPageViewHelper.DeleteUrl);
     var isReadonly = LB("Readonly");
-    // 新增/编辑动作管道（由 App 或布局壳注入，如 open({url:'/Platform/Page/DynDetail?...'})）。
+    // 新增/编辑动作管道（由 App 或布局壳注入，如 open({url:'/Platform/Detail/Form?...'})）。
     // 配置了就走统一 ActionHelper 管道；未配置则回退 DynEventBus 的 create/update 事件。
     var addPipe = LV("AddPipe");
     var editPipe = LV("EditPipe");
@@ -282,7 +282,7 @@
                 if (window.DynEventBus && __execId)
                     window.DynEventBus.emit(__execId, 'create', {});
             },
-            // 执行 ActionHelper 管道（如 open({url:'/Platform/Page/DynDetail?...'})）
+            // 执行 ActionHelper 管道（如 open({url:'/Platform/Detail/Form?...'})）
             runPipe: function (pipe, el) {
                 if (!pipe || !window.dyn || typeof dyn.runJsonActions !== 'function') return false;
                 var steps = typeof dyn.parsePipe === 'function' ? dyn.parsePipe(pipe) : null;

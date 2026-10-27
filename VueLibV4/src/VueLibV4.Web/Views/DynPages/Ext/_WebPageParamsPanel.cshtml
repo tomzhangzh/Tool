@@ -3,14 +3,14 @@
 
    形态：根据【壳模板 DynTemplate.ConfigJson（模板自身参数 UI）】+
         【DynTemplateBlock → DynBlock.ParamConfigJson（各槽位参数 UI）】动态渲染表单，
-        与 InspectorPanel 同源（/api/platform/dynwebpage/paramschema）。
+        与 InspectorPanel 同源（/api/platform/dynpage/paramschema）。
 
    两种嵌入方式：
    1) 宿主表单内（如 Detail_118 固定视图）：@await Html.PartialAsync(本视图)
       —— 自动向上查找宿主 proxy（__dynProxy.form），任何修改实时序列化写入
          hostForm.ParamsJson，随宿主统一保存；并 $watch 宿主 form.TemplateId/Id 自动重拉。
-   2) URL 独立片段：GET /Platform/Page/ParamsPanel?templateId=&pageId=
-      —— 无宿主时为 standalone 模式，显示"保存"按钮直接调 /Platform/Page/SaveParams。
+   2) URL 独立片段：GET /Platform/Block/ParamsPanel?templateId=&pageId=
+      —— 无宿主时为 standalone 模式，显示"保存"按钮直接调 /Platform/Block/SaveParams。
          适合用 ActionHelper.Load / updateEl 注入到任意容器。
 
    保存结构（ParamsJson）：{ ...模板自身/基础参数, blocks:{ slot:{settingId,model,options?} } }
@@ -179,7 +179,7 @@ var dynConfig = {
             }
             this._loading = true;
             this.loading = true;
-            var url = '/api/platform/dynwebpage/paramschema?templateId=' + t.tid + (t.pid ? '&pageId=' + t.pid : '');
+            var url = '/api/platform/dynpage/paramschema?templateId=' + t.tid + (t.pid ? '&pageId=' + t.pid : '');
             fetch(url).then(function (r) { return r.json(); }).then(function (res) {
                 self.loading = false;
                 self.ready = true;
@@ -326,7 +326,7 @@ var dynConfig = {
             var paramsObj;
             try { paramsObj = JSON.parse(this.hostForm ? this.hostForm.ParamsJson : this.paramsText); }
             catch (e) { this.saving = false; dyn.showMessage('ParamsJson 语法错误', 'error'); return; }
-            fetch('/Platform/Page/SaveParams', {
+            fetch('/Platform/Block/SaveParams', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ webpageId: this.pageId, paramsJson: paramsObj })

@@ -89,7 +89,7 @@ DynLib.ready(function () {
     window.DynEventBus.registerRoot(rootEl);
 
     function blockUrl(blockName, extra) {
-        var u = '/Platform/Page/LoadBlock?blockName=' + blockName
+        var u = '/Platform/Block/Load?blockName=' + blockName
             + '&webpageId=' + WEBPAGE_ID
             + '&execId=' + ROOT_ID;
         if (extra) u += '&' + extra;
@@ -107,7 +107,7 @@ DynLib.ready(function () {
             blocks: {}
         };
         cfg.blocks[blockName] = { settingId: slotSettingId };
-        var url = '/Platform/Page/LoadBlock?blockName=' + blockName + '&execId=' + encodeURIComponent(execId);
+        var url = '/Platform/Block/Load?blockName=' + blockName + '&execId=' + encodeURIComponent(execId);
         if (rowId) url += '&rowId=' + rowId;
         return fetch(url, {
             method: 'POST',
@@ -141,7 +141,7 @@ DynLib.ready(function () {
         var dlgExec = ROOT_ID + '.dlg';
         var dirty = false;
         var markDirty = function () { dirty = true; };
-        var q = '/Platform/Page/DynWebPage?id=' + TAB_DIALOG_PAGE_ID
+        var q = '/Platform/Shell/Runtime?id=' + TAB_DIALOG_PAGE_ID
             + '&rowId=' + (rowId || '')
             + '&execId=' + dlgExec;
 

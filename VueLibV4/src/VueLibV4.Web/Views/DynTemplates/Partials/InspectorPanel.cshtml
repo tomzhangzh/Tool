@@ -83,7 +83,7 @@
             load: function () {
                 var self = this;
                 this.loading = true;
-                fetch('/Platform/Page/InspectorData?webpageId=' + __wpId)
+                fetch('/Platform/Block/Inspector?webpageId=' + __wpId)
                     .then(function (r) { return r.json(); })
                     .then(function (res) {
                         self.loading = false;
@@ -102,7 +102,7 @@
                 this.saving = true;
                 var blocks = {};
                 this.slots.forEach(function (s) { blocks[s.slot] = s.current; });
-                fetch('/Platform/Page/SaveParams', {
+                fetch('/Platform/Block/SaveParams', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ webpageId: __wpId, paramsJson: { provide: this.provide, blocks: blocks } })
                 }).then(function (r) { return r.json(); }).then(function (res) {

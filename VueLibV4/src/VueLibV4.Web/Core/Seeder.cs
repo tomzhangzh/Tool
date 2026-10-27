@@ -551,8 +551,8 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
 INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) VALUES
 ((SELECT Id FROM SysMenu WHERE Code='system'), 'menu-mgmt',   '菜单管理', '🧭', '/Platform/Mgmt/SysMenuMgmt', 'FullScreen', 1, 1, 1, 'system.menu'),
 ((SELECT Id FROM SysMenu WHERE Code='system'), 'shortcut-mgmt','桌面快捷管理', '🖥️', '/Platform/Mgmt/DesktopShortcut', 'Iframe', 1, 2, 1, 'system.shortcut'),
-((SELECT Id FROM SysMenu WHERE Code='apps'), 'designer', '页面设计器', '🎨', '/Platform/Page/Designer', 'FullScreen', 1, 1, 1, 'apps.designer'),
-((SELECT Id FROM SysMenu WHERE Code='apps'), 'student',  '学生管理', '🎓', '/Platform/Page/WebPageRender?code=student-manage', 'Iframe', 1, 2, 1, 'apps.student');";
+((SELECT Id FROM SysMenu WHERE Code='apps'), 'designer', '页面设计器', '🎨', '/Platform/Shell/Designer', 'FullScreen', 1, 1, 1, 'apps.designer'),
+((SELECT Id FROM SysMenu WHERE Code='apps'), 'student',  '学生管理', '🎓', '/Platform/Shell/PageRender?code=student-manage', 'Iframe', 1, 2, 1, 'apps.student');";
         cmd.ExecuteNonQuery();
             _logger.LogInformation("[Init] SysMenu 初始种子插入完成");
         }
@@ -564,7 +564,7 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
             if (Convert.ToInt32(pe.ExecuteScalar()) == 0)
             {
                 using var ins = conn.CreateCommand();
-                ins.CommandText = "INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) SELECT NULL, 'platform-engine', '平台引擎', '⚙️', NULL, 'Iframe', 1, 3, 1, 'platform' WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='platform-engine');INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'tpl-mgmt', '页面模板', '📋', '/Platform/Mgmt/DynTemplateMgmt', 'FullScreen', 1, 1, 1, 'platform.tpl' WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='tpl-mgmt');INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'webpage-mgmt', '页面实例', '📦', '/Platform/Mgmt/DynWebPageMgmt', 'FullScreen', 1, 2, 1, 'platform.page' WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='webpage-mgmt');INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'setting-mgmt', '页面设置管理', '📄', '/Platform/Page/DynWebPage?id=' || (SELECT Id FROM DynWebPage WHERE Code='page-setting-mgmt'), 'Iframe', 1, 3, 1, 'platform.setting' WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='setting-mgmt');INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'solution-page', '解决方案', '💡', '/Platform/Page/DynWebPage?id=26', 'Iframe', 1, 4, 1 WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='solution-page');";
+                ins.CommandText = "INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) SELECT NULL, 'platform-engine', '平台引擎', '⚙️', NULL, 'Iframe', 1, 3, 1, 'platform' WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='platform-engine');INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'tpl-mgmt', '页面模板', '📋', '/Platform/Mgmt/DynTemplateMgmt', 'FullScreen', 1, 1, 1, 'platform.tpl' WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='tpl-mgmt');INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'webpage-mgmt', '页面实例', '📦', '/Platform/Mgmt/DynWebPageMgmt', 'FullScreen', 1, 2, 1, 'platform.page' WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='webpage-mgmt');INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive, PermissionCode) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'setting-mgmt', '页面设置管理', '📄', '/Platform/Shell/Runtime?id=' || (SELECT Id FROM DynWebPage WHERE Code='page-setting-mgmt'), 'Iframe', 1, 3, 1, 'platform.setting' WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='setting-mgmt');INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'solution-page', '解决方案', '💡', '/Platform/Shell/Runtime?id=26', 'Iframe', 1, 4, 1 WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='solution-page');";
                 ins.ExecuteNonQuery();
                 _logger.LogInformation("[Init] SysMenu 平台引擎组补插完成");
             }
@@ -573,7 +573,7 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
         // 解决方案页面（幂等补插：独立于首次种子，每次启动检查）
         using (var sol = conn.CreateCommand())
         {
-            sol.CommandText = "INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'solution-page', '解决方案', '💡', '/Platform/Page/DynWebPage?id=26', 'Iframe', 1, 4, 1 WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='solution-page');";
+            sol.CommandText = "INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop, SortNo, IsActive) SELECT (SELECT Id FROM SysMenu WHERE Code='platform-engine'), 'solution-page', '解决方案', '💡', '/Platform/Shell/Runtime?id=26', 'Iframe', 1, 4, 1 WHERE NOT EXISTS (SELECT 1 FROM SysMenu WHERE Code='solution-page');";
             sol.ExecuteNonQuery();
         }
 
@@ -673,7 +673,7 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
         if (Convert.ToInt32(cnt.ExecuteScalar()) == 0)
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "INSERT INTO DynWebPage (Code, Name, TemplateId, PageJson, ParamsJson, Url, IsActive) VALUES ('page-setting-mgmt', '页面设置管理', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"PageSetting\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1), ('dyn-webpage-list', '页面实例列表', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"DynWebPage\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Page/DynWebPage?id=', 1);";
+            cmd.CommandText = "INSERT INTO DynWebPage (Code, Name, TemplateId, PageJson, ParamsJson, Url, IsActive) VALUES ('page-setting-mgmt', '页面设置管理', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"PageSetting\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Shell/Runtime?id=', 1), ('dyn-webpage-list', '页面实例列表', (SELECT Id FROM DynTemplate WHERE Code='crud-basic'), NULL, '{\"TableName\":\"DynWebPage\",\"ListUrl\":null,\"AddUrl\":null,\"EditUrl\":null,\"DeleteUrl\":null,\"FilterPageSettingId\":null,\"ListPageSettingId\":null,\"DetailPageSettingId\":null}', '/Platform/Shell/Runtime?id=', 1);";
             cmd.ExecuteNonQuery();
             _logger.LogInformation("[Init] DynWebPage 实例种子插入完成");
         }
@@ -683,8 +683,8 @@ INSERT INTO SysMenu (ParentId, Code, Name, Icon, Url, TargetType, IsAddToDesktop
         using (var fix = conn.CreateCommand())
         {
             fix.CommandText = @"
-UPDATE DynWebPage SET Url='/Platform/Page/DynWebPage?id=' || Id
-WHERE Code IN ('page-setting-mgmt','dyn-webpage-list') AND (Url IS NULL OR Url='/Platform/Page/DynWebPage?id=');";
+UPDATE DynWebPage SET Url='/Platform/Shell/Runtime?id=' || Id
+WHERE Code IN ('page-setting-mgmt','dyn-webpage-list') AND (Url IS NULL OR Url='/Platform/Shell/Runtime?id=');";
             fix.ExecuteNonQuery();
         }
         // 2) setting-mgmt 菜单的 Url 依赖本页 Id。SeedSysMenu 在本方法之前执行，
@@ -694,7 +694,7 @@ WHERE Code IN ('page-setting-mgmt','dyn-webpage-list') AND (Url IS NULL OR Url='
         {
             using var fixMenu = conn.CreateCommand();
             fixMenu.CommandText = @"
-UPDATE SysMenu SET Url='/Platform/Page/DynWebPage?id=' || (SELECT Id FROM DynWebPage WHERE Code='page-setting-mgmt')
+UPDATE SysMenu SET Url='/Platform/Shell/Runtime?id=' || (SELECT Id FROM DynWebPage WHERE Code='page-setting-mgmt')
 WHERE Code='setting-mgmt' AND EXISTS (SELECT 1 FROM DynWebPage WHERE Code='page-setting-mgmt');";
             fixMenu.ExecuteNonQuery();
         }
@@ -915,11 +915,11 @@ UPDATE DynTemplate SET DefaultJson=@def WHERE Code='list-master-detail' AND (Def
             cmd.CommandText = @"
 INSERT INTO DynWebPage (Code, Name, TemplateId, ProjectId, ParamsJson, SpecJson, Url, IsActive)
 SELECT 'sysmenu-list-shell-demo','菜单列表主从(壳模型v1.1)',(SELECT Id FROM DynTemplate WHERE Code='list-master-detail'),NULL,NULL,@spec,
-'/Platform/Page/DynWebPage?id=',1
+'/Platform/Shell/Runtime?id=',1
 WHERE NOT EXISTS (SELECT 1 FROM DynWebPage WHERE Code='sysmenu-list-shell-demo');
 UPDATE DynWebPage SET TemplateId=(SELECT Id FROM DynTemplate WHERE Code='list-master-detail'), SpecJson=@spec, IsActive=1
 WHERE Code='sysmenu-list-shell-demo';
-UPDATE DynWebPage SET Url='/Platform/Page/DynWebPage?id=' || Id
+UPDATE DynWebPage SET Url='/Platform/Shell/Runtime?id=' || Id
 WHERE Code='sysmenu-list-shell-demo';";
             cmd.Parameters.AddWithValue("@spec", spec);
             cmd.ExecuteNonQuery();
@@ -982,11 +982,11 @@ WHERE Code='filter-list-open-windowV2';";
             cmd.CommandText = @"
 INSERT INTO DynWebPage (Code, Name, TemplateId, ProjectId, ParamsJson, SpecJson, Url, IsActive)
 SELECT 'sysmenu-filter-openwindow-demo','菜单筛选列表弹窗(壳)',(SELECT Id FROM DynTemplate WHERE Code='filter-list-open-windowV2'),NULL,@pj,NULL,
-'/Platform/Page/DynWebPage?id=',1
+'/Platform/Shell/Runtime?id=',1
 WHERE NOT EXISTS (SELECT 1 FROM DynWebPage WHERE Code='sysmenu-filter-openwindow-demo');
 UPDATE DynWebPage SET TemplateId=(SELECT Id FROM DynTemplate WHERE Code='filter-list-open-windowV2'), ParamsJson=@pj, SpecJson=NULL, IsActive=1
 WHERE Code='sysmenu-filter-openwindow-demo';
-UPDATE DynWebPage SET Url='/Platform/Page/DynWebPage?id=' || Id
+UPDATE DynWebPage SET Url='/Platform/Shell/Runtime?id=' || Id
 WHERE Code='sysmenu-filter-openwindow-demo';";
             cmd.Parameters.AddWithValue("@pj", pj);
             cmd.ExecuteNonQuery();

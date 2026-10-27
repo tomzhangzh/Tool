@@ -60,7 +60,7 @@
 
         // 通用：拉一个 block 片段，dyn.html 自动挂载 dyn-init="createApp"
         function loadBlockInto(blockName, hostEl, rowId) {
-            var url = '/Platform/Page/LoadBlock?blockName=' + blockName
+            var url = '/Platform/Block/Load?blockName=' + blockName
                 + '&webpageId=' + WEBPAGE_ID
                 + '&execId=' + ROOT_ID;
             if (rowId) url += '&rowId=' + rowId;

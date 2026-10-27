@@ -26,7 +26,7 @@
 {
     <div id="@barId">
         <div class="webpage-bar">
-            <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 返回桌面</el-button>
+            <el-button size="small" text @@click="go('/Platform/Shell/Desktop')">← 返回桌面</el-button>
             <span class="title">{{ pageName || '动态页面' }}</span>
             <el-tag size="small" v-if="pageCode" type="info" effect="plain">{{ pageCode }}</el-tag>
         </div>
@@ -67,7 +67,7 @@
 
             // 拉 DynWebPage 配置树（单次），返回 render data；参数缺失/失败时渲染错误提示
             function fetchRender() {
-                var url = '/api/platform/dynwebpage/render';
+                var url = '/api/platform/dynpage/render';
                 // 表单弹窗壳固定按 code 寻址：open 管道会把行 data-id 合并进 query（即 ?id=行主键），
                 // 不能让它被当成 WebPage 实例 Id（PageId）导致加载错页。
                 if (FORM_MODE) {

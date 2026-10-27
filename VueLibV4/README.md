@@ -28,7 +28,7 @@ cd src\VueLibV4.Web
 dotnet run
 ```
 
-启动后浏览器打开：<http://localhost:5010/> （根路由 302 跳转到 `/Platform/Page/Desktop`）。
+启动后浏览器打开：<http://localhost:5010/> （根路由 302 跳转到 `/Platform/Shell/Desktop`）。
 
 > 端口在 `src/VueLibV4.Web/appsettings.json` 的 `Urls` 配置（默认 5010，避免与 V3 的 5000 冲突）。
 
@@ -54,9 +54,9 @@ dotnet run
 
 | 路由 | 说明 |
 |------|------|
-| `/Platform/Page/Desktop` | 渐变桌面 + Emoji 图标 + 任务栏 + 开始菜单 |
-| `/Platform/Page/Designer` | 可视化设计器（组件库 / 画布 / 属性面板，左右折叠） |
-| `/Platform/Page/WebPageRender?code=page-1789482473167` | 动态页面运行时（学生管理 CRUD，12 行） |
+| `/Platform/Shell/Desktop` | 渐变桌面 + Emoji 图标 + 任务栏 + 开始菜单 |
+| `/Platform/Shell/Designer` | 可视化设计器（组件库 / 画布 / 属性面板，左右折叠） |
+| `/Platform/Shell/PageRender?code=page-1789482473167` | 动态页面运行时（学生管理 CRUD，12 行） |
 | `/Platform/Page/Demo/ActionHelper` | 动作助手 Demo（10 个入库动作） |
 | `/Platform/Page/Demo/Combination` | 组合组件 Demo |
 | `/Platform/Page/Demo/Grid` | 栅格布局 Demo |
