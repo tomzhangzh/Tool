@@ -76,6 +76,72 @@ public class AiService : IAiService
         return (ParseJsonLoose(result.Content), result.Reasoning);
     }
 
+    public async Task ChatStreamAsync(List<(string Role, string Content)> messages, Action<(string? ReasoningDelta, string? ContentDelta)> onDelta, CancellationToken ct = default)
+    {
+        var baseUrl = _config["Ai:BaseUrl"]?.TrimEnd('/') ?? "https://ark.cn-beijing.volces.com/api/v3";
+        var apiKey = _config["Ai:ApiKey"] ?? "";
+        var model = _config["Ai:Model"] ?? "doubao-1-5-lite-32k-250115";
+        var timeoutSec = int.TryParse(_config["Ai:TimeoutSeconds"], out var ts) ? ts : 120;
+
+        if (string.IsNullOrEmpty(apiKey))
+            throw new InvalidOperationException("未配置 Ai:ApiKey");
+
+        using var client = _httpFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(timeoutSec);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        var payload = new JObject
+        {
+            ["model"] = model,
+            ["stream"] = true,
+            ["thinking"] = new JObject { ["type"] = "enabled" }, // 开启深度思考，返回reasoning_content
+            ["temperature"] = 0.3,
+            ["messages"] = new JArray(messages.Select(m => new JObject { ["role"] = m.Role, ["content"] = m.Content }))
+        };
+
+        var url = $"{baseUrl}/chat/completions";
+        var content = new StringContent(payload.ToString(), Encoding.UTF8, "application/json");
+
+        _logger.LogInformation("[AiService.Stream] 调用 {Url} model={Model} msgCount={Count}", url, model, messages.Count);
+
+        var resp = await client.PostAsync(url, content, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var errBody = await resp.Content.ReadAsStringAsync(ct);
+            _logger.LogError("[AiService.Stream] HTTP {Status}: {Body}", (int)resp.StatusCode, errBody);
+            throw new HttpRequestException($"AI 接口返回 {(int)resp.StatusCode}: {errBody}");
+        }
+
+        await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream);
+        while (!reader.EndOfStream && !ct.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(ct);
+            if (string.IsNullOrEmpty(line)) continue;
+            if (!line.StartsWith("data: ")) continue;
+            var data = line.Substring(6).Trim();
+            if (data == "[DONE]") break;
+
+            try
+            {
+                var json = JObject.Parse(data);
+                var delta = json["choices"]?[0]?["delta"] as JObject;
+                if (delta == null) continue;
+                var reasoning = delta["reasoning_content"]?.ToString();
+                var contentDelta = delta["content"]?.ToString();
+                if (!string.IsNullOrEmpty(reasoning) || !string.IsNullOrEmpty(contentDelta))
+                {
+                    onDelta((string.IsNullOrEmpty(reasoning) ? null : reasoning, 
+                             string.IsNullOrEmpty(contentDelta) ? null : contentDelta));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[AiService.Stream] 解析SSE行失败: {Line}", line);
+            }
+        }
+    }
+
     /// <summary>
     /// 宽松解析 JSON：模型可能在 ```json 代码块里或带解释文字，尽量提取出 JSON 对象。
     /// </summary>

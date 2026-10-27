@@ -28,4 +28,5 @@ public interface IAiService : IScopeDependency
     /// 若解析失败会抛出异常，由调用方决定是否重试。
     /// </summary>
     Task<(JObject Json, string? Reasoning)> ChatJsonAsync(string systemPrompt, string userPrompt, CancellationToken ct = default);
+    Task ChatStreamAsync(List<(string Role, string Content)> messages, Action<(string? ReasoningDelta, string? ContentDelta)> onDelta, CancellationToken ct = default);
 }
