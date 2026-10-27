@@ -1,46 +1,114 @@
-﻿@{
-    
+﻿﻿@{
     ViewData["Title"] = "动作助手 Demo - VueLibV4";
 }
 <div id="demo-actionhelper-app">
     <div class="bar">
         <el-button size="small" text @@click="go('/Platform/Page/Desktop')">← 桌面</el-button>
         <span class="title">DynActionHelper 动作助手 Demo</span>
-        <el-tag size="small" type="success">所有动作来自数据库 DynActionHelper</el-tag>
+        <el-tag size="small" type="success">动作清单由 dyn-action.js 动态枚举</el-tag>
     </div>
+
     <div class="main">
         <el-card shadow="never">
-            <template #header><b>动作列表（{{ actions.length }}）</b></template>
-            <div v-for="a in actions" :key="a.Id" class="action-row">
-                <el-tag size="small" :type="tagType(a.ActionType)">{{ a.ActionType }}</el-tag>
-                <span style="flex:1">{{ a.Name }} <span style="color:#909399;font-size:12px">{{ a.Code }}</span></span>
-                <el-button size="small" type="primary" @@click="runAction(a)">执行</el-button>
+            <template #header>
+                <div class="hd">
+                    <b>内置动作（{{ builtins.length }}）</b>
+                    <span class="hint">来自 dyn-action.js 的 defineAction 注册表</span>
+                </div>
+            </template>
+
+            <div class="filters">
+                <el-input v-model="keyword" size="small" clearable placeholder="搜索名称 / 动作名 / 说明" style="width:260px" />
+                <el-radio-group v-model="group" size="small">
+                    <el-radio-button label="全部">全部</el-radio-button>
+                    <el-radio-button v-for="g in groups" :key="g" :label="g">{{ g }}</el-radio-button>
+                </el-radio-group>
             </div>
-            <el-divider></el-divider>
-            <div>
-                <el-button size="small" @@click="runChain">▶ 执行动作链 ChainDemo</el-button>
-                <el-button size="small" @@click="showScript">查看数据库生成注册脚本</el-button>
+
+            <div v-if="!filtered.length" class="empty">没有匹配的动作</div>
+
+            <div v-for="sec in grouped" :key="sec.group" class="group">
+                <div class="group-title">{{ sec.group }}</div>
+                <div v-for="a in sec.items" :key="a.name" class="act">
+                    <div class="act-hd">
+                        <el-tag size="small" :type="tagType(a.group)">{{ a.name }}</el-tag>
+                        <b class="act-label">{{ a.label }}</b>
+                        <span class="act-alias" v-if="a.aliasOf">别名 → {{ a.aliasOf }}</span>
+                        <span class="act-el" v-if="a.needEl">依赖触发元素</span>
+                        <span class="act-events" v-if="a.events && a.events.length">事件：{{ a.events.join('/') }}</span>
+                        <span style="flex:1"></span>
+                        <el-button size="small" text type="primary" @@click="copyExample(a)">复制示例</el-button>
+                        <el-button size="small" type="primary" plain v-if="a.demo" @@click="runDemo(a)">试运行</el-button>
+                        <span v-else class="need-url">需真实上下文</span>
+                    </div>
+                    <div class="act-doc" v-if="a.doc">{{ a.doc }}</div>
+                    <div class="act-params" v-if="a.options && a.options.length">
+                        <span v-for="o in a.options" :key="o.name" class="param">
+                            <code>{{ o.name }}</code><span class="p-type">{{ o.type }}</span>{{ o.desc }}
+                        </span>
+                    </div>
+                    <pre class="act-example" v-if="a.example">{{ a.example }}</pre>
+                    <div class="act-demo" v-if="a.demo">
+                        试跑参数：<code>{{ json(a.demo) }}</code>
+                        <span v-if="a.demoCtx && a.demoCtx.model">（model：<code>{{ json(a.demoCtx.model) }}</code>）</span>
+                    </div>
+                </div>
             </div>
         </el-card>
 
-        <el-card shadow="never">
-            <template #header><b>执行结果 / 上下文</b></template>
-            <div v-if="lastResult !== null" style="margin-bottom:8px">
-                最后返回值：<el-tag size="small" type="success">{{ typeof lastResult === 'object' ? JSON.stringify(lastResult) : lastResult }}</el-tag>
-            </div>
-            <el-divider></el-divider>
-            <b>说明</b>
-            <ul style="font-size:13px;color:#606266;line-height:1.8">
-                <li>动作四类：<code>script</code>（脚本）/ <code>url</code>（链接）/ <code>api</code>（接口）/ <code>chain</code>（动作链）</li>
-                <li>脚本上下文：<code>$action</code> 动作定义、<code>$args</code> 参数、<code>$ctx</code> 页面上下文、<code>$api</code> 工具</li>
-                <li>前端启动时从 <code>/api/platform/dynactionhelper/all</code> 动态注册</li>
-                <li>动作链支持 <code>when</code> 条件（如 result 表示上一步成功才继续）</li>
-            </ul>
-            <div v-if="scriptText">
-                <el-divider></el-divider><b>数据库生成注册脚本</b>
-                <pre class="script-pre">{{ scriptText }}</pre>
-            </div>
-        </el-card>
+        <div class="side">
+            <el-card shadow="never">
+                <template #header>
+                    <div class="hd">
+                        <b>执行结果</b>
+                        <el-button size="small" text @@click="clear">清空</el-button>
+                    </div>
+                </template>
+                <div v-if="lastError" class="err">{{ lastError }}</div>
+                <div v-if="lastCall" class="call">调用：<code>{{ lastCall }}</code></div>
+                <div v-if="lastResult !== null">
+                    <b>返回值：</b>
+                    <pre class="result-pre">{{ lastResultText }}</pre>
+                </div>
+                <div v-if="lastResult === null && !lastError && !lastCall" class="empty">尚未执行</div>
+            </el-card>
+
+            <el-card shadow="never">
+                <template #header><b>数据库动作（{{ dbActions.length }}）</b></template>
+                <div v-if="!dbActions.length" class="empty">DynActionHelper 表中没有启用动作</div>
+                <div v-for="a in dbActions" :key="a.Code" class="act db">
+                    <div class="act-hd">
+                        <el-tag size="small" :type="tagType(a.ActionType)">{{ a.ActionType || 'script' }}</el-tag>
+                        <b class="act-label">{{ a.Name }}</b>
+                        <code class="act-code">{{ a.Code }}</code>
+                        <span style="flex:1"></span>
+                        <el-button size="small" type="primary" @@click="runDb(a)">执行</el-button>
+                    </div>
+                    <div class="act-doc" v-if="a.Description">{{ a.Description }}</div>
+                    <div class="act-demo" v-if="paramKeys(a).length">参数：<code>{{ paramKeys(a).join(', ') }}</code></div>
+                </div>
+                <el-divider></el-divider>
+                <el-button size="small" :disabled="!dbChain" @@click="runDb(dbChain)">
+                    ▶ 执行动作链{{ dbChain ? ' ' + dbChain.Code : '（无 chain 动作）' }}
+                </el-button>
+                <el-button size="small" @@click="showScript">查看数据库注册脚本</el-button>
+            </el-card>
+
+            <el-card shadow="never">
+                <template #header><b>上下文约定</b></template>
+                <ul class="doc-list">
+                    <li>内置动作：<code>DynActionHelper.actionList()</code> 返回实现+说明的完整清单</li>
+                    <li>执行入口：<code>DynActionHelper.run(code, options, ctx)</code></li>
+                    <li>ctx：<code>element</code> / <code>model</code> / <code>params</code> / <code>options</code> / <code>$event</code> / <code>$result</code> / <code>$callStack</code></li>
+                    <li>管道写法：<code>dyn-click="Toast('保存成功')"</code>、<code>dyn-click="A|B|C"</code></li>
+                    <li>统一入口名：<code>ActionHelper.Xxx</code> 与 <code>Xxx</code> 等价</li>
+                </ul>
+                <div v-if="scriptText">
+                    <el-divider></el-divider><b>数据库注册脚本</b>
+                    <pre class="script-pre">{{ scriptText }}</pre>
+                </div>
+            </el-card>
+        </div>
     </div>
 </div>
 
@@ -48,56 +116,192 @@
     body { margin: 0; background: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e4e7ed; }
     .bar .title { font-weight: 600; margin-right: auto; }
-    .main { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-    @@media (max-width: 900px) { .main { grid-template-columns: 1fr; } }
-    .action-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .main { padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+    @@media (max-width: 1100px) { .main { grid-template-columns: 1fr; } }
+    .side { display: flex; flex-direction: column; gap: 16px; }
+    .hd { display: flex; align-items: center; gap: 8px; }
+    .hd .hint { color: #909399; font-size: 12px; }
+    .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+    .group-title { margin: 14px 0 6px; font-size: 13px; color: #909399; font-weight: 600; border-left: 3px solid #409eff; padding-left: 8px; }
+    .act { border-bottom: 1px dashed #ebeef5; padding: 8px 0; }
+    .act-hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .act-label { font-size: 14px; }
+    .act-alias, .act-el, .act-events, .need-url, .act-code { font-size: 12px; color: #909399; }
+    .act-el, .need-url { color: #e6a23c; }
+    .act-doc { font-size: 13px; color: #606266; margin: 4px 0 6px; }
+    .act-params { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 6px; }
+    .param { font-size: 12px; color: #606266; }
+    .param code { color: #409eff; }
+    .param .p-type { color: #c0c4cc; margin: 0 4px; }
+    .act-example { background: #f5f7fa; border-left: 3px solid #dcdfe6; color: #303133; padding: 6px 10px; margin: 0; font-size: 12px; white-space: pre-wrap; word-break: break-all; border-radius: 4px; }
+    .act-demo { font-size: 12px; color: #909399; margin-top: 6px; }
+    .act-demo code { color: #67c23a; }
+    .empty { color: #909399; font-size: 13px; padding: 8px 0; }
+    .call { font-size: 12px; color: #909399; margin-bottom: 6px; }
+    .result-pre { background: #282c34; color: #98c379; padding: 10px; border-radius: 6px; font-size: 12px; margin: 6px 0 0; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
     .script-pre { background: #282c34; color: #abb2bf; padding: 12px; border-radius: 6px; font-size: 12px; max-height: 320px; overflow: auto; }
+    .err { color: #f56c6c; font-size: 13px; }
+    .doc-list { font-size: 12px; color: #606266; line-height: 1.9; padding-left: 18px; margin: 0; }
+    .doc-list code { color: #409eff; }
 </style>
 
 @section Scripts {
     <script>
         DynLib.ready(function () {
             var app = Vue.createApp({
-                data: function () { return { actions: [], lastResult: null, scriptText: '' }; },
+                data: function () {
+                    return {
+                        actions: [],      // 内置 + DB，来自 DynActionHelper.actionList()
+                        dbActions: [],    // DB 行原始记录，来自 loadAll() 返回值
+                        keyword: '',
+                        group: '全部',
+                        lastResult: null,
+                        lastCall: '',
+                        lastError: '',
+                        scriptText: ''
+                    };
+                },
+                computed: {
+                    builtins: function () {
+                        return this.actions.filter(function (a) { return a.source !== 'db'; });
+                    },
+                    groups: function () {
+                        var out = [];
+                        this.builtins.forEach(function (a) {
+                            if (a.group && out.indexOf(a.group) < 0) out.push(a.group);
+                        });
+                        return out;
+                    },
+                    filtered: function () {
+                        var kw = (this.keyword || '').toLowerCase();
+                        var g = this.group;
+                        return this.builtins.filter(function (a) {
+                            if (g !== '全部' && a.group !== g) return false;
+                            if (!kw) return true;
+                            return (String(a.name) + ' ' + (a.label || '') + ' ' + (a.doc || '')).toLowerCase().indexOf(kw) >= 0;
+                        });
+                    },
+                    grouped: function () {
+                        var out = [];
+                        this.filtered.forEach(function (a) {
+                            var g = a.group || '其他';
+                            var sec = null;
+                            for (var i = 0; i < out.length; i++) { if (out[i].group === g) { sec = out[i]; break; } }
+                            if (!sec) { sec = { group: g, items: [] }; out.push(sec); }
+                            sec.items.push(a);
+                        });
+                        return out;
+                    },
+                    dbChain: function () {
+                        for (var i = 0; i < this.dbActions.length; i++) {
+                            if ((this.dbActions[i].ActionType || '').toLowerCase() === 'chain') return this.dbActions[i];
+                        }
+                        return null;
+                    },
+                    lastResultText: function () {
+                        return this.json(this.lastResult);
+                    }
+                },
                 methods: {
                     go: function (url) { window.location.href = url; },
-                    tagType: function (t) {
-                        return { script: 'primary', url: 'success', api: 'warning', chain: 'danger' }[t] || 'info';
+                    json: function (v) {
+                        if (v === null || typeof v === 'undefined') return '';
+                        if (typeof v === 'object') {
+                            try { return JSON.stringify(v, null, 2); } catch (e) { return String(v); }
+                        }
+                        return String(v);
+                    },
+                    tagType: function (g) {
+                        return {
+                            '数据与刷新': '', '窗口与弹层': 'warning', '表单与状态': 'success',
+                            '提示与交互': 'info', '控制流': 'danger'
+                        }[g] || 'info';
                     },
                     load: function () {
                         var self = this;
-                        DynActionHelper.loadAll().then(function () {
-                            self.actions = Object.keys(DynActionHelper.actions).map(function (k) { return DynActionHelper.actions[k]; });
+                        // actionList 是 dyn-action.js 里动态枚举出的实现+文档清单
+                        self.actions = (DynActionHelper.actionList ? DynActionHelper.actionList() : []) || [];
+                        DynActionHelper.loadAll().then(function (rows) {
+                            self.dbActions = Array.isArray(rows) ? rows : [];
+                        }).catch(function (e) {
+                            self.lastError = '加载数据库动作失败：' + (e && e.message ? e.message : e);
                         });
                     },
-                    runAction: function (a) {
+                    exec: function (code, options, ctx) {
                         var self = this;
-                        var args = {};
-                        try {
-                            var params = JSON.parse(a.ParamsJson || '{}');
-                            Object.keys(params).forEach(function (k) {
-                                args[k] = params[k].type === 'number' ? 8 : (k === 'code' ? 'student-manage' : (k === 'url' ? '/Platform/Page/Desktop' : (k === 'message' ? '来自动作助手 Demo' : k)));
-                            });
-                        } catch (e) { }
-                        DynActionHelper.run(a.Code, args, {
-                            reload: function () { ElementPlus.ElMessage.success('页面上下文 reload 已调用'); }
-                        }).then(function (r) { self.lastResult = r; })
-                          .catch(function (e) { ElementPlus.ElMessage.error('执行失败: ' + e.message); });
+                        self.lastError = '';
+                        self.lastCall = code + '(' + (options ? JSON.stringify(options) : '') + ')';
+                        return DynActionHelper.run(code, options || {}, ctx || {}).then(function (r) {
+                            self.lastResult = (typeof r === 'undefined') ? null : r;
+                            // setvar/calc 直接看 ctx.model 的结果更直观
+                            if (ctx && ctx.model && (code === 'setvar' || code === 'calc')) {
+                                self.lastResult = { 返回值: r, model: ctx.model };
+                            }
+                        }).catch(function (e) {
+                            self.lastResult = null;
+                            self.lastError = '执行失败：' + (e && e.message ? e.message : e);
+                            dyn.showMessage(self.lastError, 'error');
+                        });
                     },
-                    runChain: function () {
-                        var self = this;
-                        DynActionHelper.run('ChainDemo', {}, {}).then(function (r) { self.lastResult = r; });
+                    runDemo: function (a) {
+                        var ctx = {};
+                        if (a.demoCtx) {
+                            Object.keys(a.demoCtx).forEach(function (k) { ctx[k] = JSON.parse(JSON.stringify(a.demoCtx[k])); });
+                        }
+                        this.exec(a.name, JSON.parse(JSON.stringify(a.demo)), ctx);
+                    },
+                    copyExample: function (a) {
+                        var text = a.example || a.name;
+                        // 复用内置 copy 动作，顺带演示管道动作
+                        DynActionHelper.run('copy', { text: text }, {});
+                        this.lastCall = 'copy(' + JSON.stringify(text) + ')';
+                    },
+                    paramKeys: function (a) {
+                        try { return Object.keys(JSON.parse(a.ParamsJson || '{}') || {}); } catch (e) { return []; }
+                    },
+                    // 按 ParamsJson 声明生成示例入参：default → example → type 兜底
+                    buildArgs: function (a) {
+                        var p = {};
+                        try { p = JSON.parse(a.ParamsJson || '{}') || {}; } catch (e) { p = {}; }
+                        var args = {};
+                        Object.keys(p).forEach(function (k) {
+                            var def = p[k];
+                            if (!def || typeof def !== 'object') def = { type: 'string' };
+                            var t = String(def.type || 'string').toLowerCase();
+                            if (def.default !== undefined) args[k] = def.default;
+                            else if (def.example !== undefined) args[k] = def.example;
+                            else if (t === 'number' || t === 'int' || t === 'integer') args[k] = 8;
+                            else if (t === 'boolean' || t === 'bool') args[k] = true;
+                            else if (t === 'array') args[k] = [];
+                            else if (t === 'object') args[k] = {};
+                            else args[k] = '示例值（' + k + '）';
+                        });
+                        return args;
+                    },
+                    runDb: function (a) {
+                        if (!a) return;
+                        if ((a.ActionType || '').toLowerCase() === 'url') {
+                            dyn.showMessage('即将跳转：' + (a.Script || ''), 'warning');
+                        }
+                        this.exec(a.Code, this.buildArgs(a), {});
                     },
                     showScript: function () {
                         var self = this;
-                        fetch('/api/platform/dynactionhelper/script').then(function (r) { return r.text(); }).then(function (t) { self.scriptText = t; });
+                        fetch('/api/platform/dynactionhelper/script')
+                            .then(function (r) { return r.text(); })
+                            .then(function (t) { self.scriptText = t; })
+                            .catch(function (e) { self.lastError = '获取注册脚本失败：' + (e && e.message ? e.message : e); });
+                    },
+                    clear: function () {
+                        this.lastResult = null;
+                        this.lastCall = '';
+                        this.lastError = '';
                     }
                 },
                 mounted: function () { this.load(); }
             });
             DynCom.setupApp(app);
-            DynCom.ensureRegistered(app).then(function(){ app.mount('#demo-actionhelper-app'); });
+            DynCom.ensureRegistered(app).then(function () { app.mount('#demo-actionhelper-app'); });
         });
     </script>
 }
-
