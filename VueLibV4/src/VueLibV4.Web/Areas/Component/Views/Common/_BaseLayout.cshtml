@@ -52,7 +52,7 @@ var comConfig = {
                 compassthrough: "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth",
                 uiGlobalProps: { size: undefined, disabled: undefined },
                 defaultLabelOptions: { labelwidth: "auto", requiredmark: true },
-                evalCondition: ""
+                evalcondition: ""
             },
             validators: [],
             childrenctrls: [],
@@ -108,7 +108,7 @@ var comConfig = {
                     wrapperoptions: parseAttrJson(props.wrapperoptions, {})
                 },
                 props.compassthrough ? { compassthrough: props.compassthrough } : null,
-                props.evalcondition ? { evalCondition: props.evalcondition } : null
+                props.evalcondition ? { evalcondition: props.evalcondition } : null
             ),
             validators: [],
             childrenctrls: [],
@@ -121,38 +121,16 @@ var comConfig = {
         if (!jc.options.comoptions) jc.options.comoptions = {};
         if (!jc.options.labeloptions) jc.options.labeloptions = { label: "", required: false, show: true };
         if (!jc.options.itemoptions) jc.options.itemoptions = { style: {}, class: "" };
-        // === 旧命名兼容迁移（配置键全小写契约，原地修改；旧键迁移后删除，设计器保存即净化）===
-        // ① 驼峰选项组与全小写组本是同一物：仅补齐缺失键后删除旧组
-        // ② comInnerInfo 曾被误用作布局/尺寸配置槽（运行时实际不读）：size→comoptions.size，
-        //    labelPosition/labelWidth→labeloptions 全小写，comPassThrough→compassthrough
-        // ③ labeloptions 内驼峰子键 → 全小写
-        (function _migrateLegacyOptions(o) {
-            if (!o || typeof o !== 'object') return;
-            if (o.comOptions && typeof o.comOptions === 'object') {
-                Object.keys(o.comOptions).forEach(function (k) { if (!(k in o.comoptions)) o.comoptions[k] = o.comOptions[k]; });
-                delete o.comOptions;
-            }
-            if (o.labelOptions && typeof o.labelOptions === 'object') {
-                if (!o.labeloptions) o.labeloptions = {};
-                Object.keys(o.labelOptions).forEach(function (k) { if (!(k in o.labeloptions)) o.labeloptions[k] = o.labelOptions[k]; });
-                delete o.labelOptions;
-            }
-            var lo = o.labeloptions;
-            if (lo) {
-                if ('labelPosition' in lo) { if (!('labelposition' in lo)) lo.labelposition = lo.labelPosition; delete lo.labelPosition; }
-                if ('labelWidth' in lo) { if (!('labelwidth' in lo)) lo.labelwidth = lo.labelWidth; delete lo.labelWidth; }
-            }
-            var ci = o.comInnerInfo;
-            if (ci && typeof ci === 'object') {
-                if (ci.size != null && o.comoptions.size == null) o.comoptions.size = ci.size;
-                if (lo) {
-                    if (ci.labelPosition != null && lo.labelposition == null) lo.labelposition = ci.labelPosition;
-                    if (ci.labelWidth != null && lo.labelwidth == null) lo.labelwidth = ci.labelWidth;
-                }
-                if (ci.comPassThrough && !o.compassthrough) o.compassthrough = ci.comPassThrough;
-                delete o.comInnerInfo;
-            }
-        })(jc.options);
+        // 配置键契约：options 下所有框架定义的组与子键一律「全小写无分隔」
+        // （comoptions / labeloptions / itemoptions / wrapperoptions / compassthrough / evalcondition）。
+        // 这里不做任何驼峰兼容：历史数据的键名由 Data/migrate-configkeys-20261027.sql 一次性迁移。
+        // 仅做一次性诊断告警，避免旧库静默失效。
+        if (!globalThis.__DYN_CFGKEY_WARNED__ &&
+            (jc.options.comOptions || jc.options.labelOptions || jc.options.comInnerInfo)) {
+            globalThis.__DYN_CFGKEY_WARNED__ = true;
+            console.warn('[DynConfig] 检测到旧驼峰配置键（comOptions/labelOptions/comInnerInfo），' +
+                '运行时不再兼容；请对数据库执行 src/VueLibV4.Web/Data/migrate-configkeys-20261027.sql。', jc.options);
+        }
         if (!jc.options.compassthrough) jc.options.compassthrough = defaults.options.compassthrough;
         if (!Array.isArray(jc.childrenctrls)) jc.childrenctrls = [];
         if (!Array.isArray(jc.validators)) jc.validators = [];
@@ -468,7 +446,7 @@ var comConfig = {
         const shellShow = computed(() => effectivePatch.shell?.show ?? bindingsPatch.value.shell.show ?? true);
         const shellClass = computed(() => effectivePatch.shell?.class ?? bindingsPatch.value.shell.class ?? []);
         const shellStyle = computed(() => effectivePatch.shell?.style ?? bindingsPatch.value.shell.style ?? {});
-        // 从合并穿透后的 options 获取 labelOptions
+        // 从合并穿透后的 options 获取 labeloptions
         const originMergedLabelOpts = computed(() => {
             const base = mergeLabelOptions(mergedOptions.value.labeloptions, parentDefaultLabelOpts);
             return base;
@@ -712,7 +690,7 @@ var comConfig = {
             effectivePatch.shell = null;
             effectivePatch.labeloptions = null;
             effectivePatch.comoptions = null;
-            const scriptText = jc.options?.evalCondition;
+            const scriptText = jc.options?.evalcondition;
             if (!scriptText) return;
             if (window.DYN_LIB_CONFIG?.disableEvalJs) {
                 console.warn("[BaseLayout] evalCondition全局关闭");

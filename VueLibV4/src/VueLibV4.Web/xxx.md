@@ -16,11 +16,15 @@
 > 
 > 👉 容器层（DynGridContainer/DynElContainer）在`safeChildren`预处理：预览模式把`itemOptions`合并进`options.itemOptions`；设计模式直接读取，**不再额外增加 wrapper DOM，避免破坏 Grid 布局**
 
-- `options.itemOptions`：**组件本体根元素样式 class/style**
-- `comInnerInfo`：属性穿透配置，向下递归透传公共属性，例如`size:small`、`labelOptions`，子组件自动继承（表单 label 左右布局就是靠这个）
+- `options.itemoptions`：**组件本体根元素样式 class/style**
+- `options.compassthrough`：属性穿透白名单（逗号分隔配置点路径，如 `comoptions.size`），子组件仅继承声明路径
 - `options`：组件自身业务参数（输入框 placeholder、下拉选项等）
 - `modelInfo`：绑定模型路径，做数据绑定
 - `comProps`：**动态属性面板配置**（右侧属性面板只这块是动态渲染，其余是固定基础面板）
+
+> 配置键契约（2026-10-27 起）：`options` 下框架定义的组与子键一律**全小写无分隔**
+> （`comoptions` / `labeloptions` / `itemoptions` / `wrapperoptions` / `compassthrough` / `evalcondition`），
+> 不再接受 `comOptions` / `labelOptions` / `comInnerInfo` 等驼峰写法。存量库见 `Data/migrate-configkeys-20261027.sql`。
 
 2. **渲染核心：DynDynamicCom**
 

@@ -1,19 +1,17 @@
-/* dyn-action.js V4 动作系统；依赖 dyn-core.js，提供事件委托、动作链、bus事件总线、dyn-actions后端执行 */
-/* 唯一绑定协议（管道）：dyn-click="Toast('保存成功')|Submit({...})"、dyn-init="CreateApp"；
-   组合动作 $before/$onSuccess/$onFail/$after 写在某步的 JSON 参数里；postback 使用 axios UMD */
+/* dyn-action.js V4 动作系统内核（动作系统唯一注册 DynKernel 插件的文件）
+ *
+ * 职责：动作注册表 / 管道词法解析 / ctx 构建 / 组合动作包装 / bus 事件总线 /
+ *      参数占位解析 / 公开 api 装配 / 启动引导。
+ * 依赖：dyn-core.js（运行期由插件 setup 注入 global.dyn）。
+ *
+ * 模块间共享：本文件在模块作用域创建唯一命名空间 global.DynActionKit（下称 K），
+ *   dyn-action-builtins.js / dyn-action-db.js / dyn-action-docs.js / dyn-action-dom.js
+ *   只允许向 K 追加属性，禁止整体重新赋值 global.DynActionKit。
+ *   加载期 K.dyn 为 null（dyn-core 在自身 setup 才设置 global.dyn），
+ *   运行期一律通过 K.dyn 取用，不依赖 setup 局部变量。
+ */
 (function(global){
 'use strict';
-var __plugin = {
-  name:'actions', stage:'actions', requires:['dyn'],
-  setup:function(ctx){
-'use strict';
-if(!global.dyn){
-  console.error("[DynAction] 请先加载 dyn-core.js");
-  return;
-}
-const dyn = global.dyn;
-const Vue = global.Vue;
-const DYN_LIB_CONFIG = global.DYN_LIB_CONFIG||{};
 
 /**
  * @typedef DynActionCtx
@@ -52,53 +50,82 @@ const CONST = {
   DEBUG_GLOBAL_KEY: 'DYN_DEBUG'
 };
 
-const _actions = {};
-/** @type {Record<string,ActionMeta>} */
-const _actionMeta = {};
-
-/** 内置事件总线，替代旧dynCore.eventBus */
-const _bus = {
-  _listeners:Object.create(null),
-  /**
-   * @param {string} name
-   * @param {Function} handler
-   * @returns {Function} off取消函数
-   */
-  on(name,handler){
-    if(!_bus._listeners[name]) _bus._listeners[name]=[];
-    _bus._listeners[name].push(handler);
-    return ()=>_bus.off(name,handler);
+/**
+ * @description 动作系统唯一共享命名空间，供各 dyn-action-*.js 模块追加使用。
+ * dyn：运行期由插件 setup 赋值；config：运行期由插件 setup 赋值为 global.DYN_LIB_CONFIG。
+ */
+var K = global.DynActionKit = {
+  CONST: CONST,
+  actions: {},
+  /** @type {Record<string,ActionMeta>} */
+  meta: {},
+  /** 内置事件总线，替代旧dynCore.eventBus */
+  bus: {
+    _listeners:Object.create(null),
+    /**
+     * @param {string} name
+     * @param {Function} handler
+     * @returns {Function} off取消函数
+     */
+    on(name,handler){
+      if(!K.bus._listeners[name]) K.bus._listeners[name]=[];
+      K.bus._listeners[name].push(handler);
+      return ()=>K.bus.off(name,handler);
+    },
+    off(name,handler){
+      if(!K.bus._listeners[name]) return;
+      const arr = K.bus._listeners[name];
+      const idx = arr.indexOf(handler);
+      if(idx>=0) arr.splice(idx,1);
+    },
+    emit(name,payload){
+      const arr = K.bus._listeners[name]||[];
+      arr.forEach(fn=>{ try{ fn(payload); }catch(e){ console.error("[bus emit error]",e); }});
+    },
+    clear(name){
+      if(name) delete K.bus._listeners[name];
+      else K.bus._listeners = Object.create(null);
+    }
   },
-  off(name,handler){
-    if(!_bus._listeners[name]) return;
-    const arr = _bus._listeners[name];
-    const idx = arr.indexOf(handler);
-    if(idx>=0) arr.splice(idx,1);
-  },
-  emit(name,payload){
-    const arr = _bus._listeners[name]||[];
-    arr.forEach(fn=>{ try{ fn(payload); }catch(e){ console.error("[bus emit error]",e); }});
-  },
-  clear(name){
-    if(name) delete _bus._listeners[name];
-    else _bus._listeners = Object.create(null);
-  }
+  dyn: null,
+  config: {},
+  // 内核导出给其它动作模块的公共函数（函数声明提升，加载期即可用）
+  defineAction: defineAction,
+  applyTpl: applyTpl,
+  resolveCtxTokens: resolveCtxTokens,
+  resolveAction: resolveAction,
+  getMeta: getMeta,
+  normActionSteps: normActionSteps,
+  wrapCompositeAction: wrapCompositeAction,
+  parsePipeArg: parsePipeArg,
+  parsePipe: parsePipe,
+  runPipe: runPipe,
+  resolveActionConfig: resolveActionConfig,
+  buildCtx: buildCtx,
+  firstTruthy: firstTruthy,
+  firstDefined: firstDefined,
+  confirmIfNeeded: confirmIfNeeded,
+  wrapDyndata: wrapDyndata,
+  _runEvents: _runEvents
 };
 
 /**
- * @description 注册动作
+ * @description 注册动作（注册名统一小写，返回值即规范后的 key）
  * @param {string} name
  * @param {Function} fn
+ * @returns {string} 规范后的动作名
  * @demo defineAction("toast",ctx=>{ dyn.showMessage(ctx.options.message); })
  */
 function defineAction(name,fn){
-  _actions[name]=fn;
-  _actionMeta[name]={
-    name,
-    label:fn._label||name,
+  const key = String(name||'').toLowerCase();
+  K.actions[key]=fn;
+  K.meta[key]={
+    name:key,
+    label:fn._label||String(name||''),
     doc:fn._doc||'',
     events:fn._events?fn._events.slice():CONST.ACTION_EVENTS.slice()
   };
+  return key;
 }
 
 /**
@@ -136,7 +163,7 @@ function applyTpl(val,params){
 function resolveCtxTokens(ctx){
   try{
     if(!ctx||!ctx.options) return;
-    const pctx = typeof dyn.params==='function' ? dyn.params(ctx.element) : null;
+    const pctx = typeof K.dyn.params==='function' ? K.dyn.params(ctx.element) : null;
     if(pctx && typeof pctx.resolveValue==='function'){
       ctx.options = pctx.resolveValue(ctx.options, ctx.$result);
       ctx.params = ctx.options.params || ctx.params || {};
@@ -146,16 +173,33 @@ function resolveCtxTokens(ctx){
 }
 
 /**
- * @description 大小写不敏感查找动作
+ * @description 大小写不敏感查找动作（先精确，再忽略大小写）
  * @param {string} name
  * @returns {Function|null}
  */
 function resolveAction(name){
   if(!name) return null;
-  if(_actions[name]) return _actions[name];
+  if(K.actions[name]) return K.actions[name];
   const lower = name.toLowerCase();
-  for(const k of Object.keys(_actions)){
-    if(k.toLowerCase()===lower) return _actions[k];
+  if(K.actions[lower]) return K.actions[lower];
+  for(const k of Object.keys(K.actions)){
+    if(k.toLowerCase()===lower) return K.actions[k];
+  }
+  return null;
+}
+
+/**
+ * @description 大小写不敏感查找动作元信息（先精确，再忽略大小写）
+ * @param {string} name
+ * @returns {ActionMeta|null}
+ */
+function getMeta(name){
+  if(!name) return null;
+  if(K.meta[name]) return K.meta[name];
+  const lower = String(name).toLowerCase();
+  if(K.meta[lower]) return K.meta[lower];
+  for(const k of Object.keys(K.meta)){
+    if(k.toLowerCase()===lower) return K.meta[k];
   }
   return null;
 }
@@ -188,7 +232,7 @@ function wrapCompositeAction(originalFn){
     for(const step of beforeSteps){
       const fn = resolveAction(step.action);
       if(!fn) continue;
-      const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+      const subCtx = K.dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
       const ret = await fn(subCtx);
       if(ret===false){ ctx.$abort=true; return false; }
     }
@@ -205,7 +249,7 @@ function wrapCompositeAction(originalFn){
       for(const step of failSteps){
         const fn = resolveAction(step.action);
         if(!fn) continue;
-        const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+        const subCtx = K.dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
         subCtx.$result = err; resolveCtxTokens(subCtx);
         await fn(subCtx);
       }
@@ -216,7 +260,7 @@ function wrapCompositeAction(originalFn){
       for(const step of succSteps){
         const fn = resolveAction(step.action);
         if(!fn) continue;
-        const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+        const subCtx = K.dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
         subCtx.$result = res; resolveCtxTokens(subCtx);
         await fn(subCtx);
       }
@@ -226,7 +270,7 @@ function wrapCompositeAction(originalFn){
     for(const step of afterSteps){
       const fn = resolveAction(step.action);
       if(!fn) continue;
-      const subCtx = dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
+      const subCtx = K.dyn.buildCtx(ctx.element,ctx.event,ctx.$event,step.options||{},step.action);
       subCtx.$result = success?res:undefined; resolveCtxTokens(subCtx);
       await fn(subCtx);
     }
@@ -285,7 +329,7 @@ async function runPipe(steps,el,eventName,$event){
   for(let i=0;i<steps.length;i++){
     const s = steps[i];
     const fn = resolveAction(s.action);
-    if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',s.action),'warning'); continue; }
+    if(!fn){ K.dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',s.action),'warning'); continue; }
     const c = buildCtx(el,eventName||'pipe',$event,s.options||{},s.action);
     c.$step = i; c.$result = last;
     resolveCtxTokens(c); // $result 已就绪，重解析 "$result.xxx" 占位
@@ -354,12 +398,12 @@ function buildCtx(el,eventName,$event,options,actionName){
   // 记录 params 中来自元素 data-* 属性的键（如 data-v-app/data-trae-ref），
   // 供 setparams 等动作区分"用户显式声明"与"buildCtx 自动收集"，避免污染
   optCopy.__elParams = params;
-  const sharedModel = dyn.getScopeModel(el);
-  const localModel = dyn.getModel(dyn.closestDynInit(el));
+  const sharedModel = K.dyn.getScopeModel(el);
+  const localModel = K.dyn.getModel(K.dyn.closestDynInit(el));
   const finalModel = sharedModel ?? localModel;
   // vm 必须指向触发元素所在 createapp 容器（el 自身无 __dynApp），否则 ctx.vm 恒为 null，
   // 弹窗 onclose / postback $onSuccess 里的 evaljs（ctx.vm.onQuery()）会抛 "Cannot read properties of null"
-  const app = (typeof dyn.getClosestApp === 'function' && dyn.getClosestApp(el)) || dyn.getApp(el);
+  const app = (typeof K.dyn.getClosestApp === 'function' && K.dyn.getClosestApp(el)) || K.dyn.getApp(el);
   // 该 Vue 版本 app._instance 为 null，但 dyn-core 挂载后已把 proxy 写入 app.__dynProxy / el.__dynProxy
   const appVm = app && (app.__dynProxy || (app._instance && app._instance.proxy)) || null;
   const ctx = {
@@ -380,753 +424,57 @@ function buildCtx(el,eventName,$event,options,actionName){
   return ctx;
 }
 
-// ---------------------- 内置动作定义 ----------------------
-defineAction('createapp',async ctx=>{
-  const o = ctx.options||{};
-  const el = ctx.element;
-  const url = o.url||el.getAttribute('data-dyn-url');
-  if(url) el.setAttribute('data-dyn-url',url);
-  el.setAttribute('data-dyn-mode','createApp');
-  await dyn.mount(el);
-});
-
-defineAction('postback',async function(ctx){
-  const o = ctx.options||{};
-  const url = o.url||ctx.url;
-  if(!url){ dyn.showMessage(CONST.MSG_MISS_URL.replace('{action}','postback'),'error'); return; }
-  if(o.confirm){
-    const ok = await dyn.confirmAsync(o.confirm===true?'确定执行该操作吗？':o.confirm);
-    if(!ok) return false;
-  }
-  // useEventPayload 默认true
-  const usePayload = o.useEventPayload!==false;
-  let body;
-  if(o.body && typeof o.body==='object'){
-    // 统一契约通道：显式声明请求体（{{占位}} 已由 buildCtx→applyTpl 用 data-* 行参数替换）
-    // 例：{"body":{"table":"X","keys":{"Id":"{{Id}}"}}}
-    body = dyn.deepClone(o.body);
-  }else if(usePayload){
-    body = { event:o.event||'', data:Object.assign({},ctx.model||{}) };
-  }else{
-    body = dyn.deepClone(ctx.model||{});
-  }
-  // wrap：把默认扁平 body 包成 dyndata 统一契约（表单类提交无法逐字段列 body 模板时用）
-  // 例：{"wrap":{"table":"DesktopShortcut","dataField":"data","gridId":"grid_x"}}
-  if(o.wrap && typeof o.wrap==='object' && o.wrap.table && !(o.body&&typeof o.body==='object')){
-    const wrapped = { table:o.wrap.table };
-    if(o.wrap.gridId) wrapped.gridId = o.wrap.gridId;
-    if(o.wrap.project) wrapped.project = o.wrap.project;
-    wrapped[o.wrap.dataField||'data'] = body;
-    body = wrapped;
-  }
-  // params 仍可走 query（body 显式声明时通常无需 params→query）
-  const queryParams = o.body ? null : o.params;
-  const qs = queryParams?new URLSearchParams(queryParams).toString():'';
-  const fullUrl = qs?(url+(url.indexOf('?')>=0?'&':'?')+qs):url;
-  try{
-    if(!window.axios) throw new Error("Axios未加载");
-    const ajax = await window.axios({
-      method:'POST',
-      url:fullUrl,
-      headers:{'Content-Type':'application/json'},
-      data:body
-    });
-    const res = ajax.data;
-    const failed = res.success===false||res.Success===false||(typeof res.code==='number'&&res.code!==0);
-    if(failed){ dyn.showMessage(res.msg||res.Message||'操作失败','error'); throw new Error(res.msg||res.Message||'操作失败'); }
-    //识别dyn-actions
-    if(res&&Array.isArray(res[CONST.DATA_DYN_ACTIONS])){
-      runJsonActions({actions:res[CONST.DATA_DYN_ACTIONS]},ctx.element);
-    }
-    if(o.reload) await dyn.reload(o.reload,{params:o.params});
-    if(o.close) await dyn.close(ctx.element);
-    if(o.message) dyn.showMessage(o.message,'success');
-    return res;
-  }catch(err){ dyn.showMessage('请求异常:'+err.message,'error'); throw err; }
-});
-defineAction('postdata',ctx=>_actions.postback(ctx));
+/**
+ * @description 按顺序返回第一个真值，等价于原来的 o.a||o.b||... 链
+ * @param {object} o
+ * @param {string[]} keys
+ * @returns {any}
+ */
+function firstTruthy(o, keys){
+  if(!o) return undefined;
+  for(const k of keys){ if(o[k]) return o[k]; }
+  return undefined;
+}
 
 /**
- * reload 刷新（双路分发）：
- *   目标元素（或其最近 [data-blk-role] 祖先）是已挂载 BlockApp 且句柄注册了 reload
- *   → 直接 handle.send('reload')（list/tree 等数据型 block 自管理加载）；
- *   否则回退原有片段刷新 dyn.reload（data-dyn-url 容器 fetchPartial + 重新 mount）。
- * 目标：selector/target 选择器，或 reload('#id') 的单参 value；省略=触发元素自身。
+ * @description 按顺序返回第一个 != null 的值，等价于原来的 a ?? b ?? dft 链
+ * @param {object} o
+ * @param {string[]} keys
+ * @param {any} dft
+ * @returns {any}
  */
-defineAction('reload',async ctx=>{
-  const o = ctx.options||{};
-  const sel = o.selector||o.target||(o.value!==undefined?o.value:null);
-  let el = null;
-  if(sel&&typeof sel==='string') el = dyn.resolve(sel);
-  else if(sel&&sel.nodeType) el = sel;
-  else el = ctx.element;
-  if(el&&el.closest){
-    const blk = (el.hasAttribute&&el.hasAttribute('data-blk-role')) ? el : el.closest('[data-blk-role]');
-    const handle = blk&&blk.__dynBlock;
-    if(handle&&typeof handle.send==='function'){
-      try{ return await handle.send('reload'); }
-      catch(e){ console.warn('[reload] block reload 失败，回退片段刷新',e); }
-    }
+function firstDefined(o, keys, dft){
+  if(o){
+    for(const k of keys){ if(o[k]!==undefined&&o[k]!==null) return o[k]; }
   }
-  return dyn.reload(el||ctx.element,o);
-});
+  return dft;
+}
 
 /**
- * grid 表格动作（M4 三屏模板）：按 gridId 刷新注册到 window.DynGrids 的 DynTable
- *   dyn-click="grid('grid_student')"
- *   或配置式：{"gridId":"grid_student","page":1,"reset":true}  reset=true 先清空筛选区字段
+ * @description 需要时弹确认框：o.confirm===true 用默认提示语，否则用 o.confirm 文本
+ * @param {object} o 动作 options
+ * @param {string} defaultMsg 默认提示语
+ * @returns {Promise<boolean>} 未要求确认时恒为 true
  */
-defineAction('grid',async ctx=>{
-  const o = ctx.options||{};
-  const id = o.gridId||o.target||(typeof o.value==='string'&&o.value?o.value:null);
-  if(!id){ dyn.showMessage('[grid]缺少 gridId（如 grid(\'grid_xxx\')）','warning'); return false; }
-  const g = (window.DynGrids||global.DynGrids) && (window.DynGrids||global.DynGrids)[id];
-  if(!g){ console.warn('[grid]未找到已注册表格：'+id+'（检查 DynTable comoptions.gridId）'); return false; }
-  if(o.reset && typeof g.resetFilter==='function') g.resetFilter();
-  return g.refresh(o.page||1);
-});
-
-defineAction('load',async ctx=>{
-  const o = ctx.options||{};
-  const url = o.url||ctx.url;
-  if(!url){ dyn.showMessage("[load]缺少url",'error'); return; }
-  const html = await dyn.fetchPartial(url,o.params||{},o.method||'POST');
-  await dyn.html(ctx.element,html);
-});
+async function confirmIfNeeded(o, defaultMsg){
+  if(!o||!o.confirm) return true;
+  const ok = await K.dyn.confirmAsync(o.confirm===true?defaultMsg:o.confirm);
+  return !!ok;
+}
 
 /**
- * updateEl 局部刷新（原则2核心）：
- *   <button dyn-click="ActionHelper.Submit" data-dyn-target="#resultPanel" data-url="/Home/QueryBlock">查询</button>
- * 提交当前 scope model → Controller 返回 HTML 片段替换目标区块并重新 mount；
- * 若返回 ApiResult JSON，则执行其中 dyn-actions，data 为片段字符串时同样替换区块。
+ * @description 把扁平 body 包成 dyndata 统一契约 {table,gridId?,project?,dataField?}
+ * @param {any} body
+ * @param {object} wrap 必须含 table
+ * @returns {object}
  */
-defineAction('updateel',async ctx=>{
-  const o = ctx.options||{};
-  const targetSel = o.target||o.selector
-    ||(ctx.element?ctx.element.getAttribute('data-dyn-target'):null);
-  if(!targetSel){ dyn.showMessage('[updateEl]缺少 target 选择器（如 data-dyn-target="#resultPanel"）','warning'); return false; }
-  const targetEl = dyn.resolve(targetSel);
-  if(!targetEl){ dyn.showMessage('[updateEl]未找到目标元素：'+targetSel,'warning'); return false; }
-  const url = o.url
-    ||(ctx.element&&ctx.element.getAttribute('data-dyn-url'))
-    ||(ctx.element&&ctx.element.getAttribute('data-url'))
-    ||ctx.url;
-  if(!url){ dyn.showMessage('[updateEl]缺少url参数','error'); return false; }
-  if(o.confirm){
-    const ok = await dyn.confirmAsync(o.confirm===true?'确定执行该操作吗？':o.confirm);
-    if(!ok) return false;
-  }
-  let body = Object.assign({},dyn.deepClone(ctx.model||{}),o.params||{});
-  // wrap：表单 model 包成 dyndata 统一契约 {table,data,gridId?}（旧管理页保存按钮零业务 JS 的统一写法）
-  if(o.wrap && typeof o.wrap==='object' && o.wrap.table){
-    const wrapped = { table:o.wrap.table };
-    if(o.wrap.gridId) wrapped.gridId = o.wrap.gridId;
-    if(o.wrap.project) wrapped.project = o.wrap.project;
-    wrapped[o.wrap.dataField||'data'] = body;
-    body = wrapped;
-  }
-  // 片段参数链：目标 pane 从【触发方】上下文 fork（o.params 是 L0 入参，不自动灌入请求之外的地方）
-  const forkCtx = typeof dyn.params==='function' ? dyn.params(ctx.element) : null;
-  const bootInfo = { parentCtx:forkCtx, local:o.params||{} };
-  const text = await dyn.fetchPartial(url,body,o.method||'POST','text');
-  let parsed = null;
-  try{ parsed = JSON.parse(text); }catch(e){ parsed = null; }
-  if(parsed&&typeof parsed==='object'){
-    // ApiResult 失败（code 非 0）：明确提示，不执行 dyn-actions、不关闭弹窗
-    if(parsed.code!==undefined&&parsed.code!==null&&Number(parsed.code)!==0){
-      dyn.showMessage(parsed.msg||'操作失败','error');
-      return parsed;
-    }
-    if(Array.isArray(parsed[CONST.DATA_DYN_ACTIONS])){
-      runJsonActions({actions:parsed[CONST.DATA_DYN_ACTIONS]},targetEl);
-    }
-    if(typeof parsed.data==='string'&&parsed.data.indexOf('<')>=0){
-      return await dyn.html(targetEl,parsed.data,true,bootInfo);
-    }
-    return parsed;
-  }
-  return await dyn.html(targetEl,text,true,bootInfo);
-});
-// 语义别名：Submit=提交并刷新区块；ReloadTarget=刷新指定区块
-defineAction('submit',ctx=>_actions.updateel(ctx));
-defineAction('reloadtarget',ctx=>_actions.updateel(ctx));
-
-/**
- * open 弹窗（原则4：统一 layui layer）
- *   mode:'iframe'（或 openwindow）→ layer type:2 直接打开 MVC 页面
- *   默认 mode:'fragment'          → 拉 HTML 片段注入 layer，自动 dyn.mount（dyn-init 动作生效）
- *   onopen/onclose 动作钩子；reloadSelf 关闭后刷新触发容器
- */
-defineAction('open',async ctx=>{
-  const o = ctx.options||{};
-  const url = o.url||ctx.url;
-  if(!url){ dyn.showMessage("[open]缺少url",'error'); return; }
-  const triggerEl = ctx.element;
-  const layer = await dyn.getLayer();
-  const onEnd = async ()=>{
-    await _runEvents(normActionSteps(o.onclose),Object.assign({},ctx,{}));
-    if(o.reloadSelf){
-      const host = dyn.findAncestor(triggerEl,'[data-dyn-url]')||triggerEl;
-      await dyn.reload(host);
-    }
-  };
-
-  if(layer){
-    // 基础默认配置，外部o中的同名字段会覆盖这里
-    const baseOpt = {
-      title: '对话框',
-      shadeClose: false,
-      maxmin:true,
-    };
-    // 合并：用户options覆盖默认
-    const layerOpt = Object.assign({}, baseOpt, o);
-
-    // area 处理：优先使用o.area；没有则用 width/height 生成
-    if(!layerOpt.area){
-      layerOpt.area = [layerOpt.width || '60%', layerOpt.height || '80%'];
-    }
-
-    if(o.mode==='iframe'||o.iframe===true){
-      // iframe 固定 type=2，强制覆盖，不可外部修改
-      const idx = layer.open({
-        ...layerOpt,
-        type:2,
-        content:url,
-        end:()=>{ onEnd().catch(e=>console.error('[open onEnd]',e)); }
-      });
-      if(o.max){ try{ layer.full(idx); }catch(e){} } // 打开即最大化
-      return { index:idx };
-    }
-
-    // fragment type:1
-    const holder = document.createElement('div');
-    holder.className='dyn-modal-host dyn-layer-fragment';
-    holder.style.padding='0px';
-    holder.style.display='none';
-    document.body.appendChild(holder);
-    // 弹窗片段继承调用方参数链：holder fork 到触发上下文（o.params 为 L0 入参层），
-    // 片段内 Block/App 无需关心 URL query，按 dyn.params(el).get() 同一约定取值。
-    if(typeof dyn.params==='function'){
-      try{ dyn.params(triggerEl).fork(holder, o.params||{}); }catch(e){}
-    }
-    const holderContent = (global.layui && global.layui.$) ? global.layui.$(holder) : holder;
-
-    const idx = layer.open({
-      ...layerOpt,
-      type:1, // fragment固定type=1，强制覆盖
-      content:holderContent,
-      success:async ()=>{
-        try{
-          holder.innerHTML = '<div style="padding:16px;color:#909399;">加载中…</div>';
-          const html = await dyn.fetchPartial(url,o.params||{},o.method||'GET');
-          global.dyn.html(holder,html);
-          // 权限上下文透传：inheritResource=true 时，从触发源向上找 resourceKey，写到弹窗根节点
-          if(o.inheritResource && typeof window.DynPermission==='object' && window.DynPermission.findResourceKey){
-            const rk = window.DynPermission.findResourceKey(triggerEl);
-            if(rk){
-              holder.setAttribute('data-block-resource', rk);
-              if(typeof window.DynPermission.scan==='function') window.DynPermission.scan(holder);
-            }
-          }
-          await _runEvents(normActionSteps(o.onopen),Object.assign({},ctx,{holder}));
-        }catch(e){
-          holder.innerHTML = '<div style="padding:16px;color:#f56c6c;">加载失败：'+(e.message||e)+'</div>';
-        }
-      },
-      end:()=>{ 
-        try{dyn.unmount(holder);}catch(e){} 
-        try{holder.remove();}catch(e){} 
-        onEnd().catch(e=>console.error('[open onEnd]',e)); 
-      }
-    });
-    if(o.max){ try{ layer.full(idx); }catch(e){} } // 打开即最大化
-    return { index:idx, holder };
-  }
-  // layer 不可用降级
-  global.open(url,'_blank');
-  return null;
-});
-
-
-/** openWindow：以 iframe 方式打开完整 MVC 页面（V1 同名动作） */
-defineAction('openwindow',ctx=>_actions.open(Object.assign({},ctx,{options:Object.assign({mode:'iframe'},ctx.options||{})})));
-
-/** close/closeWindow：关闭最近 layer；在 iframe 子页内调用则关闭父窗 layer */
-defineAction('close',async ctx=>{
-  // iframe 子页面关闭父窗弹窗
-  try{
-    if(window.parent&&window.parent!==window&&window.parent.layui&&window.parent.layui.layer){
-      const pidx = new URLSearchParams(window.location.search).get('layerIndex');
-      if(pidx!=null) window.parent.layui.layer.close(pidx);
-      else window.parent.layui.layer.closeAll();
-      return;
-    }
-  }catch(e){}
-  const layer = await dyn.getLayer();
-  if(!layer) return;
-  const start = ctx.element;
-  const layero = start&&start.closest?start.closest('.layui-layer'):null;
-  if(layero){
-    const times = layero.getAttribute('times');
-    if(times!=null&&times!==''){ layer.close(times); return; }
-  }
-  layer.closeAll();
-});
-defineAction('closewindow',ctx=>_actions.close(ctx));
-
-/** setwin：设置当前 layer 窗口的标题/尺寸/位置。
- *  仅当触发元素位于窗口容器(.layui-layer)内才生效，不在窗口内则静默返回、不做任何事。
- *  用法（点击管道）：dyn-click="ActionHelper.setwin|{\"title\":\"编辑桌面快捷方式\",\"width\":\"700px\",\"height\":\"520px\"}"
- *  支持：title / width / height / top / left / right / bottom 直传；css 对象可再透传更多样式。
- *  （区别于 setwindow：那是 iframe 间 postMessage 投递，用于父子窗口通信。） */
-defineAction('setwin',async ctx=>{
-  const o = ctx.options||{};
-  const start = ctx.element;
-  // 1) layui layer 窗口
-  const layero = start&&start.closest?start.closest('.layui-layer'):null;
-  if(layero){
-    const layer = await dyn.getLayer();
-    if(!layer) return { changed:false, reason:'no-layer' };
-    const times = layero.getAttribute('times');
-    if(times==null||times==='') return { changed:false, reason:'no-times' };
-    // 标题
-    if(o.title!==undefined&&o.title!==null&&o.title!==''){
-      try{ layer.title(String(o.title),times); }catch(e){ console.error('[setwin title]',e); }
-    }
-    // 尺寸/位置：width/height/top/left/right/bottom 直传，css 对象可再合并
-    const style = {};
-    ['width','height','top','left','right','bottom'].forEach(k=>{
-      if(o[k]!==undefined&&o[k]!==null&&o[k]!=='') style[k]=o[k];
-    });
-    if(o.css&&typeof o.css==='object') Object.assign(style,o.css);
-    if(Object.keys(style).length){
-      try{ layer.style(times,style); }catch(e){ console.error('[setwin style]',e); }
-    }
-    return { changed:true, kind:'layer', times:times };
-  }
-  // 2) Element Plus / Element UI el-dialog（append-to-body 后容器在 body 下）
-  const dlgHost = start&&start.closest?start.closest('.el-dialog, .el-dialog__wrapper'):null;
-  if(dlgHost){
-    const dialog = dlgHost.classList.contains('el-dialog')?dlgHost:dlgHost.querySelector('.el-dialog');
-    if(dialog){
-      // 标题
-      if(o.title!==undefined&&o.title!==null&&o.title!==''){
-        const t = dialog.querySelector('.el-dialog__title');
-        if(t) t.textContent = String(o.title);
-      }
-      if(o.width){
-        dialog.style.width = o.width;
-        // Element Plus 的 width 由 CSS 变量 --el-dialog-width 控制，须同步覆盖，否则 style.width 无效
-        dialog.style.setProperty('--el-dialog-width', o.width);
-      }
-      if(o.height){
-        // 固定高 + body 自适应滚动：纵向 flex 布局
-        dialog.style.height = o.height;
-        dialog.style.display = 'flex';
-        dialog.style.flexDirection = 'column';
-        const body = dialog.querySelector('.el-dialog__body');
-        if(body){ body.style.flex = '1 1 auto'; body.style.minHeight = '0'; body.style.overflow = 'auto'; }
-        const footer = dialog.querySelector('.el-dialog__footer');
-        if(footer){ footer.style.flex = '0 0 auto'; }
-      }
-      if(o.top!=null) dialog.style.marginTop = o.top;
-      if(o.left!=null) dialog.style.marginLeft = o.left;
-      if(o.css&&typeof o.css==='object') Object.assign(dialog.style,o.css);
-      return { changed:true, kind:'el-dialog' };
-    }
-  }
-  // 不在任何窗口容器内：静默返回
-  return { changed:false, reason:'not-in-window' };
-});
-
-defineAction('toast',ctx=>{
-  const o = ctx.options||{};
-  const msg = o.message||o.msg||(o.value!==undefined?String(o.value):'');
-  if(!msg) return;
-  dyn.showMessage(msg,o.type||'success');
-});
-// V1 服务端动作名 showmessage 与 toast 等价
-defineAction('showmessage',ctx=>_actions.toast(ctx));
-
-defineAction('notify',ctx=>{
-  const o = ctx.options||{};
-  if(!global.ElementPlus||!global.ElementPlus.ElNotification) return dyn.showMessage(o.message);
-  global.ElementPlus.ElNotification({
-    title:o.title||'',message:o.message||'',type:o.type||'success',duration:Number(o.duration||3000)
-  });
-});
-
-/**
- * setVueModel 写 Vue 模型（兼容旧用法 + 跨 app 编排）：
- *
- * 旧用法（不变）：{modelName/path, value} → 写触发元素自身 scope model。
- *
- * 跨 app（布局壳声明式编排）：
- *   target   目标元素选择器（省略=触发方 scope model），如 '#Flw1-master'；
- *   from     源元素选择器（省略=触发元素所在 app，filter 按钮场景即 filter 自己）；
- *   fromPath 源 proxy 上的取值路径，如 'filterModel' / 'initModel'；
- *   fromMethod 源 proxy 上的无参方法，取其返回值，如 'buildSubmit'（优先级高于 fromPath）。
- * 例：查询 = setVueModel({"target":"#m","path":"model.filter","fromMethod":"buildSubmit"})
- *     重置首步 = setVueModel({"target":"#f","path":"filterModel","fromPath":"initModel"})
- */
-defineAction('setVueModel',async ctx=>{
-  const o = ctx.options||{};
-  const modelName = o.modelName||o.path;
-  if(!modelName){
-    dyn.showMessage('setVueModel：path/modelName不能为空','warning');
-    return null;
-  }
-  const delay = Number(o.settimeout||o.delay||0);
-
-  // —— 目标 proxy：target 指定跨 app 元素；省略维持旧行为（写触发方 scope model）——
-  let targetProxy = ctx.model;
-  if(o.target){
-    const tel = dyn.resolve(o.target);
-    if(!tel){ dyn.showMessage('setVueModel：未找到目标元素 '+o.target,'warning'); return null; }
-    targetProxy = (typeof dyn.getProxy==='function'&&dyn.getProxy(tel))||null;
-  }
-  if(!targetProxy){
-    dyn.showMessage('setVueModel：未获取到model(scope)','warning');
-    return null;
-  }
-
-  // —— 源值：from/fromPath/fromMethod 跨 app 取；否则沿用旧行为 value（支持 {{params}} 占位）——
-  let realVal;
-  if(o.from!==undefined||o.fromPath||o.fromMethod){
-    const srcEl = (o.from ? dyn.resolve(o.from) : null)||ctx.element;
-    if(!srcEl){ dyn.showMessage('setVueModel：未找到源元素 '+(o.from||''),'warning'); return null; }
-    const srcProxy = (typeof dyn.getProxy==='function'&&dyn.getProxy(srcEl))||null;
-    if(!srcProxy){ dyn.showMessage('setVueModel：源元素上无Vue实例','warning'); return null; }
-    if(o.fromMethod){
-      const fn = dyn.getByPath(srcProxy,o.fromMethod);
-      if(typeof fn!=='function'){ dyn.showMessage('setVueModel：源方法不存在 '+o.fromMethod,'warning'); return null; }
-      realVal = fn.call(srcProxy);
-    }else if(o.fromPath){
-      realVal = dyn.getByPath(srcProxy,o.fromPath);
-    }else{
-      realVal = srcProxy;
-    }
-  }else{
-    realVal = o.value;
-    if(typeof realVal === 'string') realVal = applyTpl(realVal, ctx.params);
-  }
-  try{
-    if(delay>0){
-      await new Promise(resolve=>setTimeout(resolve,delay));
-    }
-    // clone:true 写入深拷贝（如"重置回基线"场景，避免后续编辑反向污染源模型）
-    if(o.clone&&realVal&&typeof realVal==='object') realVal = dyn.deepClone(realVal);
-    dyn.setPathVal(targetProxy,modelName,realVal);
-    return realVal;
-  }catch(err){
-    dyn.showMessage(`setVueModel执行异常:${err.message}`,'error');
-    return null;
-  }
-});
-
-defineAction('setvar',async ctx=>{
-  const o = ctx.options||{};
-  const modelName = o.modelName||o.path;
-  if(!modelName){
-    dyn.showMessage('setvar：path/modelName不能为空','warning');
-    return null;
-  }
-  const model = ctx.model;
-  if(!model){
-    dyn.showMessage('setvar：未获取到model(scope)','warning');
-    return null;
-  }
-  const delay = Number(o.delay || 0);
-  let v = o.value;
-  if(typeof v === 'string'){
-    v = applyTpl(v, ctx.params);
-  }
-  try{
-    if(delay > 0){
-      await new Promise(resolve=>setTimeout(resolve,delay));
-    }
-    dyn.setPathVal(model, modelName, v);
-    return v;
-  }catch(err){
-    dyn.showMessage(`setvar执行异常:${err.message}`,'error');
-    return null;
-  }
-});
-
-/**
- * @description calc 安全表达式运算动作，不使用eval/new Function，仅支持简单赋值运算
- * 支持语法：
- *   count +=1 / count -=1 / count *=2 / count /=2
- *   total = price * num / sum = a + b / diff = a - b / avg = total / count
- * 变量名仅限model内部字段，支持点路径 user.score += 5
- * @param {DynActionCtx} ctx
- * @returns {Promise<number|null>}
- */
-defineAction('calc',async ctx=>{
-  const o = ctx.options||{};
-  const expr = o.expr || '';
-  if(!expr){
-    dyn.showMessage('calc：expr表达式不能为空','warning');
-    return null;
-  }
-  const model = ctx.model;
-  if(!model){
-    dyn.showMessage('calc：未获取到model(scope)','warning');
-    return null;
-  }
-  const src = expr.replace(/\s+/g,' ').trim();
-  // 自增自减支持空格和步长：count +=1 / count += 1 / count += 5
-  const assignSelfRe = /^([\w.]+)\s*(\+=|-=|\*=|\/=)\s*([0-9.]+)?$/;
-  const assignBinRe = /^([\w.]+)\s*=\s*([\w.]+)\s*(\+|-|\*|\/)\s*([0-9.]+|[\w.]+)$/;
-  let match;
-  let targetPath;
-  let resultValue;
-  if((match = src.match(assignSelfRe))){
-    // 自增自减：count +=1 / count += 5
-    targetPath = match[1];
-    const op = match[2];
-    const step = match[3]===undefined ? 1 : Number(match[3]);
-    const cur = dyn.getByPath(model, targetPath) ?? 0;
-    let num = Number(cur);
-    switch(op){
-      case '+=': num = num + step; break;
-      case '-=': num = num - step; break;
-      case '*=': num = num * step; break;
-      case '/=': num = step===0?0 : num / step; break;
-    }
-    resultValue = num;
-  }else if((match = src.match(assignBinRe))){
-    // 二元运算：total = price * num
-    targetPath = match[1];
-    const leftPath = match[2];
-    const operator = match[3];
-    const rightRaw = match[4];
-    const getVal = (p)=>{
-      if(/^[0-9.]+$/.test(p)) return Number(p);
-      return dyn.getByPath(model,p)??0;
-    };
-    const lv = getVal(leftPath);
-    const rv = getVal(rightRaw);
-    switch(operator){
-      case '+': resultValue = lv + rv; break;
-      case '-': resultValue = lv - rv; break;
-      case '*': resultValue = lv * rv; break;
-      case '/': resultValue = rv===0?0 : lv / rv; break;
-      default: dyn.showMessage(`calc不支持运算符${operator}`,'warning'); return null;
-    }
-  }else{
-    dyn.showMessage(`calc表达式语法不支持：${expr}\n支持示例：count +=1、total=price*num`,'warning');
-    return null;
-  }
-  dyn.setPathVal(model, targetPath, resultValue);
-  return resultValue;
-});
-
-defineAction('evaljs',async ctx=>{
-  if(DYN_LIB_CONFIG.disableEvalJs){ dyn.showMessage("evaljs已全局关闭",'warning'); return; }
-  const code = ctx.options.js||ctx.options.code||ctx.options;
-  if(!code) return;
-  try{
-    const fn = new Function('ctx','$bus','return ('+code+')');
-    return fn(ctx,_bus);
-  }catch(e){ dyn.showMessage("evaljs执行异常:"+e.message,'error'); }
-});
-
-/** setparams：统一参数上下文写值。
- *  scope:'shared'（默认）→ ctx.commit，链式各 fork/兄弟 tab 立即可见（tab1 保存回传 newId 的官方通道）；
- *  scope:'local'        → ctx.set，仅本上下文及子孙可见（局部覆盖）。
- * 写法：
- *   {action:'setparams', options:{courseId:"$result.data.Id"}}          —— 除保留键外全部入栈
- *   {action:'setparams', options:{scope:'local', params:{rowId:27}}}    —— 显式 params 包
- * 保留键：scope/params/key/value；单键写法 {key:'courseId', value:27}。
- */
-defineAction('setparams',async ctx=>{
-  const o = ctx.options||{};
-  const pctx = typeof dyn.params==='function' ? dyn.params(ctx.element) : null;
-  if(!pctx){ console.warn('[setparams] 参数上下文不可用'); return false; }
-  const RESERVED = ['scope','params','key','value','__elParams'];
-  const elParams = o.__elParams || {};
-  // o.params 中排除 buildCtx 自动收集的元素 data-* 键（data-v-app/data-trae-ref 等），
-  // 剩下的才是用户在动作配置里显式声明的 params
-  const explicitPairs = {};
-  let hasExplicit = false;
-  if(o.params && typeof o.params==='object'){
-    Object.keys(o.params).forEach(k=>{
-      if(!(k in elParams)){ explicitPairs[k]=o.params[k]; hasExplicit=true; }
-    });
-  }
-  const pairs = Object.assign({},
-    o.key ? {[o.key]:o.value} : null,
-    hasExplicit ? explicitPairs : null
-  );
-  // 平铺形式：既没有 key，也没有显式 params 对象时，保留字以外的 options 键全部作为参数
-  if(!o.key && !hasExplicit){
-    Object.keys(o).forEach(k=>{ if(RESERVED.indexOf(k)<0) pairs[k]=o[k]; });
-  }
-  const scope = o.scope==='local' ? 'local' : 'shared';
-  Object.keys(pairs).forEach(k=>{
-    if(scope==='local') pctx.set(k,pairs[k]);
-    else pctx.commit(k,pairs[k],{by:'setparams:'+ctx.action});
-  });
-  return pairs;
-});
-
-defineAction('setattr',ctx=>{
-  const o = ctx.options||{};
-  const el = o.selector?document.querySelector(o.selector):ctx.element;
-  if(!el){ dyn.showMessage("setattr未找到元素",'warning'); return; }
-  if(o.attr) Object.keys(o.attr).forEach(k=>el.setAttribute(k,o.attr[k]));
-  if(o.style) Object.keys(o.style).forEach(k=>el.style[k]=o.style[k]);
-  if(o.text!==undefined) el.textContent = o.text;
-  if(o.html!==undefined) el.innerHTML = o.html;
-});
-
-/**
- * setDynCom：运行时修改某个 dyn 组件的 jsonconfig（响应式，视图立即刷新）
- *   options: { selector:'#com1', path:'options.comoptions.disabled', value:true }
- *   或 patch 整体合并：{ selector:'#com1', patch:{...} }
- */
-defineAction('setdyncom',ctx=>{
-  const o = ctx.options||{};
-  const targetEl = o.selector?document.querySelector(o.selector):ctx.element;
-  if(!targetEl){ dyn.showMessage('setdyncom未找到元素','warning'); return; }
-  let inst = targetEl.__vueParentComponent||null;
-  while(inst){
-    const props = inst.props;
-    if(props&&props.jsonconfig&&typeof props.jsonconfig==='object'){
-      if(o.path) dyn.setPathVal(props.jsonconfig,o.path,o.value);
-      else if(o.patch&&typeof o.patch==='object') Object.assign(props.jsonconfig,o.patch);
-      return props.jsonconfig;
-    }
-    inst = inst.parent;
-  }
-  dyn.showMessage('setdyncom：目标不是 dyn 组件（缺少 jsonconfig）','warning');
-});
-
-/**
- * setWindow：向 layer iframe 弹窗内的页面投递数据（postMessage）；
- * 也支持在 iframe 子页面内向父窗口回传。子页面可监听 window 的 "message" 事件消费 {type:'dyn-setwindow'}
- */
-defineAction('setwindow',ctx=>{
-  const o = ctx.options||{};
-  const payload = { type:'dyn-setwindow', path:o.path, value:o.value, data:o.data };
-  const iframe = o.selector?document.querySelector(o.selector):document.querySelector('.layui-layer-iframe iframe');
-  if(iframe&&iframe.contentWindow){ iframe.contentWindow.postMessage(payload,'*'); return true; }
-  if(window.parent&&window.parent!==window){ window.parent.postMessage(payload,'*'); return true; }
-  dyn.showMessage('setwindow：未找到可投递的窗口','warning');
-});
-
-defineAction('copy',async ctx=>{
-  const o = ctx.options||{};
-  let text = o.text;
-  if(text===undefined) text = ('value' in ctx.element)?ctx.element.value:ctx.element.textContent;
-  text = String(text||'');
-  try{
-    await navigator.clipboard.writeText(text);
-    dyn.showMessage("已复制："+text.slice(0,20)+(text.length>20?'…':''),'success');
-  }catch(e){
-    const ta = document.createElement('textarea');
-    ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta);
-    dyn.showMessage("已复制（降级）",'success');
-  }
-});
-
-defineAction('download',ctx=>{
-  const o = ctx.options||{};
-  const url = o.url||(ctx.element?(ctx.element.href||ctx.element.getAttribute('data-url')):'');
-  if(!url){ dyn.showMessage("download缺少url",'warning'); return; }
-  const a = document.createElement('a');
-  a.href=url; a.download=o.filename||o.name||'';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-});
-
-defineAction('confirm',async ctx=>{
-  const o = ctx.options||{};
-  return await dyn.confirmAsync(o.message||o.msg||'确定执行？');
-});
-
-defineAction('delay',async ctx=>{
-  const ms = Number(ctx.options.ms??ctx.options.delay??300);
-  return new Promise(resolve=>setTimeout(resolve,ms));
-});
-
-defineAction('chain',async ctx=>{
-  let steps = ctx.options.steps;
-  if(Array.isArray(ctx.options)) steps = ctx.options;
-  if(!Array.isArray(steps)){ dyn.showMessage(CONST.MSG_CHAIN_NEED_STEPS,'warning'); return; }
-  //防死循环检测
-  if(ctx.$callStack.includes(ctx.action+JSON.stringify(steps))){
-    dyn.showMessage(CONST.MSG_CHAIN_DEAD_LOOP,'error');
-    return null;
-  }
-  ctx.$callStack.push(ctx.action+JSON.stringify(steps));
-  let last;
-  const run = async i=>{
-    if(i>=steps.length) return last;
-    const s = steps[i];
-    if(!s) return run(i+1);
-    const actName = typeof s==='string'?s:(s.action||'');
-    const opt = typeof s==='object'&&s.options?s.options:(typeof s==='string'?{}:s);
-    if(!actName){ dyn.showMessage("chain步骤缺少action",'warning'); return run(i+1); }
-    const fn = resolveAction(actName);
-    if(!fn){ dyn.showMessage(CONST.MSG_ACTION_NOT_FOUND.replace('{name}',actName),'error'); return run(i+1); }
-    const subCtx = buildCtx(ctx.element,'chain',ctx.$event,opt,actName);
-    subCtx.$step = i; subCtx.$result = last; subCtx.$chain = steps;
-    resolveCtxTokens(subCtx); // $result 已就绪，重解析 "$result.xxx" 占位
-    subCtx.$callStack = [...ctx.$callStack];
-    const r = await fn(subCtx);
-    if(r===false) return last;
-    last = r;
-    return run(i+1);
-  };
-  return await run(0);
-});
-
-defineAction('switch',async ctx=>{
-  const o = ctx.options||{};
-  let value;
-  const expr = o.expr||o.expression||'';
-  if(expr.startsWith('model.')) value = dyn.getByPath(ctx.model,expr.substring(6));
-  else if(expr.startsWith('params.')) value = ctx.params[expr.substring(7)];
-  else if(expr) value = dyn.getByPath(ctx.model,expr);
-  else value = o.value;
-  let hit = null;
-  const cases = o.cases||[];
-  for(const c of cases){
-    if(String(c.value)===String(value)){ hit = c; break; }
-  }
-  if(!hit&&o.default) hit = o.default;
-  if(!hit||typeof hit!=='object') return null;
-  if(hit.chain){
-    const subCtx = buildCtx(ctx.element,'switch',ctx.$event,Array.isArray(hit.chain)?{steps:hit.chain}:hit.chain,'chain');
-    return await _actions.chain(subCtx);
-  }
-  if(!hit.action) return null;
-  const fn = resolveAction(hit.action);
-  if(!fn){ dyn.showMessage("switch动作不存在:"+hit.action,'error'); return null; }
-  const subCtx = buildCtx(ctx.element,'switch',ctx.$event,hit.options||{},hit.action);
-  return await fn(subCtx);
-});
-
-defineAction('triggerevent',ctx=>{
-  const o = ctx.options||{};
-  const name = o.name||o.event;
-  if(!name) return;
-  const payload = o.payload||o.params||{};
-  if(o.type==='window'||o.window){
-    window.dispatchEvent(new CustomEvent(name,{detail:payload}));
-  }else{
-    _bus.emit(name,payload);
-  }
-});
-
-defineAction('redirect',ctx=>{
-  const o = ctx.options||{};
-  const url = o.url||o.href;
-  if(url) window.location.href = url;
-});
+function wrapDyndata(body, wrap){
+  const wrapped = { table:wrap.table };
+  if(wrap.gridId) wrapped.gridId = wrap.gridId;
+  if(wrap.project) wrapped.project = wrap.project;
+  wrapped[wrap.dataField||'data'] = body;
+  return wrapped;
+}
 
 /**
  * @description 执行一组动作链，用于open窗口onopen/onclose钩子
@@ -1137,582 +485,84 @@ defineAction('redirect',ctx=>{
 function _runEvents(steps,baseCtx){
   if(!Array.isArray(steps)||!steps.length) return Promise.resolve(null);
   const fakeCtx = Object.assign({},baseCtx,{options:{steps}});
-  return _actions.chain(fakeCtx);
+  return K.actions.chain(fakeCtx);
 }
 
-/**
- * @description 后端返回actions数组批量执行动作
- * @param {{actions:Array}} res
- * @param {HTMLElement} rootEl
- */
-function runJsonActions(res,rootEl){
-  const actions = Array.isArray(res)?res:(res&&Array.isArray(res.actions)?res.actions:[]);
-  if(!actions.length) return;
-  actions.forEach(item=>{
-    if(!item||typeof item!=='object') return;
-    try{
-      if(item.script){
-        if(DYN_LIB_CONFIG.disableEvalJs){ console.warn("[runJsonActions] evaljs已关闭，跳过script"); return; }
-        const fn = new Function('ctx','return ('+item.script+')');
-        fn({element:rootEl});
-        return;
-      }
-      const act = resolveAction(item.action);
-      if(!act){ console.warn("[runJsonActions]动作不存在:"+item.action); return; }
-      const c = buildCtx(rootEl,'jsonAction',null,item.options||{},item.action);
-      const wrappedFn = wrapCompositeAction(act);
-      Promise.resolve(wrappedFn(c)).catch(e=>console.error("[runJsonActions]执行异常",e));
-    }catch(err){ console.error("[runJsonActions]",err); }
-  });
-}
-
-/** dyn-init 管道中是否包含 CreateApp 引导步（未被摘除时代表"待引导 App 根"） */
-function dynInitHasCreateApp(node){
-  if(!node || !node.hasAttribute || !node.hasAttribute(CONST.PIPE_INIT_ATTR)) return false;
-  const expr = node.getAttribute(CONST.PIPE_INIT_ATTR)||'';
-  return expr.split('|').some(function(tok){
-    return /^\s*(ActionHelper\.)?createapp\s*(\(|$)/i.test(tok.trim());
-  });
-}
-
-/**
- * @description 扫描dom执行初始化动作管道（唯一协议：dyn-init="CreateApp|Toast('就绪')"）
- * @param {HTMLElement} root
- */
-function initActions(root){
-  root = dyn.resolve(root)||document.body;
-  if(!root) return;
-  const list = [];
-  if(root.nodeType===1) list.push(root);
-  if(root.querySelectorAll) list.push(...[].slice.call(root.querySelectorAll('*')));
-  list.forEach(el=>{
-    if(el.__dynInitDone) return;
-    // 挂载掩码暂存区（#dyn-holder）里的节点属于外层 App 的递归挂载链，
-    // 此时提前引导会把子 App 挂到游离节点；外层还原后会由其 mountCore 自行 initActions
-    if(el.closest && el.closest('#dyn-holder')) return;
-    // 最近的 createApp 祖先"尚未挂载完成"（mode 已打但无实例，或 dyn-init 管道还挂着 CreateApp 步）：
-    // 本节点交给该祖先挂载完成后的递归 initActions，绝不能提前独立引导，否则会变成孤儿 App。
-    // 祖先已挂载（__dynApp 存在）时则放行——那是 updateEl 注入进活 App 的片段，需要自举。
-    if(el.closest){
-      const anc = el.closest('[data-dyn-mode="createApp"],[dyn-init]');
-      if(anc && anc!==el && !anc.__dynApp &&
-         (anc.getAttribute('data-dyn-mode')==='createApp' || dynInitHasCreateApp(anc))) return;
+// ---------------------- 插件壳（全动作系统唯一注册 DynKernel 的地方） ----------------------
+var __plugin = {
+  name:'actions', stage:'actions', requires:['dyn'],
+  setup:function(ctx){
+    if(!global.dyn){
+      console.error("[DynAction] 请先加载 dyn-core.js");
+      return;
     }
-    // 初始化管道：dyn-init="CreateApp" / dyn-init="Toast('就绪')|Setvar({...})"
-    if(el.hasAttribute&&el.hasAttribute(CONST.PIPE_INIT_ATTR)){
-      const steps = parsePipe(el.getAttribute(CONST.PIPE_INIT_ATTR)||'');
-      // 执行后移除init属性，防止Vue挂载重建DOM后重复执行
-      el.removeAttribute(CONST.PIPE_INIT_ATTR);
-      if(steps.length) runPipe(steps,el,'init',null).catch(e=>console.error("[init-pipe异常]",e));
+    K.dyn = global.dyn;
+    K.config = global.DYN_LIB_CONFIG||{};
+
+    const api = {
+      /* 管道词法的权威实现：dyn-debug / lint 等所有消费方统一走这里，禁止另抄解析器 */
+      parsePipe, parsePipeArg,
+      /** 动作清单（内置 + 数据库），按分组/名称排序；字段含 label/doc/options/example/demo */
+      actionList(){
+        const order = ['数据与刷新','窗口与弹层','表单与状态','提示与交互','控制流','其他'];
+        const g = n => { const i = order.indexOf(n || '其他'); return i < 0 ? order.length - 1 : i; };
+        return Object.values(K.meta)
+          .filter(m => m && m.name)
+          .sort((a, b) => (g(a.group) - g(b.group)) || String(a.name).localeCompare(String(b.name)));
+      },
+      getMeta,
+      resolveAction,
+      buildCtx,
+      initActions: K.initActions,
+      _runEvents,
+      runJsonActions: K.runJsonActions,
+      loadDbActionHelpers: K.loadDbActionHelpers,
+      defineAction,
+      rebindActions: K.rebindActions,
+      busOn:K.bus.on, busOff:K.bus.off, busEmit:K.bus.emit, busClear:K.bus.clear
+    };
+
+    if(typeof K.dyn.installActionApi === 'function'){
+      K.dyn.installActionApi(api);
+    }else{
+      console.error("[DynAction] dyn.installActionApi不存在，请检查dyn-core.js");
     }
-  });
-}
 
-/** @type {Record<string,object>} 数据库动作原始定义（Code → 行记录），供动作助手页面展示 */
-const _dbActions = Object.create(null);
-
-/**
- * 脚本类 DB 动作执行器。
- * 脚本内可用：ctx（页面上下文，含 options=本次参数）/ args（=ctx.options 快捷方式）
- *            action（动作定义行）/ api（showMessage/confirm/fetch 等工具）
- * 平台内置 reload 种子脚本即：ctx.reload();
- */
-function runDbScript(row,args,ctx){
-  const api = {
-    showMessage:function(m,t){ return dyn.showMessage(m,t||'success'); },
-    confirm:function(msg){ return dyn.confirmAsync ? dyn.confirmAsync(msg) : Promise.resolve(confirm(msg)); },
-    toast:function(m,t){ return dyn.showMessage(m,t||'success'); },
-    fetch:function(url,opt){ return fetch(url,opt).then(function(r){return r.json();}); },
-    bus:_bus
-  };
-  // eslint-disable-next-line no-new-func
-  const fn = new Function('ctx','args','action','api','return (function(){\n'+(row.Script||'')+'\n})();');
-  return fn(ctx||{},args||{},row,api);
-}
-
-/** api 类 DB 动作：Script 为 URL 或 {"url","method","body"} JSON，返回 JSON 响应 */
-async function runDbApi(row,args){
-  let cfg = { url:row.Script||'', method:null, body:null };
-  try{
-    const parsed = JSON.parse(row.Script||'');
-    if(parsed&&typeof parsed==='object') cfg = Object.assign(cfg,parsed);
-  }catch(e){ /* 非 JSON 即纯 URL */ }
-  const url = applyTpl(cfg.url,args)||'';
-  if(!url) throw new Error('api 动作缺少 url');
-  const opt = { method:(cfg.method||(cfg.body||args&&args.body?'POST':'GET')).toUpperCase(), headers:{} };
-  const body = cfg.body!==undefined&&cfg.body!==null ? cfg.body : (args&&args.body);
-  if(body!==undefined&&body!==null){ opt.headers['Content-Type']='application/json'; opt.body=typeof body==='string'?body:JSON.stringify(body); }
-  const resp = await fetch(url,opt);
-  const json = await resp.json().catch(()=>null);
-  if(json&&(json.code!==undefined&&json.code!==0)) throw new Error(json.msg||'接口返回失败');
-  return json;
-}
-
-/** chain 类 DB 动作：Script 为 [{action,options}] 或 {"steps":[...]} JSON，顺序执行管道 */
-async function runDbChain(row,args,ctx){
-  let steps = [];
-  try{
-    const parsed = JSON.parse(row.Script||'[]');
-    steps = Array.isArray(parsed)?parsed:(Array.isArray(parsed.steps)?parsed.steps:[]);
-  }catch(e){ throw new Error('chain 动作 Script 不是合法 JSON'); }
-  // 步骤 options 支持 {{args.xxx}} 占位
-  steps = steps.map(function(s){
-    return { action:s.action, options:applyTpl(s.options||{},args) };
-  });
-  return runPipe(steps,(ctx&&ctx.element)||document.body,'chain',null);
-}
-
-/**
- * 注册一个数据库动作助手（同时登记原始行到 _dbActions，供页面展示/管理）。
- * 兼容两种入参：DB 行（Code/ActionType/Script）与 /script 生成器风格（code/actionType）。
- */
-function registerDbAction(row){
-  if(!row) return;
-  const code = row.Code||row.code;
-  if(!code) return;
-  const norm = {
-    Id:row.Id||row.id||0,
-    Code:code,
-    Name:row.Name||row.name||code,
-    ActionType:row.ActionType||row.actionType||'script',
-    Script:row.Script!==undefined?row.Script:(row.script||''),
-    ParamsJson:row.ParamsJson||row.paramsJson||null
-  };
-  _dbActions[code]=norm;
-  defineAction(code,async function(ctx){
-    const args = (ctx&&ctx.options)||{};
-    const type = (norm.ActionType||'script').toLowerCase();
-    if(type==='url'){
-      const url = norm.Script||args.url||'';
-      if(url) global.location.href = applyTpl(url,args);
-      return true;
-    }
-    if(type==='api') return runDbApi(norm,args,ctx);
-    if(type==='chain') return runDbChain(norm,args,ctx);
-    return runDbScript(norm,args,ctx);
-  });
-  // 在元信息上保留原始字段（动作助手页面直接读 Id/Name/Code/ActionType/ParmsJson）
-  if(_actionMeta[code]) Object.assign(_actionMeta[code],norm,{source:'db'});
-}
-
-/**
- * @description 从 /api/platform/dynactionhelper/all 拉取全部启用动作并动态注册
- * @returns {Promise<Array>} 动作行数组
- */
-async function loadDbActionHelpers(){
-  const resp = await fetch('/api/platform/dynactionhelper/all',{cache:'no-store'});
-  const res = await resp.json().catch(()=>null);
-  const rows = res&&res.code===0&&Array.isArray(res.data)?res.data:[];
-  rows.forEach(registerDbAction);
-  return rows;
-}
-
-let _delegationBound = false;
-/** 已绑定的委托监听（事件名 + 处理函数），供 rebindActions 先解绑旧监听，避免 document 监听叠加 */
-const _delegationHandlers = [];
-
-/**
- * @description 重新绑定事件委托。管道委托不依赖动作注册表，常规情况下无需调用；
- *   保留 API 供未来按注册表过滤/外部需要时使用。每次 rebind 前先解绑旧监听，防止监听叠加。
- */
-function rebindActions(){
-  _delegationHandlers.forEach(function(h){ try{ document.removeEventListener(h.ev, h.fn, true); }catch(e){ /*忽略*/ } });
-  _delegationHandlers.length = 0;
-  _delegationBound = false;
-  bindDelegation();
-}
-
-/**
- * 沿触发源向上查找"命名动作直连"属性：dyn-click-<ActionName>（如 dyn-click-DetailClose）。
- * CSS 选择器不支持属性名前缀匹配，这里手工遍历祖先链。
- * @returns {{el:HTMLElement,attr:string}|null}
- */
-function findNamedActionAttr(start,prefix){
-  let n = start;
-  while(n && n.nodeType===1){
-    const attrs = n.attributes;
-    for(let i=0;i<attrs.length;i++){
-      const nm = attrs[i].name;
-      // 严格长于前缀，排除管道属性本体（dyn-click）与其 data- 形态
-      if(nm.length>prefix.length && nm.slice(0,prefix.length)===prefix){
-        return { el:n, attr:nm };
-      }
-    }
-    if(n===document.documentElement) break;
-    n = n.parentElement;
-  }
-  return null;
-}
-
-/**
- * @description document捕获模式事件委托（唯一协议：
- *   1) 管道属性 dyn-click="A|B('x')"；
- *   2) 命名动作直连属性 dyn-click-<ActionName>，属性值可空（无参）或 JSON 参数）。
- */
-function bindDelegation(){
-  if(_delegationBound) return;
-  _delegationBound = true;
-  const doBind = ()=>{
-    // dyn-click="ActionHelper.Submit|ActionHelper.Toast('保存成功')"
-    Object.keys(CONST.PIPE_EVENT_ATTR).forEach(ev=>{
-      const attrName = CONST.PIPE_EVENT_ATTR[ev];
-      const namedPrefix = attrName + '-'; // dyn-click- / dyn-dblclick- / ...
-      const handler = async e=>{
-        let target = e.target&&e.target.closest?e.target.closest('['+attrName+']'):null;
-        let steps = target ? parsePipe(target.getAttribute(attrName)||'') : [];
-        // 管道未命中时，尝试命名动作直连：<button dyn-click-DetailClose>取消</button>
-        if(!steps.length && e.target && e.target.closest){
-          const hit = findNamedActionAttr(e.target, namedPrefix);
-          if(hit){
-            target = hit.el;
-            const rawVal = target.getAttribute(hit.attr) || '';
-            let options = {};
-            if(rawVal.trim()){
-              const arg = parsePipeArg(rawVal);
-              options = (arg&&typeof arg==='object'&&!Array.isArray(arg)) ? arg : { value:arg };
-            }
-            steps = [{ action:hit.attr.slice(namedPrefix.length).replace(/^ActionHelper\./i,''), options:options }];
-          }
-        }
-        if(!target || !steps.length) return;
-        const prevent = !steps[0].options || steps[0].options.prevent!==false;
-        if(prevent){ e.preventDefault(); e.stopPropagation(); }
-        try{
-          await runPipe(steps,target,ev,e);
-        }catch(err){
-          console.error("[DynAction]管道执行异常",steps,err);
-          dyn.showMessage("操作失败："+err.message,'error');
-        }
+    /* 测试钩子：仅当宿主预置了 window.__DYN_TEST__（node 测试 harness）时导出内部纯函数；
+       浏览器正常加载时该对象不存在，行为零变化。 */
+    if(global.__DYN_TEST__){
+      global.__DYN_TEST__.exports = {
+        parsePipe, parsePipeArg, applyTpl, resolveCtxTokens,
+        normActionSteps, runPipe, wrapCompositeAction, resolveAction,
+        buildCtx, defineAction
       };
-      document.addEventListener(ev, handler, true);
-      _delegationHandlers.push({ev:ev, fn:handler});
-    });
-  };
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',doBind);
-  else setTimeout(doBind,0);
-}
+    }
 
-// ---------------------- 内置动作文档（单一来源：动作实现在本文件，说明也在此） ----------------------
-/**
- * 每项字段：
- *   label    中文名
- *   group    分组（数据与刷新 / 窗口与弹层 / 表单与状态 / 提示与交互 / 控制流）
- *   doc      一句话说明
- *   options  参数表 [{name,type,desc}]
- *   example  典型写法（管道 / DOM 属性）
- *   aliasOf  语义别名指向的动作名
- *   needEl   依赖触发元素上下文
- *   demo     可在 Demo 页直接试跑的 options（不含则只能复制示例）
- *   demoCtx  试跑时附带的最小 ctx（如 {model:{...}}）
- */
-const ACTION_DOCS = {
-  createapp: { label:'创建 Vue 应用', group:'数据与刷新',
-    doc:'给元素打上 createApp 模式，按 url 拉取 JSON 配置并挂载 Vue 应用（页面/区块启动用）。',
-    options:[{name:'url',type:'string',desc:'配置地址；缺省读元素 data-dyn-url'}],
-    example:'dyn-init="CreateApp" 或 CreateApp({\'url\':\'/api/component/cfg\'})', needEl:true },
+    K.bindDelegation();
 
-  postback: { label:'提交回传', group:'数据与刷新',
-    doc:'POST 到 url，处理 ApiResult 与返回的 dyn-actions；支持确认、请求体模板、成功后刷新/关闭/提示。',
-    options:[
-      {name:'url',type:'string',desc:'提交地址'},
-      {name:'confirm',type:'bool|string',desc:'提交前确认，字符串为提示语'},
-      {name:'body',type:'object',desc:'显式请求体模板（支持 {{Id}} 占位）'},
-      {name:'wrap',type:'object',desc:'把 model 包成 {table,data} 契约'},
-      {name:'params',type:'object',desc:'query 参数（无 body 时）'},
-      {name:'reload',type:'string',desc:'成功后刷新目标选择器'},
-      {name:'close',type:'bool',desc:'成功后关闭所在弹窗'},
-      {name:'message',type:'string',desc:'成功后提示语'}],
-    example:'Postback({\'url\':\'/api/x/save\',\'confirm\':\'确定保存？\',\'close\':true,\'reload\':\'#grid\'})' },
+    global.DynAction = {
+      run(code,args,ctx){
+        const fn = resolveAction(code);
+        if(!fn) return Promise.reject(new Error("动作不存在:"+code));
+        const fakeCtx = Object.assign({},ctx||{},{options:args||{}});
+        return Promise.resolve(fn(fakeCtx));
+      },
+      /** 从数据库加载并注册全部启用的动作助手（幂等，可重复调用刷新） */
+      loadAll:K.loadDbActionHelpers,
+      /** 动作清单（内置 + 数据库），含 label/doc/options/example/demo，供 Demo 与设计器下拉使用 */
+      actionList:function(){ return api.actionList(); },
+      /** 单个动作的元信息 */
+      getMeta:function(name){ return api.getMeta(name); },
+      /** 动态注册单个动作助手（与 /script 生成的 DynActionHelper.register 等价） */
+      register:K.registerDbAction,
+      /** 已注册的 DB 动作原始定义（Code → 行记录） */
+      actions:K.actions,
+      bus:K.bus
+    };
+    global.DynActionHelper = global.DynAction;
 
-  postdata: { label:'提交回传（别名）', group:'数据与刷新', aliasOf:'postback', doc:'与 postback 完全等价。' },
-
-  reload: { label:'刷新区块', group:'数据与刷新',
-    doc:'目标是 BlockApp 且句柄支持 reload → 走 handle.send(\'reload\')；否则按 data-dyn-url 做片段刷新。',
-    options:[
-      {name:'selector|target',type:'string',desc:'刷新目标，缺省为触发元素自身'},
-      {name:'value',type:'string',desc:'reload(\'#id\') 单参写法'}],
-    example:'Reload  或  Reload({\'selector\':\'#panel\'})' },
-
-  grid: { label:'刷新表格', group:'数据与刷新',
-    doc:'按 gridId 找到 window.DynGrids 中注册的 DynTable 并刷新（可先重置筛选）。',
-    options:[
-      {name:'gridId',type:'string',desc:'表格 id（comoptions.gridId）'},
-      {name:'page',type:'number',desc:'刷新到第几页'},
-      {name:'reset',type:'bool',desc:'先清空筛选区'}],
-    example:'Grid({\'gridId\':\'grid_student\',\'reset\':true})' },
-
-  load: { label:'加载片段', group:'数据与刷新',
-    doc:'拉取 HTML 片段并替换到触发元素内部（随后自动 mount）。',
-    options:[
-      {name:'url',type:'string',desc:'片段地址'},
-      {name:'params',type:'object',desc:'请求参数'},
-      {name:'method',type:'string',desc:'默认 POST'}],
-    example:'Load({\'url\':\'/Home/QueryBlock\'})' },
-
-  updateel: { label:'局部刷新（提交）', group:'数据与刷新',
-    doc:'提交当前 scope model 到 Controller：返回 HTML 即替换目标区块；返回 ApiResult 则执行其中 dyn-actions。',
-    options:[
-      {name:'target|selector',type:'string',desc:'目标选择器，缺省读 data-dyn-target'},
-      {name:'url',type:'string',desc:'提交地址，缺省读 data-dyn-url'},
-      {name:'confirm',type:'bool|string',desc:'提交前确认'},
-      {name:'wrap',type:'object',desc:'model 包成 {table,data,gridId}'},
-      {name:'params',type:'object',desc:'附加参数'}],
-    example:'dyn-click="Submit" data-dyn-target="#panel" data-dyn-url="/x/save"' },
-
-  submit: { label:'提交并刷新（别名）', group:'数据与刷新', aliasOf:'updateel', doc:'与 updateel 等价。' },
-
-  reloadtarget: { label:'刷新目标区块（别名）', group:'数据与刷新', aliasOf:'updateel', doc:'与 updateel 等价。' },
-
-  open: { label:'打开弹窗', group:'窗口与弹层',
-    doc:'统一 layui layer 弹窗：默认拉片段注入并自动 mount；mode=iframe 直接打开 MVC 页面。',
-    options:[
-      {name:'url',type:'string',desc:'片段或页面地址'},
-      {name:'mode',type:'string',desc:'fragment（默认）| iframe'},
-      {name:'title',type:'string',desc:'标题'},
-      {name:'width|height',type:'string',desc:'尺寸'},
-      {name:'onopen|onclose',type:'array',desc:'打开/关闭钩子动作链'},
-      {name:'reloadSelf',type:'bool',desc:'关闭后刷新触发容器'}],
-    example:'Open({\'url\':\'/Detail/Edit?id=1\',\'title\':\'编辑\',\'width\':\'800px\'})', needEl:true },
-
-  openwindow: { label:'打开 iframe 窗口（别名）', group:'窗口与弹层', aliasOf:'open', doc:'等价于 mode=iframe 的 open。' },
-
-  close: { label:'关闭弹窗', group:'窗口与弹层',
-    doc:'关闭触发元素所在 layer / iframe 弹窗；不在弹窗内时关闭全部。',
-    example:'Close' },
-
-  closewindow: { label:'关闭弹窗（别名）', group:'窗口与弹层', aliasOf:'close', doc:'与 close 等价。' },
-
-  setwin: { label:'设置窗口标题尺寸', group:'窗口与弹层',
-    doc:'仅对所在窗口生效：修改 layer 或 el-dialog 的 title/width/height/位置，不在窗口内静默返回。',
-    options:[
-      {name:'title',type:'string',desc:'标题'},
-      {name:'width|height',type:'string',desc:'尺寸'},
-      {name:'top|left|right|bottom',type:'string',desc:'位置'},
-      {name:'css',type:'object',desc:'额外样式'}],
-    example:'SetWin({\'title\':\'编辑\',\'width\':\'700px\'})', needEl:true },
-
-  setwindow: { label:'iframe 消息投递', group:'窗口与弹层',
-    doc:'向 layer iframe 子页 postMessage（{type:\'dyn-setwindow\',path,value,data}）；子页也可向父窗口回传。',
-    options:[
-      {name:'selector',type:'string',desc:'iframe 选择器，缺省 .layui-layer-iframe iframe'},
-      {name:'path',type:'string',desc:'子页内数据路径'},
-      {name:'value|data',type:'any',desc:'投递值'}],
-    example:'SetWindow({\'path\':\'row\',\'value\':{\'Id\':1}})' },
-
-  setVueModel: { label:'写 Vue 模型', group:'表单与状态',
-    doc:'写触发元素 scope 的 model；支持 target/from/fromPath/fromMethod 做跨 App 编排（如把 filter 的查询条件推给 list）。',
-    options:[
-      {name:'path|modelName',type:'string',desc:'目标模型路径，如 filterModel'},
-      {name:'value',type:'any',desc:'直接值（支持 {{params}} 占位）'},
-      {name:'target',type:'string',desc:'目标元素选择器（跨 App）'},
-      {name:'from|fromPath|fromMethod',type:'string',desc:'源元素/源取值路径/源方法'},
-      {name:'clone',type:'bool',desc:'写入深拷贝（回填基线）'},
-      {name:'settimeout|delay',type:'number',desc:'延迟毫秒'}],
-    example:'SetVueModel({\'target\':\'#m\',\'path\':\'model.filter\',\'fromMethod\':\'buildSubmit\'})' },
-
-  setvar: { label:'写当前模型变量', group:'表单与状态',
-    doc:'写当前 scope model 的指定字段，值支持 {{params}} 占位与延迟。',
-    options:[
-      {name:'path|modelName',type:'string',desc:'字段路径，支持 a.b.c'},
-      {name:'value',type:'any',desc:'写入值'},
-      {name:'delay',type:'number',desc:'延迟毫秒'}],
-    example:'SetVar({\'path\':\'count\',\'value\':1})',
-    demo:{ path:'count', value: 1 }, demoCtx:{ model:{ count:0 } } },
-
-  calc: { label:'安全运算', group:'表单与状态',
-    doc:'不使用 eval：支持 a+=1 / a-=1 / a*=2 / a/=2 与 total = price * num 这类单步赋值运算。',
-    options:[{name:'expr',type:'string',desc:'运算表达式'}],
-    example:'Calc({\'expr\':\'total = price * num\'})',
-    demo:{ expr:'total = price * num' }, demoCtx:{ model:{ price:10, num:3 } } },
-
-  setattr: { label:'改元素属性', group:'表单与状态',
-    doc:'按选择器或触发元素修改 attr/style/text/html。',
-    options:[
-      {name:'selector',type:'string',desc:'目标元素'},
-      {name:'attr',type:'object',desc:'批量设置属性'},
-      {name:'style',type:'object',desc:'批量设置样式'},
-      {name:'text|html',type:'string',desc:'替换文本/HTML'}],
-    example:'SetAttr({\'selector\':\'#tip\',\'text\':\'已加载\'})' },
-
-  setdyncom: { label:'改组件配置', group:'表单与状态',
-    doc:'运行时改某个 dyn 组件的 jsonconfig（响应式即时生效），可改单路径或整体 patch。',
-    options:[
-      {name:'selector',type:'string',desc:'组件元素'},
-      {name:'path',type:'string',desc:'如 options.comoptions.disabled'},
-      {name:'value',type:'any',desc:'新值'},
-      {name:'patch',type:'object',desc:'整体合并对象'}],
-    example:'SetDynCom({\'selector\':\'#com1\',\'path\':\'options.comoptions.disabled\',\'value\':true})' },
-
-  setparams: { label:'写参数上下文', group:'表单与状态',
-    doc:'写共享/局部参数上下文。scope=shared（默认）链式各 tab 立即可见；local 仅本上下文与子孙。',
-    options:[
-      {name:'scope',type:'string',desc:'shared（默认）| local'},
-      {name:'params',type:'object',desc:'显式参数包'},
-      {name:'key|value',type:'string|any',desc:'单键写法'}],
-    example:'SetParams({\'courseId\':\'$result.data.Id\'}) 或 {"scope":"local","params":{"rowId":27}}' },
-
-  toast: { label:'消息提示', group:'提示与交互',
-    doc:'轻提示（layer.msg / ElMessage）。',
-    options:[
-      {name:'message|msg|value',type:'string',desc:'提示内容'},
-      {name:'type',type:'string',desc:'success | error | warning'}],
-    example:'Toast(\'保存成功\') 或 Toast({\'message\':\'失败\',\'type\':\'error\'})',
-    demo:{ message:'来自内置动作 toast 的提示', type:'success' } },
-
-  showmessage: { label:'消息提示（别名）', group:'提示与交互', aliasOf:'toast', doc:'与 toast 等价（V1 服务端动作名）。' },
-
-  notify: { label:'通知提醒', group:'提示与交互',
-    doc:'ElementPlus 右上角 ElNotification。',
-    options:[
-      {name:'title',type:'string',desc:'标题'},
-      {name:'message',type:'string',desc:'内容'},
-      {name:'type',type:'string',desc:'success | warning | info | error'},
-      {name:'duration',type:'number',desc:'停留毫秒，默认 3000'}],
-    example:'Notify({\'title\':\'提示\',\'message\':\'已保存\',\'type\':\'success\'})',
-    demo:{ title:'内置动作 notify', message:'这是一条通知', type:'success', duration:2500 } },
-
-  confirm: { label:'确认框', group:'提示与交互',
-    doc:'弹确认框，返回 Promise<boolean>（可作为管道步骤，返回 false 会中止后续步骤）。',
-    options:[{name:'message|msg',type:'string',desc:'确认文案'}],
-    example:'Confirm(\'确定删除？\')|Postback(...)',
-    demo:{ message:'这是 confirm 的确认框，点确定看返回结果' } },
-
-  copy: { label:'复制文本', group:'提示与交互',
-    doc:'复制给定文本（无 text 时取元素 value/textContent），失败降级 execCommand。',
-    options:[{name:'text',type:'string',desc:'要复制的文本'}],
-    example:'Copy({\'text\':\'hello\'})',
-    demo:{ text:'VueLibV4 action demo' } },
-
-  download: { label:'下载文件', group:'提示与交互',
-    doc:'创建临时 a 标签触发下载。',
-    options:[
-      {name:'url',type:'string',desc:'文件地址'},
-      {name:'filename|name',type:'string',desc:'保存文件名'}],
-    example:'Download({\'url\':\'/export/x.xlsx\',\'filename\':\'导出.xlsx\'})' },
-
-  delay: { label:'延迟', group:'控制流',
-    doc:'等待若干毫秒，常用于管道中串联动画/节流。',
-    options:[{name:'ms|delay',type:'number',desc:'毫秒，默认 300'}],
-    example:'Delay(500)|Toast(\'稍后提示\')',
-    demo:{ ms:500 } },
-
-  chain: { label:'动作链', group:'控制流',
-    doc:'顺序执行多个子动作，某步返回 false 即中止；自动防死循环。',
-    options:[{name:'steps',type:'array',desc:'[{action,options}]'}],
-    example:'Chain({\'steps\':[{\'action\':\'toast\',\'options\':{\'message\':\'第一步\'}}]})',
-    demo:{ steps:[{action:'toast',options:{message:'动作链第 1 步',type:'info'}},{action:'toast',options:{message:'动作链第 2 步 ✅',type:'success'}}] } },
-
-  switch: { label:'条件分支', group:'控制流',
-    doc:'按表达式/值匹配 cases，命中则执行其 action；无命中走 default。',
-    options:[
-      {name:'expr',type:'string',desc:'表达式，如 model.type / params.x'},
-      {name:'value',type:'any',desc:'直接比对值'},
-      {name:'cases',type:'array',desc:'[{value,action,options}]'},
-      {name:'default',type:'object',desc:'兜底分支'}],
-    example:'Switch({\'expr\':\'type\',\'cases\':[{\'value\':\'a\',\'action\':\'toast\',\'options\':{\'message\':\'A\'}}]})',
-    demo:{ expr:'type', cases:[{value:'a',action:'toast',options:{message:'命中分支 a'}}], default:{action:'toast',options:{message:'走 default'}} },
-    demoCtx:{ model:{ type:'a' } } },
-
-  triggerevent: { label:'触发事件', group:'控制流',
-    doc:'向内部事件总线（或 window 自定义事件）广播消息，供其他组件订阅。',
-    options:[
-      {name:'name|event',type:'string',desc:'事件名'},
-      {name:'payload|params',type:'object',desc:'负载'},
-      {name:'type',type:'string',desc:'window → 用 CustomEvent 广播'}],
-    example:'TriggerEvent({\'name\':\'refresh\',\'payload\':{\'Id\':1}})' },
-
-  evaljs: { label:'执行 JS 表达式', group:'控制流',
-    doc:'执行一段 JS 表达式（可用 ctx / $bus）。可按 DYN_LIB_CONFIG.disableEvalJs 全局关闭。',
-    options:[{name:'js|code',type:'string',desc:'表达式，如 1+2'}],
-    example:'EvalJs({\'js\':\'ctx.model.count+1\'})' },
-
-  redirect: { label:'页面跳转', group:'控制流',
-    doc:'整页跳转到指定地址（会离开当前页面）。',
-    options:[{name:'url|href',type:'string',desc:'目标地址'}],
-    example:'Redirect({\'url\':\'/Platform/Shell/Desktop\'})' }
-};
-
-// 文档合并进动作元信息：actionList() 输出的就是"实现 + 说明"的完整清单
-Object.keys(ACTION_DOCS).forEach(function(name){
-  const m = _actionMeta[name];
-  if(!m) return;
-  const d = ACTION_DOCS[name];
-  m.label = d.label || m.label;
-  m.group = d.group || '其他';
-  m.doc = d.doc || '';
-  m.options = d.options || [];
-  m.example = d.example || '';
-  m.aliasOf = d.aliasOf || null;
-  m.needEl = !!d.needEl;
-  m.demo = d.demo || null;
-  m.demoCtx = d.demoCtx || null;
-  m.source = 'builtin';
-});
-
-const api = {
-  /* 管道词法的权威实现：dyn-debug / lint 等所有消费方统一走这里，禁止另抄解析器 */
-  parsePipe, parsePipeArg,
-  /** 动作清单（内置 + 数据库），按分组/名称排序；字段含 label/doc/options/example/demo */
-  actionList(){
-    const order = ['数据与刷新','窗口与弹层','表单与状态','提示与交互','控制流','其他'];
-    const g = n => { const i = order.indexOf(n || '其他'); return i < 0 ? order.length - 1 : i; };
-    return Object.values(_actionMeta)
-      .filter(m => m && m.name)
-      .sort((a, b) => (g(a.group) - g(b.group)) || String(a.name).localeCompare(String(b.name)));
-  },
-  getMeta(name){ return _actionMeta[name]||null; },
-  resolveAction,
-  buildCtx,
-  initActions,
-  _runEvents,
-  runJsonActions,
-  loadDbActionHelpers,
-  defineAction,
-  rebindActions,
-  busOn:_bus.on, busOff:_bus.off, busEmit:_bus.emit, busClear:_bus.clear
-};
-
-if(typeof dyn.installActionApi === 'function'){
-  dyn.installActionApi(api);
-}else{
-  console.error("[DynAction] dyn.installActionApi不存在，请检查dyn-core.js");
-}
-
-/* 测试钩子：仅当宿主预置了 window.__DYN_TEST__（node 测试 harness）时导出内部纯函数；
-   浏览器正常加载时该对象不存在，行为零变化。 */
-if(global.__DYN_TEST__){
-  global.__DYN_TEST__.exports = {
-    parsePipe, parsePipeArg, applyTpl, resolveCtxTokens,
-    normActionSteps, runPipe, wrapCompositeAction, resolveAction,
-    buildCtx, defineAction
-  };
-}
-
-bindDelegation();
-
-global.DynAction = {
-  run(code,args,ctx){
-    const fn = resolveAction(code);
-    if(!fn) return Promise.reject(new Error("动作不存在:"+code));
-    const fakeCtx = Object.assign({},ctx||{},{options:args||{}});
-    return Promise.resolve(fn(fakeCtx));
-  },
-  /** 从数据库加载并注册全部启用的动作助手（幂等，可重复调用刷新） */
-  loadAll:loadDbActionHelpers,
-  /** 动作清单（内置 + 数据库），含 label/doc/options/example/demo，供 Demo 与设计器下拉使用 */
-  actionList:function(){ return api.actionList(); },
-  /** 单个动作的元信息 */
-  getMeta:function(name){ return api.getMeta(name); },
-  /** 动态注册单个动作助手（与 /script 生成的 DynActionHelper.register 等价） */
-  register:registerDbAction,
-  /** 已注册的 DB 动作原始定义（Code → 行记录） */
-  actions:_actions,
-  bus:_bus
-};
-global.DynActionHelper = global.DynAction;
-
-// 启动后自动拉取数据库动作，使任意页面 dyn-click="ActionHelper.Xxx" 管道可直接使用
-loadDbActionHelpers().catch(function(e){ console.warn("[DynAction]加载数据库动作助手失败",e&&e.message); });
+    // 启动后自动拉取数据库动作，使任意页面 dyn-click="ActionHelper.Xxx" 管道可直接使用
+    K.loadDbActionHelpers().catch(function(e){ console.warn("[DynAction]加载数据库动作助手失败",e&&e.message); });
   }
 };
 if(global.DynKernel) global.DynKernel.register(__plugin);

@@ -164,11 +164,11 @@ public class ViewGenerateService : IViewGenerateService
 
     /// <summary>序列化为属性值的 JSON 选项组（节点 options 下，值为对象）。</summary>
     private static readonly string[] JsonOptionGroups = { "comoptions", "labeloptions", "itemoptions", "wrapperoptions" };
-    /// <summary>字符串型选项：配置键名 → DynNodeViewOptions 属性名（evalCondition 是配置契约里唯一的驼峰键）。</summary>
+    /// <summary>字符串型选项：配置键名 → DynNodeViewOptions 属性名（配置契约键名全小写无分隔）。</summary>
     private static readonly (string ConfigKey, string Member)[] StringOptions =
     {
         ("compassthrough", "compassthrough"),
-        ("evalCondition", "evalcondition")
+        ("evalcondition", "evalcondition")
     };
 
     public string RenderView(JObject? config, string settingType, int settingId, string? settingName)

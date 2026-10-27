@@ -37,7 +37,7 @@ public sealed class DynNodeViewOptions
     /// <summary>父→子属性穿透白名单（逗号分隔的配置点路径，如 comoptions.size）。</summary>
     public string? compassthrough { get; set; }
 
-    /// <summary>联动脚本（JS 函数体，返回 {shell,labeloptions,comoptions} 补丁），注意配置契约键名为 evalCondition。</summary>
+    /// <summary>联动脚本（JS 函数体，返回 {shell,labeloptions,comoptions} 补丁）；配置契约键名同为 evalcondition。</summary>
     public string? evalcondition { get; set; }
 
     /// <summary>

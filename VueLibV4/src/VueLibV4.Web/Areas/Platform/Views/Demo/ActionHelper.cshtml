@@ -44,7 +44,7 @@
                     <div class="act-doc" v-if="a.doc">{{ a.doc }}</div>
                     <div class="act-params" v-if="a.options && a.options.length">
                         <span v-for="o in a.options" :key="o.name" class="param">
-                            <code>{{ o.name }}</code><span class="p-type">{{ o.type }}</span>{{ o.desc }}
+                            <code>{{ o.name }}</code><span v-if="o.aliases && o.aliases.length" class="p-type">（别名：{{ o.aliases.join(' / ') }}）</span><span class="p-type">{{ o.type }}</span>{{ o.desc }}
                         </span>
                     </div>
                     <pre class="act-example" v-if="a.example">{{ a.example }}</pre>

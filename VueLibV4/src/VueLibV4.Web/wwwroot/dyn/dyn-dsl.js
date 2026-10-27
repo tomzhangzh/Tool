@@ -283,7 +283,7 @@ var __plugin = {
       const lo = (node.options && node.options.labeloptions) || {};
       if (lo.label) parts.push('label=' + formatValue(lo.label));
       if (lo.required === true) parts.push('required=true');
-      ['labelposition', 'labelwidth', 'labelPosition', 'labelWidth'].forEach(function (k) {
+      ['labelposition', 'labelwidth'].forEach(function (k) {
         if (lo[k] !== undefined && lo[k] !== '') parts.push('labeloptions.' + k + '=' + formatValue(lo[k]));
       });
       const co = (node.options && node.options.comoptions) || {};

@@ -6,9 +6,10 @@
  *   node tests/dyn/run.js                  # 正常跑全部用例
  *   DYN_TEST_SELF_CHECK=1 node tests/dyn/run.js   # 故意注入 1 条失败用例，验证 harness 本身有效
  *
- * 原理：用 vm 加载【真实】的 wwwroot/dyn/dyn-core.js + dyn-action.js
- * （不复制实现），配合极简的 Vue/DOM/fetch 桩，让闭包内部的纯函数
- * 通过 dyn-action.js 里的 __DYN_TEST__ 测试钩子导出后直接断言。
+ * 原理：用 vm 加载【真实】的 wwwroot/dyn/dyn-core.js + 动作系统 5 个模块
+ * （dyn-action / -builtins / -db / -docs / -dom，不复制实现），配合极简的
+ * Vue/DOM/fetch 桩，让闭包内部的纯函数通过 dyn-action.js 里的
+ * __DYN_TEST__ 测试钩子导出后直接断言。
  */
 'use strict';
 const fs = require('fs');
@@ -76,10 +77,21 @@ function makeSandbox() {
 function loadEngine() {
   const dynDir = path.join(__dirname, '..', '..', 'src', 'VueLibV4.Web', 'wwwroot', 'dyn');
   const sb = makeSandbox();
-  // 顺序模拟 dyn-lib 的加载链；初始化顺序由 DynKernel 按阶段决定
+  // 顺序模拟 dyn-lib 的加载链；初始化顺序由 DynKernel 按阶段决定。
+  // 动作系统自 2026-10-27 起拆成 5 个模块（内核/内置动作/DB 动作/文档/事件委托），
+  // 必须按 dyn-lib.js 的 DYN_MODULES 顺序全部加载，否则内置动作不会注册。
+  const actionModules = [
+    'dyn-action.js',
+    'dyn-action-builtins.js',
+    'dyn-action-db.js',
+    'dyn-action-docs.js',
+    'dyn-action-dom.js'
+  ];
   vm.runInContext(fs.readFileSync(path.join(dynDir, 'dyn-kernel.js'), 'utf8'), sb, { filename: 'dyn-kernel.js' });
   vm.runInContext(fs.readFileSync(path.join(dynDir, 'dyn-core.js'), 'utf8'), sb, { filename: 'dyn-core.js' });
-  vm.runInContext(fs.readFileSync(path.join(dynDir, 'dyn-action.js'), 'utf8'), sb, { filename: 'dyn-action.js' });
+  actionModules.forEach(function (name) {
+    vm.runInContext(fs.readFileSync(path.join(dynDir, name), 'utf8'), sb, { filename: name });
+  });
   return sb;
 }
 

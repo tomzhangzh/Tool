@@ -790,7 +790,7 @@ public class PageGenService : IPageGenService
     /// validators/childrenctrls/slots/extendinfo 空骨架，保证生成的 ConfigJson 与设计器/运行时同构。
     /// compassthrough：容器把 comoptions.size、labeloptions 布局三项向下透传（见 _ContainerLayout/_BaseLayout）。
     /// </summary>
-    private static JObject BaseNode(string component, string modelName, JObject comOptions, string label = null, bool showLabel = false)
+    private static JObject BaseNode(string component, string modelName, JObject comoptions, string label = null, bool showLabel = false)
     {
         return new JObject
         {
@@ -798,7 +798,7 @@ public class PageGenService : IPageGenService
             ["modelname"] = modelName,
             ["options"] = new JObject
             {
-                ["comoptions"] = comOptions,
+                ["comoptions"] = comoptions,
                 ["labeloptions"] = new JObject { ["label"] = label ?? "", ["required"] = false, ["show"] = showLabel },
                 ["itemoptions"] = new JObject { ["style"] = new JObject(), ["class"] = "" },
                 ["compassthrough"] = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"
@@ -877,7 +877,6 @@ public class PageGenService : IPageGenService
         });
         root["options"]!["labeloptions"] = new JObject { ["required"] = false, ["show"] = false, ["labelposition"] = "right", ["labelwidth"] = "120px" };
         root["options"]!["itemoptions"]!["class"] = $"grid grid-cols-{filterCols} gap-x-3 gap-y-2 items-center";
-        root["options"]!["comInnerInfo"] = new JObject { ["labelWidth"] = "100px" };
         root["childrenctrls"] = children;
         return root;
     }
@@ -972,7 +971,6 @@ public class PageGenService : IPageGenService
         var root = BaseNode("DynGridContainer", "", new JObject { ["direction"] = "vertical", ["size"] = "small" });
         root["options"]!["labeloptions"] = new JObject { ["required"] = false, ["show"] = false, ["labelposition"] = "right", ["labelwidth"] = "120px" };
         root["options"]!["itemoptions"]!["class"] = $"grid grid-cols-{detailCols} gap-x-3 gap-y-2 items-start";
-        root["options"]!["comInnerInfo"] = new JObject { ["labelWidth"] = "110px" };
         root["childrenctrls"] = children;
         return root;
     }

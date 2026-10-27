@@ -163,12 +163,12 @@
           <div class="text-xs text-gray-400 mt-2 leading-5">
             表达式作用域：model（表单数据）、$self/value（当前值）、fullModelName、getByPath、safeGet。<br/>
             支持 comoptions.disabled/required/options、labeloptions.show/label、shell.show/style/class。<br/>
-            非 {{ }} 包裹的值视为字面量。优先级：静态配置 &lt; bindings &lt; evalCondition。
+            非 {{ }} 包裹的值视为字面量。优先级：静态配置 &lt; bindings &lt; evalcondition。
           </div>
 
-          @* ---- 分组3：联动脚本 evalCondition ---- *@
-          <div class="text-xs text-gray-500 mb-1 mt-4 font-medium">联动脚本 evalCondition</div>
-          <textarea v-model="model.current.options.evalCondition" rows="8"
+          @* ---- 分组3：联动脚本 evalcondition（配置键全小写无分隔）---- *@
+          <div class="text-xs text-gray-500 mb-1 mt-4 font-medium">联动脚本 evalcondition</div>
+          <textarea v-model="model.current.options.evalcondition" rows="8"
                     class="w-full text-xs p-1 rounded"
                     style="font-family:monospace;border:1px solid #dcdfe6;min-height:120px;"
                     placeholder="// ctx: { model, $self, value, row, fullModelName, getByPath, safeGet }&#10;// 返回 { shell:{show:false}, labeloptions:{...}, comoptions:{...} } 动态控制显隐与属性"></textarea>

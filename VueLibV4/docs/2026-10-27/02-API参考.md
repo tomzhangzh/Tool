@@ -211,7 +211,7 @@ DynActionHelper.defineAction(code, fn, meta)  // 注册自定义动作
     "compassthrough": "comoptions.size,labeloptions.labelwidth",
     "uiGlobalProps": { "size": null, "disabled": null },
     "defaultLabelOptions": { "labelwidth": "auto", "requiredmark": true },
-    "evalCondition": ""
+    "evalcondition": ""
   },
   "validators": [
     { "type": "required", "message": "必填" },
@@ -231,7 +231,7 @@ DynActionHelper.defineAction(code, fn, meta)  // 注册自定义动作
 | `options.comoptions` | 否 | 组件属性（含 `sourceType`/`optionValuesText`/`ajaxUrl` 等） |
 | `options.labeloptions` | 否 | 标签属性（`label/required/show/labelwidth/labelposition`） |
 | `options.compassthrough` | 否 | 父级属性继承白名单（逗号分隔 `comoptions.x`） |
-| `options.evalCondition` | 否 | 条件脚本，返回 `{shell,labeloptions,comoptions}` 补丁 |
+| `options.evalcondition` | 否 | 联动脚本，返回 `{shell,labeloptions,comoptions}` 补丁 |
 | `validators` | 否 | 校验器数组，`enableWhen` 条件启用 |
 | `childrenctrls` | 否 | 子组件树（容器类组件） |
 | `slots` | 否 | 具名插槽 → 节点数组 |
