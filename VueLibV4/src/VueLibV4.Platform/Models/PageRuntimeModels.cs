@@ -1,9 +1,9 @@
 using Newtonsoft.Json.Linq;
 
-namespace VueLibV4.Web.Core;
+namespace VueLibV4.Platform.Models;
 
 /// <summary>
-/// 外壳页面共享模型：DynWebPage 运行时统一共享上下文。
+/// 外壳页面共享模型：DynWebPage 运行时统一共享上下文，由 <see cref="Services.IPageRuntimeComposer"/> 装配。
 /// 外壳视图（DynTemplate.ViewPath 指向的 Razor）以 @model DynSharedModel 接收，
 /// 前端 data-dyn-shared-model 序列化后同源读取，消除 ViewBag 零散传参。
 /// 字段：

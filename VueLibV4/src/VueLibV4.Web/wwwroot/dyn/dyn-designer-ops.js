@@ -75,14 +75,28 @@ var __plugin = {
     return null;
   }
 
+  // 命中位置对应的真实数组：childrenctrls 或 slots[slot]
+  function arrayOfHit(hit) {
+    if (!hit || !hit.parent) return null;
+    if (hit.slot === 'childrenctrls') return hit.parent.childrenctrls || null;
+    const slots = hit.parent.slots || {};
+    return slots[hit.slot] || null;
+  }
+
   function getPathList(root, cfg) {
-    const arr = [];
-    if (!root || !cfg) return arr;
+    if (!root || !cfg) return [];
     function find(node, chain) {
       if (node === cfg) { chain.push(node); return true; }
       const kids = node.childrenctrls || [];
       for (let i = 0; i < kids.length; i++) {
         if (find(kids[i], chain)) { chain.unshift(node); return true; }
+      }
+      const slots = node.slots || {};
+      for (const k in slots) {
+        const arr = slots[k] || [];
+        for (let i = 0; i < arr.length; i++) {
+          if (find(arr[i], chain)) { chain.unshift(node); return true; }
+        }
       }
       return false;
     }
@@ -97,6 +111,11 @@ var __plugin = {
       if (n === cfg) return true;
       const kids = n.childrenctrls || [];
       for (let i = 0; i < kids.length; i++) if (walk(kids[i])) return true;
+      const slots = n.slots || {};
+      for (const k in slots) {
+        const arr = slots[k] || [];
+        for (let i = 0; i < arr.length; i++) if (walk(arr[i])) return true;
+      }
       return false;
     }
     return walk(ancestor);
@@ -156,153 +175,17 @@ var __plugin = {
     scope.overlay.height = er.height / scale;
   }
 
-  function onDragStartMeta(scope, meta, e) {
-    scope.dragging = meta.ComponentName;
-    scope.draggingCfg = null;
-    e.dataTransfer.setData('text/plain', meta.ComponentName);
-    e.dataTransfer.effectAllowed = 'copy';
-  }
-
-  function onDragStartCfg(scope, cfg, e) {
-    scope.dragging = cfg.component;
-    scope.draggingCfg = cfg;
-    e.dataTransfer.setData('text/plain', cfg.component);
-    e.dataTransfer.effectAllowed = 'move';
-  }
-
-  function onDragOver(scope, cfg, e) {
-    if (!scope.dragging) return;
-    e.preventDefault();
-    e.stopPropagation();
-    let el = document.querySelector('[data-dyn-uid="' + uidOf(cfg) + '"]');
-    const canvas = document.querySelector('[data-designer-canvas]');
-    if (!el || !canvas) return;
-    document.querySelectorAll('.drag-target-active').forEach(n => n.classList.remove('drag-target-active'));
-    if (getComputedStyle(el).display === 'contents') { var real = el.firstElementChild; if (real) el = real; }
-    const er = el.getBoundingClientRect();
-    const cr = canvas.getBoundingClientRect();
-    const scale = parseFloat(canvas.style.getPropertyValue('--dyn-zoom')) || 1;
-    const canDrop = checkCanDrop(cfg.component, scope.dragging);
-    const isContainerComp = isContainer(cfg.component);
-    const ratio = (e.clientY - er.top) / Math.max(er.height, 1);
-    scope.dropIndicator.show = true;
-    scope.dropIndicator.insertInto = false;
-    scope.dropIndicator.insertBefore = false;
-    scope.dropIndicator.insertAfter = false;
-    if (canDrop && isContainerComp && ratio >= 0.25 && ratio <= 0.75) {
-      scope.dropIndicator.insertInto = true;
-      scope.dropIndicator.top = (er.top - cr.top) / scale;
-      scope.dropIndicator.left = (er.left - cr.left) / scale;
-      scope.dropIndicator.width = er.width / scale;
-      scope.dropIndicator.height = er.height / scale;
-      el.classList.add('drag-target-active');
-    } else if (ratio < 0.5) {
-      scope.dropIndicator.insertBefore = true;
-      scope.dropIndicator.top = (er.top - cr.top) / scale - 2;
-      scope.dropIndicator.left = (er.left - cr.left) / scale;
-      scope.dropIndicator.width = er.width / scale;
-      scope.dropIndicator.height = 4;
-    } else {
-      scope.dropIndicator.insertAfter = true;
-      scope.dropIndicator.top = (er.bottom - cr.top) / scale - 2;
-      scope.dropIndicator.left = (er.left - cr.left) / scale;
-      scope.dropIndicator.width = er.width / scale;
-      scope.dropIndicator.height = 4;
-    }
-  }
-
-  function onDragLeave(scope, cfg, e) {
-    const el = document.querySelector('[data-dyn-uid="' + uidOf(cfg) + '"]');
-    if (el) el.classList.remove('drag-target-active');
-  }
-
-  function clearDrag(scope) {
-    scope.dropIndicator.show = false;
-    document.querySelectorAll('.drag-target-active').forEach(n => n.classList.remove('drag-target-active'));
-  }
-
-  function onDrop(scope, cfg, e) {
-    if (!scope.dragging) return;
-    e.preventDefault(); e.stopPropagation();
-    const wasInsertInto = !!scope.dropIndicator.insertInto;
-    clearDrag(scope);
-    if (scope.draggingCfg && (scope.draggingCfg === scope.pageJson || cfg === scope.draggingCfg || isDescendantOf(cfg, scope.draggingCfg))) {
-      if (global.ElementPlus && ElementPlus.ElMessage) ElementPlus.ElMessage.warning('不能将容器移动到自身或其内部');
-      scope.dragging = ''; scope.draggingCfg = null; return;
-    }
-    saveSnapshot(scope);
-    let movingNode = null;
-    if (scope.draggingCfg) {
-      const hit = findParent(scope.pageJson, scope.draggingCfg);
-      if (hit) {
-        const oldArr = hit.parent.childrenctrls;
-        const oi = oldArr.indexOf(scope.draggingCfg);
-        if (oi >= 0) oldArr.splice(oi, 1);
-      }
-      movingNode = scope.draggingCfg;
-    } else {
-      movingNode = defaultCfg(scope.dragging);
-    }
-    if (wasInsertInto && checkCanDrop(cfg.component, scope.dragging)) {
-      cfg.childrenctrls = cfg.childrenctrls || [];
-      cfg.childrenctrls.push(movingNode);
-    } else {
-      const phit = findParent(scope.pageJson, cfg);
-      if (phit && phit.parent) {
-        const arr = phit.parent.childrenctrls;
-        const ti = arr.indexOf(cfg);
-        if (scope.dropIndicator.insertAfter) {
-          if (ti >= 0) arr.splice(ti + 1, 0, movingNode);
-          else arr.push(movingNode);
-        } else {
-          if (ti >= 0) arr.splice(ti, 0, movingNode);
-          else arr.unshift(movingNode);
-        }
-      } else {
-        // dropping on root itself
-        scope.pageJson.childrenctrls = scope.pageJson.childrenctrls || [];
-        scope.pageJson.childrenctrls.push(movingNode);
-      }
-    }
-    select(scope, movingNode);
-    scope.dragging = ''; scope.draggingCfg = null;
-  }
-
-  function dropToRoot(scope, e) {
-    if (!scope.dragging) return;
-    e.preventDefault();
-    clearDrag(scope);
-    if (scope.draggingCfg) {
-      if (scope.draggingCfg === scope.pageJson) { scope.dragging = ''; scope.draggingCfg = null; return; }
-      saveSnapshot(scope);
-      const hit = findParent(scope.pageJson, scope.draggingCfg);
-      if (hit) {
-        const oldArr = hit.parent.childrenctrls;
-        const oi = oldArr.indexOf(scope.draggingCfg);
-        if (oi >= 0) oldArr.splice(oi, 1);
-      }
-      scope.pageJson.childrenctrls = scope.pageJson.childrenctrls || [];
-      scope.pageJson.childrenctrls.push(scope.draggingCfg);
-      select(scope, scope.draggingCfg);
-    } else {
-      scope.pageJson.childrenctrls = scope.pageJson.childrenctrls || [];
-      const child = defaultCfg(scope.dragging);
-      scope.pageJson.childrenctrls.push(child);
-      select(scope, child);
-    }
-    scope.dragging = ''; scope.draggingCfg = null;
-  }
-
   function moveSelected(scope, dir) {
     const cfg = scope.selected;
     if (!cfg) return;
     const hit = findParent(scope.pageJson, cfg);
     if (!hit) return;
-    const arr = hit.parent.childrenctrls;
+    const arr = arrayOfHit(hit);
+    if (!arr) return;
     const i = arr.indexOf(cfg);
     const j = i + dir;
-    if (j < 0 || j >= arr.length) return;
-    saveSnapshot(scope);
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    snap(scope);
     arr.splice(i, 1);
     arr.splice(j, 0, cfg);
   }
@@ -324,10 +207,12 @@ var __plugin = {
     if (!cfg) return;
     const hit = findParent(scope.pageJson, cfg);
     if (!hit) return;
-    saveSnapshot(scope);
+    const arr = arrayOfHit(hit);
+    if (!arr) return;
+    snap(scope);
     const copy = regenerateUids(JSON.parse(JSON.stringify(cfg)));
-    const i = hit.parent.childrenctrls.indexOf(cfg);
-    hit.parent.childrenctrls.splice(i + 1, 0, copy);
+    const i = arr.indexOf(cfg);
+    arr.splice(i < 0 ? arr.length : i + 1, 0, copy);
     select(scope, copy);
   }
 
@@ -336,10 +221,13 @@ var __plugin = {
     if (!cfg) return;
     const hit = findParent(scope.pageJson, cfg);
     if (!hit) return;
-    saveSnapshot(scope);
-    const arr = hit.parent.childrenctrls;
+    snap(scope);
+    const arr = arrayOfHit(hit);
+    if (!arr) return;
     const i = arr.indexOf(cfg);
     if (i >= 0) arr.splice(i, 1);
+    // slots 被删空时移除该 slot 键，避免运行时留下空壳
+    if (hit.slot !== 'childrenctrls' && arr.length === 0 && hit.parent.slots) delete hit.parent.slots[hit.slot];
     select(scope, null);
   }
 
@@ -353,7 +241,14 @@ var __plugin = {
       const mn = node.modelname || '';
       if (node.slots) {
         for (const k in node.slots) {
-          (node.slots[k] || []).forEach(c => kids.push({ uid: 'slot-' + uidOf(c), label: '#' + k, icon: '📥', cfg: null, search: '#' + k, children: [] }));
+          const arr = node.slots[k] || [];
+          if (!arr.length) continue;
+          // 插槽分组节点（cfg:null 不可拖拽/选中），子节点正常递归为可选中的真实节点
+          kids.push({
+            uid: 'slot-' + uidOf(node) + '-' + k,
+            label: '#' + k, icon: '📥', cfg: null, search: '#' + k,
+            children: arr.map(walk)
+          });
         }
       }
       // 展示：组件类型（modelname）；检索覆盖 类型/组件名/modelname/label
@@ -373,8 +268,7 @@ var __plugin = {
   }
 
   /* ============ 组件树拖拽（el-tree draggable 回写 pageJson） ============
-   * 树中 cfg 节点全部位于 childrenctrls（slots 子节点在 buildTreeData 里
-   * 只渲染为 cfg:null 的占位叶，不参与拖拽）。
+   * 树上 cfg 节点可能位于 childrenctrls 或 slots[slot]；插槽分组节点 cfg:null 不参与拖拽。
    * dropType：'before' | 'after' | 'inner'（el-tree 原生取值）
    */
   function treeAllowDrop(scope, dragCfg, dropCfg, dropType) {
@@ -397,10 +291,17 @@ var __plugin = {
       if (global.ElementPlus && ElementPlus.ElMessage) ElementPlus.ElMessage.warning('目标位置不接受该组件');
       return false;
     }
-    saveSnapshot(scope);
-    // 先从原位置摘出
+    snap(scope);
+    // 先从原位置摘出（childrenctrls / slots 均适用）
     const from = findParent(scope.pageJson, dragCfg);
-    if (from && from.slot === 'childrenctrls') from.parent.childrenctrls.splice(from.index, 1);
+    if (from) {
+      const fromArr = arrayOfHit(from);
+      if (fromArr) {
+        const fi = fromArr.indexOf(dragCfg);
+        if (fi >= 0) fromArr.splice(fi, 1);
+        if (from.slot !== 'childrenctrls' && fromArr.length === 0 && from.parent.slots) delete from.parent.slots[from.slot];
+      }
+    }
 
     if (dropType === 'inner') {
       dropCfg.childrenctrls = dropCfg.childrenctrls || [];
@@ -422,70 +323,14 @@ var __plugin = {
     return true;
   }
 
-  // 清理 JSON 中的空值：删除 {}、[]、null、""、undefined 的字段
-  function cleanJson(obj) {
-    if (obj === null || obj === undefined) return undefined;
-    if (Array.isArray(obj)) {
-      const arr = obj.map(cleanJson).filter(v => v !== undefined);
-      return arr.length ? arr : undefined;
-    }
-    if (typeof obj === 'object') {
-      const result = {};
-      for (const key in obj) {
-        // 跳过内部字段
-        if (key === '__uid' || key === '__dynId') continue;
-        const v = cleanJson(obj[key]);
-        if (v !== undefined) result[key] = v;
-      }
-      // 跳过空对象
-      const keys = Object.keys(result);
-      return keys.length ? result : undefined;
-    }
-    // 字符串空值跳过
-    if (typeof obj === 'string' && obj === '') return undefined;
-    return obj;
-  }
-
-  function getCleanJson(scope) {
-    return cleanJson(scope.pageJson);
-  }
-
-  /* ============ 撤销 / 重做（快照栈方案） ============
-   * 只在「真正修改页面数据」的操作前调用 saveSnapshot(scope)。
+  /* ============ 撤销 / 重做 ============
+   * 快照实现已下沉到 dyn-designer-history.js（本插件只负责结构操作前调用）。
    * previewActive（Tab 预览切换等设计态临时状态）绝不入栈，与「不落库」约束一致。
    */
-  const MAX_HISTORY = 20;
-  function saveSnapshot(scope) {
-    if (!scope) return;
-    try {
-      const snap = JSON.parse(JSON.stringify(scope.pageJson));
-      if (JSON.stringify(snap) === JSON.stringify(scope.undoStack[scope.undoStack.length - 1])) return;
-      scope.undoStack.push(snap);
-      if (scope.undoStack.length > MAX_HISTORY) scope.undoStack.shift();
-      scope.redoStack = [];
-    } catch (e) {}
-  }
-  function applySnapshot(scope, snap) {
-    scope.pageJson = snap;             // 纯对象赋给 reactive model 属性 → Vue 自动代理
-    scope.selected = null; scope.current = null;
-    scope.selectedUid = ''; scope.overlay.uid = '';
-    scope.previewActive = { uid: '', index: 0 };
-    scope.pathList = [];
-    // 顶层引用已替换，但容器模板 setup 快照 jc 不响应 → 自增版本号强制整树重建
-    scope.canvasVersion = (scope.canvasVersion || 0) + 1;
-    setTimeout(function () { updateOverlay(scope); }, 60);
-  }
-  function undoAction(scope) {
-    if (!scope || !scope.undoStack || !scope.undoStack.length) return false;
-    scope.redoStack.push(JSON.parse(JSON.stringify(scope.pageJson)));
-    applySnapshot(scope, scope.undoStack.pop());
-    return true;
-  }
-  function redoAction(scope) {
-    if (!scope || !scope.redoStack || !scope.redoStack.length) return false;
-    scope.undoStack.push(JSON.parse(JSON.stringify(scope.pageJson)));
-    applySnapshot(scope, scope.redoStack.pop());
-    return true;
+  function snap(scope) {
+    if (global.DynDesignerHistory && global.DynDesignerHistory.snapshot) {
+      global.DynDesignerHistory.snapshot(scope);
+    }
   }
 
   /* ============ 设计器扩展：子项管理（designerMeta）+ 组件专属操作（designerOperates） ============
@@ -562,7 +407,7 @@ var __plugin = {
     const cfg = scope.selected;
     const arr = childListOf(scope);
     if (!cfg || !arr) return;
-    saveSnapshot(scope);
+    snap(scope);
     arr.push(defaultChildFor(cfg));
     scope.previewActive = { uid: scope.selectedUid, index: arr.length - 1 };
     select(scope, cfg);
@@ -571,7 +416,7 @@ var __plugin = {
     const cfg = scope.selected;
     const arr = childListOf(scope);
     if (!cfg || !arr || !arr.length) return;
-    saveSnapshot(scope);
+    snap(scope);
     const idx = activeIndex(scope);
     arr.splice(idx, 1);
     scope.previewActive = { uid: scope.selectedUid, index: Math.max(0, Math.min(idx, arr.length - 1)) };
@@ -587,7 +432,7 @@ var __plugin = {
     const cfg = scope.selected;
     const arr = childListOf(scope);
     if (!cfg || !arr || !arr.length) return;
-    saveSnapshot(scope);
+    snap(scope);
     const cur = activeIndex(scope);
     const j = cur + dir;
     if (j < 0 || j >= arr.length) return;
@@ -683,16 +528,13 @@ var __plugin = {
   }
 
   global.DynDesignerOps = {
-    uidOf, metaOf, isContainer, checkCanDrop, findNode, findParent, getPathList, isDescendantOf,
+    uidOf, metaOf, isContainer, checkCanDrop, findNode, findParent, arrayOfHit, getPathList, isDescendantOf,
     defaultCfg, select, updateOverlay,
-    onDragStartMeta, onDragStartCfg, onDragOver, onDragLeave, onDrop, dropToRoot, clearDrag,
     moveSelected, duplicateSelected, removeSelected, buildTreeData,
     regenerateUids, treeAllowDrop, treeReorder,
-    cleanJson, getCleanJson,
     parseJsonStr, designerMetaOf, designerOperatesOf, getPath, childListOf, activeIndex,
     addChildItem, removeActiveChild, stepActive, moveActiveChild,
-    commandRegistry, execOperate,
-    saveSnapshot, undoAction, redoAction
+    commandRegistry, execOperate
   };
   }
 };

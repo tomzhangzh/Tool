@@ -1,0 +1,24 @@
+﻿{
+    "_comment":  "文件行数棘轮基线：登记项只许变小；重构到阈值以内后重跑 -Update 会自动移除。",
+    "threshold":  500,
+    "files":  {
+                  "src/VueLibV4.Web/Areas/Platform/Controllers/Tools/PageGraphController.cs":  548,
+                  "src/VueLibV4.Web/wwwroot/dyn/dyn-action.js":  507,
+                  "src/VueLibV4.Web/Services/ViewGenerateService.cs":  537,
+                  "src/VueLibV4.Web/wwwroot/img/mac-wallpaper.jpg":  2036,
+                  "src/VueLibV4.Web/Areas/Platform/Views/Page/Desktop.cshtml":  1024,
+                  "src/VueLibV4.Web/wwwroot/dyn/dyn-debug-panel.js":  616,
+                  "src/VueLibV4.Web/wwwroot/img/mac-wallpaper-night.jpg":  2098,
+                  "src/VueLibV4.Web/Platform.db":  22041,
+                  "src/VueLibV4.Web/wwwroot/dyn/dyn-designer-ops.js":  669,
+                  "src/VueLibV4.Web/Areas/Component/Views/Common/_BaseLayout.cshtml":  528,
+                  "src/VueLibV4.Web/Views/DynBlocks/AppsV2/WidgetApp.cshtml":  543,
+                  "src/VueLibV4.Web/wwwroot/dyn/dyn-action-builtins.js":  697,
+                  "src/VueLibV4.Web/Areas/Platform/Views/Page/Designer/Canvas.cshtml":  640,
+                  "src/VueLibV4.Web/Areas/Platform/Views/Tools/ComponentCheck.cshtml":  501,
+                  "src/VueLibV4.Web/wwwroot/dyn/dyn-dsl.js":  744,
+                  "src/VueLibV4.Web/wwwroot/dyn/dyn-core.js":  1105,
+                  "src/VueLibV4.Services/Data/DynamicCrudService.cs":  751,
+                  "src/VueLibV4.Web/Areas/Platform/Views/Page/PageGen.cshtml":  507
+              }
+}

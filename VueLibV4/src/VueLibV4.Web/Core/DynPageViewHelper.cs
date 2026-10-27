@@ -1,4 +1,5 @@
 using Newtonsoft.Json.Linq;
+using VueLibV4.Platform.Models;
 using VueLibV4.Platform.Services;
 
 namespace VueLibV4.Web.Core;
@@ -12,16 +13,17 @@ public static class DynPageViewHelper
 {
     // 统一动态数据端点：全系统唯一数据入口，数据域由请求 project 坐标决定
     // （空=默认业务库；"__platform__"=平台元数据库；DynProject.Code/Id=项目库）。
-    public const string SearchUrl = "/api/dyndata/search";
-    public const string InsertUrl = "/api/dyndata/insert";
-    public const string UpdateUrl = "/api/dyndata/update";
-    public const string DeleteUrl = "/api/dyndata/delete";
-    public const string GetUrl = "/api/dyndata/get";
+    // 常量权威定义在 Platform 层（DynDataEndpoints），此处仅做视图层别名，避免 URL 双写。
+    public const string SearchUrl = DynDataEndpoints.Search;
+    public const string InsertUrl = DynDataEndpoints.Insert;
+    public const string UpdateUrl = DynDataEndpoints.Update;
+    public const string DeleteUrl = DynDataEndpoints.Delete;
+    public const string GetUrl = DynDataEndpoints.Get;
     /// <summary>按主键自动判别增/改的保存端点（Block 写操作标准入口）。</summary>
-    public const string SaveUrl = "/api/dyndata/save";
+    public const string SaveUrl = DynDataEndpoints.Save;
 
     /// <summary>平台元数据库的数据域坐标（与 ProjectDbResolver.PlatformProjectKey 对应）。</summary>
-    public const string PlatformProject = "__platform__";
+    public const string PlatformProject = DynDataEndpoints.PlatformProject;
 
     /// <summary>配置值为空时取缺省 URL。</summary>
     public static string UrlOr(string configured, string fallback)

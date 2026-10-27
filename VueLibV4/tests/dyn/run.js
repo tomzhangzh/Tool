@@ -87,9 +87,18 @@ function loadEngine() {
     'dyn-action-docs.js',
     'dyn-action-dom.js'
   ];
+  // 设计器纯逻辑（树/撤销/体检/标尺）也跑真实实现：ops 先装载，history/lint 依赖其全局
+  const designerModules = [
+    'dyn-node-config.js',
+    'dyn-designer-ops.js',
+    'dyn-designer-json.js',
+    'dyn-designer-history.js',
+    'dyn-designer-lint.js',
+    'dyn-designer-ruler.js'
+  ];
   vm.runInContext(fs.readFileSync(path.join(dynDir, 'dyn-kernel.js'), 'utf8'), sb, { filename: 'dyn-kernel.js' });
   vm.runInContext(fs.readFileSync(path.join(dynDir, 'dyn-core.js'), 'utf8'), sb, { filename: 'dyn-core.js' });
-  actionModules.forEach(function (name) {
+  actionModules.concat(designerModules).forEach(function (name) {
     vm.runInContext(fs.readFileSync(path.join(dynDir, name), 'utf8'), sb, { filename: name });
   });
   return sb;
@@ -144,7 +153,11 @@ async function run() {
     });
   }
 
-  const { dyn, I, kernel } = await bootEngine(loadEngine());
+  const sb = loadEngine();
+  const { dyn, I, kernel } = await bootEngine(sb);
+  const Ops = sb.DynDesignerOps;
+  const History = sb.DynDesignerHistory;
+  const Ruler = sb.DynDesignerRuler;
 
   // showMessage 间谍：捕获 calc/runPipe 的告警提示
   const msgs = [];
@@ -495,6 +508,98 @@ async function run() {
       await vm.runInContext('DynKernel.boot()', sb2);
       eq(sb2.__preRan, true, 'boot 后 pending 插件 setup 被执行');
       eq(sb2.DynKernel.status()[0].status, 'done');
+    });
+  });
+
+  // ---------------- 设计器：树 / slots / 撤销 / 体检 / 标尺 ----------------
+  describe('设计器纯逻辑（slots / 撤销 / 体检 / 标尺）', () => {
+    function makeScope(pageJson) {
+      return {
+        pageJson: pageJson, selected: null, current: null, selectedUid: '',
+        overlay: { uid: '' }, pathList: [], previewActive: { uid: '', index: 0 },
+        canvasVersion: 0, undoStack: [], redoStack: [], componentMetaList: [],
+        __savedJson: JSON.stringify(pageJson)
+      };
+    }
+
+    it('DynNodeConfig 导出契约齐全（_BaseLayout 依赖的 NC 方法）', () => {
+      const N = sb.DynNodeConfig;
+      ok(N, 'DynNodeConfig 应存在');
+      const required = [
+        'parseAttrJson', 'ensureDefaults', 'getComlisteners', 'loadOptions', 'applyPassThrough',
+        'bindDesignerNode', 'designRootClass', 'mergeLabelOptions', 'bindingsPatch', 'mergePatch',
+        'evalExpr', 'resolveTemplate', 'runValidators', 'evalConditionPatch', 'getStyle', 'getClass'
+      ];
+      const missing = required.filter(k => typeof N[k] !== 'function');
+      eq(missing.join(','), '', '_BaseLayout 引用的 NC 方法必须全部导出');
+    });
+
+    it('组件树能看到 slots 子节点（分组节点 cfg:null，子节点可选中）', () => {
+      const root = {
+        component: 'DynElTabs', childrenctrls: [],
+        slots: { default: [{ component: 'DynText', modelname: 'a', options: {}, childrenctrls: [] }] }
+      };
+      const tree = Ops.buildTreeData(root);
+      const group = (tree[0].children || []).find(n => String(n.uid).indexOf('slot-') === 0);
+      ok(group, '应生成 slots 分组节点');
+      eq(group.cfg, null);
+      const child = (group.children || []).find(n => n.cfg && n.cfg.component === 'DynText');
+      ok(child, 'slots 子节点应出现在树中且带 cfg');
+    });
+
+    it('arrayOfHit 对 childrenctrls / slots 返回真实数组', () => {
+      const kids = [{ component: 'A' }];
+      const slotItems = [{ component: 'B' }];
+      const parent = { component: 'P', childrenctrls: kids, slots: { default: slotItems } };
+      eq(Ops.arrayOfHit({ parent: parent, slot: 'childrenctrls' })[0].component, 'A');
+      eq(Ops.arrayOfHit({ parent: parent, slot: 'default' })[0].component, 'B');
+    });
+
+    it('删除 slots 子节点只动该槽，不误删 childrenctrls', () => {
+      const slotChild = { component: 'DynText', modelname: 'x', options: {}, childrenctrls: [] };
+      const scope = makeScope({
+        component: 'DynElTabs',
+        childrenctrls: [{ component: 'DynText', modelname: 'keep', options: {}, childrenctrls: [] }],
+        slots: { default: [slotChild] }
+      });
+      scope.selected = slotChild;
+      Ops.removeSelected(scope);
+      eq(scope.pageJson.childrenctrls.length, 1, 'childrenctrls 不应被误删');
+      eq(scope.pageJson.childrenctrls[0].modelname, 'keep');
+      eq(scope.pageJson.slots.default, undefined, '空槽键应被移除');
+    });
+
+    it('体检：重复 modelname / 未知组件 / 非容器带子节点', () => {
+      const scope = makeScope({
+        component: 'DynElInput', modelname: 'dup',
+        childrenctrls: [{ component: 'GhostCom', modelname: 'dup', options: {}, childrenctrls: [] }]
+      });
+      scope.componentMetaList = [{ ComponentName: 'DynElInput' }];
+      const res = Ops.lintPageJson(scope);
+      ok(res.errors >= 3, '应至少报 3 个错误，实得 ' + res.errors);
+      const codes = res.issues.map(i => i.code);
+      ok(codes.indexOf('dupe') >= 0, '应报 modelname 重复');
+      ok(codes.indexOf('unknown') >= 0, '应报未知组件');
+      ok(codes.indexOf('children') >= 0, '应报非容器带子节点');
+    });
+
+    it('标尺刻度：缩放后主刻度间距与数值同步换算', () => {
+      const r1 = Ruler.layout({ size: 200, scroll: 0, zoom: 1, unit: 50 });
+      eq(r1.main.length, 5);
+      eq(r1.main[0].value, 0);
+      eq(r1.main[4].value, 200);
+      const r2 = Ruler.layout({ size: 200, scroll: 0, zoom: 2, unit: 50 });
+      eq(r2.step, 100);
+      eq(r2.main.length, 3, 'zoom=2 时 200px 内只有 0/100/200 三个主刻度');
+      eq(r2.main[1].value, 50);
+    });
+
+    it('撤销快照去重：同一状态连续记录只入栈一次', () => {
+      const scope = makeScope({ component: 'DynElContainer', childrenctrls: [] });
+      History.baseline(scope);
+      History.snapshot(scope);
+      History.snapshot(scope);
+      eq(scope.undoStack.length, 1);
     });
   });
 

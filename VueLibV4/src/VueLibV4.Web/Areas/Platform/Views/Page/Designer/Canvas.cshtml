@@ -12,10 +12,8 @@
     <div ref="rulerVRef" v-if="model.showRuler" class="dyn-ruler-v shrink-0 z-20 bg-gray-100 border-r border-gray-300 overflow-hidden" style="width:20px;"><canvas ref="rulerVCanvas" style="display:block;"></canvas></div>
     <!-- 画布滚动区（标尺与画布共用同一坐标系：刻度 = 画布坐标 × zoom，滚动同步 scrollPos） -->
     <div class="flex-1 min-w-0 min-h-0 overflow-auto relative" ref="canvasScrollRef" @@scroll="onCanvasScroll">
-      <!-- 拖拽背景层：空区域 drop 到根 -->
-      <div class="min-h-full"
-           @@dragover.prevent="onDragOverRoot"
-           @@drop.prevent="onDropRoot">
+      <!-- 拖拽背景层 -->
+      <div class="min-h-full">
 
   @* ===== JSON 模式：直接编辑整页配置，应用后写回画布（可撤销） ===== *@
   <div v-if="model.mode === 'json'" class="dyn-json-mode p-4">
@@ -44,17 +42,6 @@
          追加 mode 段：设计/预览切换时整树重挂载，保证 data-dyn-uid、Sortable、onMounted 数据加载等行为与真实页面一致 -->
     <dyn-dynamic-com :key="'root_' + (model.canvasVersion || 0) + '_' + (model.mode === 'preview' ? 'p' : 'd')" :jsonconfig="model.pageJson" :parentmodelinfo="model.mode === 'preview' ? model.defaultModel : null"></dyn-dynamic-com>
 
-    <!-- drop 指示线/高亮 -->
-    <div v-if="model.dropIndicator.show && model.dropIndicator.insertInto"
-         data-designer-drop-indicator
-         class="absolute border-2 border-dashed border-blue-400 bg-blue-50 opacity-60 pointer-events-none z-20 rounded"
-         :style="{ top: model.dropIndicator.top + 'px', left: model.dropIndicator.left + 'px', width: model.dropIndicator.width + 'px', height: model.dropIndicator.height + 'px' }"></div>
-    <div v-if="model.dropIndicator.show && (model.dropIndicator.insertBefore || model.dropIndicator.insertAfter)"
-         data-designer-drop-indicator
-         class="absolute bg-blue-500 pointer-events-none z-20"
-         style="height:3px;border-radius:2px;"
-         :style="{ top: model.dropIndicator.top + 'px', left: model.dropIndicator.left + 'px', width: model.dropIndicator.width + 'px' }"></div>
-
     <!-- overlay：不干扰容器自身 style/class，纯绝对定位覆盖层 -->
     <div v-if="model.overlay.uid && designMode"
          data-designer-overlay
@@ -69,12 +56,15 @@
                 @@click.stop="ops.execOperate(model, op)">{{ op.icon || op.label }}</button>
         @* ===== 通用子项管理（ComponentMeta.DesignerMeta.childrenSchemaPath，Tab页/列等）===== *@
         <template v-if="childManager.available">
-          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.addChildItem(model)" title="新增子项（Tab页/列）">＋</button>
-          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.removeActiveChild(model)" title="删除当前子项">−</button>
-          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.stepActive(model,-1)" title="上一项（仅预览切换，不改元数据）">◀</button>
-          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.stepActive(model,1)" title="下一项（仅预览切换，不改元数据）">▶</button>
-          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveActiveChild(model,-1)" title="子项上移（调整顺序）">⇧</button>
-          <button class="hover:bg-blue-600 px-1" @@click.stop="ops.moveActiveChild(model,1)" title="子项下移（调整顺序）">⇩</button>
+          <button class="hover:bg-blue-600 px-1" @@click.stop="overlayMenuOpen = !overlayMenuOpen" title="子项管理">⋯</button>
+          <div v-if="overlayMenuOpen" class="dyn-overlay-menu" @@click.stop>
+            <button @@click.stop="menuChild('add')">＋ 新增子项</button>
+            <button @@click.stop="menuChild('remove')">− 删除当前子项</button>
+            <button @@click.stop="menuChild('prev')">◀ 上一项（仅预览）</button>
+            <button @@click.stop="menuChild('next')">▶ 下一项（仅预览）</button>
+            <button @@click.stop="menuChild('up')">⇧ 子项上移</button>
+            <button @@click.stop="menuChild('down')">⇩ 子项下移</button>
+          </div>
         </template>
         @* ===== 基础操作 ===== *@
         <button v-if="model.selected && model.selected !== model.pageJson"
@@ -250,6 +240,7 @@
   var dynConfig = {
     data: function () {
       return { ops: window.DynDesignerOps, _rulerH: null, _rulerV: null, _stopWatchZoom: null, _stopWatchRuler: null, _csScroll: null, _onWinResize: null,
+               overlayMenuOpen: false,
                jsonModeText: '', jsonModeError: '', htmlViewerOpen: false, htmlViewerText: '' };
     },
     watch: {
@@ -257,10 +248,8 @@
       'model.mode': function (v) {
         if (v === 'json') { this.refreshJsonMode(); return; }
         if (v === 'preview') {
-          // 进入预览：清除选中浮层 / 投放指示 / 拖拽态，画布与真实渲染页完全一致
+          // 进入预览：清除选中浮层与拖拽态，画布与真实渲染页完全一致
           window.DynDesignerOps.select(this.model, null);
-          this.model.dropIndicator.show = false;
-          if (window.DynDesignerOps.clearDrag) window.DynDesignerOps.clearDrag(this.model);
         }
       },
       // TopBar「HTML」开关：打开渲染 HTML 查看器
@@ -297,22 +286,45 @@
         pageCtx: {
           designMode: this.designMode,
           uidOf: function (cfg) { return window.DynDesignerOps.uidOf(cfg); },
-          onDragStartCfg: function (cfg, e) { window.DynDesignerOps.onDragStartCfg(self.model, cfg, e); },
           onSelect: function (cfg, e) { if (e) e.stopPropagation(); window.DynDesignerOps.select(self.model, cfg); },
-          onHover: function () {},
-          onDragOver: function (cfg, e) { window.DynDesignerOps.onDragOver(self.model, cfg, e); },
-          onDragLeave: function (cfg, e) { window.DynDesignerOps.onDragLeave(self.model, cfg, e); },
-          onDrop: function (cfg, e) { window.DynDesignerOps.onDrop(self.model, cfg, e); },
           parentOf: function (cfg) { var h = window.DynDesignerOps.findParent(self.model.pageJson, cfg); return h ? h.parent : null; }
         }
       };
     },
     mounted: function () {
       var self = this;
-      // 初次挂载后，选中变化时重算 overlay 位置
-      this._stopWatch = this.$watch(function () { return self.model.selectedUid; }, function () {
-        setTimeout(function () { window.DynDesignerOps.updateOverlay(self.model); }, 50);
-      });
+      // 选中 / 整树重建 / 设计预览切换：重算 overlay 并重新监听选中节点尺寸
+      this._stopWatch = this.$watch(
+        function () { return self.model.selectedUid + '|' + (self.model.canvasVersion || 0) + '|' + self.model.mode; },
+        function () {
+          self.overlayMenuOpen = false;
+          setTimeout(function () {
+            window.DynDesignerOps.updateOverlay(self.model);
+            self._bindOverlayObserver();
+          }, 50);
+        }
+      );
+      // hover 描边：只描当前指针下最近的一个设计节点
+      var paper = this.$el && this.$el.querySelector ? this.$el.querySelector('[data-designer-canvas]') : null;
+      if (paper) {
+        this._hoverEl = null;
+        this._onHover = function (e) {
+          if (self.model.mode === 'preview' || self.model.dragging) return;
+          var span = e.target && e.target.closest ? e.target.closest('[data-dyn-uid]') : null;
+          if (!span) return;
+          var el = span;
+          if (getComputedStyle(span).display === 'contents') el = span.firstElementChild || span;
+          if (el === self._hoverEl) return;
+          if (self._hoverEl) self._hoverEl.classList.remove('dyn-hover-node');
+          self._hoverEl = el;
+          el.classList.add('dyn-hover-node');
+        };
+        this._onHoverOut = function () { if (self._hoverEl) self._hoverEl.classList.remove('dyn-hover-node'); self._hoverEl = null; };
+        paper.addEventListener('pointerover', this._onHover);
+        paper.addEventListener('pointerleave', this._onHoverOut);
+        this._paperEl = paper;
+      }
+      this._bindOverlayObserver();
       window.addEventListener('resize', function () { window.DynDesignerOps.updateOverlay(self.model); });
       var mainEl = this.$el;
       if (mainEl) {
@@ -349,10 +361,41 @@
       var cs = this.$refs.canvasScrollRef;
       if (cs && this._csScroll) cs.removeEventListener('scroll', this._csScroll);
       if (this._onWinResize) window.removeEventListener('resize', this._onWinResize);
+      if (this._ovRO) { this._ovRO.disconnect(); this._ovRO = null; }
+      if (this._paperEl) {
+        if (this._onHover) this._paperEl.removeEventListener('pointerover', this._onHover);
+        if (this._onHoverOut) this._paperEl.removeEventListener('pointerleave', this._onHoverOut);
+      }
+      if (this._hoverEl) this._hoverEl.classList.remove('dyn-hover-node');
       this.destroyRulers();
     },
     methods: {
-      // ===== 标尺（手写 canvas：画布坐标 × zoom + 滚动偏移，DPR 自适应，文字清晰可见）=====
+      // 监听选中节点尺寸：属性改动导致高度变化时，选中框立即贴合
+      _bindOverlayObserver: function () {
+        var self = this;
+        if (this._ovRO) { this._ovRO.disconnect(); this._ovRO = null; }
+        var uid = this.model.selectedUid;
+        if (!uid || this.model.mode === 'preview') return;
+        var span = document.querySelector('[data-dyn-uid="' + uid + '"]');
+        if (!span) return;
+        var el = span;
+        if (getComputedStyle(span).display === 'contents') el = span.firstElementChild || span;
+        if (!window.ResizeObserver) return;
+        this._ovRO = new ResizeObserver(function () { window.DynDesignerOps.updateOverlay(self.model); });
+        this._ovRO.observe(el);
+      },
+      // 子项管理菜单：统一入口，执行后收起
+      menuChild: function (action) {
+        var m = this.model;
+        this.overlayMenuOpen = false;
+        if (action === 'add') window.DynDesignerOps.addChildItem(m);
+        else if (action === 'remove') window.DynDesignerOps.removeActiveChild(m);
+        else if (action === 'prev') window.DynDesignerOps.stepActive(m, -1);
+        else if (action === 'next') window.DynDesignerOps.stepActive(m, 1);
+        else if (action === 'up') window.DynDesignerOps.moveActiveChild(m, -1);
+        else if (action === 'down') window.DynDesignerOps.moveActiveChild(m, 1);
+      },
+      // ===== 标尺（canvas 绘制下沉到 dyn-designer-ruler.js）=====
       rulerZoom: function () { return (this.model.zoom || 100) / 100; },
       initRulers: function () {
         var self = this;
@@ -373,91 +416,15 @@
       syncRulerScroll: function () { this.drawRulers(); },
       // 重绘两个标尺
       drawRulers: function () {
+        var api = window.DynDesignerRuler;
+        if (!api) return;
         var z = this.rulerZoom();
         var cs = this.$refs.canvasScrollRef;
         var off = 16; // 画布在滚动区内 16px margin：标尺 0 点对齐画布左上角
-        var sx = cs ? cs.scrollLeft - off : 0;
-        var sy = cs ? cs.scrollTop - off : 0;
-        this.drawH(z, sx);
-        this.drawV(z, sy);
-      },
-      drawH: function (z, sx) {
-        var c = this._hCanvas, wrap = this._hWrap;
-        if (!c || !wrap) return;
-        var cssW = wrap.clientWidth, cssH = wrap.clientHeight || 20;
-        var dpr = window.devicePixelRatio || 1;
-        c.width = Math.max(1, Math.round(cssW * dpr));
-        c.height = Math.max(1, Math.round(cssH * dpr));
-        c.style.width = cssW + 'px'; c.style.height = cssH + 'px';
-        var ctx = c.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, cssW, cssH);
-        ctx.fillStyle = '#f3f4f6'; ctx.fillRect(0, 0, cssW, cssH);
-        var unit = 50, step = unit * z; // 缩放后的主刻度间距(px)
-        if (!(step > 0)) step = 1;
-        var start = Math.floor(sx / step) * step;
-        ctx.lineWidth = 1;
-        ctx.font = '10px sans-serif';
-        ctx.textBaseline = 'top';
-        for (var x = start; x <= sx + cssW; x += step) {
-          var px = Math.round(x - sx) + 0.5;
-          var val = Math.round((x / z) / unit) * unit;
-          ctx.strokeStyle = '#c0c4cc';
-          ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, cssH); ctx.stroke();
-          ctx.fillStyle = '#5a5a5a';
-          ctx.fillText(String(val), px + 3, 3);
-        }
-        var sub = step / 5;
-        ctx.strokeStyle = '#d5d8dd';
-        for (var x2 = start; x2 <= sx + cssW; x2 += sub) {
-          var px2 = Math.round(x2 - sx) + 0.5;
-          ctx.beginPath(); ctx.moveTo(px2, cssH - 6); ctx.lineTo(px2, cssH); ctx.stroke();
-        }
-      },
-      drawV: function (z, sy) {
-        var c = this._vCanvas, wrap = this._vWrap;
-        if (!c || !wrap) return;
-        var cssW = wrap.clientWidth || 20, cssH = wrap.clientHeight;
-        var dpr = window.devicePixelRatio || 1;
-        c.width = Math.max(1, Math.round(cssW * dpr));
-        c.height = Math.max(1, Math.round(cssH * dpr));
-        c.style.width = cssW + 'px'; c.style.height = cssH + 'px';
-        var ctx = c.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, cssW, cssH);
-        ctx.fillStyle = '#f3f4f6'; ctx.fillRect(0, 0, cssW, cssH);
-        var unit = 50, step = unit * z;
-        if (!(step > 0)) step = 1;
-        var start = Math.floor(sy / step) * step;
-        ctx.lineWidth = 1;
-        ctx.font = '9px sans-serif';
-        ctx.textBaseline = 'top';
-        for (var y = start; y <= sy + cssH; y += step) {
-          var py = Math.round(y - sy) + 0.5;
-          var val = Math.round((y / z) / unit) * unit;
-          ctx.strokeStyle = '#c0c4cc';
-          ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(cssW, py); ctx.stroke();
-          ctx.fillStyle = '#5a5a5a';
-          ctx.fillText(String(val), 2, py + 2);
-        }
-        var sub = step / 5;
-        ctx.strokeStyle = '#d5d8dd';
-        for (var y2 = start; y2 <= sy + cssH; y2 += sub) {
-          var py2 = Math.round(y2 - sy) + 0.5;
-          ctx.beginPath(); ctx.moveTo(cssW - 6, py2); ctx.lineTo(cssW, py2); ctx.stroke();
-        }
+        api.draw(this._hCanvas, this._hWrap, { vertical: false, zoom: z, scroll: cs ? cs.scrollLeft - off : 0 });
+        api.draw(this._vCanvas, this._vWrap, { vertical: true, zoom: z, scroll: cs ? cs.scrollTop - off : 0 });
       },
       onCanvasScroll: function () { this.syncRulerScroll(); },
-      onDragOverRoot: function (e) {
-        // 预览模式：画布等同真实页面，不接受任何设计器拖放
-        if (this.model.mode === 'preview' || !this.model.dragging) return;
-        e.preventDefault();
-        this.model.dropIndicator.show = false;
-      },
-      onDropRoot: function (e) {
-        if (this.model.mode === 'preview') return;
-        window.DynDesignerOps.dropToRoot(this.model, e);
-      },
       onCanvasClick: function () {
         if (this.model.mode === 'preview') return;
         window.DynDesignerOps.select(this.model, null);
@@ -607,6 +574,8 @@
         window.DynDesignerOps.saveSnapshot(this.model);
         this.model.pageJson = obj;
         this.model.canvasVersion = (this.model.canvasVersion || 0) + 1;
+        // 程序化替换顶层引用后重设基线：保留「应用前」快照可撤销，同时避免重复记一条
+        if (window.DynDesignerHistory) window.DynDesignerHistory.baseline(this.model);
         window.DynDesignerOps.select(this.model, null);
         this.jsonModeError = '';
         this.$message.success('JSON 已应用到画布，可撤销');
@@ -617,7 +586,7 @@
         if (!paper) { this.htmlViewerText = '（未找到画布）'; return; }
         var clone = paper.cloneNode(true);
         // 剥离设计器专用标记/浮层/缩放样式，得到接近运行时的静态 HTML
-        clone.querySelectorAll('[data-designer-overlay],[data-designer-drop-indicator]').forEach(function (n) { n.parentNode && n.parentNode.removeChild(n); });
+        clone.querySelectorAll('[data-designer-overlay]').forEach(function (n) { n.parentNode && n.parentNode.removeChild(n); });
         clone.querySelectorAll('[data-dyn-uid]').forEach(function (n) { n.removeAttribute('data-dyn-uid'); });
         clone.removeAttribute('data-designer-canvas');
         clone.classList.remove('design-mode');

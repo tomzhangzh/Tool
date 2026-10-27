@@ -1,60 +1,165 @@
-@* 顶部工具栏：独立 dyn app，通过 scope 共享 model *@
-<header class="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5 bg-white border-b border-gray-200 shrink-0 text-sm"
-        dyn-init="createapp" v-cloak data-dyn-use-scope="designer">
-  <b class="text-orange-500 text-base">🎨 低代码设计器</b>
+@* 顶部菜单栏：独立 dyn app，通过 scope 共享 model。
+   形态参考 macOS 菜单栏——单行、左侧文字菜单、右侧状态与常用动作，不换行、不堆按钮。 *@
+<header class="dyn-menubar" dyn-init="createapp" v-cloak data-dyn-use-scope="designer">
+  @* ===== 左区：品牌 / 页面名 / 文本菜单 ===== *@
+  <div class="dyn-mb-left">
+    <span class="dyn-mb-brand">🎨 设计器</span>
+    <span class="dyn-mb-sep"></span>
+    <el-input v-model="model.pageName" class="dyn-mb-name" placeholder="未命名页面"></el-input>
+    <span v-if="model.dirty" class="dyn-mb-dirty" title="有未保存的修改">● 未保存</span>
 
-  @* ===== 弹窗嵌入模式：确定 / 取消 / 默认数据模型 ===== *@
-  <template v-if="model.embed">
-    <el-input v-model="model.pageName" size="small" placeholder="未命名页面" class="w-44"></el-input>
-    <div class="flex-1"></div>
-    <el-button size="small" @@click="onEditModel">默认模型</el-button>
-    <el-button size="small" type="info" @@click="onCancelEmbed">取消</el-button>
-    <el-button size="small" type="primary" @@click="onConfirmEmbed">确定</el-button>
-  </template>
+    <template v-if="!model.embed">
+      <span class="dyn-mb-sep"></span>
+      <el-dropdown trigger="click" @@command="onMenu">
+        <span class="dyn-mb-menu">文件</span>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="new">新建页面</el-dropdown-item>
+            <el-dropdown-item command="save" divided>保存<span class="dyn-mb-key">Ctrl+S</span></el-dropdown-item>
+            <el-dropdown-item command="composition">存为组合</el-dropdown-item>
+            <el-dropdown-item command="preview" divided>新窗口预览</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+      <el-dropdown trigger="click" @@command="onMenu">
+        <span class="dyn-mb-menu">编辑</span>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="undo" :disabled="model.undoStack.length === 0">撤销<span class="dyn-mb-key">Ctrl+Z</span></el-dropdown-item>
+            <el-dropdown-item command="redo" :disabled="model.redoStack.length === 0">重做<span class="dyn-mb-key">Ctrl+Shift+Z</span></el-dropdown-item>
+            <el-dropdown-item command="del" divided :disabled="!model.selected">删除选中<span class="dyn-mb-key">Delete</span></el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+      <el-dropdown trigger="click" @@command="onMenu">
+        <span class="dyn-mb-menu">视图</span>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="ruler">{{ model.showRuler ? '✓ ' : '　' }}显示标尺</el-dropdown-item>
+            <el-dropdown-item command="code">{{ model.showCode ? '✓ ' : '　' }}显示 HTML 源码</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </template>
 
-  @* ===== 独立页模式：新建 / 保存 / 预览 ===== *@
-  <template v-else>
-    <el-input v-model="model.pageName" size="small" placeholder="未命名页面" class="w-44"></el-input>
-    <el-button size="small" @@click="onNew">新建</el-button>
-    <el-button size="small" type="primary" @@click="onSave(false)">保存</el-button>
-    <el-switch v-model="model.openConfig" size="small"></el-switch>
-    <span class="text-gray-400 text-xs">开放配置</span>
-    <el-button size="small" type="warning" @@click="onSaveComposition">存组合</el-button>
-    <el-button size="small" :disabled="model.undoStack.length === 0" @@click="onUndo">↩ 撤销</el-button>
-    <el-button size="small" :disabled="model.redoStack.length === 0" @@click="onRedo">↪ 重做</el-button>
+    <el-dropdown trigger="click" @@command="onMenu">
+      <span class="dyn-mb-menu">工具</span>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item command="lint">配置体检</el-dropdown-item>
+          <el-dropdown-item command="json">查看 JSON</el-dropdown-item>
+          <el-dropdown-item command="model" v-if="!model.embed">查看 Model</el-dropdown-item>
+          <el-dropdown-item v-if="model.embed" command="model">默认数据模型</el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+  </div>
 
-    <div class="flex-1"></div>
+  @* ===== 右区：尺寸 / 设备 / 缩放 / 模式 + 主操作 ===== *@
+  <div class="dyn-mb-right">
+    <el-popover trigger="click" placement="bottom-end" :width="240">
+      <template #reference>
+        <span class="dyn-mb-status" title="画布尺寸">{{ model.pageWidth }} × {{ model.pageHeight }}</span>
+      </template>
+      <div class="dyn-mb-pop">
+        <div class="dyn-mb-pop-row">
+          <span>宽度</span>
+          <el-input-number v-model="model.pageWidth" :min="320" :max="1920" size="small" controls-position="right" style="width:112px"></el-input-number>
+        </div>
+        <div class="dyn-mb-pop-row">
+          <span>高度</span>
+          <el-input-number v-model="model.pageHeight" :min="200" :max="4000" size="small" controls-position="right" style="width:112px"></el-input-number>
+        </div>
+      </div>
+    </el-popover>
 
-    <!-- 设备切换 -->
-    <el-radio-group v-model="model.device" size="small">
-      <el-radio-button value="mobile">手机</el-radio-button>
-      <el-radio-button value="desktop">电脑</el-radio-button>
-    </el-radio-group>
-    <el-input-number v-model="model.pageWidth" size="small" :min="320" :max="1920" class="w-28"></el-input-number>
-    <el-input-number v-model="model.pageHeight" size="small" :min="200" :max="4000" class="w-28"></el-input-number>
-    <el-switch v-model="model.showRuler" size="small"></el-switch>
-    <span class="text-gray-400 text-xs">标尺</span>
-    <span class="text-gray-400 text-xs">缩放</span>
-    <el-slider v-model="model.zoom" :min="50" :max="150" class="w-24"></el-slider>
-    <span class="text-gray-500 w-10">{{ model.zoom }}%</span>
+    <span class="dyn-mb-status" title="切换设备预览" @@click="setDevice(model.device === 'mobile' ? 'desktop' : 'mobile')">
+      {{ model.device === 'mobile' ? '📱 手机' : '🖥 电脑' }}
+    </span>
 
-    <div class="flex-1"></div>
+    <el-popover trigger="click" placement="bottom-end" :width="190">
+      <template #reference>
+        <span class="dyn-mb-status" title="画布缩放">{{ model.zoom }}%</span>
+      </template>
+      <el-slider v-model="model.zoom" :min="50" :max="150"></el-slider>
+    </el-popover>
 
-    <el-radio-group v-model="model.mode" size="small">
-      <el-radio-button value="design">设计</el-radio-button>
-      <el-radio-button value="preview">预览</el-radio-button>
-      <el-radio-button value="json">JSON</el-radio-button>
-    </el-radio-group>
-    <el-switch v-model="model.showCode" size="small"></el-switch>
-    <span class="text-gray-400 text-xs">HTML</span>
-    <el-button size="small" @@click="onViewJson">查看JSON</el-button>
-    <el-button size="small" @@click="onEditModel">查看Model</el-button>
-    <el-button size="small" type="danger" @@click="onSave(true)">新窗口预览</el-button>
-  </template>
+    <span class="dyn-mb-sep"></span>
+
+    <template v-if="!model.embed">
+      <span class="dyn-mb-mode" :class="{ 'is-on': model.mode === 'design' }" @@click="setMode('design')">设计</span>
+      <span class="dyn-mb-mode" :class="{ 'is-on': model.mode === 'preview' }" @@click="setMode('preview')">预览</span>
+      <span class="dyn-mb-mode" :class="{ 'is-on': model.mode === 'json' }" @@click="setMode('json')">JSON</span>
+      <span class="dyn-mb-sep"></span>
+      <el-button size="small" @@click="onSave(false)">保存</el-button>
+      <el-button size="small" type="primary" @@click="onSave(true)">↗ 新窗口预览</el-button>
+    </template>
+    <template v-else>
+      <el-button size="small" @@click="onCancelEmbed">取消</el-button>
+      <el-button size="small" type="primary" @@click="onConfirmEmbed">确定</el-button>
+    </template>
+  </div>
+
+  @* ===== 配置体检结果（错误阻止保存，提示可继续） ===== *@
+  <el-dialog v-model="lintOpen" title="配置体检" width="560px" append-to-body>
+    <div v-if="lintIssues.length" class="dyn-lint-list">
+      <div v-for="(it, i) in lintIssues" :key="i"
+           class="dyn-lint-item" :class="{ 'is-error': it.level === 'error' }"
+           @@click="gotoIssue(it)" :title="it.uid ? '点击定位到该组件' : ''">
+        <span class="dyn-lint-tag">{{ it.level === 'error' ? '错误' : '提示' }}</span>
+        <span>{{ it.message }}</span>
+      </div>
+    </div>
+    <div v-else class="text-sm" style="color:#16a34a;">配置检查通过。</div>
+    <template #footer>
+      <el-button size="small" @@click="lintOpen = false">关闭</el-button>
+      <el-button size="small" type="primary" :disabled="lintHasError" @@click="saveAfterLint">仍然保存</el-button>
+    </template>
+  </el-dialog>
 
   <script tag="dynconfig">
   var dynConfig = {
+    data: function () {
+      return { lintOpen: false, lintIssues: [], _pendingAction: '', _pendingPreview: false };
+    },
+    computed: {
+      lintHasError: function () {
+        return this.lintIssues.some(function (x) { return x.level === 'error'; });
+      }
+    },
     methods: {
+      // ---------- 保存前体检：错误/提示统一进对话框，错误禁用保存 ----------
+      validateThen: function (action, thenPreview) {
+        var Ops = window.DynDesignerOps;
+        var res = (Ops.lintPageJson && Ops.lintPageJson(this.model)) || { issues: [], errors: 0 };
+        this.lintIssues = res.issues || [];
+        this._pendingAction = action;
+        this._pendingPreview = !!thenPreview;
+        if (!this.lintIssues.length) { this.runPending(); return; }
+        this.lintOpen = true;
+      },
+      runPending: function () {
+        var action = this._pendingAction;
+        this._pendingAction = '';
+        this.lintOpen = false;
+        if (action === 'embed') this.doConfirmEmbed();
+        else if (action === 'save') this.doSave(this._pendingPreview);
+      },
+      saveAfterLint: function () { this.runPending(); },
+      onLint: function () {
+        var res = window.DynDesignerOps.lintPageJson(this.model);
+        this.lintIssues = res.issues || [];
+        this._pendingAction = '';
+        this.lintOpen = true;
+      },
+      gotoIssue: function (it) {
+        if (!it || !it.uid) return;
+        var node = window.DynDesignerOps.findNode(this.model.pageJson, it.uid);
+        if (!node) return;
+        this.lintOpen = false;
+        window.DynDesignerOps.select(this.model, node);
+      },
+      onSave: function (thenPreview) { this.validateThen('save', thenPreview); },
       // ---------- 存组合：选中子树（未选中则整页）存入浏览器本地组合库，左侧「组合」tab 可拖入复用 ----------
       onSaveComposition: function () {
         var self = this;
@@ -104,6 +209,26 @@
       },
       onUndo: function () { window.DynDesignerOps.undoAction(this.model); },
       onRedo: function () { window.DynDesignerOps.redoAction(this.model); },
+      // ---------- 菜单栏：文字菜单统一走 command 分发；状态项为轻量切换 ----------
+      setDevice: function (d) { this.model.device = d; },
+      setMode: function (m) { this.model.mode = m; },
+      onMenu: function (cmd) {
+        var act = {
+          new: function () { this.onNew(); },
+          save: function () { this.onSave(false); },
+          composition: function () { this.onSaveComposition(); },
+          preview: function () { this.onSave(true); },
+          undo: function () { this.onUndo(); },
+          redo: function () { this.onRedo(); },
+          del: function () { window.DynDesignerOps.removeSelected(this.model); },
+          ruler: function () { this.model.showRuler = !this.model.showRuler; },
+          code: function () { this.model.showCode = !this.model.showCode; },
+          lint: function () { this.onLint(); },
+          json: function () { this.onViewJson(); },
+          model: function () { this.onEditModel(); }
+        }[cmd];
+        if (act) act.call(this);
+      },
       // ---------- 独立页：新建 / 保存 / 预览 ----------
       onNew: function () {
         var self = this;
@@ -123,18 +248,25 @@
           self.model.pageCode = '';
           self.model.current = null;
           self.model.selectedUid = '';
+          self.model.canvasVersion = (self.model.canvasVersion || 0) + 1;
+          if (window.DynDesignerHistory) window.DynDesignerHistory.reset(self.model);
           if (layer) layer.msg('已新建空白页面', { icon: 1 });
         };
         if (layer) layer.confirm('新建将清空当前画布（未保存内容会丢失），确定？', { title: '新建页面' }, function (idx) { layer.close(idx); doReset(); });
         else if (window.confirm('新建将清空当前画布，确定？')) doReset();
       },
-      onSave: function (thenPreview) {
+      doSave: function (thenPreview) {
         var self = this;
         var layer = window.layui && window.layui.layer;
         var cfg = window.DynDesignerOps.getCleanJson(this.model);
         if (!cfg) { if (layer) layer.msg('页面配置为空', { icon: 2 }); return; }
         var name = this.model.pageName || '未命名页面';
+        var CODE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$/;
         var finish = function (code) {
+          if (!CODE_RE.test(code)) {
+            if (layer) layer.msg('页面编码只允许英文/数字/下划线/中划线，2–64 位，且以字母或数字开头', { icon: 2 });
+            return;
+          }
           var payload = {
             Id: self.model.pageId || 0,
             Code: code,
@@ -149,6 +281,7 @@
             if (res && res.code === 0) {
               self.model.pageId = (res.data && res.data.Id) || self.model.pageId;
               self.model.pageCode = code;
+              if (window.DynDesignerHistory) window.DynDesignerHistory.markSaved(self.model);
               if (layer) layer.msg(thenPreview ? '已保存，打开预览' : '保存成功', { icon: 1 });
               if (thenPreview) window.open(payload.Url, '_blank');
             } else if (layer) layer.msg((res && res.msg) || '保存失败', { icon: 2 });
@@ -168,7 +301,8 @@
         }
       },
       // ---------- 弹窗嵌入：确定 / 取消 / 默认模型 ----------
-      onConfirmEmbed: function () {
+      onConfirmEmbed: function () { this.validateThen('embed'); },
+      doConfirmEmbed: function () {
         var layer = window.layui && window.layui.layer;
         var cfg = window.DynDesignerOps.getCleanJson(this.model);
         if (!cfg) { if (layer) layer.msg('页面配置为空', { icon: 2 }); return; }
@@ -226,6 +360,60 @@
       if (!this.model.zoom) this.model.zoom = 100;
       if (!this.model.mode) this.model.mode = 'design';
       if (this.model.showRuler === undefined) this.model.showRuler = true;
+
+      var self = this;
+      // 撤销/脏状态接线：只接一次，属性编辑由深度 watch 合并入栈
+      if (window.DynDesignerHistory) window.DynDesignerHistory.init(this.model, this);
+
+      var typing = function (t) {
+        if (!t) return false;
+        if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return true;
+        if (t.isContentEditable) return true;
+        return !!(t.closest && (t.closest('.el-dialog') || t.closest('.el-textarea') || t.closest('[contenteditable="true"]')));
+      };
+      this._onKey = function (e) {
+        var Ops = window.DynDesignerOps;
+        var mod = e.ctrlKey || e.metaKey;
+        var key = String(e.key || '').toLowerCase();
+        if (mod && key === 'z') {
+          if (typing(e.target)) return;
+          e.preventDefault();
+          if (e.shiftKey) Ops.redoAction(self.model); else Ops.undoAction(self.model);
+          return;
+        }
+        if (mod && key === 'y') {
+          if (typing(e.target)) return;
+          e.preventDefault();
+          Ops.redoAction(self.model);
+          return;
+        }
+        if (mod && key === 's') {
+          if (self.model.embed) return;
+          e.preventDefault();
+          self.onSave(false);
+          return;
+        }
+        if (key === 'delete' || key === 'backspace') {
+          if (typing(e.target) || self.model.mode !== 'design' || !self.model.selected) return;
+          e.preventDefault();
+          Ops.removeSelected(self.model);
+          return;
+        }
+        if (key === 'escape') {
+          if (self.model.selected) Ops.select(self.model, null);
+        }
+      };
+      document.addEventListener('keydown', this._onKey);
+      this._onBeforeUnload = function (e) {
+        if (self.model.embed || !self.model.dirty) return;
+        e.preventDefault();
+        e.returnValue = '';
+      };
+      window.addEventListener('beforeunload', this._onBeforeUnload);
+    },
+    beforeUnmount() {
+      if (this._onKey) document.removeEventListener('keydown', this._onKey);
+      if (this._onBeforeUnload) window.removeEventListener('beforeunload', this._onBeforeUnload);
     }
   };
   </script>

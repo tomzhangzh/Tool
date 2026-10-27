@@ -2,21 +2,26 @@
 @* 注意：aside 是 Vue 挂载点，其属性不被 Vue 编译，所以 :style/@mousedown 必须放在内部包裹 div 上 *@
 <aside class="dyn-panel shrink-0 bg-white border-l border-gray-200 min-h-0 relative"
        dyn-init="createapp" v-cloak data-dyn-use-scope="designer">
-  <div class="flex flex-col min-h-0 h-full relative"
-       :style="{ width: model.rightCollapsed ? '26px' : (model.rightWidth + 'px') }">
+  <div class="dyn-panel-inner is-right flex flex-col min-h-0 h-full relative"
+       :class="{ 'is-collapsed': model.rightCollapsed }"
+       :style="{ width: model.rightCollapsed ? '36px' : (model.rightWidth + 'px') }">
   @* 左侧拖拽条 *@
   <div v-if="!model.rightCollapsed" class="dyn-resizer dyn-resizer-left" @@mousedown="onStartResizeRight"></div>
 
-  @* ===== 折叠态窄轨 ===== *@
-  <div v-show="model.rightCollapsed" class="dyn-panel-rail flex flex-col items-center pt-2">
-    <button class="dyn-rail-btn" title="展开属性面板" @@click="setCollapsed(false)">◀</button>
-    <span class="dyn-rail-text">属性</span>
+  @* ===== 折叠态窄轨：整轨点击展开 ===== *@
+  <div class="dyn-panel-rail" @@click="setCollapsed(false)">
+    <button class="dyn-rail-icon" title="展开属性面板" @@click.stop="setCollapsed(false)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="dyn-rail-title">属性配置</span>
   </div>
 
-  <div v-show="!model.rightCollapsed" class="dyn-panel-body flex flex-col min-h-0" style="width:100%;">
+  <div class="dyn-panel-body flex flex-col min-h-0" style="width:100%;">
 <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
     <span class="font-semibold text-gray-700">属性配置</span>
-    <button class="px-2 py-0.5 text-xs rounded hover:bg-gray-100" title="收起面板" @@click="setCollapsed(true)">▶</button>
+    <button class="dyn-panel-collapse" title="收起面板" @@click="setCollapsed(true)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
   </div>
 
   <div v-if="!model.current" class="p-6 text-sm text-gray-300 text-center">选中组件后在此配置属性</div>
@@ -42,13 +47,13 @@
           <el-form-item label="字段标识">
             <el-input v-model="model.current.modelname" size="small" placeholder="绑定数据字段名" clearable></el-input>
           </el-form-item>
-          <el-form-item label="标签文本">
+          <el-form-item v-if="!comPropHas('options.labeloptions.label')" label="标签文本">
             <el-input v-model="model.current.options.labeloptions.label" size="small" placeholder="请输入标签文本" clearable></el-input>
           </el-form-item>
-          <el-form-item label="帮助说明">
+          <el-form-item v-if="!comPropHas('options.labeloptions.help')" label="帮助说明">
             <el-input v-model="model.current.options.labeloptions.help" size="small" type="textarea" :rows="3" placeholder="鼠标 hover 标签帮助图标显示，支持换行" resize="vertical"></el-input>
           </el-form-item>
-          <el-form-item label="显示标签">
+          <el-form-item v-if="!comPropHas('options.labeloptions.show')" label="显示标签">
             <el-switch v-model="model.current.options.labeloptions.show" size="small"></el-switch>
           </el-form-item>
           <el-form-item label="是否必填">
@@ -67,17 +72,17 @@
 
       @* ===== 布局样式 ===== *@
       <el-tab-pane label="布局样式" name="style" class="overflow-y-auto"><el-form size="small" label-position="left" label-width="90px" class="p-3">
-          <el-form-item label="Label对齐">
+          <el-form-item v-if="!comPropHas('options.labeloptions.labelposition')" label="Label对齐">
             <el-radio-group v-model="model.current.options.labeloptions.labelposition" size="small">
               <el-radio-button value="left">左</el-radio-button>
               <el-radio-button value="right">右</el-radio-button>
               <el-radio-button value="top">上</el-radio-button>
             </el-radio-group>
           </el-form-item>
-          <el-form-item label="Label宽度">
+          <el-form-item v-if="!comPropHas('options.labeloptions.labelwidth')" label="Label宽度">
             <el-input v-model="model.current.options.labeloptions.labelwidth" size="small" placeholder="auto / 100px"></el-input>
           </el-form-item>
-          <el-form-item v-if="model.current.component !== 'DynTable'" label="子控件尺寸">
+          <el-form-item v-if="model.current.component !== 'DynTable' && !comPropHas('options.comoptions.size')" label="子控件尺寸">
             <el-radio-group v-model="model.current.options.comoptions.size" size="small">
               <el-radio-button value="default">默认</el-radio-button>
               <el-radio-button value="large">大</el-radio-button>
@@ -100,7 +105,7 @@
 
         <div class="px-3 pb-3">
           <div class="text-xs text-gray-500 mb-1">Style (JSON)</div>
-          <textarea v-model="styleJsonText" @@blur="onStyleJsonBlur" rows="6"
+          <textarea v-model="styleText" @@focus="onStyleFocus" @@blur="onStyleJsonBlur" rows="6"
                     class="w-full text-xs p-1 rounded"
                     style="font-family:monospace;border:1px solid #dcdfe6;min-height:80px;"></textarea>
           <div v-if="styleJsonError" class="text-xs text-red-500 mt-1">{{ styleJsonError }}</div>
@@ -190,6 +195,9 @@
         propTab: 'base',
         comPropsActive: ['comAttr'],
         styleJsonError: '',
+        // 样式 JSON 单一事实源：文本只在聚焦时由用户编辑，失焦才写回 model
+        styleText: '{}',
+        _styleFocused: false,
         bindingsArr: [],
         _bindSyncing: false,
         validatorTypes: [
@@ -278,6 +286,21 @@
         var c = this.model.current;
         return c ? (c.component + '_' + (c.__uid || 0)) : 'none';
       },
+      // 组件属性（comProps）已覆盖的路径：通用字段不再重复展示，避免同一键两处编辑
+      comPropPaths: function () {
+        var paths = {};
+        var cp = this.comProps;
+        if (cp && cp.childrenctrls) {
+          (function walk(arr) {
+            if (!Array.isArray(arr)) return;
+            arr.forEach(function (c) {
+              if (c && c.modelname) paths[String(c.modelname)] = true;
+              if (c && c.childrenctrls) walk(c.childrenctrls);
+            });
+          })(cp.childrenctrls);
+        }
+        return paths;
+      },
       componentGroups: function () {
         var list = this.model.componentMetaList || [];
         var map = {};
@@ -294,18 +317,17 @@
           return a.localeCompare(b);
         });
         return keys.map(function (k) { return map[k]; });
-      },
-      styleJsonText: {
-        get: function () {
-          var s = this.model.current && this.model.current.options && this.model.current.options.itemoptions && this.model.current.options.itemoptions.style;
-          if (!s) return '{}';
-          try { return JSON.stringify(s, null, 2); } catch (e) { return '{}'; }
-        },
-        set: function (v) { this._styleText = v; }
       }
     },
     methods: {
       setCollapsed: function (v) { this.model.rightCollapsed = !!v; },
+      comPropHas: function (path) { return !!(this.comPropPaths && this.comPropPaths[path]); },
+      // 从 model 回读样式对象到文本框（聚焦编辑期间不覆盖用户输入）
+      syncStyleText: function () {
+        var s = this.model.current && this.model.current.options && this.model.current.options.itemoptions && this.model.current.options.itemoptions.style;
+        try { this.styleText = s ? JSON.stringify(s, null, 2) : '{}'; } catch (e) { this.styleText = '{}'; }
+      },
+      onStyleFocus: function () { this._styleFocused = true; this.syncStyleText(); },
       // 左侧拖拽条：拖动调整右面板宽度
       onStartResizeRight: function (e) {
         e.preventDefault();
@@ -387,42 +409,47 @@
         if (!cur || !newName || cur.component === newName) return;
         var m = window.DynDesignerOps.metaOf(newName);
         if (!m) return;
-        // 保留布局配置和modelname
-        var keepItemOptions = cur.options && cur.options.itemoptions ? JSON.parse(JSON.stringify(cur.options.itemoptions)) : {};
-        var keepModelName = cur.modelname || '';
-        var keepValidators = cur.validators || [];
-        var keepChildren = cur.childrenctrls || [];
-        // 加载新组件默认配置
+        window.DynDesignerOps.saveSnapshot(this.model);   // 结构级变更，纳入撤销
+        var old = cur.options || {};
+        var oldItem = old.itemoptions ? JSON.parse(JSON.stringify(old.itemoptions)) : {};
+        var oldLabel = old.labeloptions || {};
+        var oldCom = old.comoptions || {};
         var defaultCfg = m.DefaultConfigJson ?
           (typeof m.DefaultConfigJson === 'string' ? JSON.parse(m.DefaultConfigJson) : m.DefaultConfigJson)
           : { component: newName, options: {} };
-        // 应用新配置
+        var next = defaultCfg.options ? JSON.parse(JSON.stringify(defaultCfg.options)) : {};
+        if (!next.itemoptions) next.itemoptions = {};
+        if (Object.keys(oldItem).length) next.itemoptions = oldItem;
+        if (!next.labeloptions) next.labeloptions = {};
+        ['label', 'show', 'required', 'help', 'labelposition', 'labelwidth'].forEach(function (k) {
+          if (oldLabel[k] !== undefined) next.labeloptions[k] = oldLabel[k];
+        });
+        if (!next.comoptions) next.comoptions = {};
+        // 只保留新组件声明的同名键，避免把上个控件的无关配置带过去
+        Object.keys(next.comoptions).forEach(function (k) {
+          if (oldCom[k] !== undefined) next.comoptions[k] = oldCom[k];
+        });
+        if (oldCom.size !== undefined) next.comoptions.size = oldCom.size;
         cur.component = newName;
-        cur.modelname = keepModelName;
-        cur.options = defaultCfg.options || {};
-        // 恢复布局配置
-        if (Object.keys(keepItemOptions).length > 0) {
-          cur.options.itemoptions = keepItemOptions;
-        }
-        // 恢复校验和子组件
-        cur.validators = keepValidators;
-        // 容器才保留子组件，非容器清空
-        if (!window.DynDesignerOps.isContainer(newName)) {
-          cur.childrenctrls = [];
-        } else {
-          cur.childrenctrls = keepChildren;
-        }
+        cur.options = next;
+        // 非容器清空子节点；容器保留（modelname/validators/bindings 等原样不动）
+        if (!window.DynDesignerOps.isContainer(newName)) cur.childrenctrls = [];
+        this.syncRequiredFlag();
+        var self = this;
+        this.$nextTick(function () { self.syncStyleText(); });
       },
       onStyleJsonBlur: function () {
+        this._styleFocused = false;
         this.styleJsonError = '';
         try {
-          var obj = JSON.parse(this._styleText || this.styleJsonText || '{}');
+          var obj = JSON.parse(this.styleText || '{}');
           if (!this.model.current.options) this.model.current.options = {};
           if (!this.model.current.options.itemoptions) this.model.current.options.itemoptions = {};
           this.model.current.options.itemoptions.style = obj;
         } catch (e) {
           this.styleJsonError = 'JSON格式错误: ' + e.message;
         }
+        this.syncStyleText();
       },
       // 打开组件元配置编辑器（新浏览器窗口，componentId 定位 ComponentMeta 行）
       openMetaEditor: function () {
@@ -453,14 +480,21 @@
       'model.rightCollapsed': function (v) {
         try { localStorage.setItem('dyn-designer-right-collapsed', v ? '1' : '0'); } catch (e) {}
       },
-      // 切换选中组件时，从 bindings 加载到 bindingsArr
+      // 切换选中组件时，从 bindings 加载到 bindingsArr，并回读样式 JSON
       'model.current': function () {
+        this._styleFocused = false;
+        this.syncStyleText();
         var b = this.model.current && this.model.current.bindings;
         if (!b || typeof b !== 'object') { this.bindingsArr = []; return; }
         this._bindSyncing = true;
         this.bindingsArr = Object.keys(b).map(function (k) { return { key: k, value: b[k] }; });
         var self = this;
         this.$nextTick(function () { self._bindSyncing = false; });
+      },
+      // 表单里的宽度/边距直接改 style 对象时，同步到 JSON 文本（聚焦编辑期间不回写）
+      'model.current.options.itemoptions.style': {
+        handler: function () { if (!this._styleFocused) this.syncStyleText(); },
+        deep: true
       },
       // bindingsArr 变化时写回 model.current.bindings
       bindingsArr: {

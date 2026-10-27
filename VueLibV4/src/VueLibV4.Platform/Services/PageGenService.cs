@@ -1,6 +1,3 @@
-using System.Text;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Data.Sqlite;
 using Newtonsoft.Json.Linq;
 using VueLibV4.Platform.Models;
 using VueLibV4.Services.Dependency;
@@ -38,6 +35,7 @@ namespace VueLibV4.Platform.Services;
 ///   7. 其它文本            → DynElInput
 ///
 /// 依赖注入：接口继承 IScopeDependency，启动扫描自动注册为 Scoped，无需手工 AddScoped。
+/// 职责划分：字段推断在 PageFieldInference，三屏 JSON 组装在 PagePageBuilder，本类只做校验入参 → 调推断 → 调组装 → 事务落库 / 预览返回。
 /// </summary>
 public interface IPageGenService : IScopeDependency
 {
@@ -128,59 +126,39 @@ public class GenFieldMeta
     public bool InDetail { get; set; } = true;
 }
 
-/// <summary>页面生成规则实现（见 IPageGenService 顶部注释）。</summary>
+/// <summary>页面生成编排者（见 IPageGenService 顶部注释）：校验入参 → 调推断 → 调组装 → 落库 / 预览。</summary>
 public class PageGenService : IPageGenService
 {
-    private readonly IDynProjectService _projects;
+    private readonly PageFieldInference _inference;
+    private readonly PagePageBuilder _builder;
     private readonly IDynTemplateService _templates;
     private readonly IDynWebPageService _pages;
     private readonly IPageSettingService _settings;
-    private readonly IConfiguration _config;
     private readonly IDynPageExtService? _pageExt;
     private readonly IDynSchemaLabelService? _schemaLabels;
     private readonly IAiService? _ai;
     private readonly IComponentMetaService? _components;
 
     public PageGenService(
-        IDynProjectService projects,
+        PageFieldInference inference,
+        PagePageBuilder builder,
         IDynTemplateService templates,
         IDynWebPageService pages,
         IPageSettingService settings,
-        IConfiguration config,
         IDynPageExtService? pageExt = null,
         IDynSchemaLabelService? schemaLabels = null,
         IAiService? ai = null,
         IComponentMetaService? components = null)
     {
-        _projects = projects;
+        _inference = inference;
+        _builder = builder;
         _templates = templates;
         _pages = pages;
         _settings = settings;
-        _config = config;
         _pageExt = pageExt;
         _schemaLabels = schemaLabels;
         _ai = ai;
         _components = components;
-    }
-
-    /// <summary>
-    /// 把显示名字典应用到推断列：表字段层 → 通用列名层（服务内部回退）→ 保留 NiceLabel 英文拆词。
-    /// project 为坐标字符串/Id（"__platform__" / "Platform" / "2" / 业务项目 code）。
-    /// </summary>
-    private void ApplySchemaLabels(List<GenColumn> columns, string table, string? project)
-    {
-        if (_schemaLabels == null || columns.Count == 0) return;
-        var pid = ResolveProjectId(project ?? "");
-        if (pid == null) // 与生成主流程一致：未指定/特殊坐标时回退 Platform 工程，再退首个工程
-        {
-            try { pid = _projects.Query(x => x.Code == "Platform").First()?.Id; } catch { }
-            if (pid == null) { try { pid = _projects.Query(x => true).First()?.Id; } catch { } }
-        }
-        if (pid == null) return; // 解析不到项目（无任何工程）时退回英文，不猜
-        var labels = _schemaLabels.ResolveLabels(pid.Value, table, columns.Select(c => c.Name));
-        if (labels.Count == 0) return;
-        foreach (var c in columns)
-            if (labels.TryGetValue(c.Name, out var lb) && !string.IsNullOrWhiteSpace(lb)) c.Label = lb;
     }
 
     /// <summary>执行生成（Controller 只做路由与 ApiResult 封装，业务规则全在此）。</summary>
@@ -201,65 +179,13 @@ public class PageGenService : IPageGenService
         if (string.IsNullOrWhiteSpace(code)) return (false, "缺少页面编码", null);
         if (string.IsNullOrWhiteSpace(name)) name = code;
 
-        // 用户指定的字典映射：{ 列名: dictType } → 该列生成下拉(数据源=字典)
-        var dictTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (req["dictTypes"] is JObject dts)
-            foreach (var kv in dts) dictTypes[kv.Key.Trim()] = kv.Value?.ToString() ?? "";
-
-        var schema = ReadTableSchema(table);
-        if (schema.Count == 0) return (false, $"表 {table} 不存在或无法读取 schema", null);
-
-        // 按 schema 智能分类（控件/操作符/进哪些屏）
-        var columns = BuildColumns(schema, dictTypes);
-
-        // 显示名字典：表字段层 → 通用列名层 → NiceLabel 英文。必须在"用户覆盖"之前应用，
-        // 下方 fieldOverrides 会用向导里用户确认/手改过的 label 覆盖这里。
-        ApplySchemaLabels(columns, table, project);
-
-        // 字段选择：req["fields"] 为对象数组（{ name, label, control, op, inFilter, inList, inDetail, ... }）。
-        // 只取 name 参与筛选；并用前端显式选择（控件/标签/操作符/屏归属）覆盖智能分类，尊重用户勾选。
-        var fieldNames = new List<string>();
-        var fieldOverrides = new Dictionary<string, JObject>(StringComparer.OrdinalIgnoreCase);
-        if (req["fields"] is JArray fa)
-        {
-            foreach (var t in fa)
-            {
-                if (t is JObject jo)
-                {
-                    var n = (jo["name"]?.ToString() ?? "").Trim();
-                    if (n.Length > 0) { fieldNames.Add(n); fieldOverrides[n] = jo; }
-                }
-                else
-                {
-                    var s = t?.ToString()?.Trim() ?? "";
-                    if (s.Length > 0) fieldNames.Add(s); // 兼容传纯字段名数组
-                }
-            }
-        }
-        var fields = columns.Where(c => fieldNames.Count == 0 || fieldNames.Contains(c.Name)).ToList();
+        // 字段推断：读 schema → 智能分类（控件/操作符/进哪些屏）→ 显示名字典（表层→通用层→英文拆词）→ 前端勾选覆盖
+        var fields = _inference.PrepareFields(table, project, req);
+        if (fields == null) return (false, $"表 {table} 不存在或无法读取 schema", null);
         if (fields.Count == 0) return (false, "请至少选择一个字段", null);
-        // 前端覆盖智能分类（仅覆盖明确传入的值）
-        if (fieldOverrides.Count > 0)
-        {
-            foreach (var f in fields)
-            {
-                if (!fieldOverrides.TryGetValue(f.Name, out var ov)) continue;
-                var ctrl = ov["control"]?.ToString(); if (!string.IsNullOrWhiteSpace(ctrl)) f.Control = ctrl;
-                var lbl = ov["label"]?.ToString();   if (!string.IsNullOrWhiteSpace(lbl)) f.Label = lbl;
-                var op = ov["op"]?.ToString();       if (!string.IsNullOrWhiteSpace(op)) f.Op = op;
-                if (ov["inFilter"]?.Type == JTokenType.Boolean) f.InFilter = (bool)ov["inFilter"]!;
-                if (ov["inList"]?.Type == JTokenType.Boolean) f.InList = (bool)ov["inList"]!;
-                if (ov["inDetail"]?.Type == JTokenType.Boolean) f.InDetail = (bool)ov["inDetail"]!;
-            }
-        }
 
         // 工程归属：外键/字典下拉走 /api/dyncommon/options?projectId 需要工程；未指定则回退平台工程
-        int? projectId = ResolveProjectId(project);
-        if (projectId == null)
-        {
-            try { projectId = _projects.Query(x => x.Code == "Platform").First()?.Id; } catch { }
-            if (projectId == null) { try { projectId = _projects.Query(x => true).First()?.Id; } catch { } }
-        }
+        int? projectId = _inference.ResolveProjectId(project);
 
         // 回写（默认开启，前端 rememberLabels 可关）：只写表字段层，回写最终选用字段的最终 label（含用户手改）。
         // 护栏在服务层：projectId<=0/表名为空一律跳过，通用层永不被写。
@@ -271,7 +197,7 @@ public class PageGenService : IPageGenService
                 // 只回写"非英文默认拆词"的 label：避免把 NiceLabel 产出的英文垃圾冻进表层
                 // （字典命中/用户手改的中文才值得沉淀；英文默认值下次还能重新推断）
                 var toSave = fields
-                    .Where(f => !string.IsNullOrWhiteSpace(f.Label) && f.Label != NiceLabel(f.Name))
+                    .Where(f => !string.IsNullOrWhiteSpace(f.Label) && f.Label != PageFieldInference.NiceLabel(f.Name))
                     .ToDictionary(f => f.Name, f => f.Label!);
                 _schemaLabels?.UpsertTableLabels(projectId.Value, table, toSave);
             }
@@ -279,12 +205,12 @@ public class PageGenService : IPageGenService
         }
 
         // ---------- 生成三屏（ConfigJson=UI 渲染树 / DefaultJson=model 骨架） ----------
-        var filterCfg = BuildFilterCfg(fields, projectId, table, filterCols);
-        var filterDefault = BuildFilterDefaultJson(fields);
-        var listCfg = BuildListCfg(fields);
-        var listDefault = BuildListDefaultJson();
-        var detailCfg = BuildDetailCfg(pk, fields, projectId, table, detailCols);
-        var detailDefault = BuildDetailDefaultJson(pk, fields);
+        var filterCfg = _builder.BuildFilterCfg(fields, projectId, table, filterCols);
+        var filterDefault = _builder.BuildFilterDefaultJson(fields);
+        var listCfg = _builder.BuildListCfg(fields);
+        var listDefault = _builder.BuildListDefaultJson();
+        var detailCfg = _builder.BuildDetailCfg(pk, fields, projectId, table, detailCols);
+        var detailDefault = _builder.BuildDetailDefaultJson(pk, fields);
 
         // ---------- 落库三屏（幂等：同 code 更新） ----------
         var filterId = UpsertSetting(code + "_filter", name + " - 筛选区", "Filter", renderMode, null, table, projectId, filterCfg, filterDefault);
@@ -395,23 +321,7 @@ public class PageGenService : IPageGenService
             if (shellTpl == null) return (false, "布局壳模板 list-master-detail 不存在（平台库未初始化？）", null);
 
             // provide.project：显式请求坐标优先；为空则留空，壳视图回退页面 ProjectId
-            var spec = new JObject
-            {
-                ["layout"] = "list-master-detail",
-                ["layoutProps"] = new JObject { ["leftWidth"] = 50, ["childFkField"] = "" },
-                ["provide"] = new JObject
-                {
-                    ["table"] = table,
-                    ["keyField"] = pk,
-                    ["project"] = project ?? ""
-                },
-                ["slots"] = new JObject
-                {
-                    ["filter"] = new JObject { ["block"] = "filter", ["settingId"] = filterId },
-                    ["master"] = new JObject { ["block"] = "list", ["settingId"] = listId },
-                    ["detail"] = new JObject { ["block"] = "detail", ["settingId"] = detailId }
-                }
-            };
+            var spec = _builder.BuildShellSpec(table, pk, project, filterId, listId, detailId);
 
             var shellCode = code + "-shell";
             var existShell = _pages.Query(p => p.Code == shellCode).First();
@@ -473,12 +383,12 @@ public class PageGenService : IPageGenService
     /// </summary>
     public List<GenFieldMeta> GetTableFieldMeta(string table, string? project = null)
     {
-        var schema = ReadTableSchema(table);
+        var schema = _inference.ReadTableSchema(table);
         if (schema.Count == 0) return new List<GenFieldMeta>();
         // 字典映射此处不涉及（向导第二步用户还没配置字典），先用空字典走智能分类
-        var columns = BuildColumns(schema, new Dictionary<string, string>());
+        var columns = _inference.BuildColumns(schema, new Dictionary<string, string>());
         // 显示名字典（表层→通用层→英文）：让向导第二步直接预填中文名
-        ApplySchemaLabels(columns, table, project);
+        _inference.ApplySchemaLabels(columns, table, project);
         return columns.Select(c => new GenFieldMeta
         {
             FieldName = c.Name,
@@ -488,7 +398,7 @@ public class PageGenService : IPageGenService
             IsPrimaryKey = c.IsPk,
             IsForeignKey = c.FkTable != null,
             Control = c.Control,
-            SuggestComponent = ControlToComponent(c.Control),
+            SuggestComponent = PageFieldInference.ControlToComponent(c.Control),
             InFilter = c.InFilter,
             InList = c.InList,
             InDetail = c.InDetail
@@ -496,8 +406,7 @@ public class PageGenService : IPageGenService
     }
 
     /// <summary>
-    /// 预览构造（不落库、不回写 label）：与 Generate 走同一套 BuildColumns / ApplySchemaLabels /
-    /// fieldOverrides / BuildFilterCfg / BuildListCfg / BuildDetailCfg，保证预览即最终生成的样子。
+    /// 预览构造（不落库、不回写 label）：与 Generate 走同一套推断与组装，保证预览即最终生成的样子。
     /// </summary>
     public (JObject FilterCfg, JObject ListCfg, JObject DetailCfg) Preview(JObject req)
     {
@@ -505,506 +414,25 @@ public class PageGenService : IPageGenService
         var table = (req["table"]?.ToString() ?? "").Trim();
         var pk = (req["pk"]?.ToString() ?? "Id").Trim();
 
-        var dictTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (req["dictTypes"] is JObject dts)
-            foreach (var kv in dts) dictTypes[kv.Key.Trim()] = kv.Value?.ToString() ?? "";
-
         var empty = new JObject();
         if (string.IsNullOrWhiteSpace(table)) return (empty, empty, empty);
-        var schema = ReadTableSchema(table);
-        if (schema.Count == 0) return (empty, empty, empty);
+        var fields = _inference.PrepareFields(table, project, req);
+        if (fields == null) return (empty, empty, empty);
 
-        var columns = BuildColumns(schema, dictTypes);
-        ApplySchemaLabels(columns, table, project);
-
-        var fieldNames = new List<string>();
-        var fieldOverrides = new Dictionary<string, JObject>(StringComparer.OrdinalIgnoreCase);
-        if (req["fields"] is JArray fa)
-        {
-            foreach (var t in fa)
-            {
-                if (t is JObject jo)
-                {
-                    var n = (jo["name"]?.ToString() ?? "").Trim();
-                    if (n.Length > 0) { fieldNames.Add(n); fieldOverrides[n] = jo; }
-                }
-                else
-                {
-                    var s = t?.ToString()?.Trim() ?? "";
-                    if (s.Length > 0) fieldNames.Add(s);
-                }
-            }
-        }
-        var fields = columns.Where(c => fieldNames.Count == 0 || fieldNames.Contains(c.Name)).ToList();
-        if (fieldOverrides.Count > 0)
-        {
-            foreach (var f in fields)
-            {
-                if (!fieldOverrides.TryGetValue(f.Name, out var ov)) continue;
-                var ctrl = ov["control"]?.ToString(); if (!string.IsNullOrWhiteSpace(ctrl)) f.Control = ctrl;
-                var lbl = ov["label"]?.ToString();     if (!string.IsNullOrWhiteSpace(lbl)) f.Label = lbl;
-                var op = ov["op"]?.ToString();         if (!string.IsNullOrWhiteSpace(op)) f.Op = op;
-                if (ov["inFilter"]?.Type == JTokenType.Boolean) f.InFilter = (bool)ov["inFilter"]!;
-                if (ov["inList"]?.Type == JTokenType.Boolean) f.InList = (bool)ov["inList"]!;
-                if (ov["inDetail"]?.Type == JTokenType.Boolean) f.InDetail = (bool)ov["inDetail"]!;
-            }
-        }
-
-        int? projectId = ResolveProjectId(project);
-        if (projectId == null)
-        {
-            try { projectId = _projects.Query(x => x.Code == "Platform").First()?.Id; } catch { }
-            if (projectId == null) { try { projectId = _projects.Query(x => true).First()?.Id; } catch { } }
-        }
+        int? projectId = _inference.ResolveProjectId(project);
 
         int filterCols = req["filterCols"]?.Type == JTokenType.Integer ? (int)req["filterCols"]! : 4;
         int detailCols = req["detailCols"]?.Type == JTokenType.Integer ? (int)req["detailCols"]! : 2;
 
-        var filterCfg = BuildFilterCfg(fields, projectId, table, filterCols);
-        var listCfg = BuildListCfg(fields);
-        var detailCfg = BuildDetailCfg(pk, fields, projectId, table, detailCols);
+        var filterCfg = _builder.BuildFilterCfg(fields, projectId, table, filterCols);
+        var listCfg = _builder.BuildListCfg(fields);
+        var detailCfg = _builder.BuildDetailCfg(pk, fields, projectId, table, detailCols);
         return (filterCfg, listCfg, detailCfg);
-    }
-
-    // ======================================================================
-    //  Schema 读取
-    // ======================================================================
-
-    /// <summary>表列元数据（从 CREATE TABLE 解析）</summary>
-    private class ColumnMeta
-    {
-        public string Name { get; set; } = "";
-        public string Type { get; set; } = "TEXT";
-        public bool NotNull { get; set; }
-        public bool IsPrimaryKey { get; set; }
-        public bool HasDefault { get; set; }
-        /// <summary>外键目标表（列名 XxxId 且非主键时推断）；无则空</summary>
-        public string? FkTable { get; set; }
-        public string? DefaultValue { get; set; }
-    }
-
-    /// <summary>按表名读取 schema：先在业务库(BusinessDb)找，再回退平台库(PlatformDb)。</summary>
-    private List<ColumnMeta> ReadTableSchema(string table)
-    {
-        var dbFiles = new[] { "BusinessDb", "PlatformDb" };
-        foreach (var key in dbFiles)
-        {
-            var cs = _config.GetConnectionString(key);
-            if (string.IsNullOrWhiteSpace(cs)) continue;
-            var list = TryReadSchema(cs, table);
-            if (list != null) return list;
-        }
-        return new List<ColumnMeta>();
-    }
-
-    /// <summary>在单个 SQLite 库中读取表列信息 + DEFAULT + 外键推断。</summary>
-    private List<ColumnMeta>? TryReadSchema(string cs, string table)
-    {
-        var builder = new SqliteConnectionStringBuilder(cs);
-        var ds = builder.DataSource;
-        if (!Path.IsPathRooted(ds)) builder.DataSource = Path.Combine(AppContext.BaseDirectory, ds.Replace('/', Path.DirectorySeparatorChar));
-        try
-        {
-            using var conn = new SqliteConnection(builder.ConnectionString);
-            conn.Open();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT sql FROM sqlite_master WHERE type='table' AND name=$t";
-            cmd.Parameters.AddWithValue("$t", table);
-            var createSql = cmd.ExecuteScalar() as string;
-            if (string.IsNullOrWhiteSpace(createSql)) return null;
-
-            var list = new List<ColumnMeta>();
-            cmd.CommandText = "PRAGMA table_info(\"" + table.Replace("\"", "\"\"") + "\")";
-            using (var rd = cmd.ExecuteReader())
-            {
-                while (rd.Read())
-                {
-                    list.Add(new ColumnMeta
-                    {
-                        Name = rd.GetString(1),
-                        Type = rd.GetString(2),
-                        NotNull = rd.GetInt32(3) != 0,
-                        IsPrimaryKey = rd.GetInt32(5) != 0
-                    });
-                }
-            }
-            // 从 CREATE SQL 解析 DEFAULT 与主键约束
-            ParseDefaults(createSql, list);
-            // 收集库中全部表名，供外键目标匹配
-            var allTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using (var tc = conn.CreateCommand())
-            {
-                tc.CommandText = "SELECT name FROM sqlite_master WHERE type='table'";
-                using (var tr = tc.ExecuteReader()) while (tr.Read()) allTables.Add(tr.GetString(0));
-            }
-            // 外键推断：XxxId 且非主键 → 匹配目标表（精确 → 复数 → 前缀/后缀；ParentId 关联自身表）
-            foreach (var col in list)
-            {
-                if (col.IsPrimaryKey || col.Name == "Id") continue;
-                if (col.Name.EndsWith("Id", StringComparison.OrdinalIgnoreCase) && col.Name.Length > 2)
-                {
-                    var baseName = col.Name.Substring(0, col.Name.Length - 2);
-                    string? hit = null;
-                    if (allTables.Contains(baseName)) hit = baseName;
-                    else if (allTables.Contains(baseName + "s")) hit = baseName + "s";
-                    else hit = allTables.FirstOrDefault(t =>
-                        t.EndsWith(baseName, StringComparison.OrdinalIgnoreCase) || t.StartsWith(baseName, StringComparison.OrdinalIgnoreCase));
-                    // 语义映射：常见列后缀 → 已知目标表（XxxPageSettingId → PageSetting 等）
-                    if (hit == null)
-                    {
-                        var low = col.Name.ToLowerInvariant();
-                        if (low.EndsWith("pagesettingid") && allTables.Contains("PageSetting")) hit = "PageSetting";
-                        else if (low.EndsWith("settingid") && allTables.Contains("PageSetting")) hit = "PageSetting";
-                        else if (low.EndsWith("templateid") && allTables.Contains("DynTemplate")) hit = "DynTemplate";
-                        else if (low.EndsWith("projectid") && allTables.Contains("DynProject")) hit = "DynProject";
-                        else if (low.EndsWith("dictid") && allTables.Contains("DynDict")) hit = "DynDict";
-                        else if (low.EndsWith("menuid") && allTables.Contains("SysMenu")) hit = "SysMenu";
-                        else if (low.EndsWith("actionhelperid") && allTables.Contains("DynActionHelper")) hit = "DynActionHelper";
-                    }
-                    if (hit == null && string.Equals(baseName, "Parent", StringComparison.OrdinalIgnoreCase) && allTables.Contains(table)) hit = table;
-                    if (hit != null) col.FkTable = hit;
-                }
-            }
-            return list;
-        }
-        catch { return null; }
-    }
-
-    /// <summary>从 CREATE SQL 中解析每列的 DEFAULT 表达式（用于「有默认值则不强校验必填」）。</summary>
-    private static void ParseDefaults(string createSql, List<ColumnMeta> list)
-    {
-        foreach (var col in list)
-        {
-            // 定位列定义行：列名（"Name"或 Name）后到逗号
-            var pat = new System.Text.RegularExpressions.Regex(
-                $"(?is)[\"\\[]?{System.Text.RegularExpressions.Regex.Escape(col.Name)}[\"\\]]?\\s+\\S+[^,]*");
-            var m = pat.Match(createSql);
-            if (!m.Success) continue;
-            var def = m.Value;
-            col.HasDefault = System.Text.RegularExpressions.Regex.IsMatch(def, @"(?i)\bDEFAULT\b");
-            var dm = System.Text.RegularExpressions.Regex.Match(def, @"(?i)DEFAULT\s+(\([^)]*\)|\S+)");
-            if (dm.Success) col.DefaultValue = dm.Groups[1].Value.Trim('(', ')', '\'', '"', ' ');
-        }
-    }
-
-    // ======================================================================
-    //  列分类（控件 / 操作符 / 进哪些屏）
-    // ======================================================================
-
-    /// <summary>参与生成的列（已按规则分类好的字段元数据）。</summary>
-    private class GenColumn
-    {
-        public string Name { get; set; } = "";
-        public string Label { get; set; } = "";
-        public string DataType { get; set; } = "TEXT";
-        public bool NotNull { get; set; }
-        public bool HasDefault { get; set; }
-        public bool IsPk { get; set; }
-        /// <summary>控件类型：input/textarea/json/number/switch/select/emoji</summary>
-        public string Control { get; set; } = "input";
-        public string Op { get; set; } = "like";   // like/eq/gt/ge/lt/le
-        public bool InFilter { get; set; }
-        public bool InList { get; set; }
-        public bool InDetail { get; set; }
-        public bool CellTag { get; set; }
-        public string? FkTable { get; set; }
-        public string? DictType { get; set; }
-    }
-
-    /// <summary>
-    /// 按 schema + 用户字典映射，智能决定每个字段的控件、操作符与三屏归属。
-    /// 控件映射优先级见 IPageGenService 顶部注释（icon → json → bool → textarea → number → select → input）。
-    /// </summary>
-    private List<GenColumn> BuildColumns(List<ColumnMeta> schema, Dictionary<string, string> dictTypes)
-    {
-        var list = new List<GenColumn>();
-        foreach (var c in schema)
-        {
-            var name = c.Name;
-            var label = NiceLabel(name);
-            var isPk = c.IsPrimaryKey || string.Equals(name, "Id", StringComparison.OrdinalIgnoreCase);
-            var type = c.Type.ToUpperInvariant();
-            var isBool = type.Contains("INT") && (name.StartsWith("Is", StringComparison.OrdinalIgnoreCase)
-                || name.StartsWith("Has", StringComparison.OrdinalIgnoreCase));
-            // JSON 字段：字段名以 Json 结尾（ConfigJson/PageJson/ExtJson 等）→ 使用 JSON 设计器组件
-            var isJson = name.EndsWith("Json", StringComparison.OrdinalIgnoreCase);
-            // 长文本：description / remark / content / text 结尾 / ext
-            var isLongText = !isJson && (name.Contains("Description", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("Remark", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("Content", StringComparison.OrdinalIgnoreCase)
-                || name.EndsWith("Text", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("Ext", StringComparison.OrdinalIgnoreCase));
-            var isTime = name.Contains("Time", StringComparison.OrdinalIgnoreCase) || type.Contains("DATE");
-
-            string control = "input";
-            if (name.Contains("Icon", StringComparison.OrdinalIgnoreCase) && !isPk) control = "emoji";
-            else if (isJson) control = "json";
-            else if (isBool) control = "switch";
-            else if (isLongText) control = "textarea";
-            else if (!type.Contains("INT") && !type.Contains("NUM") && !type.Contains("REAL") && !type.Contains("DEC")) control = "input";
-            else control = "number";
-
-            // 用户指定字典 / 外键关系 → 覆盖为下拉(select)
-            string? dictType = null;
-            string? fkTable = null;
-            if (dictTypes.TryGetValue(name, out var dt) && !string.IsNullOrWhiteSpace(dt)) { dictType = dt; control = "select"; }
-            else if (!isPk && c.FkTable != null) { fkTable = c.FkTable; control = "select"; }
-
-            var gc = new GenColumn
-            {
-                Name = name, Label = label, DataType = type, NotNull = c.NotNull, HasDefault = c.HasDefault, IsPk = isPk,
-                Control = control, FkTable = fkTable, DictType = dictType
-            };
-            // 筛选操作符：文本 like，数字/布尔/时间 eq
-            gc.Op = control is "input" or "textarea" || type.Contains("TEXT") && !isBool ? "like" : "eq";
-            // 进哪些屏：筛选区只收简单可比较控件；列表区不收长文本/JSON；详情区排除主键与审计时间
-            gc.InFilter = !isPk && !isTime && (control is "input" or "select" or "switch" || isBool);
-            gc.InList = !isPk && !isLongText && control != "json" && name != "ExtJson";
-            gc.InDetail = !isPk && name != "CreateTime" && name != "UpdateTime";
-            gc.CellTag = isBool;
-            list.Add(gc);
-        }
-        return list;
-    }
-
-    /// <summary>列名 → 显示标签（大写下划线拆分：OrderNo → Order No）。</summary>
-    private static string NiceLabel(string name)
-    {
-        if (string.IsNullOrEmpty(name)) return name;
-        var sb = new System.Text.StringBuilder();
-        for (var i = 0; i < name.Length; i++)
-        {
-            var ch = name[i];
-            if (i > 0 && char.IsUpper(ch) && char.IsLower(name[i - 1])) sb.Append(' ');
-            sb.Append(ch);
-        }
-        return sb.ToString();
-    }
-
-    // ======================================================================
-    //  配置树构建（DynCom 组件 JSON 树）
-    // ======================================================================
-
-    /// <summary>
-    /// 组件节点基座：统一补全 options(comoptions/labeloptions/itemoptions/compassthrough) 与
-    /// validators/childrenctrls/slots/extendinfo 空骨架，保证生成的 ConfigJson 与设计器/运行时同构。
-    /// compassthrough：容器把 comoptions.size、labeloptions 布局三项向下透传（见 _ContainerLayout/_BaseLayout）。
-    /// </summary>
-    private static JObject BaseNode(string component, string modelName, JObject comoptions, string label = null, bool showLabel = false)
-    {
-        return new JObject
-        {
-            ["component"] = component,
-            ["modelname"] = modelName,
-            ["options"] = new JObject
-            {
-                ["comoptions"] = comoptions,
-                ["labeloptions"] = new JObject { ["label"] = label ?? "", ["required"] = false, ["show"] = showLabel },
-                ["itemoptions"] = new JObject { ["style"] = new JObject(), ["class"] = "" },
-                ["compassthrough"] = "comoptions.size,labeloptions.labelposition,labeloptions.labelwidth"
-            },
-            ["validators"] = new JArray(),
-            ["childrenctrls"] = new JArray(),
-            ["slots"] = new JObject(),
-            ["extendinfo"] = new JObject()
-        };
-    }
-
-    /// <summary>控件枚举 → 组件名（向导第二步与最终生成共用同一套映射，保证一致）。</summary>
-    private static string ControlToComponent(string control) => control switch
-    {
-        "emoji" => "DynElEmojiPicker",
-        "json" => "DynJsonDesigner",
-        "textarea" => "DynElTextarea",
-        "number" => "DynElInputNumber",
-        "switch" => "DynElSwitch",
-        "select" => "DynElSelect",
-        _ => "DynElInput"
-    };
-
-    /// <summary>
-    /// 字段控件节点。
-    ///  - Filter 模式：modelname=列.value（绑定 {列:{op,value}} 结构）。
-    ///  - Detail 模式：modelname=列（绑定 form 对象）。
-    /// 控件 → 组件映射：emoji→DynElEmojiPicker / json→DynJsonDesigner / textarea→DynElTextarea /
-    ///                  number→DynElInputNumber / switch→DynElSwitch / select→DynElSelect / 其他→DynElInput。
-    /// </summary>
-    private static JObject FieldNode(GenColumn f, bool filterMode, int? projectId, string table)
-    {
-        var comp = ControlToComponent(f.Control);
-        var modelName = filterMode ? f.Name + ".value" : f.Name;
-        var co = new JObject();
-        co["size"] = "small";
-        switch (comp)
-        {
-            case "DynElEmojiPicker":
-                co["placeholder"] = "搜索 Emoji（中/英文）"; co["clearable"] = true; break;
-            case "DynJsonDesigner":
-                co["rows"] = 8; co["placeholder"] = "{}"; co["title"] = f.Label + " 配置设计器"; break;
-            case "DynElTextarea":
-                co["rows"] = 3; co["placeholder"] = "请输入" + f.Label; break;
-            case "DynElInputNumber":
-                co["step"] = 1; break;
-            case "DynElSwitch":
-                // 库里布尔/标志位多为 int(0/1)，el-switch 默认认 true/false，必须显式绑定值
-                co["activeValue"] = 1; co["inactiveValue"] = 0; break;
-            case "DynElSelect":
-                // 数据源优先级：字典 > 外键表 > 当前表 DISTINCT（SQL 自查询，可手改）
-                if (!string.IsNullOrWhiteSpace(f.DictType)) { co["sourceType"] = "dict"; co["dictType"] = f.DictType; }
-                else if (!string.IsNullOrWhiteSpace(f.FkTable)) { co["sourceType"] = "table"; co["table"] = f.FkTable; co["valueField"] = "Id"; co["textField"] = "Name"; co["projectId"] = projectId; }
-                else { co["sourceType"] = "sql"; co["sql"] = $"SELECT DISTINCT [{f.Name}] AS [Value], [{f.Name}] AS [Text] FROM [{table}] WHERE [{f.Name}] IS NOT NULL AND [{f.Name}] <> ''"; co["projectId"] = projectId; co["filterable"] = true; co["allowCreate"] = true; }
-                co["placeholder"] = "请选择"; co["clearable"] = true; break;
-            default:
-                co["placeholder"] = "请输入" + f.Label; co["clearable"] = true; break;
-        }
-        return BaseNode(comp, modelName, co, f.Label, true);
-    }
-
-    /// <summary>
-    /// 生成筛选区(Filter)组件树。
-    /// 规则：只生成条件输入控件，不内置「查询/重置」按钮（按钮统一放外层 List 页面，职责分离）。
-    /// filterCols：每行几列（3 或 4，默认 4），控制网格列数。
-    /// </summary>
-    private static JObject BuildFilterCfg(List<GenColumn> fields, int? projectId, string table, int filterCols = 4)
-    {
-        if (filterCols != 3 && filterCols != 4) filterCols = 4;
-        var children = new JArray();
-        foreach (var f in fields.Where(x => x.InFilter)) children.Add(FieldNode(f, true, projectId, table));
-
-        var root = BaseNode("DynGridContainer", "", new JObject
-        {
-            ["direction"] = "vertical", ["size"] = "small"
-        });
-        root["options"]!["labeloptions"] = new JObject { ["required"] = false, ["show"] = false, ["labelposition"] = "right", ["labelwidth"] = "120px" };
-        root["options"]!["itemoptions"]!["class"] = $"grid grid-cols-{filterCols} gap-x-3 gap-y-2 items-center";
-        root["childrenctrls"] = children;
-        return root;
-    }
-
-    /// <summary>
-    /// 筛选区默认条件（DefaultJson）：{ 列: { op, value:null } }，页面打开时作为初始查询条件。
-    /// 查询时收集当前输入；重置时恢复为此默认值。
-    /// </summary>
-    private static JObject BuildFilterDefaultJson(List<GenColumn> fields)
-    {
-        var o = new JObject();
-        foreach (var f in fields.Where(x => x.InFilter))
-            o[f.Name] = new JObject { ["op"] = f.Op, ["value"] = null };
-        return o;
-    }
-
-    /// <summary>
-    /// 生成列表区(List)列定义（ConfigJson.columns）。
-    /// 时间列由下方显式追加，避免重复；布尔列渲染为 tag；长文本列加宽。
-    /// </summary>
-    private static JObject BuildListCfg(List<GenColumn> fields)
-    {
-        var columns = new JArray();
-        columns.Add(new JObject { ["field"] = "Id", ["label"] = "Id", ["width"] = 90 });
-        foreach (var f in fields.Where(x => x.InList))
-        {
-            if (f.Name == "CreateTime" || f.Name == "UpdateTime") continue; // 时间列由下方显式追加，避免重复
-            var col = new JObject { ["field"] = f.Name, ["label"] = f.Label };
-            col["width"] = f.CellTag ? 100 : (f.Control == "textarea" ? 220 : 160);
-            if (f.CellTag)
-            {
-                col["cellType"] = "tag";
-                // int(0/1) 标志位映射成 是/否 tag
-                col["options"] = new JArray
-                {
-                    new JObject { ["value"] = 1, ["label"] = "是", ["type"] = "success" },
-                    new JObject { ["value"] = 0, ["label"] = "否", ["type"] = "info" }
-                };
-            }
-            columns.Add(col);
-        }
-        columns.Add(new JObject { ["field"] = "CreateTime", ["label"] = "创建时间", ["width"] = 190 });
-        return new JObject { ["columns"] = columns };
-    }
-
-    /// <summary>列表区默认分页与排序（DefaultJson）。</summary>
-    private static JObject BuildListDefaultJson()
-    {
-        return new JObject
-        {
-            ["pageInfo"] = new JObject { ["PageIndex"] = 1, ["PageSize"] = 20, ["TotalCount"] = 0 },
-            ["sort"] = new JObject { ["field"] = "CreateTime", ["order"] = "desc" }
-        };
-    }
-
-    /// <summary>
-    /// 生成详情区(Detail)组件树。
-    /// 规则：
-    ///  - 主键 → 隐藏域（新增空→insert / 编辑有值→update）。
-    ///  - 选中字段 >10：外层为「div 两列网格」布局（DynGridContainer 底层渲染 div + grid）；≤10 同样两列。
-    ///  - label 统一右对齐（labelposition=right）。
-    ///  - 长文本(textarea)/JSON(json) 控件默认占两列（col-span-2，内容较宽）。
-    ///  - 数据库 NOT NULL 且无默认值 → 自动追加 required 校验。
-    ///  - 审计字段（CreateTime/UpdateTime）已在分类阶段排除，不进详情区。
-    /// </summary>
-    private static JObject BuildDetailCfg(string pk, List<GenColumn> fields, int? projectId, string table, int detailCols = 2)
-    {
-        if (detailCols != 1 && detailCols != 2) detailCols = 2;
-        var children = new JArray();
-        var detailFields = fields.Where(x => x.InDetail).ToList();
-
-        // 主键隐藏域（新增空→insert；编辑有值→update）
-        var hidden = BaseNode("DynElInput", pk, new JObject { ["placeholder"] = "" }, "", false);
-        hidden["options"]!["itemoptions"]!["style"] = new JObject { ["display"] = "none" };
-        children.Add(hidden);
-
-        foreach (var f in detailFields)
-        {
-            var node = FieldNode(f, false, projectId, table);
-            // 长文本 / JSON 内容较宽：两列布局时占满两列；一列布局时本身就占满，无需跨列
-            if (detailCols == 2 && f.Control is "textarea" or "json")
-                node["options"]!["itemoptions"]!["class"] = "col-span-2";
-            // 数据库 NOT NULL 且无默认值 → 必填校验
-            if (f.NotNull && !f.HasDefault)
-            {
-                node["options"]!["labeloptions"]!["required"] = true;
-                ((JArray)node["validators"]!).Add(new JObject { ["type"] = "required", ["message"] = f.Label + "不能为空" });
-            }
-            children.Add(node);
-        }
-
-        var root = BaseNode("DynGridContainer", "", new JObject { ["direction"] = "vertical", ["size"] = "small" });
-        root["options"]!["labeloptions"] = new JObject { ["required"] = false, ["show"] = false, ["labelposition"] = "right", ["labelwidth"] = "120px" };
-        root["options"]!["itemoptions"]!["class"] = $"grid grid-cols-{detailCols} gap-x-3 gap-y-2 items-start";
-        root["childrenctrls"] = children;
-        return root;
-    }
-
-    /// <summary>详情区默认 model（DefaultJson）：数字默认 0、开关默认 1、其余 null。</summary>
-    private static JObject BuildDetailDefaultJson(string pk, List<GenColumn> fields)
-    {
-        var o = new JObject();
-        o[pk] = null;
-        foreach (var f in fields.Where(x => x.InDetail))
-        {
-            o[f.Name] = f.Control switch
-            {
-                "number" => 0,
-                "switch" => 1,
-                _ => null
-            };
-        }
-        return o;
     }
 
     // ======================================================================
     //  落库
     // ======================================================================
-
-    /// <summary>把前端项目标识解析为 DynProject.Id（支持传 Id 或 Code）。</summary>
-    private int? ResolveProjectId(string project)
-    {
-        if (string.IsNullOrWhiteSpace(project)) return null;
-        var proj = int.TryParse(project, out var pid)
-            ? _projects.GetById(pid)
-            : _projects.Query(x => x.Code == project).First();
-        return proj?.Id;
-    }
 
     /// <summary>
     /// 幂等落库一条 PageSetting（同 Code 则更新，否则插入）。
@@ -1066,10 +494,10 @@ public class PageGenService : IPageGenService
         var compSchema = BuildComponentSchema();
 
         // 2. 系统提示词
-        var systemPrompt = BuildAiSystemPrompt(compSchema);
+        var systemPrompt = _builder.BuildAiSystemPrompt(compSchema);
 
         // 3. 用户提示词
-        var userPrompt = BuildAiUserPrompt(prompt, tableName, project);
+        var userPrompt = _builder.BuildAiUserPrompt(prompt, tableName, project);
 
         try
         {
@@ -1082,9 +510,9 @@ public class PageGenService : IPageGenService
 
             // 5. 校验：组件名必须存在
             var validNames = new HashSet<string>(compSchema.Select(c => c.Name));
-            ValidateConfigTree(filter, validNames);
-            ValidateConfigTree(list, validNames);
-            ValidateConfigTree(detail, validNames);
+            _builder.ValidateConfigTree(filter, validNames);
+            _builder.ValidateConfigTree(list, validNames);
+            _builder.ValidateConfigTree(detail, validNames);
 
             return (true, "生成成功", filter, list, detail, reasoning);
         }
@@ -1111,113 +539,5 @@ public class PageGenService : IPageGenService
             });
         }
         return list;
-    }
-
-    private class CompSchemaItem
-    {
-        public string Name { get; set; } = "";
-        public string Label { get; set; } = "";
-        public string Category { get; set; } = "";
-        public string? DefaultConfig { get; set; }
-    }
-
-    /// <summary>
-    /// 构建 AI 系统提示词：组件清单 + 配置结构规则 + 输出格式约束。
-    /// 只给组件名+用途+一个完整默认配置示例，让 AI 学会结构即可，避免 prompt 过长。
-    /// </summary>
-    private static string BuildAiSystemPrompt(List<CompSchemaItem> schema)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("你是 VueLibV4 低代码平台的页面配置生成器。根据用户的自然语言描述，输出三屏（筛选区/列表区/详情区）的组件配置 JSON。");
-        sb.AppendLine();
-        sb.AppendLine("【组件配置结构】每个组件节点格式如下：");
-        sb.AppendLine("{");
-        sb.AppendLine("  \"component\": \"DynElInput\",          // 组件名，必须从下方清单选择");
-        sb.AppendLine("  \"modelname\": \"UserName\",             // 绑定的模型字段名（无绑定为空字符串）");
-        sb.AppendLine("  \"options\": {");
-        sb.AppendLine("    \"comoptions\": { \"placeholder\": \"请输入\" },  // 组件自身属性");
-        sb.AppendLine("    \"labeloptions\": { \"label\": \"用户名\", \"required\": false, \"show\": true },");
-        sb.AppendLine("    \"itemoptions\": { \"style\": {}, \"class\": \"\" }");
-        sb.AppendLine("  },");
-        sb.AppendLine("  \"validators\": [],                      // 校验规则数组");
-        sb.AppendLine("  \"childrenctrls\": [],                   // 子组件数组（容器类组件才有）");
-        sb.AppendLine("  \"slots\": {},");
-        sb.AppendLine("  \"extendinfo\": {}");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("【三屏输出结构】");
-        sb.AppendLine("{");
-        sb.AppendLine("  \"filter\": { ...DynGridContainer 包裹筛选控件... },");
-        sb.AppendLine("  \"list\":   { \"columns\": [...], ... },  // 列表区用 columns 数组定义列");
-        sb.AppendLine("  \"detail\": { ...DynGridContainer 包裹详情控件... }");
-        sb.AppendLine("}");
-        sb.AppendLine();
-        sb.AppendLine("【列表区 columns 列定义格式】");
-        sb.AppendLine("{ \"field\": \"UserName\", \"label\": \"用户名\", \"width\": 120, \"minWidth\": 100 }");
-        sb.AppendLine();
-        sb.AppendLine("【规则】");
-        sb.AppendLine("1. component 必须从下方组件清单中选择，禁止编造不存在的组件名。");
-        sb.AppendLine("2. 筛选区只放输入类控件（DynElInput/DynElSelect/DynElDatePicker 等），不放按钮。");
-        sb.AppendLine("3. 详情区用 DynGridContainer 作为根容器包裹所有字段。");
-        sb.AppendLine("4. 主键字段（通常是 Id）详情区可省略或放隐藏域。");
-        sb.AppendLine("5. 只输出 JSON，不要任何解释文字、不要 markdown 代码块标记。");
-        sb.AppendLine();
-        sb.AppendLine("【可用组件清单】");
-        foreach (var c in schema)
-        {
-            sb.AppendLine($"- {c.Name}（{c.Label}）[{c.Category}]");
-        }
-        sb.AppendLine();
-        sb.AppendLine("【组件默认配置示例】以下是几个常用组件的完整默认配置，可参考其结构：");
-        var examples = schema.Where(c =>
-            c.Name is "DynElInput" or "DynElSelect" or "DynElDatePicker" or "DynElSwitch" or "DynElTextarea" or "DynGridContainer").ToList();
-        foreach (var c in examples)
-        {
-            if (!string.IsNullOrEmpty(c.DefaultConfig))
-            {
-                sb.AppendLine($"--- {c.Name} 默认配置 ---");
-                sb.AppendLine(c.DefaultConfig);
-                sb.AppendLine();
-            }
-        }
-        return sb.ToString();
-    }
-
-    /// <summary>构建用户提示词：自然语言描述 + 可选表结构</summary>
-    private static string BuildAiUserPrompt(string prompt, string? tableName, string? project)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("用户需求：");
-        sb.AppendLine(prompt);
-        if (!string.IsNullOrEmpty(tableName))
-        {
-            sb.AppendLine();
-            sb.AppendLine($"目标表：{tableName}");
-            if (!string.IsNullOrEmpty(project))
-                sb.AppendLine($"项目：{project}");
-            sb.AppendLine("请根据表名推断常见字段（如 Id, Name, CreateTime 等），并合理分配到筛选区/列表区/详情区。");
-        }
-        sb.AppendLine();
-        sb.AppendLine("请输出三屏配置 JSON。");
-        return sb.ToString();
-    }
-
-    /// <summary>递归校验配置树：component 名必须在合法集合内，非法则删除该节点</summary>
-    private static void ValidateConfigTree(JObject? node, HashSet<string> validNames)
-    {
-        if (node == null) return;
-        var comp = node["component"]?.ToString();
-        if (!string.IsNullOrEmpty(comp) && !validNames.Contains(comp))
-        {
-            // 非法组件名：移除，避免渲染崩溃
-            node["component"] = "DynElInput";
-        }
-        if (node["childrenctrls"] is JArray children)
-        {
-            foreach (var child in children.ToList())
-            {
-                ValidateConfigTree(child as JObject, validNames);
-            }
-        }
     }
 }

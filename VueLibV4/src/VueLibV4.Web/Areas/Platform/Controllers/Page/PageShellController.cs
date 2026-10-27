@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
+using VueLibV4.Platform.Models;
 using VueLibV4.Platform.Services;
-using VueLibV4.Web.Core;
 
 namespace VueLibV4.Web.Areas.Platform.Controllers;
 
 /// <summary>
 /// 页面外壳控制器：工作台桌面 / 设计器 / 动态页面运行时外壳。
+/// 只做「解析请求 → 调运行时装配器 → 选视图」，页面装配逻辑见 <see cref="IPageRuntimeComposer"/>。
 /// 访问示例：
 ///   /Platform/Shell/Desktop
 ///   /Platform/Shell/Designer
@@ -19,21 +20,15 @@ public class PageShellController : Controller
 {
     private const string Page = "~/Areas/Platform/Views/Page/{0}.cshtml";
 
-    private readonly IDynWebPageService _webPages;
-    private readonly IDynTemplateService _templates;
-    private readonly IPageSettingService _settings;
+    private readonly IPageRuntimeComposer _composer;
     private readonly IConfiguration _config;
+    private readonly IDynWebPageService _pages;
 
-    public PageShellController(
-        IDynWebPageService webPages,
-        IDynTemplateService templates,
-        IPageSettingService settings,
-        IConfiguration config)
+    public PageShellController(IPageRuntimeComposer composer, IConfiguration config, IDynWebPageService pages)
     {
-        _webPages = webPages;
-        _templates = templates;
-        _settings = settings;
+        _composer = composer;
         _config = config;
+        _pages = pages;
     }
 
     /// <summary>工作台桌面（DesktopSolution + DesktopShortcut）</summary>
@@ -47,15 +42,46 @@ public class PageShellController : Controller
 
     /// <summary>
     /// 页面设计器（三栏：组件库 / 画布 / 属性面板）。
-    /// embed=1 时为弹窗嵌入模式（Layout=null 独立壳 + postMessage 协议，供 DynDesignerDialog 使用）。
+    /// embed=1 时为弹窗嵌入模式（Layout=null 独立壳 + postMessage 协议，供 DynDesignerDialog 使用）；
+    /// 传 id/code 时直接载入已有 DynWebPage，刷新/重新打开不丢上下文。
     /// </summary>
     [HttpGet("/Platform/Shell/Designer")]
-    public IActionResult Designer(string embed = null)
+    public IActionResult Designer(string embed = null, string code = null, int? id = null)
     {
         ViewData["Title"] = embed == "1" ? "页面设计器（嵌入） - VueLibV4" : "页面设计器 - VueLibV4";
         ViewData["ApiBase"] = "/api";
+
+        var page = ResolveDesignerPage(code, id);
         ViewBag.Embed = embed;
+        ViewBag.PageId = page?.Id ?? 0;
+        ViewBag.PageCode = page?.Code ?? string.Empty;
+        ViewBag.PageName = page?.Name ?? string.Empty;
+        ViewBag.InitialPageJson = page == null ? null : MinifyJson(page.PageJson);
         return View(string.Format(Page, "Designer"));
+    }
+
+    /// <summary>按 id 或 code 取待编辑页面；不存在时返回 null（设计器进入空白页）。</summary>
+    private DynWebPage? ResolveDesignerPage(string? code, int? id)
+    {
+        try
+        {
+            if (id.HasValue && id.Value > 0) return _pages.GetById(id.Value);
+            if (!string.IsNullOrWhiteSpace(code))
+                return _pages.Query(p => p.Code == code).First();
+        }
+        catch
+        {
+            // 设计器入口不应因页面不存在而 500：回退空白画布
+        }
+        return null;
+    }
+
+    /// <summary>压缩 JSON（去掉换行/缩进），避免内嵌到单引号属性时被空白撑大。</summary>
+    private static string? MinifyJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { return JObject.Parse(json).ToString(Newtonsoft.Json.Formatting.None); }
+        catch { return json; }
     }
 
     /// <summary>动态页面运行时（DynWebPage，按 code 或 id）</summary>
@@ -71,89 +97,18 @@ public class PageShellController : Controller
 
     /// <summary>
     /// 模板引擎运行时入口：/Platform/Shell/Runtime?id={DynWebPageId}
-    /// 流程：读实例 → 读模板 → 解析实例参数(ConfigJson) → TableName 自动补齐 dyndata Url →
-    /// 组装 DynSharedModel（RawParams / EffectiveParams / PassThrough / TemplateConfig / 三屏 PageSetting）→ 渲染模板外壳视图。
+    /// 装配（实例 → 模板 → 参数推导 → 三屏 PageSetting → 共享模型）全部下沉到 <see cref="IPageRuntimeComposer"/>；
+    /// 规格驱动模板（能力位在模板 ConfigJson 声明）由外壳视图自行读 SpecJson，控制器不做特判。
     /// </summary>
     [HttpGet("/Platform/Shell/Runtime")]
     public IActionResult DynWebPage(long id)
     {
-        var page = _webPages.GetById((int)id);
-        if (page == null) return Content("页面实例不存在：" + id);
-        var template = page.TemplateId != null ? _templates.GetById(page.TemplateId.Value) : null;
-        if (template == null) return Content("页面实例未绑定模板（TemplateId 为空）");
+        var result = _composer.Compose((int)id);
+        if (!result.Ok) return Content(result.Error ?? "页面装配失败");
 
-        // 1) 原始参数：用户在参数面板填写的结果（存于实例 ParamsJson；积木模板另有 blocks 槽位分组）
-        var rawParams = PageRenderSupport.TryParseDict(page.ParamsJson);
-
-        // 2) 自动推导：TableName 有值且 Url 为空 → 补 dyndata 免 model 接口；手动填写优先
-        var effective = PageRenderSupport.BuildEffectiveParams(rawParams);
-        // 三屏 PageSettingId 作为实例参数存于 ConfigJson（rawParams→effective），不再作为 DynWebPage 独立列。
-
-        // 3) 模板 ConfigJson 顶层 mPassThrough（透传属性，向下传给外壳 / createapp）
-        var passThrough = new JObject();
-        try
-        {
-            var cfg = JObject.Parse(template.ConfigJson ?? "{}");
-            if (cfg["mPassThrough"] is JObject pt) passThrough = pt;
-        }
-        catch { }
-
-        // 4) 模板默认配置（外壳可选用）
-        var templateConfig = new JObject();
-        try { templateConfig = JObject.Parse(template.DefaultJson ?? "{}"); } catch { }
-
-        // 5) 引用 PageSetting 配置：列表页加载 Filter/List；Detail 屏一并预加载
-        var f = PageRenderSupport.LoadSetting(_settings, PageRenderSupport.GetInt(effective, "FilterPageSettingId"));
-        var l = PageRenderSupport.LoadSetting(_settings, PageRenderSupport.GetInt(effective, "ListPageSettingId"));
-        var d = PageRenderSupport.LoadSetting(_settings, PageRenderSupport.GetInt(effective, "DetailPageSettingId"));
-        var model = new DynSharedModel
-        {
-            DynWebPageId = page.Id,
-            DynTemplateId = template.Id,
-            PageTitle = page.Name,
-            TemplateCode = template.Code,
-            RawParams = rawParams,
-            EffectiveParams = effective,
-            PassThrough = passThrough,
-            TemplateConfig = templateConfig,
-            FilterConfig = f?.Config,
-            FilterDefaultJson = f?.DefaultJson,
-            FilterRenderMode = f?.RenderMode,
-            FilterPartialPath = f?.PartialPath,
-            ListConfig = l?.Config,
-            ListDefaultJson = l?.DefaultJson,
-            ListRenderMode = l?.RenderMode,
-            ListPartialPath = l?.PartialPath,
-            DetailConfig = d?.Config,
-            DetailDefaultJson = d?.DefaultJson,
-            DetailRenderMode = d?.RenderMode,
-            DetailPartialPath = d?.PartialPath
-        };
-
-        ViewData["Title"] = page.Name + " - VueLibV4";
+        ViewData["Title"] = result.Title + " - VueLibV4";
         ViewData["ApiBase"] = "/api";
         ViewData["ShowDesignEntry"] = _config.GetValue<bool>("Dyn:ShowRuntimeDesignEntry");
-        var viewPath = string.IsNullOrWhiteSpace(template.ViewPath) ? "~/Views/DynTemplates/CrudBasic.cshtml" : template.ViewPath;
-        // 积木化模板（triscreen-blocks 三屏 / filterlist-crud 筛选列表 / tree-detail 树形管理 /
-        // tree-master-detail、list-master-detail 布局壳）：模板自行从 SpecJson/ParamsJson 读实例规格
-        // + PageSettingService 读取相关 PageSetting 并动态拼装根 model（业务 key 由模板决定），直接透传 DynWebPage 实例。
-        if (string.Equals(template.Code, "triscreen-blocks", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "filterlist-crud", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "tree-detail", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "tree-detail-v2", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "tree-master-detail", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "list-master-detail", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "filter-list-open-window", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "filter-list-open-windowV2", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "filter-list-drawer-leftV2", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "detail-modal-v2", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "filter-list-tabbed", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "tab-host", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "tab-container", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(template.Code, "tabs-basic", StringComparison.OrdinalIgnoreCase))
-        {
-            return View(viewPath, page);
-        }
-        return View(viewPath, model);
+        return View(result.ViewPath, result.ViewModel);
     }
 }

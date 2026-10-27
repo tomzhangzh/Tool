@@ -30,6 +30,8 @@ var comConfig = {
     setup(props, context) {
         const { ref, reactive, computed, inject, provide, watch, nextTick, onMounted, onBeforeUnmount, getCurrentInstance } = Vue;
         const _ = window._;
+        // 配置机制层：合并/表达式求值/属性穿透/选项加载/校验的纯函数实现（wwwroot/dyn/dyn-node-config.js，可 node 单测）
+        const NC = window.DynNodeConfig;
         const inst = Vue.getCurrentInstance();
         const dyn = inst?.proxy?.$dyn;
         /**
@@ -67,24 +69,7 @@ var comConfig = {
             parentField: 1, parentValuePath: 1, parentValue: 1,
             url: 1, valueKey: 1, labelKey: 1
         };
-        function deepMerge(target, ...sources) {
-            return _.mergeWith(target, ...sources, (objValue, srcValue) => {
-                if (Array.isArray(srcValue)) {
-                    return srcValue;
-                }
-                return undefined;
-            });
-        }
-        // 裸标签 JSON 属性归一：对象直接用；字符串按 JSON 解析（生成视图的 comoptions 属性到浏览器是 JSON 字符串）；
-        // null/空串/解析失败回落到 dft，且不抛异常——手写模板写错一个属性不该让整页挂掉。
-        function parseAttrJson(v, dft) {
-            if (v === null || v === undefined) return dft;
-            if (typeof v === 'object') return v;
-            var s = String(v).trim();
-            if (!s) return dft;
-            try { var o = JSON.parse(s); return (o && typeof o === 'object') ? o : dft; }
-            catch (e) { console.warn('[裸标签属性 JSON 解析失败]', e, s.slice(0, 120)); return dft; }
-        }
+        // 裸标签 JSON 属性归一（对象直用 / JSON 字符串解析 / 失败回落 dft）见 NC.parseAttrJson
         // 直连模式（裸标签未传 jsonconfig）：用直连 props 合成内存 jc（不落库、不参与设计器导出），
         // 让下方全部配置驱动逻辑（label/绑定/校验/穿透）无差别复用。
         // 优先级：JSON 属性（生成视图/手写 comoptions=".."）打底；label/required/placeholder 直连 props 覆盖。
@@ -94,18 +79,18 @@ var comConfig = {
             modelname: props.modelname || null,
             modelexpr: props.modelexpr || null,
             modelsetexpr: props.modelsetexpr || null,
-            bindings: parseAttrJson(props.bindings, null),
+            bindings: NC.parseAttrJson(props.bindings, null),
             options: Object.assign(
                 {
                     comoptions: props.placeholder
-                        ? Object.assign(parseAttrJson(props.comoptions, {}), { placeholder: props.placeholder })
-                        : parseAttrJson(props.comoptions, {}),
+                        ? Object.assign(NC.parseAttrJson(props.comoptions, {}), { placeholder: props.placeholder })
+                        : NC.parseAttrJson(props.comoptions, {}),
                     labeloptions: Object.assign(
                         { label: props.label || '', required: !!props.required, show: !!(props.label || props.required) },
-                        parseAttrJson(props.labeloptions, null) || {}
+                        NC.parseAttrJson(props.labeloptions, null) || {}
                     ),
-                    itemoptions: parseAttrJson(props.itemoptions, { style: {}, class: '' }),
-                    wrapperoptions: parseAttrJson(props.wrapperoptions, {})
+                    itemoptions: NC.parseAttrJson(props.itemoptions, { style: {}, class: '' }),
+                    wrapperoptions: NC.parseAttrJson(props.wrapperoptions, {})
                 },
                 props.compassthrough ? { compassthrough: props.compassthrough } : null,
                 props.evalcondition ? { evalcondition: props.evalcondition } : null
@@ -117,10 +102,8 @@ var comConfig = {
         } : null;
         // 直接引用 reactive 的 jsonconfig，不深拷贝；补齐缺失的默认字段
         const jc = props.jsonconfig || syntheticJc;
-        if (!jc.options) jc.options = {};
-        if (!jc.options.comoptions) jc.options.comoptions = {};
-        if (!jc.options.labeloptions) jc.options.labeloptions = { label: "", required: false, show: true };
-        if (!jc.options.itemoptions) jc.options.itemoptions = { style: {}, class: "" };
+        // 补齐框架默认结构（原地写入，保持 jsonconfig 的响应式引用）
+        NC.ensureDefaults(jc, defaults.options.compassthrough);
         // 配置键契约：options 下所有框架定义的组与子键一律「全小写无分隔」
         // （comoptions / labeloptions / itemoptions / wrapperoptions / compassthrough / evalcondition）。
         // 这里不做任何驼峰兼容：历史数据的键名由 Data/migrate-configkeys-20261027.sql 一次性迁移。
@@ -131,45 +114,9 @@ var comConfig = {
             console.warn('[DynConfig] 检测到旧驼峰配置键（comOptions/labelOptions/comInnerInfo），' +
                 '运行时不再兼容；请对数据库执行 src/VueLibV4.Web/Data/migrate-configkeys-20261027.sql。', jc.options);
         }
-        if (!jc.options.compassthrough) jc.options.compassthrough = defaults.options.compassthrough;
-        if (!Array.isArray(jc.childrenctrls)) jc.childrenctrls = [];
-        if (!Array.isArray(jc.validators)) jc.validators = [];
-        if (!jc.slots) jc.slots = {};
-        if (!jc.extendinfo) jc.extendinfo = {};
-        function mergePatch(origin, patch) {
-            const res = Object.assign({}, origin);
-            if (!patch || typeof patch !== "object") return res;
-            // 遍历 patch 的 key：既更新 origin 已有键，也新增 patch 独有的键（如 bindings 注入的 disabled）
-            for (const key in patch) {
-                if (patch[key] !== undefined) {
-                    res[key] = patch[key];
-                }
-            }
-            return res;
-        }
-        function mergeLabelOptions(selfOpt, parentDefaultOpt) {
-            const result = Object.assign({}, parentDefaultOpt || {});
-            for (const key in selfOpt) {
-                const v = selfOpt[key];
-                if (v === null) {
-                    result[key] = null;
-                } else if (v !== undefined) {
-                    result[key] = v;
-                }
-            }
-            return result;
-        }
-        function getStyle(...opts) { return Object.assign({}, ...opts.map(o => o?.style || {})); }
-        function getClass(...opts) { return opts.flatMap(o => (o?.class || '').split(' ')).filter(Boolean); }
-        function getComlisteners() {
-            const listeners = jc.options?.comlisteners || {};
-            const result = {};
-            for (const key in listeners) {
-                const val = listeners[key];
-                if (typeof val === 'function') result[key] = val;
-            }
-            return result;
-        }
+        // 配置合并 / labeloptions 合并 / 样式 class 组装见 NC.mergePatch / mergeLabelOptions / getStyle / getClass
+        // 只保留函数型监听器（comlisteners 可能混入配置键）见 NC.getComlisteners
+        function getComlisteners() { return NC.getComlisteners(jc.options?.comlisteners); }
         // comInnerInfo：校验状态 + 选项型组件的远程 options 数据
         const comInnerInfo = reactive({
             validation: { valid: true, errors: [], touched: false },
@@ -190,137 +137,23 @@ var comConfig = {
         const comExtra = {};
 
         // ============ 选项数据源公共能力（DynSelect/ComSelect/Radio/Checkbox 共用） ============
-        /** 把任意形态（字符串或 {value,label}）归一为 {value,label}，支持 valueKey/labelKey 映射 */
-        function _normOptionList(list, valueKey, labelKey) {
-            return (Array.isArray(list) ? list : []).map(function (x) {
-                if (x !== null && typeof x === 'object') {
-                    var v = valueKey ? x[valueKey] : x.value;
-                    var l = labelKey ? x[labelKey] : x.label;
-                    return { value: v !== undefined ? v : x.value, label: l !== undefined ? l : x.label };
-                }
-                return { value: x, label: String(x) };
-            });
-        }
-        /** static 数据源：优先 optionValuesText（每行“值,标签”，无逗号时值即标签），否则读 optionValues 数组 */
-        function initOptionsFromConfig() {
-            var co = jc.options && jc.options.comoptions ? jc.options.comoptions : {};
-            if (typeof co.optionValuesText === 'string' && co.optionValuesText.trim()) {
-                comInnerInfo.options = co.optionValuesText.split(/\r?\n/).map(function (line) {
-                    var s = line.trim();
-                    if (!s) return null;
-                    var parts = s.split(/[,，]/);
-                    var v = parts[0].trim();
-                    var lab = parts.length > 1 ? parts.slice(1).join(',').trim() : v;
-                    return { value: v, label: lab || v };
-                }).filter(Boolean);
-                return;
-            }
-            var ov = co.optionValues;
-            comInnerInfo.options = _normOptionList(ov);
-        }
+        // 归一化 / 静态文本解析 / 远程加载（dict/table/sql/ajax）见 NC.normOptionList / optionsFromText / loadOptions
         /**
-         * 按 comoptions.sourceType 加载下拉选项：
-         *   static - 静态 optionValues
-         *   dict   - 平台字典 DynDict（dictType）
-         *   table  - 工程表（projectId/table/valueField/textField，parentField+parentValuePath 联动）
-         *   ajax   - 任意接口（url 支持 {{model.field}} 占位，valueKey/labelKey 映射）
+         * 按 comoptions.sourceType 加载下拉选项（dict / table / sql / ajax 的实现见 NC.loadOptions）。
+         * setupScripts 阶段 modelinfo 尚未声明（暂时性死区），若数据源含 {{ }} 模板会触发
+         * resolveTemplate → exprCtx → modelinfo 报错；检测到 TDZ 时延迟到 nextTick 重试。
          */
         function loadComOptions(forceType) {
-            // setupScripts 阶段 modelinfo 尚未声明（暂时性死区），
-            // 若数据源含 {{ }} 模板会触发 resolveTemplate → exprCtx → modelinfo 报错。
-            // 检测到 TDZ 时延迟到 nextTick 重试。
             try { void modelinfo; } catch (e) { nextTick(function () { loadComOptions(forceType); }); return; }
-            var s = (jc.options && jc.options.comoptions) || {};
-            var t = forceType || s.sourceType || 'static';
-            if (t === 'static') { initOptionsFromConfig(); return; }
-            if (t === 'dict') {
-                if (!s.dictType) return;
-                fetch('/api/dyncommon/dicts?type=' + encodeURIComponent(s.dictType))
-                    .then(function (r) { return r.json(); })
-                    .then(function (res) { if (res && res.code === 0) comInnerInfo.options = _normOptionList(res.data); })
-                    .catch(function (e) { console.warn('[dict options]', e); });
-                return;
-            }
-            if (t === 'table') {
-                if (!s.projectId || !s.table) return;
-                var qs = 'projectId=' + encodeURIComponent(s.projectId)
-                    + '&table=' + encodeURIComponent(s.table)
-                    + '&valueField=' + encodeURIComponent(s.valueField || 'Id')
-                    + '&textField=' + encodeURIComponent(s.textField || 'Name');
-                if (s.parentField) {
-                    var pv = '';
-                    if (s.parentValuePath) pv = getByPath(parentModel.value, s.parentValuePath);
-                    else if (s.parentValue !== undefined) pv = s.parentValue;
-                    if (pv !== undefined && pv !== null && pv !== '') {
-                        qs += '&parentField=' + encodeURIComponent(s.parentField)
-                            + '&parentValue=' + encodeURIComponent(pv);
-                    }
-                }
-                fetch('/api/dyncommon/options?' + qs)
-                    .then(function (r) { return r.json(); })
-                    .then(function (res) { if (res && res.code === 0) comInnerInfo.options = _normOptionList(res.data); })
-                    .catch(function (e) { console.warn('[table options]', e); });
-                return;
-            }
-            if (t === 'sql') {
-                if (!s.sql) return;
-                // {{ expr }} 用 bindings 同套 ctx 求值，值转义单引号防 SQL 语法破坏
-                var resolvedSql = resolveTemplate(s.sql, function (v) { return v.replace(/'/g, "''"); });
-                var q = 'projectId=' + encodeURIComponent(s.projectId || '') + '&sql=' + encodeURIComponent(resolvedSql);
-                fetch('/api/dyncommon/sqloptions?' + q)
-                    .then(function (r) { return r.json(); })
-                    .then(function (res) { if (res && res.code === 0) comInnerInfo.options = _normOptionList(res.data); })
-                    .catch(function (e) { console.warn('[sql options]', e); });
-                return;
-            }
-            if (t === 'ajax') {
-                if (!s.url) return;
-                // {{ expr }} 用 bindings 同套 ctx 求值，值做 URL 编码
-                var url = resolveTemplate(s.url, encodeURIComponent);
-                fetch(url)
-                    .then(function (r) { return r.json(); })
-                    .then(function (res) {
-                        var list = res && res.code === 0 ? res.data : (Array.isArray(res) ? res : (res && res.data) || []);
-                        comInnerInfo.options = _normOptionList(list, s.valueKey, s.labelKey);
-                    })
-                    .catch(function (e) { console.warn('[ajax options]', e); });
-            }
+            NC.loadOptions(jc.options && jc.options.comoptions, {
+                forceType: forceType,
+                ctx: exprCtx.value,
+                parentModel: parentModel.value,
+                onOptions: function (list) { comInnerInfo.options = list; }
+            });
         }
-        // ========== 新增：属性穿透相关 ==========
-        /**
-         * 合并父容器穿透配置
-         * @@param {object} localOptions 当前组件 jc.options
-         * @@param {object} parentPass 父注入的 comExtraPass（父 compassthrough 清单提取的 路径→值 映射）
-         * @@param {string} passStr comExtra.comPassThrough 白名单字符串（仅白名单模式启用时使用）
-         * @@param {boolean} whiteListMode 透传白名单开关（来自容器 provide 的 passThroughWhiteListMode）
-         * @@returns {object} 合并后的完整options
-         */
-        function applyPassThrough(localOptions, parentPass, passStr, whiteListMode) {
-            const opts = _.cloneDeep(localOptions || {});
-            if (!parentPass) return opts;
-            const parentVals = parentPass.passValues || {};
-            const paths = Object.keys(parentVals);
-            // 白名单模式：true=启用（子自身 compassthrough 过滤，取交集）；false=关闭（忽略子白名单，父清单字段全收）
-            let allowed = paths;
-            if (whiteListMode) {
-                const childKeys = (passStr || '')
-                    .split(',')
-                    .map(i => i.trim())
-                    .filter(path => !!path);
-                allowed = paths.filter(function (p) { return childKeys.indexOf(p) >= 0; });
-            }
-            for (const path of allowed) {
-                const localVal = _.get(opts, path);
-                // 子组件该路径未显式定义，才继承父的值
-                if (localVal === undefined) {
-                    const pVal = parentVals[path];
-                    if (pVal !== undefined) {
-                        _.set(opts, path, pVal);
-                    }
-                }
-            }
-            return opts;
-        }
+        // ========== 属性穿透（实现见 NC.applyPassThrough） ==========
+        // 白名单模式：true=启用（子自身 compassthrough 过滤，取交集）；false=关闭（忽略子白名单，父清单字段全收）
         // 穿透白名单：来自组件持久化配置 options.compassthrough（见 defaults），仅白名单模式启用时参与过滤
         comExtra.comPassThrough = jc.options.compassthrough;
         // 注入父穿透数据源
@@ -329,7 +162,7 @@ var comConfig = {
         const passWhiteListMode = inject('passThroughWhiteListMode', false) === true;
         // 合并本地配置 + 上层穿透
         const mergedOptions = computed(() => {
-            return applyPassThrough(jc.options, parentPassSource, comExtra.comPassThrough, passWhiteListMode);
+            return NC.applyPassThrough(jc.options, parentPassSource, comExtra.comPassThrough, passWhiteListMode);
         });
         // ========== end 属性穿透 ==========
         // inject before section scripts
@@ -372,26 +205,19 @@ var comConfig = {
             return false;
         });
         const designUid = computed(() => (designMode.value && pageCtx && pageCtx.uidOf) ? pageCtx.uidOf(jc) : null);
-        function onDesignDragstart(e) { if (designMode.value && pageCtx.onDragStartCfg) { e.stopPropagation(); pageCtx.onDragStartCfg(props.jsonconfig, e); } }
-        function onDesignClick(e) {
-            if (!designMode.value || !pageCtx.onSelect) return;
-            var selfUid = designUid.value;
-            if (selfUid) {
-                var inner = e.target.closest('[data-dyn-uid]');
-                if (inner && inner.getAttribute('data-dyn-uid') !== selfUid) return;
-            }
-            pageCtx.onSelect(props.jsonconfig, e);
-        }
-        function onDesignDragover(e) { if (designMode.value && pageCtx.onDragOver) { e.preventDefault(); e.stopPropagation(); pageCtx.onDragOver(props.jsonconfig, e); } }
-        function onDesignDrop(e) { if (designMode.value && pageCtx.onDrop) { e.preventDefault(); e.stopPropagation(); pageCtx.onDrop(props.jsonconfig, e); } }
-        function onDesignDragleave(e) { if (designMode.value && pageCtx.onDragLeave) { e.stopPropagation(); pageCtx.onDragLeave(props.jsonconfig, e); } }
-        const designRootClass = computed(() => {
-            if (!designMode.value) return "";
-            var c = jc.component || "";
-            var isContainer = /Container|Form|Card|Tabs|Collapse|Row|Col|Panel/.test(c);
-            if (isContainer && (!jc.childrenctrls || jc.childrenctrls.length === 0)) return "designer-empty-container";
-            return "";
+        // 设计模式交互（点击选中 / 画布 Sortable 生命周期）的实现见 NC.bindDesignerNode，此处只接线
+        const designBinding = NC.bindDesignerNode({
+            jc: jc,
+            props: props,
+            designMode: designMode,
+            pageCtx: pageCtx,
+            designUid: designUid,
+            designerScope: injectDesignerScope,
+            isTransparent: function () { return !!comExtra.transparentMode; },
+            isContainer: lookupIsContainer
         });
+        const onDesignClick = designBinding.handlers.click;
+        const designRootClass = computed(() => NC.designRootClass(jc.component, jc.childrenctrls, designMode.value));
         let parentModelPrefixVal = injectParentModelPrefix;
         let parentDefaultLabelOpts = injectParentDefaultLabelOptions;
         let parentUiGlobal = injectUiGlobalProps;
@@ -413,7 +239,7 @@ var comConfig = {
         // 键为属性路径（comoptions.disabled / labeloptions.show / itemoptions.style），
         // 值为 {{ expr }} 表达式或字面量。求值后按组打补丁，优先级：静态 < bindings < evalcondition
         const bindingsRaw = computed(() => {
-            const b = jc.bindings ?? (typeof props.bindings === 'object' ? props.bindings : parseAttrJson(props.bindings, null));
+            const b = jc.bindings ?? (typeof props.bindings === 'object' ? props.bindings : NC.parseAttrJson(props.bindings, null));
             return (b && typeof b === 'object') ? b : null;
         });
         // 统一表达式 ctx：bindings 与 evalCondition 共享同一套上下文变量
@@ -426,29 +252,14 @@ var comConfig = {
             getByPath: getByPath,
             safeGet: (path) => dyn?.getByPath(parentModel.value, path)
         }));
-        const bindingsPatch = computed(() => {
-            const b = bindingsRaw.value;
-            const patch = { labeloptions: {}, comoptions: {}, itemoptions: {}, shell: {} };
-            if (!b) return patch;
-            const ctx = exprCtx.value;
-            for (const key in b) {
-                const val = evalExpr(b[key], ctx);
-                const dot = key.indexOf('.');
-                if (dot < 0) continue;
-                const group = key.slice(0, dot);
-                const sub = key.slice(dot + 1);
-                if (group === 'labeloptions' || group === 'comoptions' || group === 'itemoptions' || group === 'shell') {
-                    _.set(patch[group], sub, val);
-                }
-            }
-            return patch;
-        });
+        // 求值并拆组（labeloptions/comoptions/itemoptions/shell）见 NC.bindingsPatch
+        const bindingsPatch = computed(() => NC.bindingsPatch(bindingsRaw.value, exprCtx.value));
         const shellShow = computed(() => effectivePatch.shell?.show ?? bindingsPatch.value.shell.show ?? true);
         const shellClass = computed(() => effectivePatch.shell?.class ?? bindingsPatch.value.shell.class ?? []);
         const shellStyle = computed(() => effectivePatch.shell?.style ?? bindingsPatch.value.shell.style ?? {});
         // 从合并穿透后的 options 获取 labeloptions
         const originMergedLabelOpts = computed(() => {
-            const base = mergeLabelOptions(mergedOptions.value.labeloptions, parentDefaultLabelOpts);
+            const base = NC.mergeLabelOptions(mergedOptions.value.labeloptions, parentDefaultLabelOpts);
             return base;
         });
         // 直连 props 补丁：label/required 显式传入时覆盖配置；evalCondition 的 effectivePatch 优先级最高
@@ -460,15 +271,15 @@ var comConfig = {
         });
         const finalLabelOptions = computed(() => {
             // 优先级：静态合并 < directLabelPatch < bindings < evalcondition(effectivePatch)
-            let o = mergePatch(originMergedLabelOpts.value, directLabelPatch.value);
-            o = mergePatch(o, bindingsPatch.value.labeloptions);
-            o = mergePatch(o, effectivePatch.labeloptions);
+            let o = NC.mergePatch(originMergedLabelOpts.value, directLabelPatch.value);
+            o = NC.mergePatch(o, bindingsPatch.value.labeloptions);
+            o = NC.mergePatch(o, effectivePatch.labeloptions);
             return o;
         });
         const finalComOptions = computed(() => {
             // 优先级：静态合并 < bindings < evalcondition(effectivePatch)
-            let o = mergePatch(mergedOptions.value.comoptions, bindingsPatch.value.comoptions);
-            o = mergePatch(o, effectivePatch.comoptions);
+            let o = NC.mergePatch(mergedOptions.value.comoptions, bindingsPatch.value.comoptions);
+            o = NC.mergePatch(o, effectivePatch.comoptions);
             return o;
         });
         // 自动把穿透来的 size 同步到 jc.options.comoptions.size，让所有 v-bind="jc.options.comoptions" 的组件模板自动生效
@@ -518,44 +329,7 @@ var comConfig = {
         }
         function getByPath(obj, path) { return !obj || !path ? undefined : _.get(obj, path); }
         function setByPath(obj, path, value) { if (!obj || !path) return; _.set(obj, path, value); }
-        // 表达式求值：{{ ... }} 包裹的按 JS 表达式求值，否则原样返回（字面量）
-        // 作用域：model=表单对象, $self=当前值, row=行数据
-        function evalExpr(raw, ctx) {
-            if (raw === null || raw === undefined) return raw;
-            if (typeof raw !== 'string') return raw;
-            const s = raw.trim();
-            if (s.startsWith('{{') && s.endsWith('}}')) {
-                const body = s.slice(2, -2).trim();
-                if (!body) return undefined;
-                try {
-                    // 参数顺序与 exprCtx 对齐：model, $self, value, row, fullModelName, getByPath, safeGet
-                    const fn = new Function('model', '$self', 'value', 'row', 'fullModelName', 'getByPath', 'safeGet', 'return (' + body + ');');
-                    return fn(ctx.model, ctx.$self, ctx.value, ctx.row, ctx.fullModelName, ctx.getByPath, ctx.safeGet);
-                } catch (e) {
-                    console.warn('[bindings/modelexpr 表达式求值失败]', body, e);
-                    return undefined;
-                }
-            }
-            return raw;
-        }
-        // 模板行内替换：把字符串中所有 {{ expr }} 用 bindings 同套 ctx 求值后替换。
-        // valueTransform 可选，对每个求值结果做后处理（SQL 转义单引号 / AJAX URL 编码）
-        function resolveTemplate(str, valueTransform) {
-            if (typeof str !== 'string') return str;
-            var ctx = exprCtx.value;
-            return str.replace(/\{\{\s*([\s\S]+?)\s*\}\}/g, function (match, body) {
-                var val;
-                try {
-                    var fn = new Function('model', '$self', 'value', 'row', 'fullModelName', 'getByPath', 'safeGet', 'return (' + body + ');');
-                    val = fn(ctx.model, ctx.$self, ctx.value, ctx.row, ctx.fullModelName, ctx.getByPath, ctx.safeGet);
-                } catch (e) {
-                    console.warn('[template 表达式求值失败]', body, e);
-                    val = '';
-                }
-                var s = val == null ? '' : String(val);
-                return valueTransform ? valueTransform(s) : s;
-            });
-        }
+        // 表达式求值 / {{ expr }} 行内替换见 NC.evalExpr / NC.resolveTemplate
         // 值绑定三通道（优先级从高到低）：
         // ① 表达式模式：modelexpr（只读，可选 modelsetexpr 写回）
         // ② 路径模式：parentmodelinfo（显式 prop 或容器 inject 兜底）+ modelname
@@ -566,7 +340,7 @@ var comConfig = {
                 const modelexpr = jc.modelexpr || props.modelexpr;
                 if (modelexpr) {
                     // ctx 字段与 exprCtx 对齐，但 $self/value 用 innerValue（此时 modelinfo 尚未算出，避免循环）
-                    return evalExpr(modelexpr, {
+                    return NC.evalExpr(modelexpr, {
                         model: parentModel.value,
                         $self: innerValue.value,
                         value: innerValue.value,
@@ -635,42 +409,12 @@ var comConfig = {
         });
 	    let _rootEl = null; // 校验结果写回根元素，供父级（DetailTemplate validateForm）聚合具体错误消息
 	    function validate() {
-            const rules = jc.validators || [];
             // 实时读取当前值（不依赖 modelinfo computed 缓存），确保 form 已更新后校验拿到最新值
             const val = (parentModel.value && fullModelName.value)
                 ? getByPath(parentModel.value, fullModelName.value)
                 : modelinfo.value;
-            const errors = [];
-            for (const rule of rules) {
-                if (rule.enableWhen !== undefined) {
-                    try {
-                        const fn = new Function("ctx", rule.enableWhen);
-                        const enable = fn({ value: val, model: parentModel.value, getByPath });
-                        if (!enable) continue;
-                    } catch (e) {
-                        console.warn("[validator enableWhen error]", e);
-                    }
-                }
-                const validatorsMap = {
-                    required: (v) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0),
-                    min: (v, m) => v === '' || v === null || v === undefined || Number(v) >= Number(m),
-                    max: (v, m) => v === '' || v === null || v === undefined || Number(v) <= Number(m),
-                    length: (v, m) => !v || String(v).length >= Number(m),
-                    pattern: (v, p) => !v || new RegExp(p).test(String(v)),
-                    email: (v) => !v || /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(String(v)),
-                    phone: (v) => !v || /^1[3-9]\d{9}$/.test(String(v)),
-                    number: (v) => v === '' || v === null || v === undefined || !isNaN(Number(v)),
-                    // custom：rule.value 为返回布尔值的 JS 表达式脚本（参数 v=当前值, model=表单模型）
-                    custom: (v, script) => {
-                        if (!script) return true;
-                        try { return !!new Function('v', 'model', 'return (' + script + ');')(val, parentModel.value); }
-                        catch (e) { console.warn('[validator custom error]', e); return false; }
-                    }
-                };
-                const fn = validatorsMap[rule.type];
-                if (!fn) continue;
-                if (!fn(val, rule.value)) errors.push(rule.message || `验证失败: ${rule.type}`);
-            }
+            // 规则执行（required/min/max/length/pattern/email/phone/number/custom + enableWhen）见 NC.runValidators
+            const errors = NC.runValidators(jc.validators, val, parentModel.value, getByPath);
             comInnerInfo.validation.valid = errors.length === 0;
             comInnerInfo.validation.errors = errors;
             comInnerInfo.validation.touched = true;
@@ -685,29 +429,16 @@ var comConfig = {
         provide('comInnerInfo', comInnerInfo);
         provide('component_validate', validate);
         provide('component_resetValidation', resetValidation);
-        // evalCondition：监听当前值 + 整个表单 model（deep），任何字段变化都重算
+        // evalCondition：监听当前值 + 整个表单 model（deep），任何字段变化都重算；脚本执行见 NC.evalConditionPatch
         watch([modelinfo, () => parentModel.value], () => {
             effectivePatch.shell = null;
             effectivePatch.labeloptions = null;
             effectivePatch.comoptions = null;
-            const scriptText = jc.options?.evalcondition;
-            if (!scriptText) return;
-            if (window.DYN_LIB_CONFIG?.disableEvalJs) {
-                console.warn("[BaseLayout] evalCondition全局关闭");
-                return;
-            }
-            try {
-                // ctx 与 bindings 完全一致：model / $self / value / row / fullModelName / getByPath / safeGet
-                const fn = new Function("ctx", scriptText);
-                const ret = fn(exprCtx.value);
-                if (ret && typeof ret === "object") {
-                    effectivePatch.shell = ret.shell ?? null;
-                    effectivePatch.labeloptions = ret.labeloptions ?? null;
-                    effectivePatch.comoptions = ret.comoptions ?? null;
-                }
-            } catch (e) {
-                console.error("[evalCondition脚本执行异常]", e, scriptText);
-            }
+            const patch = NC.evalConditionPatch(jc.options?.evalcondition, exprCtx.value);
+            if (!patch) return;
+            effectivePatch.shell = patch.shell;
+            effectivePatch.labeloptions = patch.labeloptions;
+            effectivePatch.comoptions = patch.comoptions;
         }, { deep: true });
         function getSlot(slotName) {
             if (context.slots[slotName]) {
@@ -717,7 +448,6 @@ var comConfig = {
             return slotDef ?? null;
         }
         const safeChildren = computed(() => (jc.childrenctrls || []).filter(c => c && typeof c === 'object'));
-        var _sortableIns = null;
         var _instance = getCurrentInstance();
         onMounted(() => {
             const rootEl = (_instance && _instance.proxy && _instance.proxy.$el) || context.root?.el;
@@ -749,38 +479,14 @@ var comConfig = {
                 watch(function () { return parentModel.value; },
                     function () { loadComOptions(); }, { deep: true });
             }
-  			// 设计模式下，容器组件初始化 Sortable
-            // 注意：DynDynamicCom 透明包装层（transparentMode）与真实容器组件挂在同一根元素、
-            // 都能看到同一个 .dyn-children-wrap，若两层都初始化会在同一元素上重复绑定 Sortable，
-            // 嵌套容器时残留的旧实例 mousedown 监听器会与内层实例争抢，导致子组件拖不动。
-            // designMode 为响应式：切换到"预览"时销毁 Sortable（禁用拖放），切回"设计"时重建。
-            var teardownSortable = function () {
-                if (_sortableIns) {
-                    window.DesignerSortable.destroy(_sortableIns);
-                    _sortableIns = null;
-                }
-            };
-            var setupSortable = function () {
-                if (!designMode.value || comExtra.transparentMode || !window.DesignerSortable || !rootEl) return;
-                if (_sortableIns) return;
-                var compName = jc.component || "";
-                var isContainer = lookupIsContainer(compName);
-                var isGrid = compName === "DynGridContainer";
-                if (isContainer) {
-                    var listEl = (rootEl.classList && rootEl.classList.contains("dyn-children-wrap")) ? rootEl : (typeof rootEl.querySelector === "function" ? rootEl.querySelector(".dyn-children-wrap") : null);
-                    if (listEl) {
-                        var designerScope = injectDesignerScope;
-                        _sortableIns = window.DesignerSortable.createCanvasContainer(listEl, jc, designerScope, isGrid);
-                    }
-                }
-            };
-            nextTick(setupSortable);
+  			// 设计模式下，容器组件初始化 Sortable（重复绑定/透明层/切换预览的处理见 NC.bindDesignerNode）
+            nextTick(function () { designBinding.setup(rootEl); });
             watch(designMode, function (isDesign) {
-                nextTick(function () { isDesign ? setupSortable() : teardownSortable(); });
+                nextTick(function () { isDesign ? designBinding.setup(rootEl) : designBinding.destroy(); });
             });
         });
         onBeforeUnmount(() => {
-            if (_sortableIns) window.DesignerSortable.destroy(_sortableIns);
+            designBinding.destroy();
         });
         return {
             jc,
@@ -794,8 +500,8 @@ var comConfig = {
             originUiGlobalMerged,
             validate,
             resetValidation,
-            getStyle,
-            getClass,
+            getStyle: NC.getStyle,
+            getClass: NC.getClass,
             getComlisteners,
             safeChildren,
             getSlot,
@@ -807,11 +513,7 @@ var comConfig = {
             designMode,
             designUid,
             designRootClass,
-            onDesignDragstart,
             onDesignClick,
-            onDesignDragover,
-            onDesignDrop,
-            onDesignDragleave,
             ...comExtra
         };
     }

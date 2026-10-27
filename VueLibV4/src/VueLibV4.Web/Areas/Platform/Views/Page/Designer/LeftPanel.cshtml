@@ -2,27 +2,37 @@
 @* 注意：aside 是 Vue 挂载点，其属性不被 Vue 编译，所以 :style/@mousedown 必须放在内部包裹 div 上 *@
 <aside class="dyn-panel shrink-0 bg-white border-r border-gray-200 min-h-0 relative"
        dyn-init="createapp" v-cloak data-dyn-use-scope="designer">
-  <div class="flex flex-col min-h-0 h-full relative"
-       :style="{ width: model.leftCollapsed ? '26px' : (model.leftWidth + 'px') }">
+  <div class="dyn-panel-inner is-left flex flex-col min-h-0 h-full relative"
+       :class="{ 'is-collapsed': model.leftCollapsed }"
+       :style="{ width: model.leftCollapsed ? '36px' : (model.leftWidth + 'px') }">
   @* 右侧拖拽条 *@
   <div v-if="!model.leftCollapsed" class="dyn-resizer dyn-resizer-right" @@mousedown="onStartResizeLeft"></div>
 
-  @* ===== 折叠态窄轨 ===== *@
-  <div v-show="model.leftCollapsed" class="dyn-panel-rail flex flex-col items-center pt-2">
-    <button class="dyn-rail-btn" title="展开组件面板" @@click="setCollapsed(false)">▶</button>
-    <span class="dyn-rail-text">组件</span>
+  @* ===== 折叠态窄轨：整轨点击展开，图标直达对应 tab ===== *@
+  <div class="dyn-panel-rail" @@click="setCollapsed(false)">
+    <button class="dyn-rail-icon" title="展开组件面板" @@click.stop="setCollapsed(false)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <span class="dyn-rail-divider"></span>
+    <button class="dyn-rail-tab" title="组件库" @@click.stop="expandTo('lib')">🧩</button>
+    <button class="dyn-rail-tab" title="组件树" @@click.stop="expandTo('tree')">🌳</button>
+    <button class="dyn-rail-tab" title="我的组合" @@click.stop="expandTo('comp')">📦</button>
+    <span class="dyn-rail-title">组件</span>
   </div>
 
-  <div v-show="!model.leftCollapsed" class="dyn-panel-body flex flex-col min-h-0" style="width:100%;">
+  <div class="dyn-panel-body flex flex-col min-h-0" style="width:100%;">
   <div class="flex items-center justify-between px-3 h-10 border-b border-gray-100 shrink-0">
     <span class="font-semibold text-gray-700">组件</span>
-    <div class="flex gap-1">
-      <button class="px-2 py-0.5 text-xs rounded hover:bg-gray-100" title="收起面板" @@click="setCollapsed(true)">◀</button>
-    </div>
+    <button class="dyn-panel-collapse" title="收起面板" @@click="setCollapsed(true)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
   </div>
 
   <el-tabs v-model="tab" class="px-2 flex-1 overflow-hidden flex flex-col">
     <el-tab-pane label="组件库" name="lib" class="flex-1 flex flex-col min-h-0">
+      <el-input v-model="libKeyword" size="small" clearable class="mb-2" placeholder="搜索组件：名称 / 标签 / 分类">
+        <template #prefix><span class="text-gray-400">🔍</span></template>
+      </el-input>
       <el-select v-model="category" size="small" class="w-full mb-2" placeholder="全部组件">
         <el-option label="全部组件" value=""></el-option>
         <el-option v-for="c in allCategories" :key="c" :label="c" :value="c"></el-option>
@@ -100,14 +110,20 @@
   var COMPOSITION_KEY = 'dyn-designer-compositions';
   var dynConfig = {
     data: function () {
-      return { tab: 'lib', category: '', allCategories: [], allComponents: [], compositions: [], treeFilter: '' };
+      return { tab: 'lib', category: '', libKeyword: '', allCategories: [], allComponents: [], compositions: [], treeFilter: '' };
     },
     computed: {
       filteredComponents: function () {
         var list = this.allComponents || [];
         var self = this;
-        if (!this.category) return list;
-        return list.filter(function (c) { return c.Category === self.category; });
+        var kw = String(this.libKeyword || '').trim().toLowerCase();
+        if (this.category) list = list.filter(function (c) { return c.Category === self.category; });
+        if (kw) {
+          list = list.filter(function (c) {
+            return ((c.ComponentName || '') + ' ' + (c.Label || '') + ' ' + (c.Category || '')).toLowerCase().indexOf(kw) >= 0;
+          });
+        }
+        return list;
       },
       treeData: function () {
         return window.DynDesignerOps.buildTreeData(this.model.pageJson);
@@ -122,6 +138,10 @@
     },
     watch: {
       category: function () {
+        var self = this;
+        self.$nextTick(function () { self._initLibDrag(); });
+      },
+      libKeyword: function () {
         var self = this;
         self.$nextTick(function () { self._initLibDrag(); });
       },
@@ -177,6 +197,8 @@
     },
     methods: {
       setCollapsed: function (v) { this.model.leftCollapsed = !!v; },
+      // 折叠窄轨快捷图标：展开并直达指定 tab
+      expandTo: function (name) { this.tab = name; this.model.leftCollapsed = false; },
       // 双击组件库项 → 添加到画布末尾
       onDblClickLib: function (c) {
         var Ops = window.DynDesignerOps;

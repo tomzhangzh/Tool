@@ -28,7 +28,7 @@ provide('passThroughWhiteListMode', PASS_THROUGH_WHITE_LIST_MODE);
 
 // 容器：合并自身uiGlobalProps，向下provide给后代组件
 const finalUiGlobalProps = computed(() => {
-    return mergePatch(originUiGlobalMerged.value, effectivePatch.comoptions);
+    return NC.mergePatch(originUiGlobalMerged.value, effectivePatch.comoptions);
 });
 
 // 向下透传UI全局配置

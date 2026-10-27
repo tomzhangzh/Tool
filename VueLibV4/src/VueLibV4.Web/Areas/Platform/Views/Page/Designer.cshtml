@@ -1,6 +1,19 @@
 @{
     var isEmbed = ViewBag.Embed as string == "1";
     Layout = isEmbed ? null : "_Layout";
+    // 服务端按 id/code 预载页面：刷新/重新打开设计器不丢上下文
+    var initialJson = ViewBag.InitialPageJson as string;
+    if (string.IsNullOrWhiteSpace(initialJson))
+    {
+        initialJson = "{\"component\":\"DynGridContainer\",\"options\":{\"comoptions\":{\"gridTemplateColumns\":\"1fr 1fr\",\"gap\":\"16px\"},\"labeloptions\":{\"label\":\"\",\"show\":false},\"itemoptions\":{\"style\":{},\"class\":\"p-4\"}},\"childrenctrls\":[]}";
+    }
+    var pageId = ViewBag.PageId is int pid ? pid : 0;
+    var pageCode = (ViewBag.PageCode as string) ?? "";
+    var pageName = (ViewBag.PageName as string) ?? "";
+    // 内嵌到单引号属性：HTML 编码后浏览器解码即为原值
+    Func<string, string> enc = s => System.Net.WebUtility.HtmlEncode(s ?? "");
+    var pageNameLit = Newtonsoft.Json.JsonConvert.ToString(pageName);
+    var pageCodeLit = Newtonsoft.Json.JsonConvert.ToString(pageCode);
 }
 @if (isEmbed)
 {
@@ -20,7 +33,7 @@
 *@
 <div class="dyn-designer-root flex flex-col h-screen m-0 bg-gray-100"
      data-dyn-shared-scope="designer"
-     data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": { "component": "DynGridContainer", "options": { "comoptions": { "gridTemplateColumns": "1fr 1fr", "gap": "16px" }, "labeloptions": { "label": "", "show": false }, "itemoptions": { "style": {}, "class": "p-4" } }, "childrenctrls": [] }, "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "previewActive": { "uid": "", "index": 0 }, "viewState": { "open": false, "name": "", "node": null, "columns": [] }, "undoStack": [], "redoStack": [], "canvasVersion": 0, "dragging": null, "draggingCfg": null, "dropIndicator": { "show": false, "insertInto": false, "insertBefore": false, "insertAfter": false, "top": 0, "left": 0, "width": 0, "height": 0 }, "zoom": 100, "leftCollapsed": false, "rightCollapsed": false, "leftWidth": 288, "rightWidth": 340, "embed": @(isEmbed ? "true" : "false"), "pageId": 0, "pageCode": "", "defaultModel": {} }'>
+     data-dyn-scope-json='{ "current": null, "componentGroups": [], "componentMetaList": [], "pageJson": @Html.Raw(enc(initialJson)), "pageName": @Html.Raw(enc(pageNameLit)), "selected": null, "selectedUid": "", "overlay": { "uid": "", "top": 0, "left": 0, "width": 0, "height": 0, "label": "" }, "pathList": [], "showJsonEditor": false, "previewActive": { "uid": "", "index": 0 }, "viewState": { "open": false, "name": "", "node": null, "columns": [] }, "undoStack": [], "redoStack": [], "canvasVersion": 0, "dragging": null, "zoom": 100, "leftCollapsed": false, "rightCollapsed": false, "leftWidth": 288, "rightWidth": 340, "embed": @(isEmbed ? "true" : "false"), "pageId": @pageId, "pageCode": @Html.Raw(enc(pageCodeLit)), "defaultModel": {}, "dirty": false }'>
 
   <partial name="~/Areas/Platform/Views/Page/Designer/TopBar.cshtml" />
 
@@ -32,7 +45,6 @@
   <partial name="~/Areas/Platform/Views/Page/Designer/JsonEditorDialog.cshtml" />
 
   <style>
-.drag-target-active { outline: 2px dashed #409eff !important; outline-offset: 2px; }
 /* ===== 左右面板拖拽条 ===== */
 .dyn-designer-root .dyn-resizer {
   position: absolute; top: 0; bottom: 0; width: 6px; z-index: 60;
@@ -52,15 +64,107 @@
 .dyn-designer-root .el-tab-pane.overflow-y-auto,
 .dyn-designer-root .el-tab-pane.overflow-auto { overflow: auto; }
 .dyn-designer-root #component-lib-wrap { flex: 1; min-height: 0; }
-/* ===== 左右面板折叠（窄轨） ===== */
-.dyn-designer-root .dyn-panel { transition: width .18s ease; overflow: hidden; }
-.dyn-designer-root .dyn-panel-body { height: 100%; min-width: 0; }
-.dyn-designer-root .dyn-panel-rail { width: 26px; height: 100%; }
-.dyn-designer-root .dyn-rail-btn {
-  width: 22px; height: 24px; border: 1px solid #e5e7eb; border-radius: 4px;
-  background: #fff; color: #6b7280; cursor: pointer; line-height: 20px; font-size: 11px;
+/* ===== 顶部菜单栏（macOS 风格：单行 / 文字菜单 / 右侧状态区） ===== */
+.dyn-designer-root .dyn-menubar {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+  height: 42px; padding: 0 10px; white-space: nowrap;
+  background: rgba(255, 255, 255, .9);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px; color: #334155; user-select: none;
 }
-.dyn-designer-root .dyn-rail-btn:hover { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+.dyn-designer-root .dyn-mb-left,
+.dyn-designer-root .dyn-mb-right { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.dyn-designer-root .dyn-mb-left { flex: 1 1 auto; overflow: visible; }
+.dyn-designer-root .dyn-mb-right { flex: 0 0 auto; }
+.dyn-designer-root .dyn-mb-brand {
+  display: inline-flex; align-items: center; gap: 5px; padding-left: 2px;
+  font-weight: 600; color: #0f172a; white-space: nowrap;
+}
+.dyn-designer-root .dyn-mb-sep { width: 1px; height: 16px; background: #e2e8f0; margin: 0 4px; flex: 0 0 auto; }
+/* 文本菜单：无边框、无底色，hover 才浮出浅底 */
+.dyn-designer-root .dyn-mb-menu {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 9px;
+  border-radius: 6px; color: #475569; cursor: pointer; outline: none;
+  transition: background-color .12s ease, color .12s ease;
+}
+.dyn-designer-root .dyn-mb-menu:hover { background: #f1f5f9; color: #0f172a; }
+.dyn-designer-root .dyn-mb-key { margin-left: auto; padding-left: 18px; font-size: 11px; color: #94a3b8; }
+/* 页面名：无线框输入，hover/聚焦才显示浅底 */
+.dyn-designer-root .dyn-mb-name { flex: 0 1 168px; min-width: 96px; }
+.dyn-designer-root .dyn-mb-name .el-input__wrapper { box-shadow: none !important; background: transparent; padding: 0 7px; }
+.dyn-designer-root .dyn-mb-name:hover .el-input__wrapper,
+.dyn-designer-root .dyn-mb-name .el-input__wrapper.is-focus { background: #f1f5f9; }
+.dyn-designer-root .dyn-mb-name .el-input__inner { font-size: 13px; font-weight: 500; color: #0f172a; height: 26px; }
+.dyn-designer-root .dyn-mb-dirty { font-size: 12px; color: #f59e0b; white-space: nowrap; }
+/* 右侧状态项：文字 + 数值，点击弹出小面板 */
+.dyn-designer-root .dyn-mb-status {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px;
+  border-radius: 6px; color: #475569; cursor: pointer; font-size: 12px;
+  transition: background-color .12s ease, color .12s ease;
+}
+.dyn-designer-root .dyn-mb-status:hover { background: #f1f5f9; color: #0f172a; }
+.dyn-designer-root .dyn-mb-mode {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 10px;
+  border-radius: 6px; color: #64748b; cursor: pointer; font-size: 12px;
+  transition: background-color .12s ease, color .12s ease;
+}
+.dyn-designer-root .dyn-mb-mode:hover { background: #f1f5f9; color: #0f172a; }
+.dyn-designer-root .dyn-mb-mode.is-on { background: #e8f0fe; color: #1d4ed8; font-weight: 600; }
+.dyn-designer-root .dyn-mb-pop-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 12px; color: #475569; }
+.dyn-designer-root .dyn-menubar .el-button { height: 26px; padding: 0 12px; }
+
+/* ===== 左右面板折叠：宽度 + 内容淡入淡出一体化过渡（不做 display 硬切） ===== */
+.dyn-designer-root .dyn-panel { overflow: hidden; }
+.dyn-designer-root .dyn-panel-inner { transition: width .24s cubic-bezier(.4,0,.2,1); }
+.dyn-designer-root .dyn-panel-body {
+  height: 100%; min-width: 0;
+  transition: opacity .16s ease, transform .24s cubic-bezier(.4,0,.2,1);
+}
+.dyn-designer-root .dyn-panel-inner.is-left.is-collapsed .dyn-panel-body { opacity: 0; pointer-events: none; transform: translateX(-10px); }
+.dyn-designer-root .dyn-panel-inner.is-right.is-collapsed .dyn-panel-body { opacity: 0; pointer-events: none; transform: translateX(10px); }
+/* 折叠窄轨：常驻 DOM，仅淡入淡出，避免切换时跳动 */
+.dyn-designer-root .dyn-panel-rail {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 10px 0; gap: 6px;
+  background: #f8fafc; cursor: pointer; user-select: none;
+  opacity: 0; pointer-events: none;
+  transition: opacity .16s ease .06s, background-color .15s ease;
+}
+.dyn-designer-root .dyn-panel-inner.is-collapsed .dyn-panel-rail { opacity: 1; pointer-events: auto; }
+.dyn-designer-root .dyn-panel-rail:hover { background: #eff6ff; }
+.dyn-designer-root .dyn-rail-icon {
+  width: 26px; height: 26px; border-radius: 8px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #64748b; background: transparent; border: none; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.dyn-designer-root .dyn-rail-icon svg { width: 16px; height: 16px; }
+.dyn-designer-root .dyn-rail-icon:hover { background: #2563eb; color: #fff; }
+.dyn-designer-root .dyn-rail-tab {
+  width: 26px; height: 26px; border-radius: 8px; padding: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+  background: transparent; border: none; cursor: pointer; line-height: 1;
+  transition: background-color .15s ease, transform .15s ease;
+}
+.dyn-designer-root .dyn-rail-tab:hover { background: #dbeafe; transform: scale(1.06); }
+.dyn-designer-root .dyn-rail-divider { width: 16px; height: 1px; background: #e2e8f0; margin: 2px 0; }
+.dyn-designer-root .dyn-rail-title {
+  margin-top: auto; margin-bottom: 6px;
+  writing-mode: vertical-rl; letter-spacing: 5px; font-size: 12px; font-weight: 500;
+  color: #94a3b8; user-select: none;
+}
+/* 展开态头部的圆形收起按钮 */
+.dyn-designer-root .dyn-panel-collapse {
+  width: 22px; height: 22px; border-radius: 6px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #9ca3af; background: transparent; border: none; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.dyn-designer-root .dyn-panel-collapse svg { width: 15px; height: 15px; }
+.dyn-designer-root .dyn-panel-collapse:hover { background: #f1f5f9; color: #334155; }
 /* ===== 属性配置面板统一间距（基础tab的el-form-item + comProps渲染的dyn-form-item） ===== */
 .dyn-designer-root .prop-config-root .el-form-item,
 .dyn-designer-root .prop-config-root .dyn-form-item--horizontal,
@@ -72,7 +176,6 @@
 .dyn-designer-root .prop-config-root .dyn-form-item--vertical:last-child {
   margin-bottom: 0;
 }
-.dyn-designer-root .dyn-rail-text { writing-mode: vertical-rl; letter-spacing: 4px; font-size: 12px; color: #9ca3af; margin-top: 8px; user-select: none; }
 /* ===== 组件树：hover 操作按钮 + 拖拽态 ===== */
 .dyn-designer-root .dyn-comp-tree .el-tree-node__content { height: 28px; }
 .dyn-designer-root .dyn-tree-row { display: flex; align-items: center; width: 100%; padding-right: 6px; min-width: 0; }
@@ -104,6 +207,26 @@
 /* ===== JSON 模式编辑区 ===== */
 .dyn-designer-root .dyn-json-mode textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 4px; padding: 10px; font-family: Consolas, monospace; font-size: 12px; outline: none; resize: none; }
 .dyn-designer-root .dyn-json-mode textarea:focus { border-color: #3b82f6; }
+/* ===== 画布 hover 描边（只描最近一个设计节点） ===== */
+.dyn-designer-root .design-mode .dyn-hover-node { outline: 2px dashed rgba(59,130,246,.55) !important; outline-offset: 2px; }
+/* ===== 浮层「子项管理」菜单 ===== */
+.dyn-designer-root .dyn-overlay-menu {
+  position: absolute; top: 26px; left: 0; z-index: 90; min-width: 138px;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  padding: 4px 0; white-space: nowrap;
+}
+.dyn-designer-root .dyn-overlay-menu button {
+  display: block; width: 100%; text-align: left; padding: 5px 10px; font-size: 12px;
+  border: none; background: transparent; color: #374151; cursor: pointer;
+}
+.dyn-designer-root .dyn-overlay-menu button:hover { background: #eff6ff; color: #2563eb; }
+/* ===== 配置体检列表 ===== */
+.dyn-lint-list { max-height: 46vh; overflow: auto; }
+.dyn-lint-item { display: flex; gap: 8px; align-items: flex-start; padding: 6px 4px; font-size: 12px; border-bottom: 1px dashed #eef0f3; cursor: default; }
+.dyn-lint-item[title] { cursor: pointer; }
+.dyn-lint-item[title]:hover { background: #f8fafc; }
+.dyn-lint-tag { flex-shrink: 0; padding: 0 6px; border-radius: 3px; background: #fef3c7; color: #b45309; font-size: 11px; line-height: 18px; }
+.dyn-lint-item.is-error .dyn-lint-tag { background: #fee2e2; color: #b91c1c; }
 </style></div>
 
 @if (isEmbed)
@@ -127,6 +250,8 @@
                     if (d.defaultModel) model.defaultModel = JSON.parse(JSON.stringify(d.defaultModel));
                     if (d.pageId) model.pageId = d.pageId;
                     if (d.pageCode) model.pageCode = d.pageCode;
+                    // 初始配置由父页注入：清空历史，把注入状态视为已存基线
+                    if (window.DynDesignerHistory) window.DynDesignerHistory.reset(model);
                 }
                 window.addEventListener('message', function (e) {
                     var d = e.data || {};

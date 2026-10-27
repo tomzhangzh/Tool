@@ -1,0 +1,18 @@
+{
+  "_comment": "控制器行数棘轮基线：新控制器必须 <= controllersMaxLines；已超标存量只许变小，重构后再下调数字并删除对应项。",
+  "controllersMaxLines": 150,
+  "controllerAllowList": {
+    "src/VueLibV4.Web/Controllers/DynDataApiController.cs": 345,
+    "src/VueLibV4.Web/Controllers/DynCommonController.cs": 201,
+    "src/VueLibV4.Web/Controllers/RpcController.cs": 187,
+    "src/VueLibV4.Web/Areas/Platform/Controllers/Tools/PageGraphController.cs": 604,
+    "src/VueLibV4.Web/Areas/Platform/Controllers/PermissionController.cs": 501,
+    "src/VueLibV4.Web/Areas/Platform/Controllers/Page/PageBlockController.cs": 322,
+    "src/VueLibV4.Web/Areas/Platform/Controllers/WebPage/DynPageRenderController.cs": 264,
+    "src/VueLibV4.Web/Areas/Platform/Controllers/DbMetaController.cs": 241,
+    "src/VueLibV4.Web/Areas/Business/Controllers/TemplatesController.cs": 196,
+    "src/VueLibV4.Web/Areas/Platform/Controllers/DemoController.cs": 192,
+    "src/VueLibV4.Web/Areas/Platform/Controllers/ComponentMetaController.cs": 167,
+    "src/VueLibV4.Web/Areas/Platform/Controllers/WebPage/DynPageTemplateController.cs": 158
+  }
+}
