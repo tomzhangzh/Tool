@@ -56,7 +56,7 @@
 
     const formItemRootStyle = computed(() => {
         const base = (labelPos.value === 'left' || labelPos.value === 'right')
-            ? { display: 'flex', alignItems: 'flex-start' }
+            ? { display: 'flex', alignItems: 'flex-center' }
             : { display: 'block' };
         // 尊重配置中显式声明的 display（如主键隐藏域 itemoptions.style.display='none'），
         // 否则下方的 formItemRootStyle 会覆盖它导致隐藏域显示出来

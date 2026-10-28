@@ -33,22 +33,21 @@ public class ComponentMetaController : ControllerBase
     [HttpGet("grouped")]
     public ApiResult Grouped()
     {
-        var rows = _svc.Query(c => c.IsActive)
-            .OrderBy(c => c.Category)
-            .OrderBy(c => c.Id)
-            .ToList();
+        // 分类展示顺序（设计器左侧组件库 tab 顺序）；未登记的分类排在最后，按名称兜底
+        var catOrder = new[] { "布局容器", "表单录入", "表格列表", "数据展示", "内容渲染", "操作交互", "页面骨架", "隐藏组件" };
+        var rows = _svc.Query(c => c.IsActive).ToList();
         var groups = rows.GroupBy(r => r.Category ?? "未分类")
-            .Select(g => new { category = g.Key, components = g.ToList() })
+            .Select(g => new { category = g.Key, components = g.OrderBy(c => c.Id).ToList() })
             .ToList();
         // 补充 ElementPlus 内置组件（DB 无元数据行）：ElFormItem 供设计器拖入，defaultCfg 自动填 label
         if (!rows.Any(r => r.ComponentName == "ElFormItem"))
         {
-            var formGroup = groups.FirstOrDefault(g => g.category == "表单");
+            var formGroup = groups.FirstOrDefault(g => g.category == "表单录入");
             var fake = new ComponentMeta
             {
                 ComponentName = "ElFormItem",
                 Label = "表单项",
-                Category = "表单",
+                Category = "表单录入",
                 Icon = "🏷️",
                 IsActive = true,
                 AcceptAll = true, // 表单项可接收任意表单控件/组件作为子项
@@ -61,14 +60,17 @@ public class ComponentMetaController : ControllerBase
                 var list = formGroup.components.ToList();
                 list.Add(fake);
                 groups.Remove(formGroup);
-                groups.Add(new { category = "表单", components = list });
+                groups.Add(new { category = "表单录入", components = list });
             }
             else
             {
-                groups.Add(new { category = "表单", components = new List<ComponentMeta> { fake } });
+                groups.Add(new { category = "表单录入", components = new List<ComponentMeta> { fake } });
             }
         }
-        return ApiResult.Ok(groups.OrderBy(g => g.category));
+        return ApiResult.Ok(groups
+            .OrderBy(g => { var i = Array.IndexOf(catOrder, g.category); return i < 0 ? int.MaxValue : i; })
+            .ThenBy(g => g.category)
+            .ToList());
     }
 
     [HttpGet("get")]

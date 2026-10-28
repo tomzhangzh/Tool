@@ -375,3 +375,30 @@ UPDATE ComponentMeta SET AcceptAll=1 WHERE ComponentName='DynCrudPage';
 UPDATE ComponentMeta SET PropertyConfigJson='{"component":"DynElContainer","modelname":"","options":{"comoptions":{"direction":"vertical"},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{"gap":"0"},"class":""}},"validators":[],"childrenctrls":[{"component":"DynElInput","modelname":"options.comoptions.text","options":{"comoptions":{},"labeloptions":{"label":"按钮文字","show":true},"itemoptions":{}}},{"component":"DynElSelect","modelname":"options.comoptions.type","options":{"comoptions":{"clearable":true,"optionValues":[{"value":"","label":"默认"},{"value":"primary","label":"主要"},{"value":"success","label":"成功"},{"value":"warning","label":"警告"},{"value":"danger","label":"危险"},{"value":"info","label":"信息"}]},"labeloptions":{"label":"按钮类型","show":true},"itemoptions":{}}},{"component":"DynElSelect","modelname":"options.comoptions.size","options":{"comoptions":{"clearable":true,"optionValues":[{"value":"large","label":"大"},{"value":"default","label":"中"},{"value":"small","label":"小"}]},"labeloptions":{"label":"尺寸","show":true},"itemoptions":{}}},{"component":"DynElInput","modelname":"options.comoptions.icon","options":{"comoptions":{"placeholder":"Element 图标名"},"labeloptions":{"label":"图标","show":true},"itemoptions":{}}},{"component":"DynElSwitch","modelname":"options.comoptions.plain","options":{"comoptions":{},"labeloptions":{"label":"朴素按钮","show":true},"itemoptions":{}}},{"component":"DynElSwitch","modelname":"options.comoptions.round","options":{"comoptions":{},"labeloptions":{"label":"圆角按钮","show":true},"itemoptions":{}}},{"component":"DynElSwitch","modelname":"options.comoptions.link","options":{"comoptions":{},"labeloptions":{"label":"链接按钮(表格行操作用)","show":true},"itemoptions":{}}},{"component":"DynElSwitch","modelname":"options.comoptions.disabled","options":{"comoptions":{},"labeloptions":{"label":"禁用","show":true},"itemoptions":{}}},{"component":"DynElTextarea","modelname":"extendinfo.pipe","options":{"comoptions":{"rows":4,"placeholder":"open({\"url\":\"/XxxForm?form=1\",\"mode\":\"fragment\",\"params\":{\"rowId\":\"{{id}}\"}})"},"labeloptions":{"label":"动作管道 dyn-click","show":true},"itemoptions":{}}},{"component":"DynText","modelname":"","options":{"comoptions":{"text":"表格操作列中可用占位：{{id}} 主键、{{gridid}} 表格标识、{{table}} 表名、{{editurl}} 编辑URL，以及任意行字段(小写)如 {{name}}"},"comlisteners":{},"labeloptions":{"show":false},"itemoptions":{"style":{"fontSize":"11px","color":"#909399","lineHeight":"1.5"}}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}],"slots":{},"extendinfo":{}}'
 WHERE ComponentName='DynElButton';
 
+-- ---------------- 2026-10-29 组件库分类重分配 ----------------
+-- 原分类碎片化：10 个分类里有 4 个只挂 1 个组件（图表/表格&列表/自定义/其他），
+-- 且同类组件被拆散——表格族散在 容器+表单+表格&列表+自定义；展示族散在 基础+数据+通用；
+-- 容器族散在 容器+通用。「通用」「其他」实际成了垃圾桶（DynText/DynDynamicCom 混在一起）。
+-- 现按「设计器拖拽时用户的寻找意图」归为 8 类。本块为权威口径，覆盖 component-meta.sql 初始分类。
+UPDATE ComponentMeta SET Category='布局容器' WHERE ComponentName IN (
+  'DynElRow','DynElCol','DynElCard','DynElTabs','DynElContainer','DynElCollapse',
+  'DynElCollapseItem','DynSplitter','DynElPopover','DynElSteps','DynGridContainer');
+UPDATE ComponentMeta SET Category='表单录入' WHERE ComponentName IN (
+  'DynForm','DynElInput','DynElTextarea','DynElInputNumber','DynElPassword','DynElSelect',
+  'DynElRadioGroup','DynElCheckboxGroup','DynElSwitch','DynElDatePicker','DynElTimePicker',
+  'DynElDateRange','DynElSlider','DynElRate','DynElColorPicker','DynElCascader',
+  'DynElTransfer','DynElUpload','DynElEmojiPicker','DynLookup','DynElArray','DynElFormItem');
+UPDATE ComponentMeta SET Category='表格列表' WHERE ComponentName IN (
+  'DynTable','DynTableColumn','DynTableActions','DynListView','DynElTable');
+UPDATE ComponentMeta SET Category='数据展示' WHERE ComponentName IN (
+  'DynElDescriptions','DynElStatistic','DynElTimeline','DynElTag','DynElBadge',
+  'DynElProgress','DynElEmpty','DynElImage','DynText','DynElDivider');
+UPDATE ComponentMeta SET Category='内容渲染' WHERE ComponentName IN (
+  'DynEChart','DynMermaid','DynMarkdown','DynHtmlBox','DynVueTemplate');
+UPDATE ComponentMeta SET Category='操作交互' WHERE ComponentName IN (
+  'DynElButton','DynElAlert');
+UPDATE ComponentMeta SET Category='页面骨架' WHERE ComponentName IN (
+  'DynCrudPage','DynViewSwitcher','DynMacSidebar','DynMacWindow','DynSlotHost');
+UPDATE ComponentMeta SET Category='隐藏组件' WHERE ComponentName IN (
+  'DynModelWatcher','DynRpcLoader','DynDynamicCom','DynJsonDesigner');
+

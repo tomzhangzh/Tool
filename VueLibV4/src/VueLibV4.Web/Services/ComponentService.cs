@@ -35,9 +35,10 @@ public class ComponentService
         var list = new List<ComponentListItemDto>();
         try
         {
-            var rows = _components.Query(c => c.IsActive)
+            // SqlSugar 的 ISugarQueryable 不支持 ThenBy，先取回内存再排序，保证"分类 + Id"两级顺序
+            var rows = _components.Query(c => c.IsActive).ToList()
                 .OrderBy(c => c.Category)
-                .OrderBy(c => c.Id)
+                .ThenBy(c => c.Id)
                 .ToList();
             foreach (var r in rows)
             {
