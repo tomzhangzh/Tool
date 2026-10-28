@@ -96,35 +96,9 @@
                         })
                         .catch(function (e) { dyn.showMessage('加载失败：' + ((e && e.message) || e), 'error'); });
                 },
+                // 表单校验：统一委托 NC.validateForm（扫描 __dynValidate 钩子并聚合错误）
                 validateForm: function () {
-                    var errs = [];
-                    var nodes = element.querySelectorAll('*');
-                    for (var i = 0; i < nodes.length; i++) {
-                        var n = nodes[i];
-                        if (typeof n.__dynValidate === 'function') {
-                            try {
-                                var ok = n.__dynValidate();
-                                if (ok !== true) {
-                                    var msg = null;
-                                    if (n.__dynErrors && n.__dynErrors.length) {
-                                        msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
-                                    }
-                                    if (!msg) {
-                                        try {
-                                            var inst = n.__vueParentComponent;
-                                            var comp = inst && inst.proxy;
-                                            if (comp && comp.comInnerInfo && comp.comInnerInfo.validation && comp.comInnerInfo.validation.errors) {
-                                                comp.comInnerInfo.validation.errors.forEach(function (e) { if (e && e.message) msg = e.message; });
-                                            }
-                                        } catch (e) { }
-                                    }
-                                    if (!msg) msg = '存在未通过校验的字段';
-                                    if (errs.indexOf(msg) < 0) errs.push(msg);
-                                }
-                            } catch (e) { console.warn('[detail validate]', e); }
-                        }
-                    }
-                    return errs;
+                    return window.DynNodeConfig.validateForm(element);
                 },
                 // 保存成功：提示 + 触发父列表刷新 + 关闭弹窗
                 refreshParent: function () {

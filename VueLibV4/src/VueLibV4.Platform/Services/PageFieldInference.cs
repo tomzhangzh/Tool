@@ -37,14 +37,18 @@ public sealed class PageFieldInference : IScopeDependency
         if (req["dictTypes"] is JObject dts)
             foreach (var kv in dts) dictTypes[kv.Key.Trim()] = kv.Value?.ToString() ?? "";
 
-        var schema = ReadTableSchema(table);
+        var schema = req["className"]?.ToString() is { Length: > 0 } cn
+            ? ClassModelReader.ReadSchema(cn)      // 类模式：反射 C# 类得到列元数据
+            : ReadTableSchema(table);              // 表模式：读数据库 schema
         if (schema.Count == 0) return null;
 
         // 按 schema 智能分类（控件/操作符/进哪些屏）
         var columns = BuildColumns(schema, dictTypes);
 
         // 显示名字典：表字段层 → 通用列名层 → NiceLabel 英文。必须在"用户覆盖"之前应用。
-        ApplySchemaLabels(columns, table, project);
+        // 类模式的标签以 [Display(Name)]/[Description] 为准，不叠加表显示名字典。
+        if (schema.Count > 0 && (req["className"]?.ToString() ?? "").Length == 0)
+            ApplySchemaLabels(columns, table, project);
         return SelectFields(columns, req);
     }
 
@@ -246,7 +250,8 @@ public sealed class PageFieldInference : IScopeDependency
         foreach (var c in schema)
         {
             var name = c.Name;
-            var label = NiceLabel(name);
+            // 类模式：优先用 [Display(Name)]/[Description] 注解标签；表模式 Label 为空，仍走英文拆词
+            var label = string.IsNullOrWhiteSpace(c.Label) ? NiceLabel(name) : c.Label;
             var isPk = c.IsPrimaryKey || string.Equals(name, "Id", StringComparison.OrdinalIgnoreCase);
             var type = c.Type.ToUpperInvariant();
             var isBool = type.Contains("INT") && (name.StartsWith("Is", StringComparison.OrdinalIgnoreCase)
@@ -331,6 +336,8 @@ internal sealed class ColumnMeta
     /// <summary>外键目标表（列名 XxxId 且非主键时推断）；无则空</summary>
     public string? FkTable { get; set; }
     public string? DefaultValue { get; set; }
+    /// <summary>显式标签（类模式来自 [Display(Name)]/[Description]）；为空则由 Name 拆词生成</summary>
+    public string Label { get; set; } = "";
 }
 
 /// <summary>参与生成的列（已按规则分类好的字段元数据）。</summary>

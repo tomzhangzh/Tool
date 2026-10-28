@@ -41,7 +41,12 @@
           const uid = Ops.uidOf(node);
           const comp = node.component || '';
           if (!comp) add('error', 'component', '存在缺少 component 的节点', uid);
-          else if (metaReady && !Ops.metaOf(comp).ComponentName) add('error', 'unknown', '未知组件：' + comp, uid);
+          else {
+            const m = Ops.metaOf(comp);
+            if (metaReady && !(m && (m.ComponentName || m.componentName))) {
+              add('error', 'unknown', '未知组件：' + comp, uid);
+            }
+          }
 
           const mn = String(node.modelname || '').trim();
           if (mn) {

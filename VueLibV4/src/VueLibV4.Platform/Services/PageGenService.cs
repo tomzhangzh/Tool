@@ -53,6 +53,17 @@ public interface IPageGenService : IScopeDependency
     List<GenFieldMeta> GetTableFieldMeta(string table, string? project = null);
 
     /// <summary>
+    /// 类模式：列出可选的 C# 类（仅 VueLibV4 自有程序集），供向导第一步「按类生成」下拉。
+    /// </summary>
+    List<GenClassOption> ListClasses(string? keyword = null);
+
+    /// <summary>
+    /// 类模式：读取 C# 类字段元数据并推断控件（与表模式共用 BuildColumns）。
+    /// 标签优先取 [Display(Name)]/[Description]，为空的才英文拆词。
+    /// </summary>
+    List<GenFieldMeta> GetClassFieldMeta(string className);
+
+    /// <summary>
     /// 只构造、不落库：复用与 Generate 完全相同的规则，返回三屏配置 JSON（筛选/列表/详情），
     /// 供向导【预览抽屉】用 dyn-dynamic-com 真实渲染（下拉数据源、字典、外键、中文 label 与最终生成一致）。
     /// </summary>
@@ -126,6 +137,17 @@ public class GenFieldMeta
     public bool InDetail { get; set; } = true;
 }
 
+/// <summary>类模式候选源（供向导第一步下拉选择）。</summary>
+public class GenClassOption
+{
+    /// <summary>完整类型名（反射用，也是 className 入参）</summary>
+    public string FullName { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Namespace { get; set; } = "";
+    /// <summary>可用于页面的属性数（已排除导航属性/集合）</summary>
+    public int PropCount { get; set; }
+}
+
 /// <summary>页面生成编排者（见 IPageGenService 顶部注释）：校验入参 → 调推断 → 调组装 → 落库 / 预览。</summary>
 public class PageGenService : IPageGenService
 {
@@ -166,6 +188,9 @@ public class PageGenService : IPageGenService
     {
         var project = req["project"]?.ToString();
         var table = (req["table"]?.ToString() ?? "").Trim();
+        var className = (req["className"]?.ToString() ?? "").Trim();
+        // 输入源：className 非空即类模式（元数据来自 C# 类，表名可留空）
+        var isClassMode = className.Length > 0;
         var code = (req["code"]?.ToString() ?? "").Trim();
         var name = (req["name"]?.ToString() ?? "").Trim();
         var pk = (req["pk"]?.ToString() ?? "Id").Trim();
@@ -175,13 +200,19 @@ public class PageGenService : IPageGenService
         // 布局列数：筛选区每行 3/4 列（默认4）；详情区 1/2 列（默认2）
         int filterCols = req["filterCols"]?.Type == JTokenType.Integer ? (int)req["filterCols"]! : 4;
         int detailCols = req["detailCols"]?.Type == JTokenType.Integer ? (int)req["detailCols"]! : 2;
-        if (string.IsNullOrWhiteSpace(table)) return (false, "缺少表名", null);
+        if (string.IsNullOrWhiteSpace(table) && !isClassMode) return (false, "缺少表名（或改用 className 类模式）", null);
+        if (string.IsNullOrWhiteSpace(table)) table = ClassModelReader.SimpleName(className);   // 类模式未给表名：用类名兜底
         if (string.IsNullOrWhiteSpace(code)) return (false, "缺少页面编码", null);
         if (string.IsNullOrWhiteSpace(name)) name = code;
 
         // 字段推断：读 schema → 智能分类（控件/操作符/进哪些屏）→ 显示名字典（表层→通用层→英文拆词）→ 前端勾选覆盖
         var fields = _inference.PrepareFields(table, project, req);
-        if (fields == null) return (false, $"表 {table} 不存在或无法读取 schema", null);
+        if (fields == null || fields.Count == 0)
+        {
+            return (false, isClassMode
+                ? $"类 {className} 不存在或不含可用于页面的属性"
+                : $"表 {table} 不存在或无法读取 schema", null);
+        }
         if (fields.Count == 0) return (false, "请至少选择一个字段", null);
 
         // 工程归属：外键/字典下拉走 /api/dyncommon/options?projectId 需要工程；未指定则回退平台工程
@@ -190,7 +221,7 @@ public class PageGenService : IPageGenService
         // 回写（默认开启，前端 rememberLabels 可关）：只写表字段层，回写最终选用字段的最终 label（含用户手改）。
         // 护栏在服务层：projectId<=0/表名为空一律跳过，通用层永不被写。
         var rememberLabels = req["rememberLabels"]?.Type != JTokenType.Boolean || (bool)req["rememberLabels"]!;
-        if (rememberLabels && projectId != null)
+        if (rememberLabels && projectId != null && !isClassMode)
         {
             try
             {
@@ -405,6 +436,46 @@ public class PageGenService : IPageGenService
         }).ToList();
     }
 
+    // ======================================================================
+    //  类模式输入源（C# 类 / DTO / record → 与表模式同构的字段元数据）
+    // ======================================================================
+
+    /// <summary>列出可选的 C# 类（仅 VueLibV4 自有程序集，排除导航属性后无可用属性的类）。</summary>
+    public List<GenClassOption> ListClasses(string? keyword = null)
+    {
+        return ClassModelReader.ListClasses(keyword)
+            .Select(o => new GenClassOption
+            {
+                FullName = o.FullName,
+                Name = o.Name,
+                Namespace = o.Namespace,
+                PropCount = o.PropCount
+            }).ToList();
+    }
+
+    /// <summary>读取类字段元数据并推断控件；标签优先 [Display(Name)]/[Description]。</summary>
+    public List<GenFieldMeta> GetClassFieldMeta(string className)
+    {
+        var schema = ClassModelReader.ReadSchema(className);
+        if (schema.Count == 0) return new List<GenFieldMeta>();
+        // 与表模式共用智能分类；类模式没有字典映射与表显示名字典
+        var columns = _inference.BuildColumns(schema, new Dictionary<string, string>());
+        return columns.Select(c => new GenFieldMeta
+        {
+            FieldName = c.Name,
+            Label = c.Label,
+            DbType = c.DataType,
+            IsNullable = !c.NotNull,
+            IsPrimaryKey = c.IsPk,
+            IsForeignKey = c.FkTable != null,
+            Control = c.Control,
+            SuggestComponent = PageFieldInference.ControlToComponent(c.Control),
+            InFilter = c.InFilter,
+            InList = c.InList,
+            InDetail = c.InDetail
+        }).ToList();
+    }
+
     /// <summary>
     /// 预览构造（不落库、不回写 label）：与 Generate 走同一套推断与组装，保证预览即最终生成的样子。
     /// </summary>
@@ -412,12 +483,14 @@ public class PageGenService : IPageGenService
     {
         var project = req["project"]?.ToString();
         var table = (req["table"]?.ToString() ?? "").Trim();
+        var className = (req["className"]?.ToString() ?? "").Trim();
         var pk = (req["pk"]?.ToString() ?? "Id").Trim();
 
         var empty = new JObject();
-        if (string.IsNullOrWhiteSpace(table)) return (empty, empty, empty);
+        if (string.IsNullOrWhiteSpace(table) && className.Length == 0) return (empty, empty, empty);
+        if (string.IsNullOrWhiteSpace(table)) table = ClassModelReader.SimpleName(className);   // 类模式兜底表名
         var fields = _inference.PrepareFields(table, project, req);
-        if (fields == null) return (empty, empty, empty);
+        if (fields == null || fields.Count == 0) return (empty, empty, empty);
 
         int? projectId = _inference.ResolveProjectId(project);
 

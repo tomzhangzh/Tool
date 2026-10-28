@@ -176,7 +176,10 @@ var __plugin = {
                 clearDropMarks();
                 if (scope) scope.dragging = null;
                 if (scope && window.DynDesignerOps) {
-                    setTimeout(function () { window.DynDesignerOps.updateOverlay(scope); }, 50);
+                    // 与 ops 统一：DOM 更新完成后重定位选中框，后续尺寸变化由 ResizeObserver 兜底
+                    var V = window.Vue;
+                    var relayout = function () { window.DynDesignerOps.updateOverlay(scope); };
+                    if (V && V.nextTick) V.nextTick(relayout); else setTimeout(relayout, 0);
                 }
             },
 
@@ -187,26 +190,29 @@ var __plugin = {
                 if (scope) scope.dragging = null;
             },
 
-            // 从左侧拖入：vue-draggable-plus 已经把 metadata 对象 splice 到 childrenctrls
-            // 我们在这里把它替换成真正的组件配置
+            // 从左侧拖入：vue-draggable-plus 已经把 metadata 对象 splice 到 childrenctrls，
+            // 我们在这里把它替换成真正的组件配置；任何失败分支都必须回滚，不能把 metadata 留在树里。
             onAdd: function (evt) {
+                var newIndex = evt.newIndex;
+                if (newIndex == null) newIndex = parentCfg.childrenctrls.length - 1;
+                var inserted = parentCfg.childrenctrls[newIndex];
+                // 回滚：移除自动插入的库 metadata（它没有 component/options，留着会产出坏配置）
+                function rollback() {
+                    if (parentCfg.childrenctrls[newIndex] === inserted) {
+                        parentCfg.childrenctrls.splice(newIndex, 1);
+                    }
+                }
+                if (!inserted) return;
                 try {
-                    var newIndex = evt.newIndex;
-                    if (newIndex == null) newIndex = parentCfg.childrenctrls.length - 1;
-
-                    // vue-draggable-plus 自动插入的是左侧 metaList 中的 metadata 对象
-                    var inserted = parentCfg.childrenctrls[newIndex];
-                    if (!inserted) return;
-
                     var componentName = inserted.ComponentName || inserted.componentName ||
                         (evt.item && evt.item.getAttribute && evt.item.getAttribute("data-meta"));
-                    if (!componentName) return;
+                    if (!componentName) { rollback(); return; }
 
                     var newCfg;
                     if (componentName === '__composition__') {
                         // 本地组合库卡片：compCfg 是已去内部字段的组件子树模板，整棵重新发号 uid
                         var tpl = inserted.compCfg;
-                        if (!tpl) return;
+                        if (!tpl) { rollback(); return; }
                         newCfg = JSON.parse(JSON.stringify(tpl));
                         if (window.DynDesignerOps && window.DynDesignerOps.regenerateUids) {
                             window.DynDesignerOps.regenerateUids(newCfg);
@@ -214,14 +220,14 @@ var __plugin = {
                             newCfg.__uid = genUid();
                         }
                     } else {
-                    var meta = findMeta(componentName, scope);
-                    var defaults = meta && (meta.DefaultConfigJson || meta.defaultConfigJson);
+                        var meta = findMeta(componentName, scope);
+                        var defaults = meta && (meta.DefaultConfigJson || meta.defaultConfigJson);
 
-                    if (typeof defaults === "string") newCfg = JSON.parse(defaults);
-                    else if (defaults && typeof defaults === "object") newCfg = JSON.parse(JSON.stringify(defaults));
-                    else newCfg = { component: componentName, modelname: "", options: { comoptions:{}, labeloptions:{ label:"", show:true }, itemoptions:{ style:{}, class:"" } }, childrenctrls: [], validators: [], slots: {}, extendinfo: {} };
+                        if (typeof defaults === "string") newCfg = JSON.parse(defaults);
+                        else if (defaults && typeof defaults === "object") newCfg = JSON.parse(JSON.stringify(defaults));
+                        else newCfg = { component: componentName, modelname: "", options: { comoptions:{}, labeloptions:{ label:"", show:true }, itemoptions:{ style:{}, class:"" } }, childrenctrls: [], validators: [], slots: {}, extendinfo: {} };
 
-                    newCfg.__uid = genUid();
+                        newCfg.__uid = genUid();
                     }
                     if (!newCfg.component) newCfg.component = componentName === '__composition__' ? (newCfg.component || 'DynElContainer') : componentName;
                     if (!newCfg.options) newCfg.options = {};
@@ -237,13 +243,18 @@ var __plugin = {
 
                     if (scope && window.DynDesignerOps) window.DynDesignerOps.select(scope, newCfg);
                 } catch (e) {
-                    console.error("[useDraggable onAdd]", e);
+                    console.error("[useDraggable onAdd] 组件转换失败，已回滚拖入", e);
+                    rollback();
                 }
             }
         });
     };
 
     DesignerSortable.destroy = function (ins) {
+        // 拖拽进行中卸载时也要清掉 body 态，否则 cursor/禁用样式会残留到下个页面
+        setDragActive(false);
+        document.body.classList.remove("dyn-dragging-active");
+        clearDropMarks();
         if (ins && typeof ins.destroy === "function") { try { ins.destroy(); } catch (e) {} }
     };
 

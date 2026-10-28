@@ -1,4 +1,4 @@
-﻿/* dyn-action-builtins.js 内置动作定义（33 个）
+﻿﻿/* dyn-action-builtins.js 内置动作定义（33 个）
  * 职责：仅注册内置动作实现（createapp/postback/.../redirect）。
  * 依赖：dyn-action.js 必须先加载；本文件在加载期直接使用 global.DynActionKit（K）。
  * 约定：只允许向 K 追加动作（K.defineAction）与读取 K.*，不得整体重新赋值 global.DynActionKit。
@@ -22,8 +22,14 @@ K.defineAction('postback',async function(ctx){
   const url = o.url||ctx.url;
   if(!url){ dyn.showMessage(K.CONST.MSG_MISS_URL.replace('{action}','postback'),'error'); return; }
   if(!(await K.confirmIfNeeded(o,'确定执行该操作吗？'))) return false;
-  // useEventPayload 默认true
-  const usePayload = o.useEventPayload!==false;
+  // ---- 提交格式：json（默认）| form ----
+  // form：把 body 拍平成 MVC 模型绑定字段（Code / Customer.Name / Items[0].Id），
+  //       日期转 yyyy-MM-dd HH:mm:ss，自动附加 __RequestVerificationToken；
+  //       后端可直接用实体或方法参数绑定（无需 [FromBody]）。
+  const ctRaw=(o.contentType||o.format||'').toString().toLowerCase();
+  const useForm=ctRaw==='form'||ctRaw==='urlencoded'||ctRaw==='x-www-form-urlencoded'||ctRaw==='multipart';
+  // useEventPayload 默认true；form 模式下必须提交裸 model，否则会拍平成 data.Code=... 导致 MVC 绑不到实体
+  const usePayload = o.useEventPayload!==false && !useForm;
   let body;
   if(o.body && typeof o.body==='object'){
     // 统一契约通道：显式声明请求体（{{占位}} 已由 buildCtx→applyTpl 用 data-* 行参数替换）
@@ -36,20 +42,44 @@ K.defineAction('postback',async function(ctx){
   }
   // wrap：把默认扁平 body 包成 dyndata 统一契约（表单类提交无法逐字段列 body 模板时用）
   // 例：{"wrap":{"table":"DesktopShortcut","dataField":"data","gridId":"grid_x"}}
-  if(o.wrap && typeof o.wrap==='object' && o.wrap.table && !(o.body&&typeof o.body==='object')){
+  // form 模式下不包装，字段必须平铺到顶层才能被 MVC 绑定
+  if(!useForm && o.wrap && typeof o.wrap==='object' && o.wrap.table && !(o.body&&typeof o.body==='object')){
     body = K.wrapDyndata(body,o.wrap);
   }
   // params 仍可走 query（body 显式声明时通常无需 params→query）
   const queryParams = o.body ? null : o.params;
   const qs = queryParams?new URLSearchParams(queryParams).toString():'';
   const fullUrl = qs?(url+(url.indexOf('?')>=0?'&':'?')+qs):url;
+  let reqData=body;
+  let reqHeaders={'Content-Type':'application/json'};
+  if(useForm){
+    let formEl=null;
+    if(o.fromForm) formEl=(typeof o.fromForm==='string'?dyn.resolve(o.fromForm):ctx.element)||ctx.element;
+    const f=dyn.serializeFormData(body,{rootKey:o.rootKey,antiForgery:o.antiForgery,formEl:formEl});
+    if(f.hasFile){
+      // 含文件：走 multipart/form-data，boundary 由浏览器自动生成
+      const fd=new FormData();
+      f.entries.forEach(function(pair){
+        const v=pair[1];
+        // Blob 判定用鸭子类型，避免跨 realm 的 instanceof 失效
+        const isBlob=!!v&&typeof v==='object'&&typeof v.size==='number'&&typeof v.slice==='function';
+        if(isBlob) fd.append(pair[0],v,v.name||'file');
+        else fd.append(pair[0],String(v));
+      });
+      reqData=fd;
+      reqHeaders={};
+    }else{
+      reqData=f.body;
+      reqHeaders={'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'};
+    }
+  }
   try{
     if(!window.axios) throw new Error("Axios未加载");
     const ajax = await window.axios({
       method:'POST',
       url:fullUrl,
-      headers:{'Content-Type':'application/json'},
-      data:body
+      headers:reqHeaders,
+      data:reqData
     });
     const res = ajax.data;
     const failed = res.success===false||res.Success===false||(typeof res.code==='number'&&res.code!==0);

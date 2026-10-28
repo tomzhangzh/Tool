@@ -73,7 +73,11 @@ public class GridReloadJavaScript : DynJavaScript
 /// <summary>Controller / View 扩展：注册并渲染服务端 dyn 动作</summary>
 public static class DynControllerExtensions
 {
+    /// <summary>本请求动作（ViewData）：随当前响应一起渲染</summary>
     public const string ViewDataKey = "DynActions";
+
+    /// <summary>跨请求动作（TempData）：下一请求渲染时执行一次</summary>
+    public const string TempDataKey = "DynActionsNext";
 
     public static void ExecJS(this Controller controller, params DynJavaScript[] actions)
     {
@@ -83,12 +87,43 @@ public static class DynControllerExtensions
         controller.ViewData[ViewDataKey] = list;
     }
 
+    /// <summary>
+    /// 注册"下一个请求"才执行的动作（存 TempData），用于传统 POST → RedirectToAction 场景：
+    /// <code>
+    /// ExecJSForNext(new FlashMessageJavaScript { Message = "保存成功" });
+    /// return RedirectToAction("Index");
+    /// </code>
+    /// 实现说明：注册时立即渲染为隐藏 div 字符串再存入 TempData，
+    /// 避免抽象类型 List&lt;DynJavaScript&gt; 在 Cookie TempData 中反序列化失败；
+    /// 由 RenderDynActions 读出后立即 Remove（一次性消费）。
+    /// 注意：Cookie TempData 体积有限，不要一次塞过多/过大的动作（大量动作请走 JSON 动作链）。
+    /// </summary>
+    public static void ExecJSForNext(this Controller controller, params DynJavaScript[] actions)
+    {
+        if (actions == null || actions.Length == 0) return;
+        var sb = new System.Text.StringBuilder();
+        foreach (var a in actions) sb.Append(a.Render());
+        var pending = controller.TempData[TempDataKey] as string;
+        controller.TempData[TempDataKey] = string.Concat(pending, sb.ToString());
+    }
+
     public static IHtmlContent RenderDynActions(this IHtmlHelper html)
     {
-        var list = html.ViewContext.ViewData[ViewDataKey] as List<DynJavaScript>;
-        if (list == null || list.Count == 0) return new HtmlString("");
         var sb = new System.Text.StringBuilder();
-        foreach (var a in list) sb.Append(a.Render());
-        return new HtmlString(sb.ToString());
+
+        // 1) 本请求动作（ViewData）
+        if (html.ViewContext.ViewData[ViewDataKey] is List<DynJavaScript> list)
+            foreach (var a in list) sb.Append(a.Render());
+
+        // 2) 上一请求遗留的跨请求动作（TempData）：渲染后立即清除，保证只执行一次
+        // TempData 未启用（无 provider）时为 null，此时跳过即可，不能让整页渲染失败
+        var tempData = html.ViewContext.TempData;
+        if (tempData != null && tempData[TempDataKey] is string pending && pending.Length > 0)
+        {
+            sb.Append(pending);
+            tempData.Remove(TempDataKey);
+        }
+
+        return sb.Length == 0 ? new HtmlString("") : new HtmlString(sb.ToString());
     }
 }

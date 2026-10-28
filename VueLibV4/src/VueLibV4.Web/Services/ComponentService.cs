@@ -52,7 +52,10 @@ public class ComponentService
                     SortOrder = r.Id,
                     LoadUrl = r.LoadUrl,
                     UiPlatform = r.UiPlatform,
-                    IsComposite = !string.IsNullOrEmpty(r.DefaultConfigJson)
+                    IsComposite = !string.IsNullOrEmpty(r.DefaultConfigJson),
+                    IsContainer = r.IsContainer,
+                    AcceptAll = r.AcceptAll,
+                    AllowDrop = r.AllowDrop
                 });
             }
         }

@@ -24,8 +24,16 @@
       function clone(v) {
         try { return JSON.parse(JSON.stringify(v == null ? {} : v)); } catch (e) { return {}; }
       }
+      function nextTick(fn) {
+        const V = global.Vue;
+        if (V && V.nextTick) V.nextTick(fn); else setTimeout(fn, 0);
+      }
+      // 脏判定：已有序列化结果时直接复用，避免对整棵树重复 stringify
+      function dirtyStr(scope, curJson) {
+        return !!scope.__savedJson && curJson !== scope.__savedJson;
+      }
       function dirtyOf(scope) {
-        return !!scope.__savedJson && str(scope.pageJson) !== scope.__savedJson;
+        return dirtyStr(scope, str(scope.pageJson));
       }
 
       function commit(scope) {
@@ -41,7 +49,7 @@
           scope.redoStack = [];
         }
         scope.__undoBaseline = cur;
-        scope.dirty = dirtyOf(scope);
+        scope.dirty = dirtyStr(scope, cur);
         return true;
       }
 
@@ -64,13 +72,16 @@
       function snapshot(scope) {
         if (!scope) return;
         commit(scope);
-        const snap = clone(scope.pageJson);
+        // 只需当前状态的序列化结果一次：用于与栈顶去重，同时直接反序列化成入栈快照
+        const cur = str(scope.pageJson);
         const top = scope.undoStack[scope.undoStack.length - 1];
-        if (top && str(top) === str(snap)) return;
+        if (top && str(top) === cur) return;
+        let snap;
+        try { snap = JSON.parse(cur || '{}'); } catch (e) { return; }
         scope.undoStack.push(snap);
         if (scope.undoStack.length > MAX_HISTORY) scope.undoStack.shift();
         scope.redoStack = [];
-        scope.dirty = dirtyOf(scope);
+        scope.dirty = dirtyStr(scope, cur);
       }
 
       function apply(scope, snap) {
@@ -83,7 +94,8 @@
         scope.canvasVersion = (scope.canvasVersion || 0) + 1;
         scope.__undoBaseline = str(scope.pageJson);
         scope.dirty = dirtyOf(scope);
-        setTimeout(function () { if (Ops && Ops.updateOverlay) Ops.updateOverlay(scope); }, 60);
+        // canvasVersion 触发画布 watcher 重建并重绑 ResizeObserver；nextTick 后先测一次定位
+        nextTick(function () { if (Ops && Ops.updateOverlay) Ops.updateOverlay(scope); });
       }
 
       function undo(scope) {

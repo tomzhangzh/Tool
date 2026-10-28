@@ -26,6 +26,12 @@ public class ComponentListItemDto
     [JsonProperty("uiPlatform")] public string UiPlatform { get; set; }
     /// <summary>是否为组合组件（compositeComponents 表驱动）</summary>
     [JsonProperty("isComposite")] public bool IsComposite { get; set; }
+    /// <summary>是否容器组件（设计器据此判定可否拖入子组件；唯一权威，前端不再按组件名猜）</summary>
+    [JsonProperty("isContainer")] public bool IsContainer { get; set; }
+    /// <summary>容器是否接受任意子组件（true=全接收；false=按 allowDrop 白名单）</summary>
+    [JsonProperty("acceptAll")] public bool AcceptAll { get; set; }
+    /// <summary>容器允许的子组件白名单（JSON 数组原文，如 ["DynTableColumn"]；"*" 表示全部）</summary>
+    [JsonProperty("allowDrop")] public string? AllowDrop { get; set; }
 }
 
 /// <summary>组件完整定义（template + script + style）</summary>

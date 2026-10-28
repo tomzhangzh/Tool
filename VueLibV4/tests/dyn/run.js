@@ -583,6 +583,30 @@ async function run() {
       ok(codes.indexOf('children') >= 0, '应报非容器带子节点');
     });
 
+    it('容器判定只认 IsContainer 元数据，AcceptAll/白名单生效，不按组件名猜', () => {
+      const db = {
+        DynGridContainer: { ComponentName: 'DynGridContainer', IsContainer: 1, AcceptAll: 1 },
+        DynTable: { ComponentName: 'DynTable', IsContainer: 1, AcceptAll: 0, AllowDrop: '["DynTableColumn","DynTableActions"]' },
+        DynTableActions: { ComponentName: 'DynTableActions', IsContainer: 1, AcceptAll: 0, AllowDrop: '["DynElButton"]' },
+        DynElButton: { ComponentName: 'DynElButton' },
+        DynElInput: { ComponentName: 'DynElInput', CanDropInto: '["DynElFormItem"]' }
+      };
+      // Ops 闭包运行在 vm 沙箱，DynCom 必须挂到沙箱 global 上
+      sb.DynCom = { meta: (n) => db[n] || null };
+      try {
+        eq(Ops.isContainer('DynGridContainer'), true);
+        eq(Ops.isContainer('DynElButton'), false);
+        eq(Ops.isContainer('DynTableHeader'), false, '未登记组件不能因名字含 Table 被判为容器');
+        eq(Ops.checkCanDrop('DynGridContainer', 'DynElButton'), true, 'AcceptAll=1 全接收');
+        eq(Ops.checkCanDrop('DynTable', 'DynTableColumn'), true, '白名单内允许');
+        eq(Ops.checkCanDrop('DynTable', 'DynElButton'), false, '白名单外拒绝');
+        eq(Ops.checkCanDrop('DynTableActions', 'DynElButton'), true);
+        eq(Ops.checkCanDrop('DynElButton', 'DynElInput'), false, '非容器拒绝一切拖入');
+      } finally {
+        delete sb.DynCom;
+      }
+    });
+
     it('标尺刻度：缩放后主刻度间距与数值同步换算', () => {
       const r1 = Ruler.layout({ size: 200, scroll: 0, zoom: 1, unit: 50 });
       eq(r1.main.length, 5);

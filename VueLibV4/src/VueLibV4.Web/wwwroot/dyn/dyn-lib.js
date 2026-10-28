@@ -94,9 +94,12 @@ if(DYN_LIB_CONFIG.loadCodemirror){
 // axios UMD：默认false，页面可自行引入CDN；如需本地加载，把 axios.min.js 放入 /lib/ 并设置 loadAxios:true
 if(DYN_LIB_CONFIG.loadAxios) DEFAULT_LIBS.push({url:"axios.min.js",name:"axios"});
 
-// 模块加载顺序：dyn-kernel 最先（显式内核/阶段装配）→ dyn-com（组件注册表）→ dyn-core（挂载内核，递归统一走 DynDynamicCom）→ 校验器 → 动作系统 → 设计器弹窗
+// 模块加载顺序：dyn-kernel 最先（显式内核/阶段装配）→ dyn-com（组件注册表）→ dyn-core（挂载内核，递归统一走 DynDynamicCom）→ 动作系统
 // 注意：真正的初始化顺序由 DynKernel 按阶段（core→components→params→services→actions→blocks→layout→designer→debug）决定，与此数组顺序解耦
-const DYN_MODULES = [
+//
+// 按需加载：运行页只下核心模块；设计器 7 模块仅 /Shell/Designer（含 embed）加载；DSL 编辑器仅 /Page/Dsl、/Page/MetaDsl 加载。
+// 页面可通过 window.DYN_LIB_CONFIG = { loadDesigner:true / loadDsl:true } 显式拉起；cacheBust（独立测试页）全量加载。
+const DYN_CORE_MODULES = [
   "dyn-kernel.js",
   "dyn-eventbus.js",
   "dyn-load-com.js",
@@ -107,25 +110,47 @@ const DYN_MODULES = [
   "dyn-params.js",
   "dyn-call.js",
   "dyn-rpc.js",
-  "dyn-validator.js",
+  "dyn-action.js",
+  "dyn-action-builtins.js",
+  "dyn-action-db.js",
+  "dyn-action-docs.js",
+  "dyn-action-dom.js",
+  "dyn-template.js",
+  "dyn-permission.js",
+  "dyn-debug.js",
+  "blocks/dyn-blocks-common.js"
+];
+// 设计器页专属（均为 designer 阶段插件；组内相对顺序即原全量顺序）
+const DYN_DESIGNER_MODULES = [
   "dyn-designer-ops.js",
   "dyn-designer-json.js",
   "dyn-designer-history.js",
   "dyn-designer-lint.js",
   "dyn-designer-ruler.js",
   "dyn-designer-sortable.js",
-  "dyn-action.js",
-  "dyn-action-builtins.js",
-  "dyn-action-db.js",
-  "dyn-action-docs.js",
-  "dyn-action-dom.js",
-  "dyn-designer-dialog.js",
-  "dyn-template.js",
-  "dyn-dsl.js",
-  "dyn-permission.js",
-  "dyn-debug.js",
-  "blocks/dyn-blocks-common.js"
+  "dyn-designer-dialog.js"
 ];
+// DSL / 元配置编辑器专属
+const DYN_DSL_MODULES = [
+  "dyn-dsl.js"
+];
+function pagePathMatches(re) {
+  try { return re.test((global.location && global.location.pathname) || ''); } catch (e) { return false; }
+}
+function resolveDynModules() {
+  if (DYN_LIB_CONFIG.cacheBust) {
+    return DYN_CORE_MODULES.concat(DYN_DESIGNER_MODULES, DYN_DSL_MODULES);
+  }
+  const mods = DYN_CORE_MODULES.slice();
+  const wantDesigner = DYN_LIB_CONFIG.loadDesigner === true ||
+    (DYN_LIB_CONFIG.loadDesigner !== false && pagePathMatches(/\/Shell\/Designer(?:\/|$)/));
+  const wantDsl = DYN_LIB_CONFIG.loadDsl === true ||
+    (DYN_LIB_CONFIG.loadDsl !== false && pagePathMatches(/\/Page\/(?:Dsl|MetaDsl)(?:\/|$)/));
+  if (wantDesigner) Array.prototype.push.apply(mods, DYN_DESIGNER_MODULES);
+  if (wantDsl) Array.prototype.push.apply(mods, DYN_DSL_MODULES);
+  return mods;
+}
+const DYN_MODULES = resolveDynModules();
 
 const DynLib = {
   version:"4.4.4",

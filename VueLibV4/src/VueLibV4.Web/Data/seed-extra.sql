@@ -355,6 +355,22 @@ WHERE NOT EXISTS (SELECT 1 FROM ComponentMeta WHERE ComponentName='DynTableActio
 UPDATE ComponentMeta SET DesignerMeta='{"childrenSchemaPath":"childrenctrls","childKey":"component","childTitleField":"options.comoptions.title","supportDragSort":true}'
 WHERE ComponentName='DynTableActions';
 
+-- ---------------- 2026-10-28 容器判定收口到 IsContainer ----------------
+-- 设计器「能否拖入子组件」只认 ComponentMeta.IsContainer（视图层以使用 _ContainerLayout 的组件为准），
+-- 前端不再用组件名正则猜测（DynTableColumn 等名字含 Table 的叶子组件曾被误判为容器）。
+-- 幂等：每次启动只做正向修正；未来新增容器组件应在注册时直接带 IsContainer=1。
+UPDATE ComponentMeta SET IsContainer=1 WHERE ComponentName IN (
+  'DynForm','DynGridContainer','DynElRow','DynElCol','DynElCard','DynElTabs',
+  'DynElContainer','DynElCollapse','DynElCollapseItem','DynCrudPage','DynElSteps',
+  'DynMacSidebar','DynMacWindow','DynSplitter','DynViewSwitcher',
+  'DynTable','DynTableColumn','DynTableActions');
+-- DynTable 白名单已细化为 列/操作列，关闭 AcceptAll 让白名单真正生效（历史行 AcceptAll=1 使白名单失效）
+UPDATE ComponentMeta SET AcceptAll=0 WHERE ComponentName='DynTable';
+-- DynViewSwitcher 历史 AllowDrop='1' 是非法 JSON（非数组），语义为全接收，修正为 AcceptAll=1
+UPDATE ComponentMeta SET AcceptAll=1, AllowDrop='[]' WHERE ComponentName='DynViewSwitcher';
+-- DynCrudPage 历史注册为 AcceptAll=0/AllowDrop='[]'，但它是页面级容器
+UPDATE ComponentMeta SET AcceptAll=1 WHERE ComponentName='DynCrudPage';
+
 -- ---------------- DynElButton 属性面板补充「动作管道(dyn-click)」（操作列行按钮声明式接线） ----------------
 UPDATE ComponentMeta SET PropertyConfigJson='{"component":"DynElContainer","modelname":"","options":{"comoptions":{"direction":"vertical"},"comlisteners":{},"labeloptions":{"label":"","required":false,"show":false},"itemoptions":{"style":{"gap":"0"},"class":""}},"validators":[],"childrenctrls":[{"component":"DynElInput","modelname":"options.comoptions.text","options":{"comoptions":{},"labeloptions":{"label":"按钮文字","show":true},"itemoptions":{}}},{"component":"DynElSelect","modelname":"options.comoptions.type","options":{"comoptions":{"clearable":true,"optionValues":[{"value":"","label":"默认"},{"value":"primary","label":"主要"},{"value":"success","label":"成功"},{"value":"warning","label":"警告"},{"value":"danger","label":"危险"},{"value":"info","label":"信息"}]},"labeloptions":{"label":"按钮类型","show":true},"itemoptions":{}}},{"component":"DynElSelect","modelname":"options.comoptions.size","options":{"comoptions":{"clearable":true,"optionValues":[{"value":"large","label":"大"},{"value":"default","label":"中"},{"value":"small","label":"小"}]},"labeloptions":{"label":"尺寸","show":true},"itemoptions":{}}},{"component":"DynElInput","modelname":"options.comoptions.icon","options":{"comoptions":{"placeholder":"Element 图标名"},"labeloptions":{"label":"图标","show":true},"itemoptions":{}}},{"component":"DynElSwitch","modelname":"options.comoptions.plain","options":{"comoptions":{},"labeloptions":{"label":"朴素按钮","show":true},"itemoptions":{}}},{"component":"DynElSwitch","modelname":"options.comoptions.round","options":{"comoptions":{},"labeloptions":{"label":"圆角按钮","show":true},"itemoptions":{}}},{"component":"DynElSwitch","modelname":"options.comoptions.link","options":{"comoptions":{},"labeloptions":{"label":"链接按钮(表格行操作用)","show":true},"itemoptions":{}}},{"component":"DynElSwitch","modelname":"options.comoptions.disabled","options":{"comoptions":{},"labeloptions":{"label":"禁用","show":true},"itemoptions":{}}},{"component":"DynElTextarea","modelname":"extendinfo.pipe","options":{"comoptions":{"rows":4,"placeholder":"open({\"url\":\"/XxxForm?form=1\",\"mode\":\"fragment\",\"params\":{\"rowId\":\"{{id}}\"}})"},"labeloptions":{"label":"动作管道 dyn-click","show":true},"itemoptions":{}}},{"component":"DynText","modelname":"","options":{"comoptions":{"text":"表格操作列中可用占位：{{id}} 主键、{{gridid}} 表格标识、{{table}} 表名、{{editurl}} 编辑URL，以及任意行字段(小写)如 {{name}}"},"comlisteners":{},"labeloptions":{"show":false},"itemoptions":{"style":{"fontSize":"11px","color":"#909399","lineHeight":"1.5"}}},"validators":[],"childrenctrls":[],"slots":{},"extendinfo":{}}],"slots":{},"extendinfo":{}}'
 WHERE ComponentName='DynElButton';

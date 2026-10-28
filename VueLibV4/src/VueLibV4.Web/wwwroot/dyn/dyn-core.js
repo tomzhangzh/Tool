@@ -998,6 +998,132 @@ function serializeForm(root){
   return Object.keys(o).length>0 ? o : null;
 }
 
+/** 两位补零（日期格式化用） */
+function pad2(n){ return n<10 ? '0'+n : ''+n; }
+
+/** @description 跨 realm 安全的 Date 判断（instanceof 在 iframe/vm 中会失效） */
+function isDateObj(v){ return Object.prototype.toString.call(v)==='[object Date]'; }
+
+/** @description 跨 realm 安全的上传对象判断（Blob / File） */
+function isBlobObj(v){
+  if(v===null||typeof v!=='object') return false;
+  const tag=Object.prototype.toString.call(v);
+  return tag==='[object Blob]'||tag==='[object File]';
+}
+
+/**
+ * @description 日期格式化为 MVC 可解析的本地时间字符串 yyyy-MM-dd HH:mm:ss
+ * 说明：form 绑定按服务器区域设置解析，ISO 的 T/Z 形式可能失败或错时区，故统一转本地格式
+ * @param {Date} d
+ * @returns {string}
+ */
+function fmtDateForForm(d){
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+' '+
+         pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds());
+}
+
+/**
+ * @description 标量转表单字符串；返回 null 表示跳过该字段
+ * @param {any} v
+ * @returns {string|Blob|null}
+ */
+function formScalar(v){
+  if(v===null||v===undefined) return null;
+  if(isDateObj(v)) return fmtDateForForm(v);
+  if(typeof v==='string'){
+    // ISO 8601（含 T）转本地时间，避免 MVC 按区域解析失败
+    if(/^\d{4}-\d{2}-\d{2}T/.test(v)){
+      const d=new Date(v);
+      if(!isNaN(d.getTime())) return fmtDateForForm(d);
+    }
+    return v;
+  }
+  if(typeof v==='number') return isFinite(v)?String(v):null;
+  if(typeof v==='boolean') return v?'true':'false';
+  if(isBlobObj(v)) return v;   // 文件：原样保留，交给 FormData
+  return String(v);
+}
+
+/**
+ * @description 把对象拍平成 MVC 模型绑定字段（点路径 + 数组下标）
+ *   {Code:'A'}                -> Code=A
+ *   {Customer:{Name:'张三'}}   -> Customer.Name=张三
+ *   {Items:[{Id:1},{Id:2}]}   -> Items[0].Id=1 & Items[1].Id=2
+ *   {Tags:['x','y']}          -> Tags[0]=x & Tags[1]=y
+ * @param {any} obj 源对象
+ * @param {string} [prefix] 字段前缀
+ * @param {Array} [out] 累加器
+ * @param {object} [state] 内部状态（防循环引用 / 深度限制）
+ * @returns {Array<Array>} [[字段名, 值], ...]
+ */
+function toFormEntries(obj,prefix,out,state){
+  out = out||[];
+  state = state||{seen:new WeakSet(),depth:0};
+  if(obj===null||obj===undefined) return out;
+  if(state.depth>10){ console.warn('[dyn] toFormEntries 嵌套超过10层，已截断'); return out; }
+  if(Array.isArray(obj)){
+    for(let i=0;i<obj.length;i++){
+      toFormEntries(obj[i],(prefix||'')+'['+i+']',out,{seen:state.seen,depth:state.depth+1});
+    }
+    return out;
+  }
+  const isBlob = isBlobObj(obj);
+  if(typeof obj==='object' && !isBlob && !isDateObj(obj)){
+    if(state.seen.has(obj)) return out;           // 循环引用直接跳过
+    state.seen.add(obj);
+    Object.keys(obj).forEach(function(k){
+      if(k==='__ob__'||k.charAt(0)==='_') return;  // Vue 内部字段 / 私有字段
+      toFormEntries(obj[k],prefix?(prefix+'.'+k):k,out,{seen:state.seen,depth:state.depth+1});
+    });
+    return out;
+  }
+  const val=formScalar(obj);
+  if(val!==null && prefix) out.push([prefix,val]);
+  return out;
+}
+
+/** @description 读取页面防伪令牌（meta 或隐藏 input），无则返回 null */
+function antiForgeryToken(){
+  if(typeof document==='undefined') return null;
+  const meta=document.querySelector('meta[name="__RequestVerificationToken"]');
+  if(meta&&meta.content) return meta.content;
+  const input=document.querySelector('input[name="__RequestVerificationToken"]');
+  if(input&&input.value) return input.value;
+  return null;
+}
+
+/**
+ * @description 序列化为 application/x-www-form-urlencoded，供 MVC 自动模型绑定
+ * @param {any} obj 源对象（通常是 Vue model 或显式 body）
+ * @param {object} [opts] { rootKey, antiForgery, formEl }
+ * @returns {{body:string|null, entries:Array, hasFile:boolean}}
+ */
+function serializeFormData(obj,opts){
+  opts = opts||{};
+  let entries = toFormEntries(opts.rootKey ? {[opts.rootKey]:obj} : obj);
+  // 原生表单字段（有 name 的 input/select/textarea）优先，覆盖同名自动字段
+  if(opts.formEl){
+    const named=serializeForm(opts.formEl);
+    if(named){
+      Object.keys(named).forEach(function(k){
+        entries = entries.filter(function(e){ return e[0]!==k; });
+        entries.push([k,named[k]]);
+      });
+    }
+  }
+  // 防伪令牌：后端用 [ValidateAntiForgeryToken] 时必需
+  if(opts.antiForgery!==false && !entries.some(function(e){ return e[0]==='__RequestVerificationToken'; })){
+    const t=antiForgeryToken();
+    if(t) entries.push(['__RequestVerificationToken',t]);
+  }
+  const hasFile = entries.some(function(e){ return isBlobObj(e[1]); });
+  if(hasFile) return {body:null,entries:entries,hasFile:true};
+  const body = entries.map(function(e){
+    return encodeURIComponent(e[0])+'='+encodeURIComponent(String(e[1]));
+  }).join('&');
+  return {body:body,entries:entries,hasFile:false};
+}
+
 /**
  * @description 收集参数：model + 表单 + data-*属性
  * @param {HTMLElement} targetEl
@@ -1114,6 +1240,8 @@ const dyn = {
   params:function(el){ return global.DynParams?global.DynParams.fromEl(el):null; },
   attachParams:function(el,parentEl){ return global.DynParams?global.DynParams.ensure(el,parentEl):null; },
   fetchPartial,serializeForm,collectParams,
+  /** 表单模式：JSON → MVC 模型绑定字段（点路径/数组下标）+ 日期规约 + 防伪令牌 */
+  toFormEntries,serializeFormData,antiForgeryToken,
   reload,setDynCfg,getVueModel,
   getByPath,setPathVal,deepClone,html
 };

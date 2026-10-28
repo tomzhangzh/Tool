@@ -43,6 +43,29 @@ public class PageGenController : ControllerBase
     }
 
     /// <summary>
+    /// 类模式：列出可选的 C# 类（仅 VueLibV4 自有程序集），供向导第一步「按类生成」下拉。
+    /// 用法：GET /api/business/pagegen/classes?keyword=Course
+    /// </summary>
+    [HttpGet("classes")]
+    public ApiResult Classes(string? keyword = null)
+    {
+        return ApiResult.Ok(_pageGen.ListClasses(keyword));
+    }
+
+    /// <summary>
+    /// 类模式：读取类的字段元数据 + 推荐控件（与 fields 同构，前端第二步可直接复用）。
+    /// 用法：GET /api/business/pagegen/classfields?className=VueLibV4.Platform.Models.DynBlock
+    /// </summary>
+    [HttpGet("classfields")]
+    public ApiResult ClassFields(string className)
+    {
+        if (string.IsNullOrWhiteSpace(className)) return ApiResult.Fail("缺少类名");
+        var list = _pageGen.GetClassFieldMeta(className);
+        if (list.Count == 0) return ApiResult.Fail($"类 {className} 不存在或不含可用于页面的属性");
+        return ApiResult.Ok(list);
+    }
+
+    /// <summary>
     /// 预览（不落库）：复用 Generate 同一套规则，返回筛选/列表/详情三份配置 JSON，
     /// 前端用 dyn-dynamic-com 真实渲染预览抽屉。
     /// </summary>

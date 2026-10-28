@@ -279,6 +279,42 @@
     }
 
     /**
+     * 表单校验：扫描根元素内带 __dynValidate 钩子的动态组件节点，聚合去重后的错误消息。
+     * rootEl 兼容原始 DOM 元素与 Vue ref（自动解包 .value）。
+     * 消息优先级：节点 __dynErrors → 组件实例 validation.errors → 通用兜底文案。
+     */
+    function validateForm(rootEl) {
+        var root = (rootEl && typeof rootEl.querySelectorAll === 'function') ? rootEl
+            : (rootEl && rootEl.value && typeof rootEl.value.querySelectorAll === 'function') ? rootEl.value : null;
+        var errs = [];
+        if (!root) return errs;
+        var nodes = root.querySelectorAll('*');
+        for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            if (typeof n.__dynValidate !== 'function') continue;
+            try {
+                if (n.__dynValidate() === true) continue;
+                var msg = null;
+                if (n.__dynErrors && n.__dynErrors.length) {
+                    msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
+                }
+                if (!msg) {
+                    try {
+                        var inst = n.__vueParentComponent;
+                        var comp = inst && inst.proxy;
+                        if (comp && comp.comInnerInfo && comp.comInnerInfo.validation && comp.comInnerInfo.validation.errors) {
+                            comp.comInnerInfo.validation.errors.forEach(function (e) { if (e && e.message) msg = e.message; });
+                        }
+                    } catch (e) { }
+                }
+                if (!msg) msg = '存在未通过校验的字段';
+                if (errs.indexOf(msg) < 0) errs.push(msg);
+            } catch (e) { console.warn('[validateForm]', e); }
+        }
+        return errs;
+    }
+
+    /**
      * 按 comoptions.sourceType 加载下拉选项，结果通过 onOptions 回写。
      *   static - 静态 optionValues / optionValuesText
      *   dict   - 平台字典 DynDict（dictType）
@@ -447,6 +483,7 @@
     NC.evalConditionPatch = evalConditionPatch;
     NC.ensureDefaults = ensureDefaults;
     NC.runValidators = runValidators;
+    NC.validateForm = validateForm;
     NC.loadOptions = loadOptions;
     NC.getComlisteners = getComlisteners;
     NC.designRootClass = designRootClass;

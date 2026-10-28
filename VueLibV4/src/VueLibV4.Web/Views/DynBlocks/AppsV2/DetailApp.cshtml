@@ -112,25 +112,9 @@
             }
         },
         methods: {
+            // 表单校验：统一委托 NC.validateForm（扫描 __dynValidate 钩子并聚合错误）
             validateForm: function () {
-                var errs = [];
-                var nodes = element.querySelectorAll('*');
-                for (var i = 0; i < nodes.length; i++) {
-                    var n = nodes[i];
-                    if (typeof n.__dynValidate === 'function') {
-                        try {
-                            if (n.__dynValidate() !== true) {
-                                var msg = null;
-                                if (n.__dynErrors && n.__dynErrors.length) {
-                                    msg = n.__dynErrors.map(function (e) { return (e && e.message) || e; }).join('；');
-                                }
-                                if (!msg) msg = '存在未通过校验的字段';
-                                if (errs.indexOf(msg) < 0) errs.push(msg);
-                            }
-                        } catch (e) { console.warn('[detail validate]', e); }
-                    }
-                }
-                return errs;
+                return window.DynNodeConfig.validateForm(element);
             },
             newForm: function (preFill) {
                 this.form = Object.assign({}, JSON.parse(JSON.stringify(this.initForm)), preFill || {});

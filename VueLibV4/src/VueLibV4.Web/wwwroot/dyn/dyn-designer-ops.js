@@ -16,25 +16,46 @@ var __plugin = {
   }
 
   function metaOf(name) {
-    return (global.DynCom && global.DynCom.meta(name)) || {};
+    return (global.DynCom && global.DynCom.meta(name)) || null;
   }
 
+  // 元数据字段兼容 PascalCase（define 接口）/ camelCase（list 接口）两种下发形态
+  function metaFlag(m, pascal, camel) {
+    return !!(m && (m[pascal] || m[camel]));
+  }
+  // AllowDrop / CanDropInto 在库里是 JSON 数组原文（也可能已是数组）；非法值按空名单处理
+  function metaNameList(m, pascal, camel) {
+    if (!m) return [];
+    let raw = m[pascal];
+    if (raw === undefined || raw === null) raw = m[camel];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim()) {
+      try {
+        const v = JSON.parse(raw);
+        return Array.isArray(v) ? v : [];
+      } catch (e) { return []; }
+    }
+    return [];
+  }
+
+  // 唯一权威：ComponentMeta.IsContainer（视图层以使用 _ContainerLayout 的组件为准），不再按组件名猜
   function isContainer(name) {
-    const m = metaOf(name);
-    // 容器：AllowDrop 含 "*" 或组件名在容器白名单；粗判：有 childrenctrls 默认值或组件名含 Container/Form/Card/Tabs/Row/Collapse
-    if (m && m.CanDropInto) return true;
-    if (!name) return false;
-    return /Container|Form|Card|Tabs|Row|Col|Collapse|Table/.test(name);
+    return metaFlag(metaOf(name), 'IsContainer', 'isContainer');
   }
 
   function checkCanDrop(targetName, dragName) {
     if (!targetName || !dragName) return false;
     const m = metaOf(targetName);
-    if (m && m.AllowDrop && Array.isArray(m.AllowDrop)) {
-      if (m.AllowDrop.indexOf('*') >= 0) return true;
-      return m.AllowDrop.indexOf(dragName) >= 0;
+    if (!metaFlag(m, 'IsContainer', 'isContainer')) return false;
+    if (metaFlag(m, 'AcceptAll', 'acceptAll')) return true;
+    const allow = metaNameList(m, 'AllowDrop', 'allowDrop');
+    if (allow.indexOf('*') >= 0 || allow.indexOf(dragName) >= 0) return true;
+    // 容器未声明白名单时，参考子组件的 CanDropInto（子→父方向声明，如 DynElInput 声明可进 DynElFormItem）
+    if (!allow.length) {
+      const into = metaNameList(metaOf(dragName), 'CanDropInto', 'canDropInto');
+      return into.indexOf('*') >= 0 || into.indexOf(targetName) >= 0;
     }
-    return isContainer(targetName);
+    return false;
   }
 
   function findNode(root, uid) {
@@ -147,10 +168,17 @@ var __plugin = {
       if (!cfg.options.labeloptions) cfg.options.labeloptions = { label: '', required: false, show: true };
       if (!cfg.options.itemoptions) cfg.options.itemoptions = { style: {}, class: '' };
       const m = metaOf(cfg.component);
-      scope.overlay.label = m.Label || cfg.component;
+      scope.overlay.label = (m && (m.Label || m.label)) || cfg.component;
     }
-    setTimeout(() => updateOverlay(scope), 50);
-    setTimeout(() => updateOverlay(scope), 200);
+    scheduleOverlay(scope);
+  }
+
+  // 统一的选中框重定位：Vue DOM 更新完成后测一次；后续异步尺寸变化由画布 ResizeObserver 兜底，
+  // 不再用 50/200ms 魔法延时（图片加载、字体回流超过 200ms 时旧方案会错位）。
+  function scheduleOverlay(scope) {
+    const Vue = global.Vue;
+    if (Vue && Vue.nextTick) Vue.nextTick(() => updateOverlay(scope));
+    else setTimeout(() => updateOverlay(scope), 0);
   }
 
   function updateOverlay(scope) {
@@ -420,7 +448,7 @@ var __plugin = {
     const idx = activeIndex(scope);
     arr.splice(idx, 1);
     scope.previewActive = { uid: scope.selectedUid, index: Math.max(0, Math.min(idx, arr.length - 1)) };
-    setTimeout(() => updateOverlay(scope), 50);
+    scheduleOverlay(scope);
   }
   function stepActive(scope, dir) {
     const arr = childListOf(scope);
