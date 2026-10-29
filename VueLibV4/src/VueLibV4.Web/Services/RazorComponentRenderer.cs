@@ -62,7 +62,10 @@ public class RazorComponentRenderer
         catch (Exception ex)
         {
             _logger.LogError(ex, "渲染 Razor 组件失败: {ComponentName}", componentName);
-            return null;
+            // 视图存在却编译/渲染失败属于代码错误（如 RZ1006 缺少闭合花括号），
+            // 必须向上抛出暴露问题，不能静默返回 null 让调用方误以为组件不存在
+            throw new InvalidOperationException(
+                $"渲染组件 [{componentName}] 的视图 {viewPath} 失败：{ex.Message}", ex);
         }
     }
 

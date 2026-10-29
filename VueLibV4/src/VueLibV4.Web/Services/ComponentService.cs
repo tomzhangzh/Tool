@@ -74,28 +74,26 @@ public class ComponentService
 
         var row = _components.Query(c => c.ComponentName == componentName && c.IsActive).First();
 
-        // 1. ViewPath 指定的 Razor View 优先
+        // 1. ViewPath 指定的 Razor View 是唯一来源：渲染/解析失败直接报错，不静默回退 DB。
+        //    历史上这里 catch 后回退 DB，而 DB 中这类组件 TemplateContent/ScriptContent 为空，
+        //    结果把编译错误掩盖成"success=true + 空定义"，前端只看到组件加载不出内容。
         if (row != null && !string.IsNullOrWhiteSpace(row.ViewPath))
         {
-            try
-            {
-                var define = _razorRenderer.RenderByPath(row.ViewPath, componentName).GetAwaiter().GetResult();
-                if (define != null) return define;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "渲染 Razor 组件 {Name} 失败，尝试 DB", componentName);
-            }
+            var define = _razorRenderer.RenderByPath(row.ViewPath, componentName).GetAwaiter().GetResult();
+            if (define != null) return define;
+            throw new InvalidOperationException(
+                $"组件 [{componentName}] 的视图 {row.ViewPath} 未解析出 template/script，请检查该 .cshtml 的 Razor 标记");
         }
 
-        // 2. 回退数据库内组件内容
+        // 2. 回退数据库内组件内容（仅 ViewPath 为空的纯 DB 组件）
         if (row != null)
         {
             return new ComponentDefineDto
             {
                 ComponentName = componentName,
                 ComponentType = (int)ComponentType.Common,
-                RoutePath = row.Category,
+                // Category 是设计器面板的分组名（如"隐藏组件"），不是路由；此处不再复用
+                RoutePath = null,
                 TemplateContent = row.TemplateContent ?? "",
                 ScriptContent = row.ScriptContent ?? "",
                 StyleContent = row.StyleContent
@@ -113,8 +111,16 @@ public class ComponentService
         var result = new List<ComponentDefineDto>();
         foreach (var name in names)
         {
-            var define = GetDefineByName(name);
-            if (define != null) result.Add(define);
+            // 批量拉取用于设计器初始化：单个组件渲染失败不应拖垮整批，记录日志后跳过
+            try
+            {
+                var define = GetDefineByName(name);
+                if (define != null) result.Add(define);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "批量获取组件 [{Name}] 定义失败，已跳过", name);
+            }
         }
         return result;
     }
